@@ -111,6 +111,10 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: ["localhost", "127.0.0.1", ...localNetworkAddresses],
   images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "storage.googleapis.com", pathname: "/**" },
+      { protocol: "https", hostname: "firebasestorage.googleapis.com", pathname: "/**" },
+    ],
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 31536000,
     qualities: [58, 60, 62, 70, 72, 74, 75, 80, 85, 90],

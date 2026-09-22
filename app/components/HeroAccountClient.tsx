@@ -416,17 +416,8 @@ export default function HeroAccountClient({
   // The delivery editor lives on the partnership page (PartnershipDeliveryClient).
   const openDeliverySettings = () => router.push("/partnership#delivery");
 
-  // Guests always qualify (stable from first paint, no flicker risk).
-  // Logged-in users only qualify once the Firestore check confirms they have
-  // no prior orders. Before that check resolves, `user` is already a real
-  // object but `hasOrders` is still null — `!user || hasOrders === false`
-  // reads as true→false→(true|false) for that window: the item appeared
-  // optimistically, then got yanked out the instant login was confirmed,
-  // then possibly reappeared once the Firestore check landed. Wait for the
-  // full picture (auth ready, and the order check too if logged in) before
-  // computing the list at all, so it renders once and never changes.
-  const isBenefitsDataReady = isAuthReady && (!user || hasOrders !== null);
-
+  // Public benefits render immediately, including during SSR and auth failures.
+  // Only the personal discount requires confirmed eligibility.
   const benefitItems = useMemo((): Array<{
     id: string;
     icon: typeof Percent;
@@ -434,7 +425,7 @@ export default function HeroAccountClient({
     label: ReactNode;
     onClick: () => void;
   }> => {
-    const showDiscount = !user || hasOrders === false;
+    const showDiscount = isAuthReady && (!user || hasOrders === false);
 
     return [
       ...(showDiscount
@@ -490,7 +481,7 @@ export default function HeroAccountClient({
         onClick: () => router.push("/katalog?promo=1"),
       },
     ];
-  }, [hasOrders, isPartner, user, router]);
+  }, [hasOrders, isPartner, isAuthReady, user, router]);
 
   const actions = (() => {
     // Firebase auth state isn't known during SSR/first paint — rendering
@@ -505,7 +496,7 @@ export default function HeroAccountClient({
           <p className="font-display max-w-[30ch] text-[20px] font-semibold italic leading-snug text-sky-100/95 [text-shadow:0_2px_10px_rgba(2,6,23,0.92)] after:mx-auto after:mt-2.5 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-transparent after:via-sky-300/80 after:to-transparent sm:text-[23px]">
             <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
           </p>
-          <div className="flex min-h-[46px] min-w-[260px] items-center justify-center gap-2 sm:min-h-[48px] sm:min-w-[276px]">
+          <div className="flex min-h-[46px] w-full min-w-0 items-center justify-center gap-2 sm:min-h-[48px]">
             <span className="h-[46px] w-[126px] animate-pulse rounded-[10px] bg-white/10 sm:h-[48px] sm:w-[134px]" />
             <span className="h-[46px] w-[126px] animate-pulse rounded-[10px] bg-white/10 sm:h-[48px] sm:w-[134px]" />
           </div>
@@ -520,7 +511,7 @@ export default function HeroAccountClient({
             <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
           </p>
         )}
-        <div className="flex min-h-[46px] min-w-[260px] flex-wrap items-center justify-center gap-2 sm:min-h-[48px] sm:min-w-[276px]">
+        <div className="flex min-h-[46px] w-full min-w-0 flex-wrap items-center justify-center gap-2 sm:min-h-[48px]">
         {user ? (
           <>
             <button type="button" onClick={openCarPicker} className={vinButton}>
@@ -650,8 +641,7 @@ export default function HeroAccountClient({
           знижка на перше замовлення", to fit its 2-line clamp. No hover
           shift/translate here — border and background tint only. */}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2 text-[13px] font-semibold tracking-[-0.01em] text-white sm:text-[14px]">
-        {isBenefitsDataReady ? (
-          benefitItems.map(({ id, label, icon: Icon, onClick, tone }) => (
+        {benefitItems.map(({ id, label, icon: Icon, onClick, tone }) => (
             <li key={id} className="min-w-0">
               <button
                 type="button"
@@ -682,21 +672,7 @@ export default function HeroAccountClient({
                 </span>
               </button>
             </li>
-          ))
-        ) : (
-          // Same list, not yet known whether the discount row belongs — a
-          // static-height skeleton avoids the row count (and card height)
-          // changing once isBenefitsDataReady flips, instead of rendering
-          // an optimistic guess that then has to be corrected.
-          <>
-            <li aria-hidden="true">
-              <span className="block h-[92px] animate-pulse rounded-xl border border-white/10 bg-white/5" />
-            </li>
-            <li aria-hidden="true">
-              <span className="block h-[92px] animate-pulse rounded-xl border border-white/10 bg-white/5" />
-            </li>
-          </>
-        )}
+          ))}
       </ul>
     </div>
   );

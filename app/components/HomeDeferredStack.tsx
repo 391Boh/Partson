@@ -23,8 +23,10 @@ let lastSectionMountAt = 0;
 const loadProductSection = () => import("./tovar");
 const loadAutoSection = () => import("./Auto");
 const loadBrandsSection = () => import("./Brands");
-const preloadBrandsSection = () =>
-  Promise.all([loadBrandsSection(), prefetchManufacturerCounts()]);
+const preloadBrandsSection = () => {
+  void prefetchManufacturerCounts();
+  return loadBrandsSection();
+};
 
 const ProductFetcher = dynamic(loadProductSection, {
   ssr: false,
@@ -88,7 +90,7 @@ function DeferredHomeSection({
 
       const now = performance.now();
       const sinceLastMount = now - lastSectionMountAt;
-      if (sinceLastMount < MIN_SECTION_MOUNT_STAGGER_MS && waitedMs < MAX_SCROLL_MOUNT_DELAY_MS) {
+      if (sinceLastMount < MIN_SECTION_MOUNT_STAGGER_MS) {
         mountTimer = window.setTimeout(
           mountWhenScrollSettles,
           MIN_SECTION_MOUNT_STAGGER_MS - sinceLastMount
@@ -109,9 +111,14 @@ function DeferredHomeSection({
       // Fetch while the bounded scroll-settle delay runs. Only this section's
       // chunk/data are warmed; unused catalogue modules stay off the network.
       // The dynamic component/error boundary handles an actual load failure.
-      void preload().catch(() => undefined);
-      mountRequestedAt = performance.now();
-      mountWhenScrollSettles();
+      // Start the mount queue only when code is available. Otherwise several
+      // suspended dynamic imports can resolve and commit together, bypassing
+      // the spacing between setShouldMount calls entirely.
+      void preload().catch(() => undefined).then(() => {
+        if (cancelled) return;
+        mountRequestedAt = performance.now();
+        mountWhenScrollSettles();
+      });
     };
 
     const cleanup = () => {

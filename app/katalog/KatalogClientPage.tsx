@@ -359,7 +359,7 @@ const Katalog: React.FC<KatalogProps> = ({
   }, [searchParamsKey]);
 
   useEffect(() => {
-    if (resetParam !== '1') return;
+    if (resetParam !== '1' && resetParam !== 'search') return;
 
     skipRemoteLoadRef.current = true;
     setSelectedCars([]);
@@ -383,8 +383,10 @@ const Katalog: React.FC<KatalogProps> = ({
     nextParams.delete('reset');
     nextParams.delete('group');
     nextParams.delete('subcategory');
-    nextParams.delete('search');
-    nextParams.delete('filter');
+    if (resetParam !== 'search') {
+      nextParams.delete('search');
+      nextParams.delete('filter');
+    }
     nextParams.delete('carSearch');
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
@@ -394,7 +396,7 @@ const Katalog: React.FC<KatalogProps> = ({
     if (hasLoadedLocalRef.current) return;
     hasLoadedLocalRef.current = true;
     if (typeof window === 'undefined') return;
-    if (resetParam === '1') {
+    if (resetParam === '1' || resetParam === 'search') {
       setLocalReady(true);
       return;
     }
@@ -799,8 +801,10 @@ const Katalog: React.FC<KatalogProps> = ({
     const nextParams = new URLSearchParams(currentSearchParams.toString());
     nextParams.delete('group');
     nextParams.delete('subcategory');
-    nextParams.delete('search');
-    nextParams.delete('filter');
+    if (resetParam !== 'search') {
+      nextParams.delete('search');
+      nextParams.delete('filter');
+    }
     nextParams.delete('reset');
     nextParams.delete('carSearch');
     const nextQuery = nextParams.toString();

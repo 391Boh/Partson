@@ -79,25 +79,29 @@ export default function ProfileCompletionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="mb-2 text-2xl font-bold text-slate-900">
+    <div
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="floating-dialog-shell w-full max-w-md rounded-[20px] p-6">
+        <h2 className="font-display mb-2 text-2xl font-[760] text-white">
           Завершити профіль
         </h2>
-        <p className="mb-6 text-slate-600">
+        <p className="mb-6 text-slate-300">
           Привіт, {userName}! Telegram не передає телефон і email автоматично,
           тому їх потрібно підтвердити окремо.
         </p>
 
         {(telegramBotStatus === "sent" || telegramBotLink) && (
-          <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm text-slate-700">
+          <div className="mb-4 rounded-2xl border border-sky-300/25 bg-white/6 p-4 text-sm text-slate-200">
             {telegramBotStatus === "sent" ? (
-              <p className="font-semibold text-sky-900">
+              <p className="font-semibold text-sky-200">
                 Я вже надіслав запит у Telegram-бот. Поділіться телефоном там,
                 потім напишіть email.
               </p>
             ) : (
-              <p className="font-semibold text-sky-900">
+              <p className="font-semibold text-sky-200">
                 Відкрийте Telegram-бота, щоб він попросив телефон і email.
               </p>
             )}
@@ -111,7 +115,7 @@ export default function ProfileCompletionModal({
                 Відкрити Telegram-бота
               </a>
             ) : null}
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               Поля нижче можна заповнити вручну, якщо зручніше зробити це на сайті.
             </p>
           </div>
@@ -119,7 +123,7 @@ export default function ProfileCompletionModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-slate-300">
               Емейл
             </label>
             <input
@@ -127,13 +131,13 @@ export default function ProfileCompletionModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500"
+              className="mt-1 w-full rounded-[10px] border border-white/15 bg-white/6 px-3 py-2 text-white placeholder-slate-500 focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-slate-300">
               Телефон
             </label>
             <input
@@ -141,13 +145,13 @@ export default function ProfileCompletionModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+38 (0XX) XXX-XX-XX"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500"
+              className="mt-1 w-full rounded-[10px] border border-white/15 bg-white/6 px-3 py-2 text-white placeholder-slate-500 focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
               required
             />
           </div>
 
           {error && (
-            <div className="rounded bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-[10px] border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-200">
               {error}
             </div>
           )}
@@ -157,14 +161,14 @@ export default function ProfileCompletionModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 rounded border border-slate-300 bg-white px-4 py-2 font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+              className="flex-1 rounded-[10px] border border-white/15 bg-white/6 px-4 py-2 font-medium text-slate-200 transition hover:border-sky-300/50 hover:bg-white/12 hover:text-white disabled:opacity-50"
             >
               Пропустити
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded bg-sky-600 px-4 py-2 font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              className="flex-1 rounded-[10px] bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 font-medium text-white shadow-[0_12px_26px_rgba(2,132,199,0.28)] transition hover:brightness-105 disabled:opacity-50"
             >
               {loading ? "Збереження..." : "Зберегти"}
             </button>

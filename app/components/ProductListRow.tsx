@@ -8,8 +8,9 @@ import ProductCardImage from "app/components/ProductCardImage";
 import type { Product } from "app/components/Data";
 import { buildVisibleCategoryLabel, buildVisibleProductName } from "app/lib/product-url";
 import { useProductDescription } from "app/lib/use-product-description";
-import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
-import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
+import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import { parseAdminPriceInput, parseAdminQtyInput } from "app/lib/product-admin-validation";
+import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
 
 type AdminEditResult = { ok: boolean; error?: string; quantity?: number };
 
@@ -139,9 +140,12 @@ const ProductListRow: React.FC<Props> = ({
     const [fieldError, setFieldError] = useState<string | null>(null);
 
     const frontImageInputRef = useRef<HTMLInputElement | null>(null);
-    const [frontImageSaving, setFrontImageSaving] = useState(false);
-    const [frontImageError, setFrontImageError] = useState<string | null>(null);
-    const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
+    const {
+        saving: frontImageSaving,
+        error: frontImageError,
+        localImageSrc,
+        handleFileChange: handleFrontImageChange,
+    } = useProductAdminImageUpload({ onAdminEdit, code, article });
 
     const [isExpanded, setIsExpanded] = useState(false);
     // A hover (desktop) reliably precedes the click that actually expands
@@ -178,11 +182,12 @@ const ProductListRow: React.FC<Props> = ({
 
     const savePrice = async () => {
         if (!onAdminEdit) return;
-        const val = priceVal.trim() ? Number(priceVal) : undefined;
-        if (val === undefined || !Number.isFinite(val) || val < 0) {
-            setFieldError("Введіть коректну ціну");
+        const parsed = parseAdminPriceInput(priceVal);
+        if ("error" in parsed) {
+            setFieldError(parsed.error);
             return;
         }
+        const val = parsed.value;
         setSaving(true);
         setFieldError(null);
         const result = await onAdminEdit(showCostPrice ? { costPriceEuro: val } : { priceEuro: val }).catch(() => ({
@@ -197,41 +202,14 @@ const ProductListRow: React.FC<Props> = ({
         closeEdit();
     };
 
-    const handleFrontImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        e.target.value = "";
-        if (!file || !onAdminEdit) return;
-        setFrontImageSaving(true);
-        setFrontImageError(null);
-        try {
-            const prepared = await prepareProductImage(file);
-            const result = await onAdminEdit({
-                imageDataUrl: prepared.dataUrl,
-                imageName: prepared.fileName,
-            }).catch(() => ({ ok: false as const, error: "Помилка мережі" }));
-            if (result?.ok) {
-                clearProductImageSuccess(code, article || undefined);
-                clearProductImageMissing(code, article || undefined);
-                setLocalImageSrc(prepared.dataUrl);
-            } else {
-                setFrontImageError(result?.error ?? "Помилка завантаження");
-                setTimeout(() => setFrontImageError(null), 6000);
-            }
-        } catch (error) {
-            setFrontImageError(error instanceof Error ? error.message : "Не вдалося обробити зображення");
-            setTimeout(() => setFrontImageError(null), 6000);
-        } finally {
-            setFrontImageSaving(false);
-        }
-    };
-
     const saveQty = async (type: "receipt" | "sale") => {
-        if (!onAdminEdit) return;
-        const n = Number(qtyVal.replace(",", "."));
-        if (!Number.isFinite(n) || n <= 0) {
-            setFieldError("Введіть число > 0");
+        if (!onAdminEdit || saving) return;
+        const parsed = parseAdminQtyInput(qtyVal);
+        if ("error" in parsed) {
+            setFieldError(parsed.error);
             return;
         }
+        const n = parsed.value;
         setSaving(true);
         setFieldError(null);
         const result = await onAdminEdit(type === "receipt" ? { receipt: n } : { sale: n }).catch(() => ({

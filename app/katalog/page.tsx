@@ -36,6 +36,7 @@ import {
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
+import { carBrands } from "app/components/carBrands";
 import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildProductImagePath, buildProductSeoImagePath } from "app/lib/product-image-path";
@@ -100,6 +101,7 @@ type InitialCatalogPagePayload = {
   nextCursor: string;
   cursorField?: string;
   totalCount?: number | null;
+  correctedQuery?: string;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -186,8 +188,10 @@ const fetchCatalogSeoSnapshotPayload = async (
     producer: query.producer,
     expandHierarchy: query.expandHierarchy === true,
     sortOrder: "none",
-    timeoutMs: INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED,
-    retries: 1,
+    // The outer SSR budget controls first paint; shared 1C requests must
+    // retain a normal timeout so a 350ms SSR attempt cannot abort live search.
+    timeoutMs: 4200,
+    retries: 0,
     retryDelayMs: 140,
     cacheTtlMs: 1000 * 60 * 15,
     includePriceEnrichment: false,
@@ -203,9 +207,17 @@ const fetchCatalogSeoSnapshotPayload = async (
   // snapshot for its full 15-minute revalidate window — without this, one
   // transient 1C blip made the catalog's first-paint items AND its "total
   // products" counter read empty/wrong for 15 minutes after 1C recovered.
+  //
+  // A text search hits the same failure mode even more reliably: this
+  // snapshot's own timeoutMs (INITIAL_CATALOG_SSR_TIMEOUT_MS_FILTERED,
+  // 350ms) is far shorter than the 1.1-3.9s a real filtered/search 1C query
+  // takes, so the very first visitor for any given search term almost
+  // always times out to an empty result here — which would otherwise get
+  // cached as "no matches" for 15 minutes for every later visitor typing
+  // the same thing, even though the product genuinely exists.
   const isUnfilteredQuery =
     !query.searchQuery && !query.group && !query.subcategory && !query.producer;
-  if (result.items.length === 0 && isUnfilteredQuery) {
+  if (result.items.length === 0 && (isUnfilteredQuery || Boolean(query.searchQuery))) {
     throw new Error("Catalog getdata failed: no products returned for unfiltered SEO snapshot");
   }
 
@@ -217,12 +229,13 @@ const fetchCatalogSeoSnapshotPayload = async (
     nextCursor: result.nextCursor,
     cursorField: result.cursorField || "",
     totalCount: result.totalCount ?? null,
+    correctedQuery: result.correctedQuery,
   };
 };
 
 const getCatalogSeoSnapshotPayloadCached = unstable_cache(
   fetchCatalogSeoSnapshotPayload,
-  ["catalog-seo-snapshot-v5-all-products"],
+  ["catalog-seo-snapshot-v6-unified-search"],
   {
     revalidate: 60 * 15,
     tags: ["catalog-seo-snapshot"],
@@ -442,6 +455,10 @@ const buildCatalogSeoHeading = (state: CatalogSeoState) =>
               ? `${state.group} — каталог автозапчастин PartsON`
               : `Автозапчастини у Львові: каталог, ціни та наявність — PartsON`;
 
+const CAR_BRAND_LOGO_BY_NAME_LOWER = new Map(
+  carBrands.map((brand) => [brand.name.toLowerCase(), brand.logo])
+);
+
 // "Популярні моделі авто" used to link straight into homeSeoContent's
 // curated bare model-family names ("Audi A4", "BMW 3 Series"). Those read
 // fine as copy but don't exist as routes: /auto/[brand]/[model] only
@@ -453,7 +470,9 @@ const buildCatalogSeoHeading = (state: CatalogSeoState) =>
 // the curated brand popularity order and preferring a generation that
 // actually belongs to one of the curated model families, so the section
 // still reads the same way it always did.
-const buildPopularAutoModels = async (): Promise<Array<{ brand: string; model: string }>> => {
+const buildPopularAutoModels = async (): Promise<
+  Array<{ brand: string; model: string; logo: string | null }>
+> => {
   const verifiedKeys = await getVerifiedAutoModelKeys();
   if (!verifiedKeys) return [];
 
@@ -475,7 +494,7 @@ const buildPopularAutoModels = async (): Promise<Array<{ brand: string; model: s
     }
   }
 
-  const popularModels: Array<{ brand: string; model: string }> = [];
+  const popularModels: Array<{ brand: string; model: string; logo: string | null }> = [];
 
   for (const { brand, models: genericModels } of homeSeoContent.modelGroups) {
     if (popularModels.length >= 12) break;
@@ -497,8 +516,9 @@ const buildPopularAutoModels = async (): Promise<Array<{ brand: string; model: s
       if (!picked.includes(real)) picked.push(real);
     }
 
+    const logo = CAR_BRAND_LOGO_BY_NAME_LOWER.get(brand.toLowerCase()) ?? null;
     for (const model of picked) {
-      popularModels.push({ brand, model });
+      popularModels.push({ brand, model, logo });
     }
   }
 
@@ -1118,14 +1138,30 @@ const CatalogSeoSnapshot = async ({
               </Link>
             </div>
             <ul className="catalog-seo-model-list" role="list">
-              {popularModels.map(({ brand, model }) => (
+              {popularModels.map(({ brand, model, logo }) => (
                   <li key={`${brand}-${model}`}>
                     <Link
                       href={buildAutoModelPath(brand, model)}
                       className="catalog-seo-model-link group"
                       aria-label={`Запчастини для ${brand} ${model}`}
                     >
-                      <span className="min-w-0">
+                      <span className="catalog-seo-model-logo">
+                        {logo ? (
+                          <Image
+                            src={logo}
+                            alt=""
+                            width={28}
+                            height={28}
+                            sizes="22px"
+                            loading="lazy"
+                            unoptimized={logo.endsWith(".svg")}
+                            className="h-[18px] w-[18px] object-contain"
+                          />
+                        ) : (
+                          <Car size={13} aria-hidden />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
                         <span className="block truncate text-[11.5px] font-extrabold text-slate-800 group-hover:text-sky-700">
                           {brand} {model}
                         </span>
@@ -1145,9 +1181,9 @@ const CatalogSeoSnapshot = async ({
             aria-label="Розділи каталогу"
             className="catalog-seo-navigation border-t border-sky-100 bg-[linear-gradient(145deg,#f8fbff,#eef8ff_55%,#f8fcff)] px-4 py-6 sm:px-7"
           >
-            <div className="grid gap-3.5">
+            <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
               {topGroups.length > 0 && (
-                <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
+                <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
                       <ListTree size={12} aria-hidden />
@@ -1185,7 +1221,7 @@ const CatalogSeoSnapshot = async ({
                 </div>
               )}
               {topProducers.length > 0 && (
-                <div className="rounded-[18px] border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.055)] ring-1 ring-sky-100/80">
+                <div className="sm:border-l sm:border-slate-200/70 sm:pl-8">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
                       <Tags size={12} aria-hidden />

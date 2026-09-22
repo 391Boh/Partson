@@ -9,12 +9,10 @@ import { brands } from "app/components/brandsData";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
-import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import { parseAdminQtyInput } from "app/lib/product-admin-validation";
+import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
 import { useProductDescription } from "app/lib/use-product-description";
-import {
-    clearProductImageMissing,
-    clearProductImageSuccess,
-} from "app/lib/product-image-client";
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
@@ -363,14 +361,16 @@ const [quickEditQty, setQuickEditQty] = useState(false);
 const [quickQtyVal, setQuickQtyVal] = useState('');
 const [quickQtySaving, setQuickQtySaving] = useState(false);
 const [quickQtyError, setQuickQtyError] = useState<string | null>(null);
-const [localQuantity, setLocalQuantity] = useState(item.quantity ?? 0);
-useEffect(() => { setLocalQuantity(item.quantity ?? 0); }, [item.quantity]);
+
 
 // Front image upload
 const frontImageInputRef = useRef<HTMLInputElement | null>(null);
-const [frontImageSaving, setFrontImageSaving] = useState(false);
-const [frontImageError, setFrontImageError] = useState<string | null>(null);
-const [localImageSrc, setLocalImageSrc] = useState<string | null>(null);
+const {
+    saving: frontImageSaving,
+    error: frontImageError,
+    localImageSrc,
+    handleFileChange: handleFrontImageChange,
+} = useProductAdminImageUpload({ onAdminEdit, code: item.code, article: item.article });
 
 const [editGroup, setEditGroup] = useState(item.group ?? '');
 const [editSubGroup, setEditSubGroup] = useState(item.subGroup ?? '');
@@ -396,37 +396,6 @@ const enterEditMode = () => {
     fetchMetaSuggestions('category', cat);
     fetchMetaSuggestions('group', grp, cat);
     fetchMetaSuggestions('subGroup', sub, grp);
-};
-
-const handleFrontImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !onAdminEdit) return;
-    setFrontImageSaving(true);
-    setFrontImageError(null);
-    try {
-        const prepared = await prepareProductImage(file);
-        const result = await onAdminEdit({
-            imageDataUrl: prepared.dataUrl,
-            imageName: prepared.fileName,
-        }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
-        if (result?.ok) {
-            // The card displays the prepared image immediately, while clearing
-            // both browser-side outcomes ensures a later remount revalidates
-            // the freshly uploaded image instead of restoring an old hit/miss.
-            clearProductImageSuccess(item.code, item.article || undefined);
-            clearProductImageMissing(item.code, item.article || undefined);
-            setLocalImageSrc(prepared.dataUrl);
-        } else {
-            setFrontImageError(result?.error ?? 'Помилка завантаження');
-            setTimeout(() => setFrontImageError(null), 6000);
-        }
-    } catch (error) {
-        setFrontImageError(error instanceof Error ? error.message : 'Не вдалося обробити зображення');
-        setTimeout(() => setFrontImageError(null), 6000);
-    } finally {
-        setFrontImageSaving(false);
-    }
 };
 
 const handleQuickPriceSave = async () => {
@@ -509,9 +478,10 @@ const handleQuickProducerSave = async () => {
 };
 
 const handleQuickQtySave = async (type: 'receipt' | 'sale') => {
-    if (!onAdminEdit) return;
-    const n = Number(quickQtyVal.replace(',', '.'));
-    if (!Number.isFinite(n) || n <= 0) { setQuickQtyError('Введіть число > 0'); return; }
+    if (!onAdminEdit || quickQtySaving) return;
+    const parsedQty = parseAdminQtyInput(quickQtyVal);
+    if ('error' in parsedQty) { setQuickQtyError(parsedQty.error); return; }
+    const n = parsedQty.value;
     setQuickQtySaving(true);
     setQuickQtyError(null);
     const result = await onAdminEdit(type === 'receipt' ? { receipt: n } : { sale: n }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
@@ -520,11 +490,6 @@ const handleQuickQtySave = async (type: 'receipt' | 'sale') => {
         setQuickQtyError(result?.error ?? 'Помилка збереження');
         setTimeout(() => setQuickQtyError(null), 4000);
         return;
-    }
-    if (typeof result.quantity === 'number') {
-        setLocalQuantity(result.quantity);
-    } else {
-        setLocalQuantity((prev) => type === 'receipt' ? prev + n : Math.max(0, prev - n));
     }
     setQuickQtyVal('');
     setQuickEditQty(false);
@@ -1241,12 +1206,12 @@ useEffect(() => {
                                     aria-hidden="true"
                                     data-nosnippet
                                     data-label={
-                                        localQuantity > 0
-                                            ? `В наявності · ${localQuantity} шт.`
+                                        quantity > 0
+                                            ? `В наявності · ${quantity} шт.`
                                             : "Під замовлення"
                                     }
                                     className={`text-[11px] font-medium before:content-[attr(data-label)] ${
-                                        localQuantity > 0 ? "text-green-600" : "text-orange-600"
+                                        quantity > 0 ? "text-green-600" : "text-orange-600"
                                     }`}
                                 />
                                 {isAdmin && onAdminEdit && !quickEditQty && (

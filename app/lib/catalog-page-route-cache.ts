@@ -13,6 +13,10 @@ export type CatalogPageApiPayload = {
   serviceUnavailable?: boolean;
   message?: string;
   stale?: boolean;
+  // Set when the literal search query returned nothing and a keyboard-layout
+  // correction (e.g. a UA-typed query read as EN) found results instead —
+  // these items match this corrected query, not the one the client sent.
+  correctedQuery?: string;
 };
 
 export type RouteSuccessCacheEntry = {

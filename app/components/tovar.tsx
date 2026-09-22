@@ -20,7 +20,7 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
 import GroupPreviewImage, { loadGroupPreview } from "app/components/GroupPreviewImage";
 import SectionPagination from "./SectionPagination";
-import TovarPartsBackdrop from "app/components/TovarPartsBackdrop";
+import { DeferredCategoryBackdrop } from "./DeferredHomeVisuals";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
 interface CategoryRow {
@@ -1069,7 +1069,7 @@ const ProductFetcher: React.FC<Props> = ({
       // teal manufacturers section without the previous sharp purple band.
       className="home-fade-in group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-100 bg-[radial-gradient(150%_120%_at_-25%_-30%,rgba(14,165,233,0.09),transparent_66%),radial-gradient(150%_120%_at_125%_130%,rgba(103,232,249,0.07),transparent_64%),linear-gradient(178deg,#edf7fb_0%,#f5fbfd_50%,#edf8f8_100%)] pb-5 pt-5 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(3,105,161,0.07),0_14px_36px_-16px_rgba(8,145,178,0.09)] transition-[border-color,box-shadow] duration-500 hover:border-sky-200 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(3,105,161,0.11),inset_0_0_120px_-46px_rgba(56,189,248,0.22),0_24px_54px_-20px_rgba(8,145,178,0.13)] sm:pb-6 sm:pt-6"
     >
-      <TovarPartsBackdrop />
+      <DeferredCategoryBackdrop />
       {/* top bridge — receives the car-picker's indigo fade */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(206,216,255,0.5)_0%,rgba(206,216,255,0.08)_55%,transparent_100%)]" />
       {/* bottom bridge — eases into the manufacturers section */}
@@ -1081,295 +1081,16 @@ const ProductFetcher: React.FC<Props> = ({
       <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/selector:shadow-[0_0_22px_rgba(56,189,248,0.38)]" />
       <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(14,116,144,0.16),transparent)]" />
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
-      {/* Heading + search now sit in the left, wide (1.08fr) slot and the
-          category grid in the right, narrow (0.92fr) slot — the two swapped
+      {/* Category list now sits in the left, wide slot and the
+          heading + search block in the right slot — the two swapped
           which slot they occupy, the track widths themselves are unchanged. */}
       <div
         ref={catsRevealRef}
-        className={`section-reveal-cats ${catsRevealClassName} page-shell-inline relative z-10 grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10`}
+        className={`section-reveal-cats ${catsRevealClassName} home-category-grid page-shell-inline relative z-10 grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10`}
       >
-        <motion.aside
-        {...entryMotion}
-        className="group/search relative z-10 w-full min-w-0 lg:self-center"
-      >
-            <div className="reveal-head relative max-w-[440px] overflow-hidden rounded-[26px] border border-sky-200/70 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.86)_58%,rgba(236,254,255,0.80)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(3,105,161,0.28),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:max-w-none lg:p-7">
-              {/* One framed card now holds eyebrow → heading → search →
-                  all-groups link as a single cohesive block, instead of the
-                  four sitting loose on the section background — gives the
-                  heading and search button the same visual weight as the
-                  category cards next to them. */}
-              <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
-              {/* Soft glow behind the heading — light, blurred wash lifting
-                  the title off the card, clipped by overflow-hidden. */}
-              <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
-              {/* Simple icon + text, matching HeroIntroCard's eyebrow —
-                  dropped the glowing dot and trailing hairline, and sized
-                  the icon square the same as Auto.tsx/Brands.tsx (h-10 w-10)
-                  instead of a slightly smaller one, for one consistent
-                  eyebrow across all the homepage's picker sections. */}
-              <div className="flex items-center gap-3">
-                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-[0_12px_28px_-8px_rgba(14,165,233,0.40),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(3,105,161,0.32)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
-                  {/* Original simple line-art categories mark (four rounded
-                      tiles) — same style language as HeroIntroCard's own
-                      custom eyebrow SVG and the other homepage sections'
-                      eyebrow icons, instead of a generic lucide-react glyph. */}
-                  <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="13" y="13" width="7.5" height="7.5" rx="1.6" />
-                  </svg>
-                </span>
-                <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-sky-700">
-                  Каталог
-                </span>
-              </div>
-
-              {/* title — oversized display, two-tone */}
-              <h2 className="relative mt-4 font-display text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-                Каталог автозапчастин
-                <br className="hidden min-[420px]:block" />{" "}
-                <span className="text-sky-700">за категоріями</span>
-              </h2>
-
-              <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
-
-              {/* lead — concrete category examples read as more informative
-                  than "categories and groups" while staying just as short;
-                  points at the cards below by content ("оберіть категорію"),
-                  not by screen position ("поруч" — meaningless once this
-                  card and the grid stack on mobile). */}
-              <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-                Деталі згруповано за{" "}
-                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова. Оберіть категорію або скористайтеся{" "}
-                <span className="font-semibold text-sky-700">пошуком</span>.
-              </p>
-
-              {/* search — the primary action. Same collapse-to-button
-                  pattern as Auto.tsx's "Швидкий пошук": starts as a
-                  trigger pill, expands into the field on click, tinted
-                  sky blue to match this section instead of Auto's dark
-                  glass panel (this heading sits directly on a light
-                  card, not inside a dark nav panel). */}
-              <div className="mt-5">
-                <AnimatePresence mode="wait" initial={false}>
-                  {!isSearchOpen ? (
-                    <motion.div
-                      key="buttons"
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                      className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
-                    >
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.currentTarget.blur();
-                          setIsSearchOpen(true);
-                        }}
-                        onMouseLeave={(event) => event.currentTarget.blur()}
-                        className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                      >
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
-                          <Search size={16} strokeWidth={2.2} aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Пошук у каталозі</span>
-                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Швидкий пошук</span>
-                        </span>
-                        <ChevronRight
-                          size={16}
-                          strokeWidth={3}
-                          aria-hidden
-                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
-                        />
-                      </button>
-
-                      {/* Same card design as the search trigger beside it, so
-                          the two read as one consistent action set (like "Усі
-                          марки автомобілів" beside Auto.tsx's search field). */}
-                      <Link
-                        href="/groups"
-                        onClick={(event) => event.currentTarget.blur()}
-                        onMouseLeave={(event) => event.currentTarget.blur()}
-                        className="group/allgroups inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                      >
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allgroups:scale-[1.06] group-hover/allgroups:border-sky-300 group-hover/allgroups:bg-sky-200">
-                          <LayoutGrid size={16} strokeWidth={2.2} aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Весь каталог</span>
-                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Усі групи товарів</span>
-                        </span>
-                        <ChevronRight
-                          size={16}
-                          strokeWidth={3}
-                          aria-hidden
-                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/allgroups:translate-x-1"
-                        />
-                      </Link>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="field"
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    >
-                      <ProductSearchInput
-                        searchTerm={searchTerm}
-                        onSearchChange={setSearchTerm}
-                        suggestions={searchSuggestions}
-                        onCollapse={() => setIsSearchOpen(false)}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
-                  {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
-                  <strong className="font-extrabold tabular-nums text-sky-700">
-                    {showSkeleton ? "—" : filteredRows.length}
-                  </strong>
-                  {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
-                </span>
-              </div>
-
-              <div className="hidden" aria-hidden="true">
-                {showSkeleton ? (
-                  <motion.div
-                    key="loading"
-                    initial={shouldAnimate ? { opacity: 0 } : false}
-                    animate={shouldAnimate ? { opacity: 1 } : undefined}
-                    className="rounded-xl border border-cyan-100/80 bg-white/80 px-3 py-4 text-sm text-slate-600"
-                  >
-                    <LoadingNotice
-                      shouldAnimate={shouldAnimate}
-                      title={"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0443\u0454\u043c\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"}
-                      subtitle={"\u0417\u0431\u0438\u0440\u0430\u0454\u043c\u043e \u0433\u0440\u0443\u043f\u0438 \u0442\u0430 \u043f\u0456\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457..."}
-                    />
-                    <div className="mt-3 grid grid-cols-1 gap-2">
-                      {Array.from({ length: 5 }).map((_, index) => (
-                        <div
-                          key={`cat-skeleton-${index}`}
-                          className="skeleton-card h-10 w-full rounded-xl border border-cyan-100/70 bg-gradient-to-r from-cyan-50 via-white to-teal-50"
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                ) : displayedRows.length > 0 && searchTerm.trim() ? (
-                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {displayedRows.map((row) => {
-                      const isActive = selectedCategories.includes(row.id);
-                      const displayLeaf = getDisplayLabel(row.leaf);
-                      const trailLabel =
-                        row.path.slice(0, -1).map(getDisplayLabel).join(" / ") ||
-                        getDisplayLabel(row.group);
-                      const catalogPath = getCategoryRowCatalogPath(row);
-                      return (
-                        <CatalogPrefetchLink
-                          key={row.id}
-                          href={catalogPath}
-                          onClick={(event) => {
-                            event.currentTarget.blur();
-                            handleRowSelect(row);
-                          }}
-                          onMouseLeave={(event) => event.currentTarget.blur()}
-                          className={`group/row relative w-full overflow-hidden rounded-[11px] border px-3 py-2 text-left transition-[border-color,background-color,color] duration-200 ${
-                            isActive
-                              ? "border-sky-400 bg-sky-50 text-sky-900"
-                              : "border-slate-200/90 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50/60"
-                          }`}
-                        >
-                          <div
-                            className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ${
-                              isActive
-                                ? "opacity-100 bg-[image:radial-gradient(circle_at_10%_10%,rgba(34,211,238,0.18),transparent_40%),radial-gradient(circle_at_90%_20%,rgba(56,189,248,0.14),transparent_38%)]"
-                                : "group-hover/row:opacity-100 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.16),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.12),transparent_38%)]"
-                            }`}
-                          />
-                          <div className="relative flex items-center gap-2.5">
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              <div className="truncate text-sm font-semibold text-slate-800">
-                                {displayLeaf}
-                              </div>
-                              <div className="truncate text-xs text-slate-500/90">
-                                {trailLabel}
-                              </div>
-                            </div>
-                            <span
-                              className={`inline-flex h-7 w-7 flex-none items-center justify-center rounded-lg border transition-all duration-300 ${
-                                isActive
-                                  ? "border-cyan-400/80 bg-white text-cyan-700 shadow-[0_6px_16px_rgba(6,182,212,0.28),0_2px_6px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.9)]"
-                                  : "border-sky-200/80 bg-white/90 text-sky-500 shadow-[0_2px_6px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] group-hover/row:border-cyan-300/80 group-hover/row:bg-cyan-50 group-hover/row:text-cyan-600 group-hover/row:shadow-[0_6px_16px_rgba(6,182,212,0.22),0_2px_6px_rgba(8,145,178,0.14)]"
-                              }`}
-                            >
-                              <ChevronRight
-                                size={14}
-                                className="transition-transform duration-300 group-hover/row:translate-x-[2px]"
-                              />
-                            </span>
-                          </div>
-                        </CatalogPrefetchLink>
-                      );
-                    })}
-                  </div>
-                ) : productLoadError ? (
-                  <motion.div
-                    key="error"
-                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
-                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
-                    transition={{ duration: 0.25 }}
-                    className="rounded-xl border border-red-200/80 bg-gradient-to-br from-red-50 via-white to-red-50/60 px-4 py-5 text-center shadow-[0_4px_14px_rgba(220,38,38,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
-                  >
-                    <div className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white shadow-[0_2px_8px_rgba(220,38,38,0.10)]">
-                      <X size={16} className="text-red-400" />
-                    </div>
-                    <div className="text-[13px] font-bold text-red-600">Помилка завантаження</div>
-                    <div className="mt-1 text-[11px] text-red-400/90">{productLoadError}</div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="empty"
-                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
-                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
-                    transition={{ duration: 0.25 }}
-                    className="rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50/70 via-white to-blue-50/50 px-4 py-5 text-center shadow-[0_4px_14px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
-                  >
-                    <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-100/90 bg-white shadow-[0_2px_8px_rgba(8,145,178,0.12)]">
-                      <Search size={15} className="text-sky-400" />
-                    </div>
-                    <div className="text-[13px] font-bold text-slate-700">Нічого не знайдено</div>
-                    {searchTerm ? (
-                      <>
-                        <div className="mt-1 text-[11px] text-slate-400">
-                          За запитом{" "}
-                          <span className="font-semibold text-slate-600">«{searchTerm}»</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSearchTerm("")}
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50"
-                        >
-                          <X size={11} />
-                          Очистити пошук
-                        </button>
-                      </>
-                    ) : (
-                      <div className="mt-1 text-[11px] text-slate-400">Спробуйте інший запит</div>
-                    )}
-                  </motion.div>
-                )}
-              
-            </div>
-            </div>
-        </motion.aside>
-
         <motion.div {...entryMotion} className="relative z-10 min-w-0">
         {filteredGroups.length > 0 ? (
-          <div className="relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
+          <div className="home-category-cards relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
             {/* No more edge arrows flanking the grid — they moved down next
                 to the "Сторінка X/Y" readout below, so the grid itself no
                 longer needs the px-6/px-8 side padding that used to clear
@@ -1382,6 +1103,20 @@ const ProductFetcher: React.FC<Props> = ({
               >
               <div className="flex">
               {groupPages.map((pageGroups, pageIndex) => {
+                // Preserve rail width and snap targets without constructing every
+                // card. Adjacent pages are ready before a swipe reaches them.
+                if (Math.abs(pageIndex - (page - 1)) > 1) {
+                  return (
+                    <div
+                      key={pageIndex}
+                      data-group-page
+                      aria-hidden="true"
+                      className="w-full min-w-full flex-none snap-start px-1 pb-3 [scroll-snap-stop:always] sm:px-1.5 sm:pb-4"
+                    >
+                      <div className="h-[350px] sm:h-[392px]" />
+                    </div>
+                  );
+                }
                 const cardElements = pageGroups.map((group, index) => {
                       const id = pageIndex * browseItemsPerPage + index;
                       const label = buildVisibleProductName(group.name);
@@ -1710,6 +1445,285 @@ const ProductFetcher: React.FC<Props> = ({
         )}
 
         </motion.div>
+
+        <motion.aside
+        {...entryMotion}
+        className="group/search relative z-10 w-full min-w-0 lg:self-center"
+      >
+            <div className="reveal-head relative max-w-[440px] overflow-hidden rounded-[26px] border border-sky-200/70 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.86)_58%,rgba(236,254,255,0.80)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(3,105,161,0.28),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:max-w-none lg:p-7">
+              {/* One framed card now holds eyebrow → heading → search →
+                  all-groups link as a single cohesive block, instead of the
+                  four sitting loose on the section background — gives the
+                  heading and search button the same visual weight as the
+                  category cards next to them. */}
+              <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+              {/* Soft glow behind the heading — light, blurred wash lifting
+                  the title off the card, clipped by overflow-hidden. */}
+              <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
+              {/* Simple icon + text, matching HeroIntroCard's eyebrow —
+                  dropped the glowing dot and trailing hairline, and sized
+                  the icon square the same as Auto.tsx/Brands.tsx (h-10 w-10)
+                  instead of a slightly smaller one, for one consistent
+                  eyebrow across all the homepage's picker sections. */}
+              <div className="flex items-center gap-3">
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-[0_12px_28px_-8px_rgba(14,165,233,0.40),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(3,105,161,0.32)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
+                  {/* Original simple line-art categories mark (four rounded
+                      tiles) — same style language as HeroIntroCard's own
+                      custom eyebrow SVG and the other homepage sections'
+                      eyebrow icons, instead of a generic lucide-react glyph. */}
+                  <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" />
+                    <rect x="13" y="13" width="7.5" height="7.5" rx="1.6" />
+                  </svg>
+                </span>
+                <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-sky-700">
+                  Каталог
+                </span>
+              </div>
+
+              {/* title — oversized display, two-tone */}
+              <h2 className="relative mt-4 font-display text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
+                Каталог автозапчастин
+                <br className="hidden min-[420px]:block" />{" "}
+                <span className="text-sky-700">за категоріями</span>
+              </h2>
+
+              <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
+
+              {/* lead — concrete category examples read as more informative
+                  than "categories and groups" while staying just as short;
+                  points at the cards below by content ("оберіть категорію"),
+                  not by screen position ("поруч" — meaningless once this
+                  card and the grid stack on mobile). */}
+              <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+                Деталі згруповано за{" "}
+                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова. Оберіть категорію або скористайтеся{" "}
+                <span className="font-semibold text-sky-700">пошуком</span>.
+              </p>
+
+              {/* search — the primary action. Same collapse-to-button
+                  pattern as Auto.tsx's "Швидкий пошук": starts as a
+                  trigger pill, expands into the field on click, tinted
+                  sky blue to match this section instead of Auto's dark
+                  glass panel (this heading sits directly on a light
+                  card, not inside a dark nav panel). */}
+              <div className="mt-5">
+                <AnimatePresence mode="wait" initial={false}>
+                  {!isSearchOpen ? (
+                    <motion.div
+                      key="buttons"
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                      className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
+                    >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.currentTarget.blur();
+                          setIsSearchOpen(true);
+                        }}
+                        onMouseLeave={(event) => event.currentTarget.blur()}
+                        className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
+                          <Search size={16} strokeWidth={2.2} aria-hidden />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Пошук у каталозі</span>
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Швидкий пошук</span>
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          strokeWidth={3}
+                          aria-hidden
+                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
+                        />
+                      </button>
+
+                      {/* Same card design as the search trigger beside it, so
+                          the two read as one consistent action set (like "Усі
+                          марки автомобілів" beside Auto.tsx's search field). */}
+                      <Link
+                        href="/groups"
+                        onClick={(event) => event.currentTarget.blur()}
+                        onMouseLeave={(event) => event.currentTarget.blur()}
+                        className="group/allgroups inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allgroups:scale-[1.06] group-hover/allgroups:border-sky-300 group-hover/allgroups:bg-sky-200">
+                          <LayoutGrid size={16} strokeWidth={2.2} aria-hidden />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Весь каталог</span>
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Усі групи товарів</span>
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          strokeWidth={3}
+                          aria-hidden
+                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/allgroups:translate-x-1"
+                        />
+                      </Link>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="field"
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                    >
+                      <ProductSearchInput
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        suggestions={searchSuggestions}
+                        onCollapse={() => setIsSearchOpen(false)}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
+                  {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
+                  <strong className="font-extrabold tabular-nums text-sky-700">
+                    {showSkeleton ? "—" : filteredRows.length}
+                  </strong>
+                  {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
+                </span>
+              </div>
+
+              <div className="hidden" aria-hidden="true">
+                {showSkeleton ? (
+                  <motion.div
+                    key="loading"
+                    initial={shouldAnimate ? { opacity: 0 } : false}
+                    animate={shouldAnimate ? { opacity: 1 } : undefined}
+                    className="rounded-xl border border-cyan-100/80 bg-white/80 px-3 py-4 text-sm text-slate-600"
+                  >
+                    <LoadingNotice
+                      shouldAnimate={shouldAnimate}
+                      title={"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0443\u0454\u043c\u043e \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457"}
+                      subtitle={"\u0417\u0431\u0438\u0440\u0430\u0454\u043c\u043e \u0433\u0440\u0443\u043f\u0438 \u0442\u0430 \u043f\u0456\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457..."}
+                    />
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={`cat-skeleton-${index}`}
+                          className="skeleton-card h-10 w-full rounded-xl border border-cyan-100/70 bg-gradient-to-r from-cyan-50 via-white to-teal-50"
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : displayedRows.length > 0 && searchTerm.trim() ? (
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {displayedRows.map((row) => {
+                      const isActive = selectedCategories.includes(row.id);
+                      const displayLeaf = getDisplayLabel(row.leaf);
+                      const trailLabel =
+                        row.path.slice(0, -1).map(getDisplayLabel).join(" / ") ||
+                        getDisplayLabel(row.group);
+                      const catalogPath = getCategoryRowCatalogPath(row);
+                      return (
+                        <CatalogPrefetchLink
+                          key={row.id}
+                          href={catalogPath}
+                          onClick={(event) => {
+                            event.currentTarget.blur();
+                            handleRowSelect(row);
+                          }}
+                          onMouseLeave={(event) => event.currentTarget.blur()}
+                          className={`group/row relative w-full overflow-hidden rounded-[11px] border px-3 py-2 text-left transition-[border-color,background-color,color] duration-200 ${
+                            isActive
+                              ? "border-sky-400 bg-sky-50 text-sky-900"
+                              : "border-slate-200/90 bg-white text-slate-800 hover:border-sky-300 hover:bg-sky-50/60"
+                          }`}
+                        >
+                          <div
+                            className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 ${
+                              isActive
+                                ? "opacity-100 bg-[image:radial-gradient(circle_at_10%_10%,rgba(34,211,238,0.18),transparent_40%),radial-gradient(circle_at_90%_20%,rgba(56,189,248,0.14),transparent_38%)]"
+                                : "group-hover/row:opacity-100 bg-[image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,0.16),transparent_42%),radial-gradient(circle_at_86%_16%,rgba(56,189,248,0.12),transparent_38%)]"
+                            }`}
+                          />
+                          <div className="relative flex items-center gap-2.5">
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="truncate text-sm font-semibold text-slate-800">
+                                {displayLeaf}
+                              </div>
+                              <div className="truncate text-xs text-slate-500/90">
+                                {trailLabel}
+                              </div>
+                            </div>
+                            <span
+                              className={`inline-flex h-7 w-7 flex-none items-center justify-center rounded-lg border transition-all duration-300 ${
+                                isActive
+                                  ? "border-cyan-400/80 bg-white text-cyan-700 shadow-[0_6px_16px_rgba(6,182,212,0.28),0_2px_6px_rgba(8,145,178,0.18),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                                  : "border-sky-200/80 bg-white/90 text-sky-500 shadow-[0_2px_6px_rgba(8,145,178,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] group-hover/row:border-cyan-300/80 group-hover/row:bg-cyan-50 group-hover/row:text-cyan-600 group-hover/row:shadow-[0_6px_16px_rgba(6,182,212,0.22),0_2px_6px_rgba(8,145,178,0.14)]"
+                              }`}
+                            >
+                              <ChevronRight
+                                size={14}
+                                className="transition-transform duration-300 group-hover/row:translate-x-[2px]"
+                              />
+                            </span>
+                          </div>
+                        </CatalogPrefetchLink>
+                      );
+                    })}
+                  </div>
+                ) : productLoadError ? (
+                  <motion.div
+                    key="error"
+                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-xl border border-red-200/80 bg-gradient-to-br from-red-50 via-white to-red-50/60 px-4 py-5 text-center shadow-[0_4px_14px_rgba(220,38,38,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                  >
+                    <div className="mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white shadow-[0_2px_8px_rgba(220,38,38,0.10)]">
+                      <X size={16} className="text-red-400" />
+                    </div>
+                    <div className="text-[13px] font-bold text-red-600">Помилка завантаження</div>
+                    <div className="mt-1 text-[11px] text-red-400/90">{productLoadError}</div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="empty"
+                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                    animate={shouldAnimate ? { opacity: 1, y: 0 } : undefined}
+                    transition={{ duration: 0.25 }}
+                    className="rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50/70 via-white to-blue-50/50 px-4 py-5 text-center shadow-[0_4px_14px_rgba(8,145,178,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                  >
+                    <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-sky-100/90 bg-white shadow-[0_2px_8px_rgba(8,145,178,0.12)]">
+                      <Search size={15} className="text-sky-400" />
+                    </div>
+                    <div className="text-[13px] font-bold text-slate-700">Нічого не знайдено</div>
+                    {searchTerm ? (
+                      <>
+                        <div className="mt-1 text-[11px] text-slate-400">
+                          За запитом{" "}
+                          <span className="font-semibold text-slate-600">«{searchTerm}»</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm("")}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-sky-700 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50"
+                        >
+                          <X size={11} />
+                          Очистити пошук
+                        </button>
+                      </>
+                    ) : (
+                      <div className="mt-1 text-[11px] text-slate-400">Спробуйте інший запит</div>
+                    )}
+                  </motion.div>
+                )}
+              
+            </div>
+            </div>
+        </motion.aside>
       </div>
     </section>
   );

@@ -1,16 +1,10 @@
-import ReactDOM from "react-dom";
+import Image from "next/image";
+import heroPhoto from "../../public/storefront/photos/partson-store-1.webp";
 import { Factory, Package, Car } from "lucide-react";
 
 import LazyHeroAccountClient from "./LazyHeroAccountClient";
 import HeroIntroCard from "./HeroIntroCard";
 import HeroParallaxBackground from "./HeroParallaxBackground";
-
-// The hero photo is a CSS background-image (discovered late, low priority by
-// default). Preloading it — only on pages that actually render the hero —
-// lets the browser start the fetch alongside the CSS/fonts instead of after
-// first layout, so the hero paints complete sooner. webp is what virtually
-// every current browser resolves from the `image-set()` in globals.css.
-const HERO_PHOTO = "/storefront/photos/partson-store-1.webp";
 
 // Was 5 separate absolutely-positioned <span> overlays + 2 CSS-class-driven
 // ::before/::after pseudo-elements stacked on top of this section (~8
@@ -60,12 +54,6 @@ const depthBackgroundSize = "auto, auto, auto, auto, auto, auto, auto, auto";
 const depthBackgroundPosition = "0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0";
 
 const Hero = () => {
-  ReactDOM.preload(HERO_PHOTO, {
-    as: "image",
-    type: "image/webp",
-    fetchPriority: "high",
-  });
-
   return (
     <section
       // `<main>` skips its usual pt-header-offset on the homepage (see
@@ -80,7 +68,17 @@ const Hero = () => {
       // spacing, so the header height is still accounted for.
       className="hero-section-smooth group/hero font-ui relative isolate z-[1] flex min-h-[400px] w-full select-none items-start overflow-hidden pt-[calc(var(--header-height,4rem)+1.5rem)] pb-6 sm:min-h-[450px] sm:items-center sm:pt-[calc(var(--header-height,4rem)+2.25rem)] sm:pb-9 lg:min-h-[510px] lg:pt-[calc(var(--header-height,4rem)+3rem)] lg:pb-12"
       >
-      <HeroParallaxBackground />
+      <HeroParallaxBackground>
+        <Image
+          src={heroPhoto}
+          alt=""
+          fill
+          preload
+          sizes="100vw"
+          quality={70}
+          style={{ objectFit: "cover", objectPosition: "center 38%" }}
+        />
+      </HeroParallaxBackground>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[1]"
@@ -98,55 +96,20 @@ const Hero = () => {
           too strong a wash across the whole section. */}
       <span className="home-scroll-decor pointer-events-none absolute inset-0 z-[2] opacity-0 transition-opacity duration-[900ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/hero:opacity-65 bg-[image:radial-gradient(ellipse_240%_120%_at_50%_-12%,rgba(125,211,252,0.16)_0%,rgba(56,189,248,0.06)_38%,transparent_60%),radial-gradient(ellipse_170%_92%_at_6%_4%,rgba(56,189,248,0.18)_0%,rgba(56,189,248,0.04)_44%,transparent_68%),radial-gradient(ellipse_120%_66%_at_94%_5%,rgba(56,189,248,0.10)_0%,rgba(37,99,235,0.02)_42%,transparent_64%),radial-gradient(ellipse_160%_78%_at_50%_112%,rgba(56,189,248,0.16)_0%,rgba(14,165,233,0.07)_42%,transparent_68%),linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.01)_28%,transparent_52%)]" />
       <div className="page-shell-inline relative z-10">
-        {/* 2 columns now, not 3 — the login/register buttons used to have
-            their own centered middle column; they now live under the
-            benefits card instead (bottom-right of this column), so that
-            column is gone and the benefits column gets its width back. */}
-        {/* Intro column widened from 460px — at the current heading sizes,
-            460px forced "Зручний онлайн каталог" onto two lines. */}
-        {/* items-stretch, not items-center — both columns already carry
-            `justify-center` internally (HeroIntroCard's root div, and the
-            benefits card below) expecting to center their own content
-            within a shared row height, matching how Auto.tsx's own
-            "same 1.08/0.92 split as Hero" header row stretches its two
-            columns. Under items-center that inner justify-center was a
-            no-op: each column's box already tightly wrapped its content,
-            so the two never actually aligned to one grid row — the taller
-            one just pushed the row height without the shorter one filling
-            or centering into it. */}
-        <div className="relative grid gap-6 text-slate-100 md:grid-cols-[minmax(0,1.06fr)_minmax(340px,0.94fr)] md:items-stretch lg:gap-10">
+        {/* A generous intro balances the compact account and benefits panel. */}
+        <div className="home-hero-grid relative grid gap-6 text-slate-100 md:grid-cols-[minmax(0,1.06fr)_minmax(340px,0.94fr)] md:items-stretch lg:gap-10">
           <HeroIntroCard />
 
           {/* Right column: one glass card — the account panel plus the
               "online catalogue" intro line + VIN/analog/delivery chips
               beneath it, split by a hairline. */}
           <div
-            className="hero-account-surface hero-reveal-item flex min-w-0 flex-col justify-center gap-4 rounded-[24px] border border-white/30 bg-slate-950/70 p-4 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-5"
-            style={{ ["--rd" as string]: "180ms" }}
+            className="hero-account-surface flex min-w-0 flex-col justify-center gap-4 rounded-[24px] border border-white/30 bg-slate-950/70 p-4 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-5"
           >
             <LazyHeroAccountClient variant="panel" />
 
             <div className="border-t border-white/12 pt-4">
-              {/* Copy below was rewritten to stop restating HeroIntroCard's
-                  own VIN/marka eyebrow, the H1's delivery line and Brands'/
-                  AdvantagesSection's "оригінали й аналоги" wording — all of
-                  which already sit in the same fold. This panel now carries
-                  its own, non-overlapping claim: the catalog's real scale,
-                  as three stat chips instead of three restated value props.
-                  No eyebrow label here (dropped, matched the stat chips'
-                  own icons for redundancy) — the gradient card gives the
-                  line enough visual weight on its own. */}
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(120deg,rgba(8,47,73,0.6)_0%,rgba(3,105,161,0.4)_48%,rgba(6,95,70,0.32)_100%)] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] sm:p-4">
-                <span className="pointer-events-none absolute -right-6 -top-10 h-28 w-28 rounded-full bg-cyan-300/20 blur-2xl" />
-                <span className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-emerald-300/15 blur-2xl" />
-                <h2 className="relative text-[13px] font-black uppercase tracking-[0.1em] text-cyan-100 sm:text-[14px]">
-                  Каталог PartsON
-                </h2>
-                <p className="relative mt-1 text-[14px] font-semibold leading-[1.45] text-slate-50 sm:text-[15px]">
-                  Десятки тисяч деталей від перевірених виробників — для популярних марок авто.
-                </p>
-              </div>
-              <div className="mt-3.5 grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-200/40 bg-cyan-300/15 px-2 py-2.5 text-center">
                   <Factory className="h-4 w-4 text-cyan-100" strokeWidth={2.2} aria-hidden="true" />
                   <span className="text-[16px] font-black leading-none text-white sm:text-[18px]">130+</span>

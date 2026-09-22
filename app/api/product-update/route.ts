@@ -167,15 +167,13 @@ export async function POST(request: NextRequest) {
   const description = readOptionalString("description", "Описание");
 
   // Quantity fields: absolute set, receipt (add), sale (subtract)
-  const readQuantity = (key: string) => {
-    const raw = value[key];
-    if (raw === undefined || raw === null || raw === "") return undefined;
-    const n = Number(raw);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
-  };
-  const quantity = readQuantity("quantity") ?? readQuantity("Кількість");
-  const receipt = readQuantity("receipt") ?? readQuantity("Поступлення");
-  const sale = readQuantity("sale") ?? readQuantity("Реалізація");
+  const quantity = readNonNegativeNumber(value, "quantity", "Кількість");
+  const receipt = readNonNegativeNumber(value, "receipt", "Поступлення");
+  const sale = readNonNegativeNumber(value, "sale", "Реалізація");
+  const stockValues = [quantity, receipt, sale].filter((n) => n !== undefined);
+  if (stockValues.some((n) => n === null || !Number.isSafeInteger(n)) || stockValues.length > 1) {
+    return json({ ok: false, error: "Вкажіть одну операцію з цілою невід’ємною кількістю" }, 400);
+  }
   const hasPriceUpdate = priceEuro !== undefined || costPriceEuro !== undefined;
 
   const oneCBody: Record<string, unknown> = { Код: code };
@@ -223,7 +221,7 @@ export async function POST(request: NextRequest) {
     method: "POST",
     body: oneCBody,
     timeoutMs: 20_000,
-    retries: 1,
+    retries: stockValues.length ? 0 : 1,
     retryDelayMs: 300,
     cacheTtlMs: 0,
   });
@@ -253,7 +251,9 @@ export async function POST(request: NextRequest) {
     product_result?: { success?: boolean; message?: string; error_message?: string; Наименование?: string; НомерПоКаталогу?: string; ПроизводительНаименование?: string };
     price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
     photo_result?: { success?: boolean; message?: string; error_message?: string; file_name?: string };
-    quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number; КількістьДо?: number };
+    Кількість?: number | string;
+    quantity?: number | string;
+    quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number | string; КількістьДо?: number };
   } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
     parsed.price_result === undefined &&
     parsed.photo_result === undefined;
 
-  if (isCatalogFormatResponse && parsed.count === 0) {
+  if (isCatalogFormatResponse) {
     return json(
       {
         ok: false,
@@ -334,7 +334,7 @@ export async function POST(request: NextRequest) {
   // Bust ISR page cache so the next render fetches fresh data from 1C.
   // Use specific paths to avoid busting ALL pre-built product pages at once.
   try {
-    revalidateTag("product-page-data", "max");
+    revalidateTag("product-page-data", { expire: 0 });
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
     if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
   } catch {
@@ -342,6 +342,15 @@ export async function POST(request: NextRequest) {
   }
 
   // Prefer confirmed values from 1C results, fall back to sent values
+  const rawQuantity = parsed.quantity_result?.Кількість ?? parsed.Кількість ?? parsed.quantity;
+  const confirmedQuantity = typeof rawQuantity === "number"
+    ? rawQuantity
+    : typeof rawQuantity === "string" && rawQuantity.trim()
+      ? Number(rawQuantity.replace(",", ".")) : undefined;
+  if (stockValues.length && (confirmedQuantity === undefined || !Number.isFinite(confirmedQuantity))) {
+    return json({ ok: false, error: "1С не підтвердила поточний залишок. Оновіть товар перед повторною зміною кількості." }, 502);
+  }
+
   const confirmedPriceEuro =
     typeof parsed.price_result?.ЦінаПрод === "number" ? parsed.price_result.ЦінаПрод : priceEuro;
   const confirmedCostPriceEuro =
@@ -367,8 +376,8 @@ export async function POST(request: NextRequest) {
     ...(confirmedCatalogNumber ? { catalogNumber: confirmedCatalogNumber } : {}),
     ...(producer !== undefined ? { producer } : {}),
     ...(image.fileName ? { fileName: image.fileName } : {}),
-    ...(parsed.quantity_result?.Кількість !== undefined
-      ? { quantity: parsed.quantity_result.Кількість, "Кількість": parsed.quantity_result.Кількість }
+    ...(confirmedQuantity !== undefined
+      ? { quantity: confirmedQuantity, "Кількість": confirmedQuantity }
       : {}),
   });
 }

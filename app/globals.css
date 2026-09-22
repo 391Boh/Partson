@@ -430,15 +430,8 @@ html.is-scrolling .home-glow-section :is(a, button, img, article) {
   transition-property: none !important;
 }
 
-/* With a mouse, the viewport moves under a stationary pointer and Chrome
-   repeatedly enters/leaves cards. Suspend hit-testing only for the duration
-   of the native wheel gesture; 80ms after scrollend LayoutHost restores it,
-   so the final card receives one clean, intentional hover transition. */
-@media (hover: hover) and (pointer: fine) {
-  html.is-scrolling .home-static {
-    pointer-events: none;
-  }
-}
+/* Keep links clickable during momentum scrolling. Large decorative hover
+   planes are disabled permanently below instead of toggling hit testing. */
 
 /* A lazy section can become ready in the middle of a trackpad gesture. Never
    combine its reveal animation and skeleton crossfade with active scrolling. */
@@ -1326,15 +1319,13 @@ html.is-scrolling .section-reveal-advantages .reveal-adv-cards > * {
 }
 
 .hero-photo-in {
-  animation: heroPhotoIn 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Keep the wrapper static: only the photo needs a composited layer. */
   background: #050b24;
   contain: layout paint style;
 }
 
-/* hero background photo — jpg base, webp (~60% lighter) where `image-set()`
-   with a type() hint is understood */
+/* The responsive hero image is rendered in HTML and preloaded by next/image. */
 .hero-photo {
-  background-image: url("/storefront/photos/partson-store-1.jpg");
   backface-visibility: hidden;
   opacity: 0.72;
   transition: opacity 520ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1354,8 +1345,7 @@ html.is-scrolling .hero-photo {
   background: radial-gradient(circle 360px at 52% 38%, rgba(125, 211, 252, 0.18), rgba(56, 189, 248, 0.06) 42%, transparent 72%);
   opacity: 0.76;
   backface-visibility: hidden;
-  transform: translate3d(17px, 0, 0);
-  transform-origin: 52% 38%;
+  /* Static light needs no transform or separately promoted texture. */
 }
 
 .hero-parallax-sweep {
@@ -1392,15 +1382,6 @@ html.is-scrolling .hero-photo {
 .section-reveal-advantages .reveal-adv-cta { transition-delay: 350ms; }
 .section-reveal-advantages:not(.is-revealed) .reveal-adv-cta {
   opacity: 0; transform: translate3d(0, 32px, 0) scale(.92);
-}
-
-@supports (background-image: image-set(url("/x.webp") type("image/webp"))) {
-  .hero-photo {
-    background-image: image-set(
-      url("/storefront/photos/partson-store-1.webp") type("image/webp"),
-      url("/storefront/photos/partson-store-1.jpg") type("image/jpeg")
-    );
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2131,83 +2112,6 @@ html.is-scrolling .card-metal::after {
   animation: catalogLoaderLine 1.15s ease-in-out infinite;
 }
 
-/* The next-page action is a deliberate visual anchor below the product grid.
-   Depth comes from static paint layers, so hover never shifts nearby content. */
-.catalog-load-more-button {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border-color: rgba(125, 211, 252, 0.72);
-  background:
-    radial-gradient(ellipse at 18% -30%, rgba(255, 255, 255, 0.4) 0%, transparent 54%),
-    linear-gradient(115deg, #0369a1 0%, #0284c7 32%, #0ea5e9 62%, #0d9488 100%);
-  background-size: 180% 100%;
-  background-position: 0% 50%;
-  color: #fff;
-  box-shadow:
-    0 4px 8px rgba(15, 23, 42, 0.1),
-    0 15px 30px rgba(2, 132, 199, 0.26),
-    0 28px 54px -30px rgba(13, 148, 136, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -2px 0 rgba(3, 105, 161, 0.3);
-  text-shadow: 0 1px 2px rgba(3, 105, 161, 0.35);
-  transition:
-    background-position 420ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 260ms ease,
-    box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 260ms ease;
-}
-
-.catalog-load-more-button::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 1px;
-  pointer-events: none;
-  border-radius: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: linear-gradient(105deg, transparent 18%, rgba(255, 255, 255, 0.13) 48%, transparent 72%);
-}
-
-.catalog-load-more-icon {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.96);
-  filter: drop-shadow(0 2px 3px rgba(3, 105, 161, 0.38));
-}
-
-.catalog-load-more-button > .catalog-modern-loader {
-  z-index: 2;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .catalog-load-more-button:not(:disabled):hover {
-    background-position: 100% 50%;
-    border-color: rgba(165, 243, 252, 0.9);
-    box-shadow:
-      0 5px 10px rgba(15, 23, 42, 0.11),
-      0 18px 36px rgba(2, 132, 199, 0.34),
-      0 32px 60px -30px rgba(13, 148, 136, 0.7),
-      0 0 0 4px rgba(125, 211, 252, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -2px 0 rgba(3, 105, 161, 0.24);
-    filter: saturate(1.06) brightness(1.03);
-  }
-}
-
-.catalog-load-more-button:not(:disabled):active {
-  transform: none;
-  filter: brightness(0.98);
-}
-
-.catalog-load-more-button:disabled::after {
-  opacity: 0.45;
-}
-
 @keyframes catalogLoaderOrbit {
   to { transform: rotate(360deg); }
 }
@@ -2700,6 +2604,14 @@ h4, h5, h6 {
     letter-spacing: -0.014em;
     line-height: 1.06;
     text-wrap: balance;
+  }
+
+  /* Homepage section headings pair heavy weight with the italic slant from
+     .font-display; at this size/weight the slant costs more legibility than
+     it adds emphasis, especially for Cyrillic. Keep the weight and per-
+     heading tracking, drop only the italic. */
+  .font-display-readable {
+    font-style: normal;
   }
 
   .page-shell-inline {
@@ -3389,17 +3301,7 @@ body::-webkit-scrollbar-corner,
     box-shadow: 0 10px 22px rgba(14, 116, 144, 0.15), inset 0 1px 0 #fff;
   }
 
-  /* --profile (account) keeps the light hover treatment; --auth/--order/
-     --contact get a dark-glass equivalent below instead. */
-  .customer-overlay-panel--profile.app-overlay-panel .soft-segment:not(.soft-segment--active):hover {
-    transform: none;
-    border-color: rgba(56, 189, 248, 0.46);
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(224, 242, 254, 0.88));
-    color: #0369a1;
-    box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(14, 116, 144, 0.09);
-  }
-
-  :is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-segment:not(.soft-segment--active):hover {
+  :is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-segment:not(.soft-segment--active):hover {
     transform: none;
     border-color: rgba(125, 211, 252, 0.4);
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(56, 189, 248, 0.1));
@@ -3407,13 +3309,7 @@ body::-webkit-scrollbar-corner,
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 18px rgba(2, 6, 23, 0.24);
   }
 
-  .customer-overlay-panel--profile.app-overlay-panel .app-panel-close-button:hover {
-    transform: rotate(8deg) scale(1.08);
-    color: #0284c7;
-    filter: drop-shadow(0 7px 12px rgba(14, 165, 233, 0.3));
-  }
-
-  :is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .app-panel-close-button:hover {
+  :is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .app-panel-close-button:hover {
     transform: rotate(8deg) scale(1.08);
     color: #7dd3fc;
     filter: drop-shadow(0 7px 12px rgba(56, 189, 248, 0.4));
@@ -3496,6 +3392,31 @@ body::-webkit-scrollbar-corner,
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   color: #e2e8f0;
   backdrop-filter: blur(22px) saturate(170%);
+}
+
+/* For dialogs that can't use the .app-overlay-panel positioning system
+   (PaymentMethod's LiqPay window is portalled to document.body and needs
+   to stay a centered dialog stacked on top of the Order panel rather than
+   anchored to the header; ProfileCompletionModal is a simple standalone
+   prompt with no header panel to anchor to at all) — same dark-navy glass
+   recipe as .app-overlay-panel.soft-modal-shell above, applied directly. */
+.floating-dialog-shell {
+  position: relative;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(56, 189, 248, 0.18), transparent 34%),
+    radial-gradient(circle at 92% 6%, rgba(16, 185, 129, 0.1), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(37, 99, 235, 0.12), transparent 42%),
+    linear-gradient(160deg, rgba(15, 23, 42, 0.96) 0%, rgba(15, 32, 54, 0.94) 52%, rgba(8, 47, 73, 0.92) 100%);
+  box-shadow:
+    0 30px 88px rgba(2, 6, 23, 0.46),
+    0 14px 36px rgba(8, 47, 73, 0.28),
+    0 4px 12px rgba(2, 6, 23, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
 }
 
 .app-overlay-panel {
@@ -3615,19 +3536,7 @@ body::-webkit-scrollbar-corner,
     0 14px 30px rgba(15, 23, 42, 0.08);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-surface-card {
-  border-color: rgba(226, 232, 240, 0.86);
-  background:
-    radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.96), transparent 34%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.93) 100%);
-  color: #1e293b;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 14px 30px rgba(2, 6, 23, 0.16),
-    0 5px 14px rgba(14, 165, 233, 0.08);
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-surface-card {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-surface-card {
   border-color: rgba(148, 163, 184, 0.26);
   background:
     radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.08), transparent 34%),
@@ -3658,10 +3567,7 @@ body::-webkit-scrollbar-corner,
     0 12px 24px rgba(14, 165, 233, 0.08);
 }
 
-/* auth/order/contact only use .soft-note nested under .app-overlay-panel
-   (AccountInfo/--profile never renders it), so this dark variant is a plain
-   override — no light fallback to preserve. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-note {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-note {
   border-color: rgba(125, 211, 252, 0.32);
   background: rgba(255, 255, 255, 0.05);
   color: #cbd5e1;
@@ -3717,10 +3623,9 @@ body::-webkit-scrollbar-corner,
     0 12px 24px rgba(14, 165, 233, 0.1);
 }
 
-/* auth/order/contact only (AccountInfo/--profile never renders .soft-field):
-   a translucent dark field instead of an opaque white one pasted on navy —
+/* Translucent dark field instead of an opaque white one pasted on navy —
    same language as the header quick-search's own <input>. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field {
   border-color: rgba(148, 163, 184, 0.3);
   background: rgba(255, 255, 255, 0.06);
   color: #f1f5f9;
@@ -3729,11 +3634,11 @@ body::-webkit-scrollbar-corner,
     0 8px 18px rgba(2, 6, 23, 0.2);
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field::placeholder {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field::placeholder {
   color: #94a3b8;
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field:focus {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-field:focus {
   border-color: rgba(125, 211, 252, 0.6);
   background: rgba(255, 255, 255, 0.1);
   box-shadow:
@@ -4141,7 +4046,7 @@ body::-webkit-scrollbar-corner,
 }
 
 /* Order.tsx only (AccountInfo/--profile never renders .soft-chip). */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-chip {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-chip {
   border-color: rgba(148, 163, 184, 0.3);
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
@@ -4344,26 +4249,7 @@ body::-webkit-scrollbar-corner,
     radial-gradient(circle at 22% 84%, rgba(16, 185, 129, 0.14), transparent 26%);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-hero {
-  border-color: rgba(226, 232, 240, 0.9);
-  color: #1e293b;
-  background:
-    radial-gradient(circle at 96% 4%, rgba(56, 189, 248, 0.14), transparent 36%),
-    radial-gradient(circle at 6% 92%, rgba(16, 185, 129, 0.09), transparent 34%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 249, 255, 0.94) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 18px 38px rgba(2, 6, 23, 0.16),
-    0 7px 16px rgba(14, 165, 233, 0.08);
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-hero::before {
-  background:
-    radial-gradient(circle at 86% 18%, rgba(56, 189, 248, 0.12), transparent 28%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 58%, rgba(20, 184, 166, 0.08));
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-hero {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-hero {
   border-color: rgba(125, 211, 252, 0.22);
   color: #e2e8f0;
   background:
@@ -4376,7 +4262,7 @@ body::-webkit-scrollbar-corner,
     0 7px 16px rgba(14, 165, 233, 0.12);
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-hero::before {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-hero::before {
   background:
     radial-gradient(circle at 86% 18%, rgba(56, 189, 248, 0.16), transparent 28%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 58%, rgba(45, 212, 191, 0.08));
@@ -4418,7 +4304,7 @@ body::-webkit-scrollbar-corner,
 }
 
 /* Order.tsx / OrderConfirmation.tsx only — no --profile usage to preserve. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-card {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-card {
   border-color: rgba(148, 163, 184, 0.24);
   background: rgba(255, 255, 255, 0.05);
   padding: 0.6rem 0.7rem;
@@ -4439,7 +4325,7 @@ body::-webkit-scrollbar-corner,
   color: #64748b;
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-label {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-label {
   color: #94a3b8;
 }
 
@@ -4458,7 +4344,7 @@ body::-webkit-scrollbar-corner,
   color: #0f172a;
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-value {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-stat-value {
   color: #f8fafc;
 }
 
@@ -4474,7 +4360,7 @@ body::-webkit-scrollbar-corner,
   color: #0f172a;
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-section-heading {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-section-heading {
   color: #f8fafc;
   text-shadow: none;
 }
@@ -4490,7 +4376,7 @@ body::-webkit-scrollbar-corner,
   color: #64748b;
 }
 
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-section-text {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-section-text {
   color: #94a3b8;
 }
 
@@ -5520,51 +5406,45 @@ svg.catalog-filter-search-icon {
 }
 
 .catalog-seo-link-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
-  gap: 0.3rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .catalog-seo-facet-link {
   display: flex;
-  min-height: 2.35rem;
-  height: 100%;
   align-items: center;
-  border: 1px solid rgba(203, 213, 225, 0.82);
-  border-radius: 11px;
-  background: linear-gradient(145deg, #fff, #f8fbff);
-  gap: 0.42rem;
-  padding: 0.28rem 0.48rem;
+  gap: 0.6rem;
+  padding: 0.5rem 0.1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
   color: #475569;
-  font-size: 0.69rem;
-  font-weight: 680;
-  line-height: 1.25;
-  box-shadow: inset 0 1px 0 #fff, 0 5px 12px rgba(15, 23, 42, 0.045);
-  transition: border-color 220ms ease, background 260ms ease, color 220ms ease, box-shadow 220ms ease;
+  font-size: 0.78rem;
+  font-weight: 640;
+  line-height: 1.3;
+  transition: color 200ms ease, padding-left 200ms ease;
+}
+
+.catalog-seo-link-list li:last-child .catalog-seo-facet-link {
+  border-bottom: none;
 }
 
 .catalog-seo-facet-icon,
 .catalog-seo-brand-logo {
   display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: 0 0 1.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 1.5rem;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgba(226, 232, 240, 0.82);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgba(15, 23, 42, 0.06);
 }
 
 .catalog-seo-brand-logo {
-  width: 2.45rem;
-  flex-basis: 2.45rem;
+  width: 2.1rem;
+  flex-basis: 2.1rem;
 }
 
 .catalog-seo-brand-logo > span {
-  color: #64748b;
+  color: #94a3b8;
   font-size: 0.58rem;
   font-weight: 850;
   letter-spacing: -0.02em;
@@ -5572,39 +5452,50 @@ svg.catalog-filter-search-icon {
 
 .catalog-seo-model-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr));
-  gap: 0.38rem;
+  grid-template-columns: 1fr;
+  column-gap: 2rem;
+}
+
+@media (min-width: 640px) {
+  .catalog-seo-model-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .catalog-seo-model-link {
   display: flex;
-  min-height: 2.75rem;
-  height: 100%;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.45rem;
-  border: 1px solid rgba(186, 230, 253, 0.72);
-  border-radius: 11px;
-  background: linear-gradient(145deg, #fff, #f3faff);
-  padding: 0.4rem 0.58rem;
-  box-shadow: inset 0 1px 0 #fff, 0 5px 13px rgba(14, 116, 144, 0.055);
-  transition: border-color 220ms ease, background 260ms ease, box-shadow 220ms ease;
+  gap: 0.55rem;
+  padding: 0.55rem 0.1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
+  transition: padding-left 200ms ease;
+}
+
+.catalog-seo-model-list li:last-child .catalog-seo-model-link {
+  border-bottom: none;
+}
+
+.catalog-seo-model-logo {
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 1.6rem;
+  align-items: center;
+  justify-content: center;
+  color: #7dd3fc;
 }
 
 .catalog-seo-model-link:hover {
-  border-color: rgba(56, 189, 248, 0.68);
-  background: linear-gradient(145deg, #fff, #e9f7ff);
-  box-shadow: inset 0 1px 0 #fff, 0 8px 17px rgba(14, 116, 144, 0.11);
+  padding-left: 0.4rem;
 }
 
 .catalog-seo-facet-link:hover {
-  border-color: rgba(56, 189, 248, 0.64);
-  background: linear-gradient(145deg, #fff, #eaf7ff);
   color: #0369a1;
-  box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(14, 116, 144, 0.1);
+  padding-left: 0.4rem;
 }
 
-.catalog-seo-facet-link:focus-visible {
+.catalog-seo-facet-link:focus-visible,
+.catalog-seo-model-link:focus-visible {
   outline: 2px solid rgba(56, 189, 248, 0.7);
   outline-offset: 2px;
 }
@@ -6149,7 +6040,7 @@ svg.catalog-filter-search-icon {
    already used above for .bg-white/.border-slate-200 — reaches every one of
    those instances without touching 8 component files or their many call
    sites, and follows the existing precedent instead of inventing a new one. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel {
   &
     :is(.bg-white, .bg-white\/95, .bg-white\/92, .bg-white\/90, .bg-white\/85, .bg-white\/82, .bg-white\/80, .bg-white\/78, .bg-white\/72, .bg-white\/70) {
     background-color: rgba(255, 255, 255, 0.06);
@@ -6356,11 +6247,15 @@ svg.catalog-filter-search-icon {
    individually, since new ones kept turning up. Runs after (and at higher
    specificity than) Tailwind's own utilities, so it always wins regardless
    of source order. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel {
   & [class*="border-sky-100"],
   & [class*="border-sky-200"],
   & [class*="border-sky-300"] {
     border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  & [class*="bg-slate-200"] {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 
   & [class*="bg-sky-50"],
@@ -6395,37 +6290,13 @@ svg.catalog-filter-search-icon {
      sky/white shades that kept showing up as new one-off opacity fractions. */
 }
 
-/* Customer header panels used to share one calm, LIGHT visual language across
-   contacts, cart/checkout, account and auth ("the shell stays light so its
-   content cards no longer look pasted onto a dark surface"). That still holds
-   for the account/profile panel (AccountInfo.tsx) below, unchanged. Auth,
-   order and contact were reskinned to match the header's quick-search
-   dropdown instead — same dark navy glass, sky/cyan glow and card language —
-   with every interior element (fields, buttons, chips, stat cards) redone to
-   sit on that dark surface rather than reusing the light cards verbatim. */
-.customer-overlay-panel--profile.app-overlay-panel.soft-modal-shell {
-  color-scheme: light;
-  border-color: rgba(94, 194, 249, 0.56);
-  background:
-    radial-gradient(circle at 6% -6%, rgba(56, 189, 248, 0.34), transparent 40%),
-    radial-gradient(circle at 100% 4%, rgba(45, 212, 191, 0.22), transparent 34%),
-    radial-gradient(circle at 50% 122%, rgba(99, 102, 241, 0.17), transparent 50%),
-    linear-gradient(160deg, rgba(227, 240, 255, 0.92) 0%, rgba(200, 224, 251, 0.89) 46%, rgba(169, 205, 243, 0.87) 100%);
-  color: #1e293b;
-  box-shadow:
-    0 36px 92px rgba(15, 23, 42, 0.32),
-    0 16px 38px rgba(14, 116, 144, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.42);
-  backdrop-filter: blur(24px) saturate(158%);
-  -webkit-backdrop-filter: blur(24px) saturate(158%);
-  border-radius: 24px;
-  transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
+/* Customer header panels (contacts, cart/checkout, account, auth) all share
+   one dark navy-glass visual language, matching the header's quick-search
+   dropdown — profile included, unified from its previous separate light
+   theme so every "window" reached from the header now feels like one system. */
 /* Same recipe as the header's quick-search dropdown (Search.tsx's dropClass):
    navy gradient base, a sky glow top-left and a teal glow bottom-right. */
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel.soft-modal-shell {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel.soft-modal-shell {
   color-scheme: dark;
   border-color: rgba(186, 230, 253, 0.25);
   background:
@@ -6444,84 +6315,29 @@ svg.catalog-filter-search-icon {
   transition: box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel.soft-panel-glow::before {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 32%),
-    linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
-}
-
-.customer-overlay-panel--profile.app-overlay-panel.soft-panel-glow::after {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.09), transparent 52%, rgba(20, 184, 166, 0.09));
-}
-
-/* auth/order/contact fall through to the plain dark .app-overlay-panel.soft-
-   panel-glow (already tuned for a navy shell) — no override needed here. */
+/* Falls through to the plain dark .app-overlay-panel.soft-panel-glow
+   (already tuned for a navy shell) — no override needed here. */
 
 .customer-overlay-panel .soft-panel-accent {
   background: linear-gradient(90deg, #38bdf8 0%, #0ea5e9 46%, #14b8a6 100%);
   box-shadow: 0 4px 14px rgba(14, 165, 233, 0.24);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-eyebrow {
-  border-color: rgba(14, 165, 233, 0.2);
-  background: rgba(224, 242, 254, 0.82);
-  color: #0369a1;
-}
+/* soft-panel-eyebrow/title/subtitle/tabs fall through to the plain dark
+   .app-overlay-panel bases, already tuned light-on-navy. */
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-title {
-  color: #0f172a;
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-subtitle {
-  color: #64748b;
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-tabs {
-  border-color: rgba(186, 230, 253, 0.76);
-  background: rgba(240, 249, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 20px rgba(14, 116, 144, 0.07);
-}
-
-/* auth/order/contact: soft-panel-eyebrow/title/subtitle/tabs fall through to
-   the plain dark .app-overlay-panel bases, already tuned light-on-navy. */
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-segment {
-  color: #475569;
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-segment {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-segment {
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-segment--active {
-  border-color: rgba(125, 211, 252, 0.72);
-  background: rgba(255, 255, 255, 0.96);
-  color: #0369a1;
-  box-shadow: 0 7px 18px rgba(14, 116, 144, 0.1), inset 0 1px 0 #fff;
-}
+/* soft-segment--active falls through to the plain dark .app-overlay-panel
+   base — an opaque blue gradient pill, already correct on a navy shell
+   without any white surface underneath it. */
 
-/* auth/order/contact: soft-segment--active falls through to the plain dark
-   .app-overlay-panel base — an opaque blue gradient pill, already correct
-   on a navy shell without any white surface underneath it. */
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-icon-button {
-  border-color: rgba(203, 213, 225, 0.78);
-  background: rgba(255, 255, 255, 0.82);
-  color: #475569;
-  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.08), inset 0 1px 0 #fff;
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-icon-button:hover {
-  border-color: rgba(125, 211, 252, 0.9);
-  background: #fff;
-  color: #0369a1;
-  transform: none;
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-icon-button {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-icon-button {
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
@@ -6529,38 +6345,17 @@ svg.catalog-filter-search-icon {
 }
 
 /* Close (X) button: no box/border, just the glyph — a bold color shift plus a
-   playful spin-and-lift on hover instead of a container. auth/order/contact
-   fall through to the plain dark .app-overlay-panel base (already a muted
-   slate-400-ish glyph brightening to white on hover — correct on navy). */
-.customer-overlay-panel--profile.app-overlay-panel .app-panel-close-button {
-  color: #64748b;
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .app-panel-close-button:hover {
-  color: #0284c7;
-  transform: rotate(90deg) scale(1.16);
-  filter: drop-shadow(0 8px 16px rgba(14, 165, 233, 0.4));
-}
+   playful spin-and-lift on hover instead of a container. Falls through to
+   the plain dark .app-overlay-panel base (a muted slate-400-ish glyph
+   brightening to white on hover — correct on navy). */
 
 .customer-overlay-panel.app-overlay-panel .app-panel-close-button:active {
   transform: rotate(90deg) scale(0.98);
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-primary-button {
-  border-color: rgba(14, 165, 233, 0.34);
-  background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 52%, #0f766e 118%);
-  box-shadow: 0 12px 26px rgba(14, 116, 144, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.24);
-}
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-primary-button:hover {
-  transform: none;
-  filter: brightness(1.035);
-  box-shadow: 0 15px 30px rgba(14, 116, 144, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-
-/* auth/order/contact: soft-primary-button's fill comes from the per-variant
-   --customer-accent-* gradient below (already opaque/vivid, correct on navy);
-   no separate override needed here. */
+/* soft-primary-button's fill comes from the per-variant --customer-accent-*
+   gradient below (already opaque/vivid, correct on navy); no separate
+   override needed here. */
 
 .customer-overlay-panel .app-panel-scroll {
   scrollbar-color: rgba(14, 165, 233, 0.5) transparent;
@@ -6600,17 +6395,7 @@ svg.catalog-filter-search-icon {
     padding: 0.65rem !important;
   }
 
-  .customer-overlay-panel--profile.app-overlay-panel .soft-panel-header {
-    position: sticky;
-    top: 0;
-    z-index: 4;
-    border-radius: 14px;
-    background: rgba(248, 252, 255, 0.88);
-    padding: 0.35rem;
-    backdrop-filter: blur(10px);
-  }
-
-  :is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-header {
+  :is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-header {
     position: sticky;
     top: 0;
     z-index: 4;
@@ -6646,32 +6431,18 @@ svg.catalog-filter-search-icon {
   --customer-glow: 37, 99, 235;
 }
 
-.customer-overlay-panel--auth {
+.customer-overlay-panel--auth,
+.customer-overlay-panel--profile {
   --customer-accent-a: #0369a1;
   --customer-accent-b: #2563eb;
   --customer-accent-c: #0f766e;
   --customer-glow: 2, 132, 199;
 }
 
-.customer-overlay-panel--profile.app-overlay-panel.soft-modal-shell {
-  background:
-    radial-gradient(circle at 5% -8%, rgba(var(--customer-glow, 14, 165, 233), 0.3), transparent 38%),
-    radial-gradient(circle at 102% 4%, rgba(45, 212, 191, 0.2), transparent 32%),
-    linear-gradient(155deg, rgba(239, 248, 255, 0.97), rgba(216, 235, 252, 0.94) 52%, rgba(199, 225, 248, 0.92));
-}
+/* All four variants keep the dark quick-search-matching shell defined above
+   — this cascade-final layer no longer overrides it for any of them. */
 
-/* auth/order/contact keep the dark quick-search-matching shell defined above
-   — this cascade-final layer no longer overrides it for them. */
-
-.customer-overlay-panel--profile.app-overlay-panel .soft-panel-header {
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(240, 249, 255, 0.48));
-  padding: 0.55rem 0.65rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 26px rgba(var(--customer-glow, 14, 165, 233), 0.08);
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-header {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-panel-header {
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(125, 211, 252, 0.05));
@@ -6696,13 +6467,7 @@ svg.catalog-filter-search-icon {
   background-size: 220% 100%;
 }
 
-.customer-overlay-panel--profile.app-overlay-panel .soft-secondary-button {
-  background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 249, 255, 0.96) 48%, rgba(204, 251, 241, 0.88) 100%);
-  background-position: 0% 50%;
-  background-size: 220% 100%;
-}
-
-:is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-secondary-button {
+:is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-secondary-button {
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(255, 255, 255, 0.06);
   color: #e2e8f0;
@@ -6730,38 +6495,16 @@ svg.catalog-filter-search-icon {
     background-position: 100% 50%;
   }
 
-  .customer-overlay-panel--profile.app-overlay-panel .soft-secondary-button:not(:disabled):hover {
-    background-position: 100% 50%;
-    border-color: rgba(56, 189, 248, 0.68);
-    color: #075985;
-    box-shadow: 0 14px 30px rgba(var(--customer-glow, 14, 165, 233), 0.16), inset 0 1px 0 #fff, 0 0 0 3px rgba(125, 211, 252, 0.09);
-  }
-
-  :is(.customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-secondary-button:not(:disabled):hover {
+  :is(.customer-overlay-panel--profile, .customer-overlay-panel--auth, .customer-overlay-panel--order, .customer-overlay-panel--contact).app-overlay-panel .soft-secondary-button:not(:disabled):hover {
     border-color: rgba(125, 211, 252, 0.5);
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 14px 30px rgba(2, 6, 23, 0.28);
   }
 
-  .customer-overlay-panel--profile.app-overlay-panel .soft-segment:not(.soft-segment--active):hover,
-  .customer-overlay-panel--profile.app-overlay-panel .soft-icon-button:not(:disabled):hover {
-    background-image: linear-gradient(125deg, #fff 0%, #e0f2fe 52%, #ccfbf1 100%);
-    background-position: 100% 50%;
-    border-color: rgba(56, 189, 248, 0.66);
-  }
-
-  /* auth/order/contact's dark segment/icon-button hover is defined earlier
-     (right after the shared focus/scale rules) and is left uncontested here. */
-
-  .customer-overlay-panel--profile.app-overlay-panel .app-panel-close-button:hover {
-    color: var(--customer-accent-a);
-    filter: drop-shadow(0 5px 10px rgba(var(--customer-glow, 14, 165, 233), 0.3));
-  }
-
-  /* auth/order/contact's dark close-button hover is defined earlier and is
-     left uncontested here (the raw --customer-accent-a hex is too dark/low-
-     contrast against the navy shell to reuse directly for this hover). */
+  /* Dark segment/icon-button/close-button hover for all four variants is
+     defined earlier (right after the shared focus/scale rules) and is left
+     uncontested here. */
 }
 
 .customer-overlay-panel.app-overlay-panel :is(.soft-primary-button, .auth-primary-button, .soft-secondary-button, .auth-social-button, .soft-icon-button, .soft-segment, .app-panel-close-button):not(:disabled):active {
@@ -6773,4 +6516,423 @@ svg.catalog-filter-search-icon {
   .customer-overlay-panel.app-overlay-panel :is(button, a):hover svg {
     transform: none !important;
   }
+}
+
+/* Homepage rhythm: broad welcome, generous browsing areas, compact supporting
+   panels. Scope the layout to home so shared catalogue components stay reusable. */
+.home-static .home-hero-grid > *,
+.home-static .home-auto-grid > *,
+.home-static .home-category-grid > *,
+.home-static .home-brands-grid > *,
+.home-static .home-story-grid > * {
+  min-width: 0;
+}
+
+.home-static .home-category-grid .reveal-head {
+  max-width: none;
+}
+
+@media (min-width: 1024px) {
+  .home-static .home-hero-grid,
+  .home-static .home-auto-grid,
+  .home-static .home-category-grid,
+  .home-static .home-brands-grid,
+  .home-static .home-story-grid {
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+  }
+
+  .home-static .home-hero-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
+  }
+
+  .home-static .hero-account-surface {
+    align-self: center;
+    border-color: rgb(186 230 253 / 24%);
+    border-radius: 28px;
+    background-color: rgb(2 6 23 / 60%);
+    box-shadow: 0 20px 48px -20px rgb(2 6 23 / 65%), inset 0 1px 0 rgb(255 255 255 / 14%);
+  }
+
+  /* Nav/search block (1st column) targets the same 0.4 share of the shared
+     page-shell-inline content width as the hero's benefits card and the
+     category section's own search block (see home-category-grid below). */
+  .home-static .home-auto-grid {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .home-static .home-brands-grid {
+    grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.76fr);
+  }
+
+  /* Search block (2nd column) targets the same share of the shared
+     page-shell-inline content width as the hero's own benefits card
+     (home-hero-grid's minmax(340px, 1fr) out of a 1.5fr+1fr track — a
+     0.4 fraction), not home-story-grid's or home-brands-grid's ratios. */
+  .home-static .home-category-grid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+
+  .home-static .home-story-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .home-static .home-category-grid .reveal-head,
+  .home-static .home-brands-grid > .reveal-head {
+    padding: clamp(1.25rem, 2vw, 1.75rem);
+    border-radius: 28px;
+  }
+
+  /* Keep both navigation actions legible in the narrower supporting cards. */
+  .home-static .home-category-grid .reveal-head .grid.items-stretch,
+  .home-static .home-brands-grid > .reveal-head .grid.items-stretch,
+  .home-static .home-auto-grid .reveal-search .grid.items-stretch {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Shared gutters and spacing keep each section on the same page grid. */
+.home-static {
+  --home-gap: clamp(1.25rem, 2.5vw, 2.5rem);
+  --home-panel-padding: clamp(1rem, 2vw, 1.75rem);
+}
+
+.home-static .page-shell-inline {
+  --page-shell-inline-padding: clamp(1rem, 3.5vw, 3rem);
+  max-width: 1360px;
+}
+
+.home-static :is(.home-hero-grid, .home-auto-grid, .home-category-grid, .home-brands-grid, .home-story-grid) {
+  gap: var(--home-gap);
+  align-items: start;
+}
+
+.home-static :is(.home-intro, .hero-account-surface) {
+  align-self: start;
+}
+
+.home-static :is(.home-category-grid, .home-brands-grid) > .group\/search {
+  align-self: start;
+}
+
+.home-static :is(.hero-account-surface, .home-category-grid .reveal-head, .home-brands-grid > .reveal-head, .home-auto-grid .reveal-search > div) {
+  padding: var(--home-panel-padding);
+  border-radius: 24px;
+}
+
+.home-static :is(h1, h2, h3) {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.home-static :is(.home-category-grid, .home-brands-grid, .home-story-grid) p {
+  text-wrap: pretty;
+}
+
+.home-static .home-intro > div,
+.home-static .home-intro-links {
+  width: 100%;
+  max-width: none;
+}
+
+.home-static .home-intro h1 {
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.08;
+}
+
+.home-static .home-intro p:not(:first-child) {
+  line-height: 1.6;
+}
+
+.home-static .home-intro-trust {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: none;
+}
+
+.home-static .home-intro-trust > span {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 12px;
+}
+
+/* Pagination sits below these rails, so side clearance is no longer needed. */
+.home-static .home-brand-cards,
+.home-static .home-category-cards {
+  padding: 0;
+}
+
+.home-static :is([data-brand-page], [data-group-page]) {
+  padding-inline: 2px;
+}
+
+.home-static :is(.home-category-grid, .home-brands-grid) h2 {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  line-height: 1.2;
+}
+
+.home-static :is(.home-category-grid, .home-brands-grid) .reveal-head > p {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.home-static .hero-account-surface ul {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+}
+
+@media (max-width: 1023px) {
+  /* Wait until desktop for two columns: tablet panels need room for labels. */
+  .home-static :is(.home-hero-grid, .home-auto-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-static .home-auto-grid > .reveal-search {
+    order: 2;
+  }
+
+  .home-static .home-auto-grid > .reveal-head {
+    order: 1;
+  }
+
+  .home-static .home-intro h1 {
+    font-size: clamp(2rem, 6vw, 3.25rem);
+  }
+}
+
+@media (max-width: 479px) {
+  .home-static .home-intro-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-static :is(.home-category-grid, .home-brands-grid, .home-auto-grid) .grid.items-stretch {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-static .home-brand-cards .grid {
+    gap: 8px;
+  }
+}
+
+.home-static .home-intro-refined {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.875rem, 1.4vw, 1.25rem);
+  height: auto;
+}
+
+.home-static .home-intro-copy {
+  position: relative;
+}
+
+.home-static .home-intro-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.home-static .home-intro-icon {
+  display: grid;
+  flex: 0 0 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgb(125 211 252 / 35%);
+  border-radius: 14px;
+  color: #e0f2fe;
+  background: linear-gradient(145deg, rgb(56 189 248 / 24%), rgb(14 116 144 / 12%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), 0 8px 24px rgb(2 6 23 / 16%);
+}
+
+.home-static .home-intro-refined .home-intro-kicker {
+  color: #bae6fd;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.home-static .home-intro-refined h1 {
+  max-width: 19ch;
+  color: #fff;
+  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  text-shadow: 0 2px 16px rgb(2 6 23 / 35%);
+}
+
+.home-static .home-intro-refined h1 > span {
+  display: block;
+  color: #7dd3fc;
+}
+
+.home-static .home-intro-refined .home-intro-subtitle {
+  max-width: 56ch;
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid #38bdf8;
+  color: #e0f2fe;
+  font-size: clamp(0.875rem, 1.3vw, 1rem);
+  font-weight: 500;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.home-static .home-intro-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.home-static .home-intro-facts li {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #e0f2fe;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.home-static .home-intro-facts-icon {
+  display: grid;
+  flex: 0 0 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
+}
+
+.home-static .home-intro-facts-icon-cyan {
+  color: #e0f2fe;
+  background: linear-gradient(145deg, rgb(56 189 248 / 28%), rgb(14 116 144 / 14%));
+}
+
+.home-static .home-intro-facts-icon-emerald {
+  color: #ecfdf5;
+  background: linear-gradient(145deg, rgb(52 211 153 / 28%), rgb(6 95 70 / 14%));
+}
+
+.home-static .home-feature-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  container-type: inline-size;
+}
+
+.home-static .home-feature-card {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(186 230 253 / 22%);
+  border-radius: 16px;
+  background: rgb(8 24 47 / 85%);
+  transition: border-color 180ms, background-color 180ms;
+}
+
+.home-static .home-feature-card:hover {
+  border-color: #7dd3fc;
+  background: #102f4e;
+}
+
+.home-static .home-feature-card:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 4px;
+}
+
+.home-static .home-feature-image {
+  position: relative;
+  flex: 0 0 96px;
+  min-height: 144px;
+  background: #0c2439;
+}
+
+.home-static .home-feature-image-service img {
+  padding: 8px;
+}
+
+.home-static .home-feature-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: start;
+  gap: 8px;
+  padding: 16px 12px;
+}
+
+.home-static .home-feature-label {
+  color: #7dd3fc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.home-static .home-feature-copy h2 {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.home-static .home-feature-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 4px;
+  color: #bae6fd;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@container (max-width: 580px) {
+  .home-static .home-feature-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 479px) {
+  .home-static .home-feature-image {
+    flex-basis: 80px;
+    min-height: 128px;
+  }
+}
+
+/* Article covers are landscape images. Preserve the whole cover instead of
+   magnifying a narrow centre crop to fill the tall service thumbnail slot. */
+.home-static .home-feature-image-blog {
+  flex: 0 0 120px;
+  min-height: 0;
+  aspect-ratio: 4 / 3;
+  align-self: center;
+  margin: 12px 0 12px 12px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+@media (max-width: 479px) {
+  .home-static .home-feature-image-blog {
+    flex-basis: 96px;
+    margin-left: 8px;
+  }
+}
+
+/* Large section-wide hover textures can repaint as a stationary cursor crosses
+   sections. The static base gradients retain the design without those layers. */
+.home-static .home-scroll-decor[class*="opacity-0"][class*="group-hover"] {
+  display: none !important;
+}
+
+/* Stable photo opacity avoids rebuilding its composited surface at every
+   scroll start/end while the pointer is over the hero. */
+.home-static .hero-photo {
+  opacity: 0.72 !important;
+  transition: none !important;
 }

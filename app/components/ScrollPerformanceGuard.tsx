@@ -55,10 +55,9 @@ export default function ScrollPerformanceGuard() {
       }
     } catch {}
 
-    // Below 641px each section already reduces itself to at most two small
-    // moving accents and the hero to one photo layer, so an additional quality
-    // downgrade is unnecessary — same scope the scroll sampler below uses.
-    if (window.innerWidth > 640 && isLikelyWeakDevice()) {
+    // Small screens can also struggle: apply the same measured budget on
+    // mobile instead of excluding the devices most sensitive to dropped frames.
+    if (isLikelyWeakDevice()) {
       root.classList.add("reduce-scroll-effects");
       try {
         window.sessionStorage.setItem(STORAGE_KEY, "1");
@@ -110,7 +109,7 @@ export default function ScrollPerformanceGuard() {
     };
 
     function startSampling() {
-      if (sampling || finished || window.innerWidth <= 640) return;
+      if (sampling || finished) return;
       sampling = true;
       startedAt = performance.now();
       previousFrame = 0;

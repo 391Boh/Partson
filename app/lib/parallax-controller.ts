@@ -156,6 +156,7 @@ const remeasureAll = (force = false) => {
 };
 
 const frame = (now: number) => {
+  refreshMotionBudget();
   const dt = lastFrameTime ? Math.min(64, now - lastFrameTime) : 16.67;
   lastFrameTime = now;
 
@@ -239,16 +240,27 @@ const frame = (now: number) => {
 };
 
 function ensureRunning() {
-  if (running || registrations.size === 0) return;
+  if (running || registrations.size === 0 || document.hidden) return;
   running = true;
   lastFrameTime = 0;
   frameId = requestAnimationFrame(frame);
 }
 
 const onScroll = () => {
-  refreshMotionBudget();
   targetsDirty = true;
   ensureRunning();
+};
+
+const onVisibilityChange = () => {
+  if (document.hidden) {
+    if (frameId) cancelAnimationFrame(frameId);
+    frameId = 0;
+    running = false;
+    lastFrameTime = 0;
+    return;
+  }
+  registrations.forEach((reg) => { reg.primed = false; });
+  remeasureAll(true);
 };
 
 const onViewportResize = () => remeasureAll(false);
@@ -276,10 +288,7 @@ const attachListeners = () => {
   if (listenersAttached) return;
   listenersAttached = true;
   window.addEventListener("scroll", onScroll, { passive: true });
-  // iOS fires `scroll` only sparsely during a momentum fling; `touchmove`
-  // keeps the targets tracking the finger, and the eased loop smooths the
-  // gap the fling leaves behind.
-  window.addEventListener("touchmove", onScroll, { passive: true });
+  document.addEventListener("visibilitychange", onVisibilityChange);
   window.addEventListener("resize", onViewportResize, { passive: true });
   window.addEventListener("orientationchange", forceRemeasureAll);
   if (typeof ResizeObserver !== "undefined" && !documentResizeObserver) {
@@ -292,7 +301,7 @@ const detachListenersIfIdle = () => {
   if (registrations.size > 0 || !listenersAttached) return;
   listenersAttached = false;
   window.removeEventListener("scroll", onScroll);
-  window.removeEventListener("touchmove", onScroll);
+  document.removeEventListener("visibilitychange", onVisibilityChange);
   window.removeEventListener("resize", onViewportResize);
   window.removeEventListener("orientationchange", forceRemeasureAll);
   if (frameId) cancelAnimationFrame(frameId);
@@ -336,7 +345,9 @@ export function registerParallax(opts: {
     el: opts.el,
     compute: opts.compute,
     apply: opts.apply,
-    ease: opts.ease ?? true,
+    // Native scroll already interpolates homepage motion. Avoid running
+    // easing tails for every decorative plane between wheel events.
+    ease: opts.el.closest(".home-static") ? false : (opts.ease ?? true),
     heavy: opts.heavy ?? false,
     top: 0,
     height: 1,

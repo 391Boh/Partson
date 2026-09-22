@@ -98,11 +98,12 @@ export const createManagerChatMessageServer = async (input: {
   type?: ChatMessageType;
   imageUrl?: string;
   imageName?: string;
+  repliedByName?: string;
 }): Promise<
   | { ok: true; id: string; telegramDelivered: boolean }
   | { ok: false; error: string }
 > => {
-  const { userId, text, type = "text", imageUrl, imageName } = input;
+  const { userId, text, type = "text", imageUrl, imageName, repliedByName } = input;
   if (!userId || !text) return { ok: false, error: "Invalid manager message" };
   if (type === "image" && !imageUrl) return { ok: false, error: "Invalid image payload" };
 
@@ -119,6 +120,10 @@ export const createManagerChatMessageServer = async (input: {
   if (type === "image") {
     messageData.imageUrl = imageUrl;
     messageData.imageName = imageName || "Фото";
+  }
+  if (repliedByName) {
+    messageData.repliedByName = repliedByName;
+    messageData.repliedBySource = "telegram";
   }
 
   try {

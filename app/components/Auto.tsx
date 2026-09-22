@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 import { carBrands, CarBrand } from "../components/carBrands";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import type { YearMeta } from "./CarModels";
-import AutoLogosBackdrop from "./AutoLogosBackdrop";
+import { DeferredAutoBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
@@ -1457,7 +1457,7 @@ const AutoSection: React.FC<AutoProps> = ({
       <div className={`group/auto select-none ${isFilterVariant ? "" : "home-glow-section home-glow-section-auto relative isolate overflow-hidden border-y border-indigo-100/70 bg-[radial-gradient(150%_120%_at_-25%_-35%,rgba(99,102,241,0.12),transparent_66%),radial-gradient(140%_120%_at_120%_130%,rgba(59,130,246,0.1),transparent_64%),linear-gradient(179deg,rgba(234,238,255,0.66)_0%,rgba(240,244,255,0.5)_44%,rgba(231,240,251,0.62)_100%)] pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_-1px_0_rgba(37,99,235,0.08),0_14px_36px_-16px_rgba(30,64,175,0.12)] transition-[border-color,box-shadow] duration-[600ms] ease-out hover:border-indigo-300/80 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(79,70,229,0.22),inset_0_0_120px_-46px_rgba(99,102,241,0.45),0_28px_64px_-22px_rgba(67,56,202,0.3)] sm:pb-6 sm:pt-6"}`}>
       {!isFilterVariant && (
         <>
-          <AutoLogosBackdrop />
+          <DeferredAutoBackdrop />
           {/* edge bridges — melt this section's fill into the neighbours above
               (hero) and below (categories) so there's no hard seam */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[linear-gradient(to_bottom,rgba(202,206,255,0.55)_0%,rgba(202,206,255,0.1)_58%,transparent_100%)]" />
@@ -1478,13 +1478,7 @@ const AutoSection: React.FC<AutoProps> = ({
       >
         {!isFilterVariant && (
           <div className="group/search relative">
-            {/* Same 1.08 / 0.92 split as Hero's intro/benefits columns — the
-                left slot is 1.08fr and the right is 0.92fr regardless of
-                which block sits in it. The search/nav panel and the
-                heading+list block swapped which slot they occupy (nav now
-                left, list now right) without touching these track widths —
-                only the two blocks' order changed, not the grid template. */}
-            <div className="grid gap-5 md:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] md:items-stretch md:gap-8 lg:gap-10">
+            <div className="home-auto-grid grid gap-5 md:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] md:items-stretch md:gap-8 lg:gap-10">
               {/* LEFT on md+ (left column of the grid); below md the grid
                   collapses to one column and stacks by DOM order, which
                   would otherwise put this — now first in the markup — above
@@ -1740,7 +1734,7 @@ const AutoSection: React.FC<AutoProps> = ({
                     </span>
                   </div>
 
-                  <h2 className="relative font-display mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
+                  <h2 className="relative font-display font-display-readable mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
                     {selectedBrand && showSummaryTable ? (
                       <>
                         Ваше авто{" "}

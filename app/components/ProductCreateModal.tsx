@@ -26,6 +26,7 @@ const EMPTY = {
   category: "",
   priceEuro: "",
   costPriceEuro: "",
+  quantity: "0",
 };
 
 type SuggestType = "category" | "group" | "subGroup";
@@ -39,6 +40,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [imageUploadSize, setImageUploadSize] = useState(0);
   const [imageProcessing, setImageProcessing] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const submitLock = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !submitLock.current) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
@@ -157,6 +159,13 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   };
 
   const handleSubmit = async () => {
+    if (submitLock.current) return;
+    submitLock.current = true;
+    try { await submitProduct(); } finally { submitLock.current = false; }
+  };
+
+  const submitProduct = async () => {
+    if (saving) return;
     if (!fields.name.trim()) { setError("Введіть назву товару"); return; }
 
     const snapshot = await waitForFirebaseAuthReady();
@@ -166,7 +175,8 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     try { token = await user.getIdToken(); } catch { setError("Помилка авторизації"); return; }
 
     const toNum = (s: string) => {
-      const n = Number(s.replace(",", "."));
+      if (!s.trim()) return undefined;
+      const n = Number(s.trim().replace(",", "."));
       return Number.isFinite(n) && n >= 0 ? n : undefined;
     };
 
@@ -180,6 +190,13 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     if (fields.subGroup.trim()) body["Подгруппа"] = fields.subGroup.trim();
     const price = toNum(fields.priceEuro);
     const cost = toNum(fields.costPriceEuro);
+    if ((fields.priceEuro.trim() && price === undefined) || (fields.costPriceEuro.trim() && cost === undefined)) {
+      setError("Введіть коректну невід’ємну ціну"); return;
+    }
+    const quantity = toNum(fields.quantity);
+    if (quantity === undefined || !Number.isSafeInteger(quantity)) {
+      setError("Введіть цілу кількість від 0"); return;
+    }
     if (price !== undefined) body["ЦінаПрод"] = price;
     if (cost !== undefined) body["ЦінаЗакуп"] = cost;
     if (imagePreview) {
@@ -210,24 +227,34 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       const secondary = code || article;
       const navParam = primary ? `${primary}~${secondary}` : "";
 
-      // Fire-and-forget price update: 1C create does not write to the Ціна catalog,
-      // so we send a delayed follow-up. We delay 2s to let 1C fully commit the create
-      // transaction before the price write. We do NOT send `article` here — if sent,
-      // product-update adds `артикул_ціни` which looks up a Ціна record by article;
-      // for a brand-new product that record does not exist yet and 1C returns 5xx.
-      // Without `article`, 1C falls back to Код-based lookup and can create/update
-      // the price entry directly.
-      if (data.code && (price !== undefined || cost !== undefined)) {
-        const priceBody: Record<string, unknown> = { Код: data.code };
-        if (price !== undefined) priceBody["ЦінаПрод"] = price;
-        if (cost !== undefined) priceBody["ЦінаЗакуп"] = cost;
-        setTimeout(() => {
-          fetch("/api/product-update", {
+      // Wait for prices and opening stock before showing the product page.
+      // The newly created price record must be addressed by internal code.
+      if (price !== undefined || cost !== undefined || quantity > 0) {
+        if (!code) {
+          setError("Товар створено, але 1С не повернула код для збереження ціни та кількості.");
+          return;
+        }
+        const updateBody: Record<string, unknown> = { Код: code };
+        if (price !== undefined) updateBody["ЦінаПрод"] = price;
+        if (cost !== undefined) updateBody["ЦінаЗакуп"] = cost;
+        if (quantity > 0) updateBody["Кількість"] = quantity;
+        try {
+          const update = await fetch("/api/product-update", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify(priceBody),
-          }).catch(() => null);
-        }, 2000);
+            body: JSON.stringify(updateBody),
+          });
+          const result = await update.json();
+          if (!update.ok || !result.ok) {
+            setError(`Товар створено, але ціну або кількість не збережено: ${result.error || "Помилка збереження"}. Відкрийте товар і перевірте ці значення.`);
+            return;
+          }
+        } catch {
+          setError("Товар створено, але не вдалося підтвердити збереження ціни та кількості. Відкрийте товар і перевірте ці значення.");
+          return;
+        } finally {
+          clearBrowserCatalogCache();
+        }
       }
 
       if (navParam) {
@@ -251,7 +278,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     >
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={() => { if (!submitLock.current) onClose(); }}
         aria-hidden="true"
       />
 
@@ -266,7 +293,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!submitLock.current) onClose(); }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
             aria-label="Закрити"
           >
@@ -279,16 +306,17 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <Check size={24} />
             </span>
-            <p className="text-sm font-black text-slate-800">Товар створено!</p>
+            <p className="text-sm font-black text-slate-800">{saving ? "Завершуємо створення…" : error ? "Товар створено частково" : "Товар створено!"}</p>
             {createdCode && (
               <p className="text-[11px] text-slate-500">
                 Код в 1С: <span className="font-mono font-bold text-slate-700">{createdCode}</span>
               </p>
             )}
-            <p className="text-[10px] text-slate-400">Перехід відбудеться автоматично…</p>
+            <p role={error ? "alert" : "status"} className="text-xs text-slate-600">{error || (saving ? "Зберігаємо ціну та кількість…" : "Перехід відбудеться автоматично…")}</p>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => {
                   const primary = createdArticle || createdCode;
                   const secondary = createdCode || createdArticle;
@@ -307,7 +335,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => { if (!submitLock.current) onClose(); }}
                 className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50"
               >
                 Закрити
@@ -510,6 +538,12 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 </Field>
               </div>
 
+              <Field label="Початкова кількість, шт.">
+                <input type="number" min="0" step="1" value={fields.quantity}
+                  onChange={(e) => set("quantity", e.target.value)}
+                  className={fieldClass} />
+              </Field>
+
               {/* Фото */}
               <Field label="Фото (необов'язково)">
                 <input ref={fileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT}
@@ -550,7 +584,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
             )}
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <button type="button" onClick={onClose} disabled={saving}
+              <button type="button" onClick={() => { if (!submitLock.current) onClose(); }} disabled={saving}
                 className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
                 Скасувати
               </button>

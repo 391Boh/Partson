@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import SmartLink from "app/components/SmartLink";
@@ -15,6 +15,7 @@ import {
 } from "app/lib/safe-storage";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
+import { normalizeSearchQuery } from "app/lib/catalog-search";
 import {
   pushAnalyticsEvent,
   pushEcommerceEvent,
@@ -41,12 +42,13 @@ type SuggestionProduct = {
 type SuggestionResult = {
   items: SuggestionProduct[];
   totalCount: number | null;
+  correctedQuery?: string;
 };
 
 const MAX_HISTORY          = 8;
-const SUGGESTION_COUNT     = 4;
+const SUGGESTION_COUNT     = 8;
 const SUGGESTION_MIN_CHARS = 2;
-const DEBOUNCE_MS          = 90;
+const DEBOUNCE_MS          = 180;
 const DEFAULT_EURO_RATE    = 50;
 const EURO_RATE_CACHE_KEY  = "partson:v1:euro-rate";
 
@@ -63,7 +65,7 @@ const FILTER_ITEMS: { value: SearchFilter; label: string }[] = [
 
 // ── module-level suggestion cache ──────────────────────────────────────────
 const CACHE_MAX   = 60;
-const CACHE_TTL   = 10 * 60_000;
+const CACHE_TTL   = 60_000;
 const sCache      = new Map<string, SuggestionResult>();
 const sCacheTimes = new Map<string, number>();
 const sPending    = new Map<string, Promise<SuggestionResult>>();
@@ -85,37 +87,6 @@ const cSet = (key: string, val: SuggestionResult) => {
   sCacheTimes.set(key, Date.now());
 };
 
-const getPrefixCache = (query: string, filter: SearchFilter) => {
-  const normalizedQuery = normalizeSearchKey(query);
-  let best: SuggestionResult | null = null;
-  let bestLength = 0;
-
-  for (const [key, products] of sCache) {
-    const prefix = `${filter}:`;
-    if (!key.startsWith(prefix)) continue;
-    const cachedQuery = key.slice(prefix.length);
-    if (
-      cachedQuery.length < SUGGESTION_MIN_CHARS ||
-      cachedQuery.length >= normalizedQuery.length ||
-      !normalizedQuery.startsWith(cachedQuery) ||
-      cachedQuery.length <= bestLength
-    ) continue;
-    const cachedAt = sCacheTimes.get(key) ?? 0;
-    if (Date.now() - cachedAt > CACHE_TTL) continue;
-    best = products;
-    bestLength = cachedQuery.length;
-  }
-
-  if (!best) return null;
-  const matches = best.items.filter((product) =>
-    [product.name, product.article, product.code, product.producer]
-      .some((value) => normalizeSearchKey(value || "").includes(normalizedQuery))
-  );
-  return matches.length > 0
-    ? { items: matches.slice(0, SUGGESTION_COUNT), totalCount: null }
-    : null;
-};
-
 // ── helpers ─────────────────────────────────────────────────────────────────
 const readEuroRate = (): number => {
   if (typeof window === "undefined") return DEFAULT_EURO_RATE;
@@ -135,46 +106,8 @@ const formatUAH = (eur: number | null | undefined, rate: number): string | null 
   return Math.round(eur * rate).toLocaleString("uk-UA") + " ₴";
 };
 
-// Physical Ukrainian ↔ English keyboard positions. This corrects queries
-// typed with the wrong input language (for example "руддщ" → "hello"),
-// rather than linguistically transliterating words.
-const ENGLISH_KEYS = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`";
-const UKRAINIAN_KEYS = "йцукенгшщзхїфівапролджєячсмитьбю'";
-const CYR: Record<string, string> = Object.fromEntries(
-  Array.from(UKRAINIAN_KEYS, (character, index) => [character, ENGLISH_KEYS[index] ?? character])
-);
-const LAT: Record<string, string> = Object.fromEntries(
-  Array.from(ENGLISH_KEYS, (character, index) => [character, UKRAINIAN_KEYS[index] ?? character])
-);
-
-const swapKeyboardLayout = (value: string) => {
-  const normalized = value.toLocaleLowerCase("uk-UA");
-  const hasUkrainian = /[а-яіїєґ]/i.test(normalized);
-  const hasEnglish = /[a-z]/i.test(normalized);
-  if (hasUkrainian === hasEnglish) return "";
-
-  const map = hasUkrainian ? CYR : LAT;
-  return Array.from(normalized, (character) => map[character] ?? character)
-    .join("")
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
-const toArticle = (v: string) =>
-  v.toLowerCase().replace(/[Ѐ-ӿ]/g, ch => CYR[ch] ?? "").replace(/[^a-z0-9/]/g, "");
-
-// A layout-corrected reading that turns into a compact alnum/digit code
-// (e.g. "щс90" -> "oc90") is almost certainly what the user actually meant
-// to type — a real Ukrainian word never comes out of this swap looking like
-// that. Worth knowing before the raw query even runs: 1C's own search isn't
-// a strict substring match, so the literal Cyrillic gibberish can still
-// return loose, unrelated matches instead of the empty result this fallback
-// was originally written to wait for (see its call site below).
-const looksLikeGarbledIdentifier = (fixed: string) =>
-  /\d/.test(fixed) && /^[a-z0-9/.-]+$/i.test(fixed);
-
 const fetchSuggestions = async (
-  query: string, filter: SearchFilter, signal: AbortSignal
+  query: string, filter: SearchFilter
 ): Promise<SuggestionResult> => {
   const key = ck(query, filter);
   const existing = sPending.get(key);
@@ -184,12 +117,18 @@ const fetchSuggestions = async (
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SUGGESTION_COUNT }),
-    signal,
+    signal: AbortSignal.timeout(12_000),
   }).then(async (res) => {
-    if (!res.ok) return { items: [], totalCount: null };
-    const data = await res.json() as { items?: SuggestionProduct[]; totalCount?: number | null };
+    const data = await res.json() as {
+      items?: SuggestionProduct[]; totalCount?: number | null; correctedQuery?: string;
+      serviceUnavailable?: boolean; message?: string;
+    };
+    if (!res.ok || data.serviceUnavailable || !Array.isArray(data.items)) {
+      throw new Error("Пошук тимчасово недоступний. Спробуйте ще раз.");
+    }
     return {
-      items: (data.items ?? []).slice(0, SUGGESTION_COUNT),
+      items: data.items.slice(0, SUGGESTION_COUNT),
+      correctedQuery: data.correctedQuery,
       totalCount:
         typeof data.totalCount === "number" && Number.isFinite(data.totalCount)
           ? Math.max(0, data.totalCount)
@@ -237,8 +176,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [fallback,    setFallback]    = useState<string | null>(null);
   const [euroRate,    setEuroRate]    = useState(DEFAULT_EURO_RATE);
 
-  const abortRef    = useRef<AbortController | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listId = useId();
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -271,95 +212,43 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  // suggestions with cache
+  // Shared network requests are independent of a particular input's lifetime.
+  // An abandoned consumer cannot abort a newer consumer of the same query.
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    abortRef.current?.abort();
-    abortRef.current = null;
-    const trimmed = query.replace(/\s+/g, " ").trim();
-
-    if (trimmed.length < SUGGESTION_MIN_CHARS) {
-      setSuggestions([]); setTotalCount(null); setLoading(false); setFallback(null);
-      return;
-    }
-
-    const ef: SearchFilter = filter === "article" ? "name" : filter;
-    const key = ck(trimmed, ef);
-    const cached = cGet(key);
-
-    if (cached) {
-      setSuggestions(cached.items); setTotalCount(cached.totalCount); setLoading(false); setFallback(null);
-      return;
-    }
-
-    const prefixCached = getPrefixCache(trimmed, ef);
-    if (prefixCached) setSuggestions(prefixCached.items);
+    let current = true;
+    const trimmed = normalizeSearchQuery(query);
+    setActiveIndex(-1);
+    setSearchError(null);
+    setSuggestions([]);
     setTotalCount(null);
     setFallback(null);
-    setLoading(true);
-
-    debounceRef.current = setTimeout(async () => {
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-
-      try {
-        const layoutQuery = swapKeyboardLayout(trimmed);
-        const hasLayoutAlternative =
-          layoutQuery.length >= SUGGESTION_MIN_CHARS && layoutQuery !== normalizeSearchKey(trimmed);
-
-        // Exactly one fallback request corrects a forgotten UA/EN keyboard
-        // switch while preserving the user's active search filter.
-        const tryLayoutFallback = async () => {
-          const layoutKey = ck(layoutQuery, ef);
-          const layoutCached = cGet(layoutKey);
-          const layoutResult = layoutCached ?? await fetchSuggestions(layoutQuery, ef, ctrl.signal);
-          if (ctrl.signal.aborted) return true;
-          if (layoutResult.items.length > 0) {
-            if (!layoutCached) cSet(layoutKey, layoutResult);
-            setSuggestions(layoutResult.items);
-            setTotalCount(layoutResult.totalCount);
-            setFallback(layoutQuery);
-            return true;
-          }
-          return false;
-        };
-
-        // A layout-corrected reading shaped like a real code (has a digit,
-        // otherwise plain alnum) is tried before the raw text — 1C's search
-        // isn't a strict substring match, so raw Cyrillic gibberish can come
-        // back with loose, unrelated matches instead of the empty result
-        // this fallback originally waited for, permanently hiding the actual
-        // intended match. A real Ukrainian word never swaps into this shape,
-        // so this never preempts a genuine name search.
-        const identifierShaped = hasLayoutAlternative && looksLikeGarbledIdentifier(layoutQuery);
-        if (identifierShaped && (await tryLayoutFallback())) return;
-        if (ctrl.signal.aborted) return;
-
-        const results = await fetchSuggestions(trimmed, ef, ctrl.signal);
-        if (ctrl.signal.aborted) return;
-
-        if (results.items.length > 0) {
-          cSet(key, results);
-          setSuggestions(results.items); setTotalCount(results.totalCount); setFallback(null);
-          return;
-        }
-
-        if (!identifierShaped && hasLayoutAlternative && (await tryLayoutFallback())) return;
-        if (ctrl.signal.aborted) return;
-
-        setSuggestions([]); setTotalCount(0); setFallback(null);
-      } catch {
-        if (!ctrl.signal.aborted) { setSuggestions([]); setTotalCount(null); setFallback(null); }
-      } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
-      }
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
+    if (!dropdown || trimmed.length < SUGGESTION_MIN_CHARS) {
+      setLoading(false);
+      return;
+    }
+    const key = ck(trimmed, filter);
+    const apply = (result: SuggestionResult) => {
+      setSuggestions(result.items);
+      setTotalCount(result.totalCount);
+      setFallback(result.correctedQuery || null);
+      setLoading(false);
     };
-  }, [query, filter]);
+    const cached = cGet(key);
+    if (cached) { apply(cached); return; }
+    setLoading(true);
+    const timer = setTimeout(() => {
+      fetchSuggestions(trimmed, filter).then((result) => {
+        cSet(key, result);
+        if (current) apply(result);
+      }).catch(() => {
+        if (current) {
+          setSearchError("Пошук тимчасово недоступний. Спробуйте ще раз.");
+          setLoading(false);
+        }
+      });
+    }, DEBOUNCE_MS);
+    return () => { current = false; clearTimeout(timer); };
+  }, [query, filter, dropdown, retry]);
 
   const saveHistory = (q: string) => {
     const next = [q, ...history.filter(h => h !== q)].slice(0, MAX_HISTORY);
@@ -369,12 +258,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   const doSearch = (overrideQuery?: string) => {
-    const raw = overrideQuery ?? fallback ?? query;
-    const sanitized = filter === "article"
-      ? toArticle(raw)
-      : raw.replace(/\s+/g, " ").trim();
+    const raw = overrideQuery ?? query;
+    const sanitized = normalizeSearchQuery(raw);
     if (!sanitized) return;
-    const ef: SearchFilter = filter === "article" ? "name" : filter;
+    const ef = filter;
     const analyticsSearchTerm = sanitizeAnalyticsSearchTerm(sanitized);
     if (analyticsSearchTerm) {
       pushAnalyticsEvent("search", {
@@ -383,13 +270,31 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         search_source: "header",
       });
     }
-    router.push(`/katalog?search=${encodeURIComponent(sanitized)}&filter=${ef}`);
+    router.push(`/katalog?search=${encodeURIComponent(sanitized)}&filter=${ef}&reset=search`);
     onSearch(sanitized, ef);
     saveHistory(raw.trim() || sanitized);
     setQuery(""); setDropdown(false); setFallback(null);
   };
 
-  const onKey = (e: React.KeyboardEvent) => { if (e.key === "Enter") doSearch(); };
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === "Escape") {
+      e.preventDefault(); setDropdown(false); setFilterOpen(false); setActiveIndex(-1);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); setDropdown(true);
+      if (suggestions.length) {
+        const next = e.key === "ArrowDown"
+          ? (activeIndex + 1) % suggestions.length
+          : (activeIndex <= 0 ? suggestions.length : activeIndex) - 1;
+        setActiveIndex(next);
+        document.getElementById(`${listId}-${next}`)?.scrollIntoView({ block: "nearest" });
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (dropdown && activeIndex >= 0) document.getElementById(`${listId}-${activeIndex}`)?.click();
+      else doSearch();
+    }
+  };
 
   const activeLabel = FILTER_ITEMS.find(f => f.value === filter)?.label ?? "Всі";
   const hasSugg     = query.trim().length >= SUGGESTION_MIN_CHARS;
@@ -420,7 +325,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         {/* One combined search action on the left: the old passive icon and
             the submit button duplicated the same magnifier at both ends. */}
         <button
-          type="submit"
+          type="button"
           aria-label="Пошук"
           className="group relative flex min-w-10 self-stretch shrink-0 cursor-pointer items-center justify-center gap-1.5 overflow-hidden rounded-l-[15px] border-r border-rose-200/25 bg-[image:linear-gradient(145deg,#fb7185_0%,#e11d48_42%,#9f1239_100%)] px-3 text-white [text-shadow:0_1px_2px_rgba(76,5,25,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),inset_0_-3px_5px_rgba(76,5,25,0.34),4px_0_12px_rgba(225,29,72,0.18)] transition-[background-image,box-shadow,filter,transform] duration-200 ease-out before:pointer-events-none before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/70 before:to-transparent hover:brightness-110 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.42),inset_0_-3px_5px_rgba(76,5,25,0.26),5px_0_18px_rgba(244,63,94,0.30)] active:translate-y-px active:brightness-95 active:shadow-[inset_0_3px_7px_rgba(76,5,25,0.40),2px_0_8px_rgba(225,29,72,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 sm:min-w-20 sm:px-3.5"
           onClick={() => doSearch()}
@@ -435,6 +340,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-label="Пошук товарів"
+          aria-autocomplete="list"
+          aria-expanded={dropdown && hasSugg}
+          aria-controls={dropdown && hasSugg ? listId : undefined}
+          aria-activedescendant={dropdown && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
           placeholder="Назва, артикул, код..."
           autoComplete="off"
           autoCorrect="off"
@@ -520,7 +431,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.13em] text-sky-300/90">
               {fallback
-                ? <><span>Виправлена розкладка:</span><span className="font-mono normal-case tracking-normal text-amber-300">&nbsp;{fallback}</span></>
+                ? <><span>Пошук за запитом:</span><span className="font-mono normal-case tracking-normal text-amber-300">&nbsp;{fallback}</span></>
                 : filter !== "all"
                 ? <span>Результати · {activeLabel}</span>
                 : "Знайдені товари"
@@ -555,13 +466,15 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                 <PackageX size={19} className="text-slate-500" strokeWidth={1.6} aria-hidden="true" />
               </span>
-              <p className="text-[13px] font-bold text-slate-300">Товарів за цим запитом немає</p>
-              <p className="max-w-[28ch] text-[11px] leading-relaxed text-slate-500">Перевірте артикул або спробуйте коротшу назву</p>
+              <p className="text-[13px] font-bold text-slate-300">{searchError || "Товарів за цим запитом немає"}</p>
+              {searchError
+                ? <button type="button" className="text-sm text-sky-300 underline" onClick={() => setRetry((value) => value + 1)}>Повторити пошук</button>
+                : <p className="max-w-[28ch] text-[11px] leading-relaxed text-slate-500">Перевірте артикул або спробуйте коротшу назву</p>}
             </div>
           )}
 
           {/* items */}
-          <div className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
+          <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading} className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
           {suggestions.map((p, i) => {
             const priceStr = formatUAH(p.priceEuro, euroRate);
             const inStock  = typeof p.quantity === "number" ? p.quantity > 0 : true;
@@ -574,6 +487,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             return (
               <SmartLink
                 key={p.code}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={activeIndex === i}
+                style={activeIndex === i ? { backgroundColor: "rgba(125,211,252,0.15)" } : undefined}
                 href={productHref}
                 className="font-ui group relative flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-[15px] border border-transparent bg-white/[0.025] px-2.5 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:border-sky-300/15 hover:bg-sky-300/[0.065] hover:shadow-[0_9px_22px_rgba(2,6,23,0.22),inset_0_1px_0_rgba(255,255,255,0.045)] active:translate-y-0 active:bg-white/[0.08] sm:gap-3 sm:px-3 sm:py-3"
                 onClick={() => {
@@ -609,7 +526,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-[12.5px] font-bold leading-[1.3] tracking-[-0.01em] text-slate-100 transition-colors group-hover:text-white sm:text-[13.5px]">
-                    {p.name.replace(/\s*\(.*?\)\s*/g, " ").trim()}
+                    {p.name}
                   </p>
                   <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                     {p.article && (
@@ -645,7 +562,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           {suggestions.length > 0 ? <button
             type="button"
             className="font-ui group flex w-full cursor-pointer items-center justify-center gap-2.5 border-t border-white/[0.08] bg-[image:linear-gradient(180deg,rgba(255,255,255,0.035),rgba(56,189,248,0.045))] px-4 py-3.5 text-[12px] font-bold text-sky-300 transition-[background-color,color] duration-200 hover:bg-sky-400/[0.09] hover:text-sky-100"
-            onClick={() => doSearch(fallback || undefined)}
+            onClick={() => doSearch()}
           >
             <span>Показати всі результати</span>
             {formattedTotalCount !== null ? (

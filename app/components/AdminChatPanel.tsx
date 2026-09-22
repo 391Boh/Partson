@@ -46,13 +46,14 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   setDoc,
   serverTimestamp,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { waitForFirebaseAuthReady } from 'app/lib/firebase-auth-state';
+import { getAdminIdToken, getCurrentAdminUser } from 'app/lib/get-admin-token';
 
 interface Message {
   id: string;
@@ -67,6 +68,9 @@ interface Message {
   imageUrl?: string;
   imageName?: string;
   autoReply?: boolean;
+  repliedByUid?: string;
+  repliedByName?: string;
+  repliedBySource?: 'telegram';
 }
 
 interface MessageTemplate {
@@ -111,6 +115,9 @@ interface Order {
   read?: boolean;
   shipped?: boolean;
   completed?: boolean;
+  viewedByName?: string;
+  shippedByName?: string;
+  completedByName?: string;
 }
 
 interface CallRequest {
@@ -273,6 +280,30 @@ export default function AdminChatPanel({
   const [tab, setTab] = useState<'messages' | 'orders' | 'calls' | 'users'>(
     'messages'
   );
+  // Resolved once per panel session so chat replies and order status
+  // changes can be attributed to the admin who made them. `name` prefers
+  // the Firestore users/{uid} profile (same field the Users tab already
+  // shows) over the Firebase Auth displayName, which most admins never set.
+  const [currentAdmin, setCurrentAdmin] = useState<{ uid: string; name: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const user = await getCurrentAdminUser();
+      if (!user || cancelled) return;
+      let name = user.displayName?.trim() || user.email?.trim() || '';
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', user.uid));
+        const profileName = (profileSnap.data()?.name as string | undefined)?.trim();
+        if (profileName) name = profileName;
+      } catch {
+        // Fall back to the auth-derived name above.
+      }
+      if (!cancelled) setCurrentAdmin({ uid: user.uid, name: name || 'Адмін' });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
@@ -653,13 +684,7 @@ export default function AdminChatPanel({
     setRoleUpdatingUid(uid);
     setRoleError(null);
     try {
-      const snapshot = await waitForFirebaseAuthReady();
-      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
-      if (!authUser) {
-        setRoleError('Не авторизовано');
-        return;
-      }
-      const token = await authUser.getIdToken().catch(() => null);
+      const token = await getAdminIdToken();
       if (!token) {
         setRoleError('Не авторизовано');
         return;
@@ -702,9 +727,7 @@ export default function AdminChatPanel({
     payload: Record<string, unknown>
   ) => {
     try {
-      const snapshot = await waitForFirebaseAuthReady();
-      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
-      const token = await authUser?.getIdToken().catch(() => null);
+      const token = await getAdminIdToken();
       if (!token) return;
       await fetch('/api/chat/notify-telegram', {
         method: 'POST',
@@ -728,6 +751,7 @@ export default function AdminChatPanel({
       readByUser: false,
       textRead: false,
       type: 'text',
+      ...(currentAdmin ? { repliedByUid: currentAdmin.uid, repliedByName: currentAdmin.name } : {}),
     });
     setReplyText('');
     void notifyChatTelegram(selectedUserId, { type: 'text', text });
@@ -759,9 +783,7 @@ export default function AdminChatPanel({
     setBroadcastSending(true);
     setBroadcastResult(null);
     try {
-      const snapshot = await waitForFirebaseAuthReady();
-      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
-      const token = await authUser?.getIdToken().catch(() => null);
+      const token = await getAdminIdToken();
       if (!token) {
         setBroadcastResult({ error: 'Не авторизовано' });
         return;
@@ -1051,7 +1073,10 @@ export default function AdminChatPanel({
   };
 
   const markOrderViewed = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), { read: true });
+    await updateDoc(doc(db, 'orders', orderId), {
+      read: true,
+      ...(currentAdmin ? { viewedByName: currentAdmin.name } : {}),
+    });
   };
 
   // Fire-and-forget: the Firestore status update above is the action that
@@ -1062,9 +1087,7 @@ export default function AdminChatPanel({
   // admin UI or block the status change.
   const notifyOrderStatus = async (orderId: string, status: 'shipped' | 'completed') => {
     try {
-      const snapshot = await waitForFirebaseAuthReady();
-      const authUser = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
-      const token = await authUser?.getIdToken().catch(() => null);
+      const token = await getAdminIdToken();
       if (!token) return;
       await fetch('/api/orders/notify-status', {
         method: 'POST',
@@ -1077,12 +1100,23 @@ export default function AdminChatPanel({
   };
 
   const markOrderShipped = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), { shipped: true, read: true });
+    await updateDoc(doc(db, 'orders', orderId), {
+      shipped: true,
+      read: true,
+      ...(currentAdmin ? { shippedByName: currentAdmin.name, viewedByName: currentAdmin.name } : {}),
+    });
     void notifyOrderStatus(orderId, 'shipped');
   };
 
   const markOrderCompleted = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), { completed: true, shipped: true, read: true });
+    await updateDoc(doc(db, 'orders', orderId), {
+      completed: true,
+      shipped: true,
+      read: true,
+      ...(currentAdmin
+        ? { completedByName: currentAdmin.name, shippedByName: currentAdmin.name, viewedByName: currentAdmin.name }
+        : {}),
+    });
     void notifyOrderStatus(orderId, 'completed');
   };
 
@@ -1890,6 +1924,16 @@ export default function AdminChatPanel({
                               <span className={`mt-1 block text-[9px] ${
                                 m.sender === 'user' ? 'text-slate-400' : 'text-sky-100/75'
                               }`}>
+                                {m.sender === 'manager' && (
+                                  <>
+                                    {m.autoReply
+                                      ? 'Автовідповідь'
+                                      : m.repliedBySource === 'telegram'
+                                      ? `Telegram: ${m.repliedByName || '?'}`
+                                      : m.repliedByName || null}
+                                    {(m.autoReply || m.repliedByName) && ' · '}
+                                  </>
+                                )}
                                 {formatTimestampLabel(m.createdAt)}
                               </span>
                             </>
@@ -2258,6 +2302,13 @@ export default function AdminChatPanel({
                 : o.read
                 ? 'bg-amber-500/20 text-amber-200'
                 : 'bg-sky-500/20 text-sky-200';
+              const statusByName = o.completed
+                ? o.completedByName
+                : o.shipped
+                ? o.shippedByName
+                : o.read
+                ? o.viewedByName
+                : undefined;
 
               return (
                 <div key={o.id} data-admin-card="true" className="mb-1.5 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[20px] sm:p-3">
@@ -2276,6 +2327,7 @@ export default function AdminChatPanel({
                       </div>
                       <p className="mt-1 text-[11px] text-slate-400">
                         {formatTimestampLabel(o.createdAt)}
+                        {statusByName && ` · ${statusLabel.toLowerCase()}: ${statusByName}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

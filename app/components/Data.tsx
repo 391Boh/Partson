@@ -10,7 +10,15 @@ import React, {
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ChevronsDown, LayoutGrid, List, MessageCircle, SearchX } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsDown,
+  LayoutGrid,
+  List,
+  MessageCircle,
+  SearchX,
+} from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
@@ -26,7 +34,8 @@ import {
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
-import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
+import { getAdminIdToken } from "app/lib/get-admin-token";
+import { saveProductAdminFields } from "app/lib/product-admin-mutations";
 import {
   pushAnalyticsEvent,
   pushEcommerceEvent,
@@ -90,7 +99,10 @@ const MEMORY_CACHE_TTL_MS_NEXT_PAGES = 1000 * 60 * 4;
 const PAGE_MEMORY_CACHE_MAX_ENTRIES = 48;
 const PAGE_SESSION_CACHE_MAX_ENTRIES = 64;
 const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
-const BACKGROUND_PAGE_PREFETCH_DEPTH = 1;
+// Bumped from 1: with numbered pagination + jump-ahead now common (not just
+// linear scrolling), prefetching 2 pages ahead keeps a plain "next" click
+// instant across a wider range instead of only the very next page.
+const BACKGROUND_PAGE_PREFETCH_DEPTH = 2;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
@@ -758,6 +770,7 @@ type CatalogPagePayload = {
   nextCursor?: string;
   cursorField?: string;
   totalCount?: number | null;
+  correctedQuery?: string;
   serviceUnavailable?: boolean;
   message?: string;
 };
@@ -878,21 +891,6 @@ const normalizeOptionalCacheString = (value: string | null | undefined) => {
 
 const normalizeFilterToken = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
-
-// Maps Ukrainian keyboard Cyrillic letters to their physical-key English equivalents
-// so a user who accidentally types in Cyrillic mode gets the right article match.
-const ARTICLE_CYRILLIC_TO_LATIN: Record<string, string> = {
-  "\u0439":"q","\u0446":"w","\u0443":"e","\u043A":"r","\u0435":"t","\u043D":"y","\u0433":"u","\u0448":"i","\u0449":"o","\u0437":"p",
-  "\u0444":"a","\u0456":"s","\u0432":"d","\u0430":"f","\u043F":"g","\u0440":"h","\u043E":"j","\u043B":"k","\u0434":"l",
-  "\u044F":"z","\u0447":"x","\u0441":"c","\u043C":"v","\u0438":"b","\u0442":"n","\u044C":"m",
-};
-
-// Normalizes an article token: Cyrillic → Latin keyboard equivalent, then
-// strips everything except letters, digits, and slashes (fractions like 3/4).
-const normalizeArticleToken = (value: string) =>
-  value
-    .replace(/[\u0400-\u04FF]/g, (ch) => ARTICLE_CYRILLIC_TO_LATIN[ch] ?? "")
-    .replace(/[^a-z0-9\/]/g, "");
 
 const normalizeCacheList = (values: string[]) =>
   Array.from(
@@ -1016,7 +1014,7 @@ const stripCostPriceFromPayload = (payload: CatalogPagePayload): CatalogPagePayl
 });
 
 const writePageToMemory = (key: string, payload: CatalogPagePayload, ttlMs: number) => {
-  if (ttlMs <= 0) return;
+  if (ttlMs <= 0 || payload.serviceUnavailable) return;
   const nowTs = now();
   pageCache.set(key, {
     payload: stripCostPriceFromPayload(payload),
@@ -1178,6 +1176,7 @@ const readPageFromSession = (key: string): CatalogPagePayload | null => {
       ),
       nextCursor: normalizePageCursor(record?.nextCursor),
       cursorField: normalizePageCursor(record?.cursorField),
+      correctedQuery: typeof record?.correctedQuery === "string" ? record.correctedQuery : undefined,
       totalCount:
         typeof record?.totalCount === "number" && Number.isFinite(record.totalCount)
           ? Math.max(0, Math.floor(record.totalCount))
@@ -1193,7 +1192,7 @@ const writePageToSession = (
   payload: CatalogPagePayload,
   ttlMs = MEMORY_CACHE_TTL_MS_NEXT_PAGES
 ) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || payload.serviceUnavailable) return;
   try {
     const nowTs = now();
     const expiresAt = nowTs + ttlMs;
@@ -1210,6 +1209,7 @@ const writePageToSession = (
         nextCursor: payload.nextCursor ?? "",
         cursorField: payload.cursorField ?? "",
         totalCount: payload.totalCount ?? null,
+        correctedQuery: payload.correctedQuery,
         t: nowTs,
         expiresAt,
       })
@@ -1328,10 +1328,6 @@ function useCatalogData(params: {
 
   const { addToCart, cartItems, removeFromCart } = useCart();
   const normalizedSearch = useMemo(() => rawSearchQuery.trim(), [rawSearchQuery]);
-  const normalizedSearchLower = useMemo(
-    () => normalizedSearch.toLowerCase(),
-    [normalizedSearch]
-  );
   const hasUrlCategoryFilter = Boolean(groupFromURL || subcategoryFromURL);
   const effectiveSelectedCategories = useMemo(
     () => (hasUrlCategoryFilter ? [] : selectedCategories),
@@ -1372,6 +1368,11 @@ function useCatalogData(params: {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
+  // Which already-fetched page of pageBatchSize items is on screen. Distinct
+  // from `page`, which tracks the backend's forward-only cursor position —
+  // this only slices data already sitting in memory, so paging backward
+  // never re-fetches.
+  const [displayedPage, setDisplayedPage] = useState(1);
   const [hasMore, setHasMore] = useState(
     typeof initialPagePayload?.hasMore === "boolean" ? initialPagePayload.hasMore : true
   );
@@ -1386,6 +1387,7 @@ function useCatalogData(params: {
   const [firstPageResolvedItemCount, setFirstPageResolvedItemCount] = useState(
     initialItems.length
   );
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(initialPagePayload?.correctedQuery || null);
   const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(
     typeof initialTotalCount === "number" && initialTotalCount > 0 ? initialTotalCount : null
   );
@@ -2898,6 +2900,7 @@ function useCatalogData(params: {
           nextCursor?: string;
           cursorField?: string;
           totalCount?: number | null;
+          correctedQuery?: string;
           serviceUnavailable?: boolean;
           message?: string;
         };
@@ -2932,6 +2935,7 @@ function useCatalogData(params: {
             typeof raw?.totalCount === "number" && Number.isFinite(raw.totalCount)
               ? Math.max(0, Math.floor(raw.totalCount))
               : null,
+          correctedQuery: typeof raw?.correctedQuery === "string" ? raw.correctedQuery : undefined,
           serviceUnavailable: raw?.serviceUnavailable === true,
           message:
             typeof raw?.message === "string" && raw.message.trim()
@@ -3054,6 +3058,7 @@ function useCatalogData(params: {
     priceLoadingKeysRef.current.clear();
     priceRetryCooldownUntilRef.current = {};
     setPage(1);
+    setDisplayedPage(1);
     setHasMore(true);
     setHasLoadedOnce(false);
     setFirstPageResolvedItemCount(0);
@@ -3068,6 +3073,7 @@ function useCatalogData(params: {
       const cacheKey = buildCacheKey(1, trimmed);
 
       if (
+        hasInitialPage &&
         initialPagePayload &&
         initialQuerySignature === querySignature &&
         primedInitialPayloadSignatureRef.current !== querySignature
@@ -3099,6 +3105,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(memoryHit.items.length);
+        setCorrectedQuery(memoryHit.correctedQuery || null);
         setCatalogTotalCount(resolveFirstPageTotal(memoryHit.items, memoryHit.totalCount, memoryHit.hasMore));
         nextCursorByPageRef.current[2] = memoryHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = memoryHit.cursorField || "";
@@ -3145,6 +3152,7 @@ function useCatalogData(params: {
         dataRef.current = nextItems;
         setData(nextItems);
         setFirstPageResolvedItemCount(sessionHit.items.length);
+        setCorrectedQuery(sessionHit.correctedQuery || null);
         setCatalogTotalCount(resolveFirstPageTotal(sessionHit.items, sessionHit.totalCount, sessionHit.hasMore));
         nextCursorByPageRef.current[2] = sessionHit.nextCursor || "";
         nextCursorFieldByPageRef.current[2] = sessionHit.cursorField || "";
@@ -3183,6 +3191,7 @@ function useCatalogData(params: {
         setData([]);
       }
       replacePageImages({});
+      setCorrectedQuery(null);
       setCatalogTotalCount(initialTotalCount ?? null);
       setLoading(true);
       setFilterLoading(true);
@@ -3192,6 +3201,7 @@ function useCatalogData(params: {
     dataRef.current = [];
     setData([]);
     replacePageImages({});
+    setCorrectedQuery(null);
     setCatalogTotalCount(initialTotalCount ?? null);
     setLoading(true);
     setFilterLoading(true);
@@ -3302,6 +3312,7 @@ function useCatalogData(params: {
       setData(nextData);
       if (page === 1) {
         setFirstPageResolvedItemCount(items.length);
+        setCorrectedQuery(payload.correctedQuery || null);
         setCatalogTotalCount(resolveFirstPageTotal(items, payload.totalCount, payload.hasMore));
       }
       if (payload.nextCursor) {
@@ -3858,77 +3869,18 @@ function useCatalogData(params: {
     return Array.from(map.values());
   }, [safeData]);
 
-  const searchableUniqueData = useMemo(
-    () =>
-      uniqueData.map((item) => {
-        const articleLower = (item.article || "").toLowerCase();
-        const nameLower = (item.name || "").toLowerCase();
-        return {
-          item,
-          codeLower: (item.code || "").toLowerCase(),
-          articleLower,
-          nameLower,
-          nameNormalized: normalizeArticleToken(nameLower),
-          producerLower: (item.producer || "").toLowerCase(),
-          descriptionLower: (item.description || "").toLowerCase(),
-        };
-      }),
-    [uniqueData]
-  );
-
-  // --- Р›РѕРєР°Р»СЊРЅРёР№ С„С–Р»СЊС‚СЂ ---
+  // Text matching is authoritative on the server, including corrected queries
+  // and OEM codes embedded in names. Re-filtering by the original input here
+  // used to discard valid results and leave partially empty pages.
   const filteredData = useMemo(() => {
-    const q = normalizedSearchLower;
-    const qNormalized = normalizeArticleToken(q);
-    const selectedCategorySet =
-      effectiveSelectedCategories.length > 0
-        ? new Set(
-            effectiveSelectedCategories
-              .map((value) => normalizeFilterToken(value))
-              .filter(Boolean)
-          )
-        : null;
-    const producerQuery = normalizeFilterToken(producerFromURL);
-
-    return searchableUniqueData
-      .filter(({ item, codeLower, articleLower, nameLower, nameNormalized, producerLower, descriptionLower }) => {
-        const producerMatch = !producerQuery || producerLower.includes(producerQuery);
-
-        const match =
-          searchFilter === "article"
-            ? (qNormalized ? nameNormalized.includes(qNormalized) : nameLower.includes(q))
-            : searchFilter === "name"
-            ? nameLower.includes(q)
-            : searchFilter === "code"
-                ? codeLower.includes(q)
-                : searchFilter === "producer"
-                  ? producerLower.includes(q)
-                  : searchFilter === "description"
-                    ? (q.length === 0 || descriptionLower.includes(q))
-                  : codeLower.includes(q) ||
-                    articleLower.includes(q) ||
-                    nameLower.includes(q) ||
-                    producerLower.includes(q) ||
-                    descriptionLower.includes(q);
-
-        const catMatch =
-          selectedCategorySet == null ||
-          selectedCategorySet.has(normalizeFilterToken(item.subGroup)) ||
-          selectedCategorySet.has(normalizeFilterToken(item.group)) ||
-          selectedCategorySet.has(normalizeFilterToken(item.category));
-
-        if (!match || !catMatch || !producerMatch) return false;
-
-        return true;
-      })
-      .map(({ item }) => item);
-  }, [
-    searchableUniqueData,
-    normalizedSearchLower,
-    searchFilter,
-    effectiveSelectedCategories,
-    producerFromURL,
-  ]);
+    const categories = new Set(effectiveSelectedCategories.map(normalizeFilterToken));
+    const producer = normalizeFilterToken(producerFromURL);
+    return uniqueData.filter((item) => {
+      const categoryMatch = !categories.size || [item.subGroup, item.group, item.category]
+        .some((value) => categories.has(normalizeFilterToken(value)));
+      return categoryMatch && (!producer || normalizeFilterToken(item.producer).includes(producer));
+    });
+  }, [uniqueData, effectiveSelectedCategories, producerFromURL]);
 
   // --- handlers ---
   const handleFlip = useCallback((code: string) => {
@@ -4239,6 +4191,8 @@ function useCatalogData(params: {
     hasMore,
     error,
     cartMap,
+    displayedPage,
+    setDisplayedPage,
     handleFlip,
     handleQtyChange,
     handleAddToCart,
@@ -4258,6 +4212,7 @@ function useCatalogData(params: {
     updateCatalogItemPrice,
     updateCatalogItemFields,
     catalogTotalCount,
+    correctedQuery,
     catalogQuerySignature: querySignature,
     catalogReadyQuerySignature,
   };
@@ -4289,6 +4244,25 @@ const Data: React.FC<DataProps> = ({
   const searchFilter =
     (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
     "all";
+
+  // Jumping several catalog pages at once (numbered pagination, "last page")
+  // chains many raw fetches back-to-back, each superseding — and aborting —
+  // the previous one. Every one of those aborts is already caught in-app
+  // (see isAbortLikeError/swallowAbortError throughout this file and in
+  // product-image-batch-client.ts's dedup layer); this only silences the dev
+  // overlay's own false-positive "Runtime AbortError" for that exact,
+  // already-handled case, which fires more often once a jump means dozens of
+  // fetches instead of one. Anything else still reaches the overlay normally.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isAbortLikeError(event.reason)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    return () => window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+  }, []);
 
   const groupFromURL = currentSearchParams.get("group");
   const subcategoryFromURL = currentSearchParams.get("subcategory");
@@ -4366,13 +4340,7 @@ const Data: React.FC<DataProps> = ({
     return () => window.removeEventListener("partson:adminStateChange", handleAdminChange);
   }, []);
 
-  const getAdminToken = useCallback(async (): Promise<string | null> => {
-    const snapshot = await waitForFirebaseAuthReady();
-    if (!snapshot.user) return null;
-    return (snapshot.user as { getIdToken: () => Promise<string> })
-      .getIdToken()
-      .catch(() => null);
-  }, []);
+  const getAdminToken = useCallback((): Promise<string | null> => getAdminIdToken(), []);
 
   const {
     filteredData,
@@ -4393,6 +4361,8 @@ const Data: React.FC<DataProps> = ({
     hasMore,
     error,
     cartMap,
+    displayedPage,
+    setDisplayedPage,
     handleFlip,
     handleQtyChange,
     handleAddToCart,
@@ -4412,6 +4382,7 @@ const Data: React.FC<DataProps> = ({
     updateCatalogItemPrice,
     updateCatalogItemFields,
     catalogTotalCount,
+    correctedQuery,
     catalogQuerySignature,
     catalogReadyQuerySignature,
   } = useCatalogData({
@@ -4448,14 +4419,52 @@ const Data: React.FC<DataProps> = ({
   // gets the same visible result without touching any of that.
   const pendingBatchStepsRef = useRef(0);
   const wasLoadingNextPageRef = useRef(isLoadingNextPage);
+  // "Більше товарів" no longer advances the page — it grows this page's own
+  // window instead, so the pager still reads the page you were on. Declared
+  // here (rather than next to displayedPageBounds below, which uses it) so
+  // the completion effect just below can reference its setter without a
+  // forward-reference across the render.
+  const [manualExtraItemCount, setManualExtraItemCount] = useState(0);
+  // Set right before a page jump (next arrow, a page-number pill, or "last
+  // page") has to fetch unseen data — once the fetch chain above fully
+  // lands (or runs out of hasMore early, e.g. jumping to "last page" on a
+  // catalog smaller than estimated), this flips the display to that page.
+  // Render-time clamping (`clampedDisplayedPage`) protects against
+  // overshoot if fewer pages actually loaded than requested.
+  const pendingDisplayedPageTargetRef = useRef<number | null>(null);
+  // Set by "Більше товарів" when it has to fetch before it can reveal more —
+  // same fetch chain as a page jump, but the payoff is added to the current
+  // page's window (manualExtraItemCount) instead of moving to a new page.
+  const pendingManualExtraItemsRef = useRef(0);
+  // Only set for a jump spanning more than one raw fetch (a numbered pill or
+  // "last page" several pages ahead) — surfaces "Завантажую сторінку X з Y"
+  // in place of the bare spinner so a long sequential-cursor jump reads as
+  // progress instead of a stall. A plain single-page Next/Більше товарів
+  // fetch never sets this; the small spinner already reads fine there.
+  const [jumpTargetPage, setJumpTargetPage] = useState<number | null>(null);
   useEffect(() => {
     const wasLoading = wasLoadingNextPageRef.current;
     wasLoadingNextPageRef.current = isLoadingNextPage;
-    if (wasLoading && !isLoadingNextPage && pendingBatchStepsRef.current > 0 && hasMore) {
+    if (!wasLoading || isLoadingNextPage) return;
+    if (pendingBatchStepsRef.current > 0 && hasMore) {
       pendingBatchStepsRef.current -= 1;
       loadNextPage();
+      return;
     }
-  }, [isLoadingNextPage, hasMore, loadNextPage]);
+    pendingBatchStepsRef.current = 0;
+    setJumpTargetPage(null);
+    if (pendingManualExtraItemsRef.current > 0) {
+      const extra = pendingManualExtraItemsRef.current;
+      pendingManualExtraItemsRef.current = 0;
+      setManualExtraItemCount((prev) => prev + extra);
+      return;
+    }
+    if (pendingDisplayedPageTargetRef.current !== null) {
+      const target = pendingDisplayedPageTargetRef.current;
+      pendingDisplayedPageTargetRef.current = null;
+      setDisplayedPage(target);
+    }
+  }, [isLoadingNextPage, hasMore, loadNextPage, setDisplayedPage]);
 
   const handleLoadMoreClick = useCallback(() => {
     pendingBatchStepsRef.current = Math.max(0, Math.round(pageBatchSize / ITEMS_PER_PAGE) - 1);
@@ -4487,94 +4496,8 @@ const Data: React.FC<DataProps> = ({
       const token = await getAdminToken();
       if (!token) return { ok: false, error: "Не авторизовано" };
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      };
-
-      type AdminMutationResult = {
-        ok: boolean;
-        error?: string;
-        details?: string;
-        code?: string;
-        Код?: string;
-        priceEuro?: number;
-        costPriceEuro?: number;
-        ЦінаПрод?: number;
-        ЦінаЗакуп?: number;
-        name?: string;
-        catalogNumber?: string;
-        quantity?: number;
-      };
-      const normalizeAdminResult = (payload: AdminMutationResult): AdminMutationResult => ({
-        ...payload,
-        error: payload.ok
-          ? payload.error
-          : [payload.error, payload.details].filter(Boolean).join(": ") || "Помилка збереження",
-      });
-
-      const tasks: Array<Promise<AdminMutationResult>> = [];
-
-      if (data.description !== undefined) {
-        // description endpoint uses НомерПоКаталогу (= article), not internal Код
-        tasks.push(
-          fetch("/api/product-update-description", {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ article, description: data.description }),
-          })
-            .then((r) => r.json() as Promise<AdminMutationResult>)
-            .then(normalizeAdminResult)
-            .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
-        );
-      }
-
-      if (
-        data.priceEuro !== undefined ||
-        data.costPriceEuro !== undefined ||
-        data.imageDataUrl ||
-        data.name !== undefined ||
-        data.catalogNumber !== undefined ||
-        data.producer !== undefined ||
-        data.group !== undefined ||
-        data.subGroup !== undefined ||
-        data.category !== undefined ||
-        data.receipt !== undefined ||
-        data.sale !== undefined
-      ) {
-        // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
-        // Send Код (internal code) + article (current catalog number) on every request.
-        const productUpdateBody: Record<string, unknown> = { Код: code };
-        if (article) productUpdateBody.article = article;
-        if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
-        if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
-        if (data.imageDataUrl) {
-          productUpdateBody.imageDataUrl = data.imageDataUrl;
-          if (data.imageName) productUpdateBody.file_name = data.imageName;
-        }
-        if (data.name !== undefined) productUpdateBody["Наименование"] = data.name;
-        if (data.catalogNumber !== undefined) productUpdateBody["НомерПоКаталогу"] = data.catalogNumber;
-        if (data.producer !== undefined) productUpdateBody.producer = data.producer;
-        if (data.group !== undefined) productUpdateBody.group = data.group;
-        if (data.subGroup !== undefined) productUpdateBody.subGroup = data.subGroup;
-        if (data.category !== undefined) productUpdateBody.category = data.category;
-        if (data.receipt !== undefined) productUpdateBody["Поступлення"] = data.receipt;
-        if (data.sale !== undefined) productUpdateBody["Реалізація"] = data.sale;
-        tasks.push(
-          fetch("/api/product-update", {
-            method: "POST",
-            headers,
-            body: JSON.stringify(productUpdateBody),
-          })
-            .then((r) => r.json() as Promise<AdminMutationResult>)
-            .then(normalizeAdminResult)
-            .catch(() => ({ ok: false, error: "Помилка мережі (товар)" }))
-        );
-      }
-
-      if (tasks.length === 0) return { ok: true };
-
-      const results = await Promise.all(tasks);
+      const { results } = await saveProductAdminFields(code, article, data, token);
+      if (results.length === 0) return { ok: true };
       const failed = results.find((r) => !r.ok);
 
       // Update price in local cache using confirmed values from 1C
@@ -4628,53 +4551,6 @@ const Data: React.FC<DataProps> = ({
     },
     [getAdminToken, updateCatalogItemPrice, updateCatalogItemFields]
   );
-
-  // Зберігає оригінальний запит до будь-яких редіректів (для опису потрібен оригінал)
-  const articleFallbackAttemptedRef = useRef<string>("");
-
-  // Двоступеневий фолбек: назва → артикул (транслітерація кирилиці)
-  // Пошук по опису видалено: він редиректував на filter=description при
-  // будь-якому невдалому запиті і повертав весь каталог.
-  useEffect(() => {
-    if (!hasLoadedOnce || loading || error) return;
-
-    if (
-      filteredData.length > 0 ||
-      firstPageResolvedItemCount > 0 ||
-      (typeof catalogTotalCount === "number" && catalogTotalCount > 0)
-    ) {
-      return;
-    }
-
-    if (searchFilter !== "all" && searchFilter !== "name") return;
-
-    const raw = rawSearchQuery.trim();
-    if (raw.length < 3) return;
-
-    // Рівень 2: транслітерація кирилиці → артикул.
-    // Спрацьовує тільки якщо результат містить цифру (реальний артикул, не українське слово).
-    if (!raw.includes(" ") && articleFallbackAttemptedRef.current !== raw) {
-      articleFallbackAttemptedRef.current = raw;
-      const sanitized = normalizeArticleToken(raw.toLowerCase());
-      if (sanitized && sanitized !== raw.toLowerCase() && sanitized.length >= 2 && /\d/.test(sanitized)) {
-        const params = new URLSearchParams(currentSearchParams.toString());
-        params.set("search", sanitized);
-        params.set("filter", "name");
-        router.replace(`/katalog?${params.toString()}`);
-      }
-    }
-  }, [
-    hasLoadedOnce,
-    loading,
-    error,
-    filteredData.length,
-    firstPageResolvedItemCount,
-    catalogTotalCount,
-    searchFilter,
-    rawSearchQuery,
-    currentSearchParams,
-    router,
-  ]);
 
   // Зберігає запит, для якого вже пробували прибрати римські цифри / шасі-код
   // (щоб не зациклюватись — кожен рівень пробується лише раз на кожен raw-запит).
@@ -4873,11 +4749,236 @@ const Data: React.FC<DataProps> = ({
   // since it's gated on `isLoadingNextPage` it fired on every page load
   // triggered by scrolling — a real, measured 100ms+ main-thread block per
   // page once the list grew past a couple hundred items.
-  const visibleSortedEntries = shouldKeepStableGrid ? lastStableSortedEntries : sortedEntries;
-  const visibleSortedData = useMemo(
-    () => (shouldKeepStableGrid ? visibleSortedEntries.map((entry) => entry.item) : sortedData),
-    [shouldKeepStableGrid, visibleSortedEntries, sortedData]
+  const accumulatedSortedEntries = shouldKeepStableGrid ? lastStableSortedEntries : sortedEntries;
+  const accumulatedSortedData = useMemo(
+    () => (shouldKeepStableGrid ? accumulatedSortedEntries.map((entry) => entry.item) : sortedData),
+    [shouldKeepStableGrid, accumulatedSortedEntries, sortedData]
   );
+
+  // Classic pagination is a display-only slice on top of the forward-only
+  // cursor fetch above: everything fetched so far stays in
+  // accumulatedSorted{Entries,Data}, and the arrows just move which
+  // pageBatchSize-sized window of it is on screen — no re-fetch on "back".
+  const effectivePageSize = pageBatchSize > 0 ? pageBatchSize : ITEMS_PER_PAGE;
+  const hasKnownTotalCount =
+    typeof catalogTotalCount === "number" && Number.isFinite(catalogTotalCount) && catalogTotalCount > 0;
+  const totalPageCount = hasKnownTotalCount
+    ? Math.max(1, Math.ceil((catalogTotalCount as number) / effectivePageSize))
+    : null;
+  const loadedPageCount = Math.max(1, Math.ceil(accumulatedSortedData.length / effectivePageSize));
+  const clampedDisplayedPage = totalPageCount
+    ? Math.min(displayedPage, totalPageCount)
+    : Math.min(displayedPage, loadedPageCount);
+  // Resets manualExtraItemCount whenever the page itself actually changes
+  // (number pill, arrow, page-size change), since extra items only make
+  // sense in the context of one page.
+  useEffect(() => {
+    setManualExtraItemCount(0);
+  }, [clampedDisplayedPage, effectivePageSize]);
+  const displayedPageBounds = useMemo(() => {
+    const start = (clampedDisplayedPage - 1) * effectivePageSize;
+    return { start, end: start + effectivePageSize + manualExtraItemCount };
+  }, [clampedDisplayedPage, effectivePageSize, manualExtraItemCount]);
+  const visibleSortedEntries = useMemo(
+    () => accumulatedSortedEntries.slice(displayedPageBounds.start, displayedPageBounds.end),
+    [accumulatedSortedEntries, displayedPageBounds]
+  );
+  const visibleSortedData = useMemo(
+    () => accumulatedSortedData.slice(displayedPageBounds.start, displayedPageBounds.end),
+    [accumulatedSortedData, displayedPageBounds]
+  );
+
+  // "Більше товарів": reveal another effectivePageSize worth of items on the
+  // *current* page instead of moving to the next one (unlike the Next arrow,
+  // which advances clampedDisplayedPage). If enough is already loaded, this
+  // is an instant, fetch-free reveal; otherwise it fetches first, the same
+  // way a page jump does, and the completion effect above applies the extra
+  // items once that lands.
+  const handleLoadMoreItemsClick = useCallback(() => {
+    if (loading || isLoadingNextPage) return;
+    const neededLength = displayedPageBounds.end + effectivePageSize;
+    if (accumulatedSortedData.length >= neededLength) {
+      setManualExtraItemCount((prev) => prev + effectivePageSize);
+      return;
+    }
+    if (!hasMore) {
+      const remaining = accumulatedSortedData.length - displayedPageBounds.end;
+      if (remaining > 0) setManualExtraItemCount((prev) => prev + remaining);
+      return;
+    }
+    pendingBatchStepsRef.current = Math.max(0, Math.round(effectivePageSize / ITEMS_PER_PAGE) - 1);
+    pendingManualExtraItemsRef.current = effectivePageSize;
+    loadNextPage();
+  }, [
+    loading,
+    isLoadingNextPage,
+    displayedPageBounds.end,
+    effectivePageSize,
+    accumulatedSortedData.length,
+    hasMore,
+    loadNextPage,
+  ]);
+
+  const handleNextPageClick = useCallback(() => {
+    if (loading || isLoadingNextPage) return;
+    if (displayedPage < loadedPageCount) {
+      setDisplayedPage((prev) => prev + 1);
+      return;
+    }
+    if (hasMore) {
+      pendingDisplayedPageTargetRef.current = clampedDisplayedPage + 1;
+      handleLoadMoreClick();
+    }
+  }, [
+    loading,
+    isLoadingNextPage,
+    displayedPage,
+    loadedPageCount,
+    hasMore,
+    clampedDisplayedPage,
+    handleLoadMoreClick,
+    setDisplayedPage,
+  ]);
+
+  const handlePrevPageClick = useCallback(() => {
+    setDisplayedPage((prev) => Math.max(1, prev - 1));
+  }, [setDisplayedPage]);
+
+  // Jumps ahead to an arbitrary page. 1C has no real offset pagination
+  // (offset=8 and offset=0 come back byte-identical — see fetch layer), so
+  // reaching an unloaded page means chaining the same forward-cursor raw
+  // fetches "Більше товарів" already uses, just for N pages instead of one.
+  const handleGoToPageClick = useCallback(
+    (targetPage: number) => {
+      if (loading || isLoadingNextPage) return;
+      const safeTarget = Math.max(1, Math.round(targetPage));
+      if (safeTarget <= loadedPageCount) {
+        setDisplayedPage(safeTarget);
+        return;
+      }
+      if (!hasMore) {
+        setDisplayedPage(loadedPageCount);
+        return;
+      }
+      const pagesToLoad = safeTarget - loadedPageCount;
+      const stepsPerBatch = Math.max(1, Math.round(effectivePageSize / ITEMS_PER_PAGE));
+      pendingBatchStepsRef.current = pagesToLoad * stepsPerBatch - 1;
+      pendingDisplayedPageTargetRef.current = safeTarget;
+      if (pagesToLoad > 1) setJumpTargetPage(safeTarget);
+      loadNextPage();
+    },
+    [
+      loading,
+      isLoadingNextPage,
+      loadedPageCount,
+      hasMore,
+      effectivePageSize,
+      loadNextPage,
+      setDisplayedPage,
+      setJumpTargetPage,
+    ]
+  );
+
+  // Restores the page position from the URL's `?page=` on load — a hard
+  // refresh or the browser's Back button both land here with the same URL
+  // the user left, but with fresh React state (page 1). Waits for
+  // hasLoadedOnce so handleGoToPageClick has a real loadedPageCount/hasMore
+  // to clamp against, and runs at most once per mount.
+  const restoredPageFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (restoredPageFromUrlRef.current) return;
+    if (!hasLoadedOnce) return;
+    restoredPageFromUrlRef.current = true;
+    const rawPage = Number(currentSearchParams.get("page"));
+    if (Number.isFinite(rawPage) && rawPage > 1) {
+      handleGoToPageClick(rawPage);
+    }
+  }, [hasLoadedOnce, currentSearchParams, handleGoToPageClick]);
+
+  // Keeps `?page=` in sync with the visible page so a refresh or Back lands
+  // on the same page instead of resetting to 1. Uses history.replaceState
+  // directly rather than next/navigation's router.replace: the latter asks
+  // the server for a fresh RSC payload on every call, which would add a
+  // round-trip to every pagination click — exactly what this whole change
+  // is trying to avoid. Skipped until the restore effect above has run, so
+  // it never clobbers a deep-linked page with "1" first.
+  const lastSyncedUrlPageRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!restoredPageFromUrlRef.current) return;
+    if (lastSyncedUrlPageRef.current === clampedDisplayedPage) return;
+    lastSyncedUrlPageRef.current = clampedDisplayedPage;
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (clampedDisplayedPage > 1) {
+      url.searchParams.set("page", String(clampedDisplayedPage));
+    } else {
+      url.searchParams.delete("page");
+    }
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+  }, [clampedDisplayedPage]);
+
+  // Reads the target page off the clicked button's dataset instead of an
+  // inline `() => handleGoToPageClick(p)` closure per pill — react-hooks/refs
+  // flags a fresh render-time closure over a ref-reading callback as an
+  // "accessed during render" risk, even though it only ever runs from the
+  // click event.
+  const handlePageNumberButtonClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const raw = event.currentTarget.dataset.page;
+      if (!raw) return;
+      handleGoToPageClick(Number(raw));
+    },
+    [handleGoToPageClick]
+  );
+
+  const canGoToPrevPage = clampedDisplayedPage > 1;
+  const canGoToNextPage =
+    !(loading || isLoadingNextPage) && (clampedDisplayedPage < loadedPageCount || hasMore);
+  const isJumpingPages = loading || isLoadingNextPage;
+
+  // Classic "1 … 4 5 6 … N" layout: page 1 and the last page are always
+  // reachable as plain number pills (no separate first/last arrow buttons —
+  // one fewer interactive element to get into a bad state), with up to 2
+  // pages on each side of the current one in between, and a static "…"
+  // marker (not a button) wherever the run is skipped.
+  type PaginationItem = { type: "page"; page: number } | { type: "ellipsis"; key: string };
+  const paginationItems = useMemo((): PaginationItem[] => {
+    if (!totalPageCount) return [];
+    if (totalPageCount <= 1) return [{ type: "page", page: 1 }];
+
+    const windowStart = Math.max(2, clampedDisplayedPage - 2);
+    const windowEnd = Math.min(totalPageCount - 1, clampedDisplayedPage + 2);
+
+    const items: PaginationItem[] = [{ type: "page", page: 1 }];
+    if (windowStart > 2) items.push({ type: "ellipsis", key: "start" });
+    for (let p = windowStart; p <= windowEnd; p += 1) {
+      if (p === 1 || p === totalPageCount) continue;
+      items.push({ type: "page", page: p });
+    }
+    if (windowEnd < totalPageCount - 1) items.push({ type: "ellipsis", key: "end" });
+    items.push({ type: "page", page: totalPageCount });
+    return items;
+  }, [clampedDisplayedPage, totalPageCount]);
+
+  const isInitialDisplayedPageMountRef = useRef(true);
+  useEffect(() => {
+    if (isInitialDisplayedPageMountRef.current) {
+      isInitialDisplayedPageMountRef.current = false;
+      return;
+    }
+    if (typeof document === "undefined") return;
+    document.getElementById("catalog-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [clampedDisplayedPage]);
+
+  // Changing "На сторінці" reshuffles what a "page" means (different window
+  // size), so any page position from before the change is meaningless — back
+  // to page 1 rather than showing a mismatched slice.
+  const prevPageBatchSizeRef = useRef(pageBatchSize);
+  useEffect(() => {
+    if (prevPageBatchSizeRef.current === pageBatchSize) return;
+    prevPageBatchSizeRef.current = pageBatchSize;
+    setDisplayedPage(1);
+  }, [pageBatchSize, setDisplayedPage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -4885,7 +4986,7 @@ const Data: React.FC<DataProps> = ({
     const totalCountForCurrentFilter =
       typeof catalogTotalCount === "number" && Number.isFinite(catalogTotalCount)
         ? catalogTotalCount
-        : visibleSortedData.length;
+        : accumulatedSortedData.length;
 
     const win = window as Window & {
       __partsonCatalogVisibleCount?: number;
@@ -4907,7 +5008,14 @@ const Data: React.FC<DataProps> = ({
         detail: { count: totalCountForCurrentFilter, signature: filterSignature, loading: isDataLoading },
       })
     );
-  }, [catalogTotalCount, filterSignature, visibleSortedData.length, loading, filterLoading]);
+  }, [
+    catalogTotalCount,
+    filterSignature,
+    visibleSortedData.length,
+    accumulatedSortedData.length,
+    loading,
+    filterLoading,
+  ]);
   const analyticsList = useMemo(() => {
     const safeSearch = sanitizeAnalyticsSearchTerm(rawSearchQuery);
 
@@ -5560,6 +5668,11 @@ const Data: React.FC<DataProps> = ({
         className="relative w-full px-3 pb-0 pt-0 sm:px-3.5 sm:pb-0 lg:px-4"
         aria-busy={loading || filterLoading || isLoadingNextPage}
       >
+        {!loading && correctedQuery && (
+          <p role="status" className="mb-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-slate-700">
+            За запитом «{rawSearchQuery}» збігів немає. Показуємо результати для «{correctedQuery}».
+          </p>
+        )}
         {!loading && error && (
           <div className="text-center text-red-500 mb-4">{error}</div>
         )}
@@ -5828,7 +5941,7 @@ const Data: React.FC<DataProps> = ({
             className="flex w-full flex-wrap items-center justify-center gap-3 px-1 pt-3 sm:pt-4"
             aria-live="polite"
           >
-            <div className="catalog-view-controls inline-flex items-center gap-2 rounded-[16px] border border-cyan-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f0fbff_55%,#eefdf6_100%)] p-1.5 shadow-[0_10px_26px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]">
+            <div className="catalog-view-controls inline-flex items-center gap-1 rounded-[16px] border border-cyan-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f0fbff_55%,#eefdf6_100%)] p-1.5 shadow-[0_10px_26px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]">
               <div
                 role="group"
                 aria-label="Вигляд каталогу"
@@ -5862,12 +5975,14 @@ const Data: React.FC<DataProps> = ({
                 </button>
               </div>
 
-              <label className="inline-flex items-center gap-1.5 rounded-[12px] bg-white/70 py-0.5 pl-2.5 pr-1.5 text-[11.5px] font-black uppercase tracking-[0.03em] text-sky-800 ring-1 ring-inset ring-sky-100">
+              <span aria-hidden="true" className="mx-0.5 h-6 w-px shrink-0 bg-sky-100" />
+
+              <label className="inline-flex items-center gap-1.5 rounded-[12px] bg-white/70 py-0.5 pl-2.5 pr-0.5 text-[11.5px] font-black uppercase tracking-[0.03em] text-sky-800 ring-1 ring-inset ring-sky-100">
                 На сторінці
                 <select
                   value={pageBatchSize}
                   onChange={(e) => onPageBatchSizeChange?.(Number(e.target.value))}
-                  className="h-8 rounded-[10px] border-0 bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] px-2 text-[12.5px] font-black text-white shadow-[0_5px_12px_rgba(2,132,199,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="h-8 cursor-pointer rounded-[10px] border-0 bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] px-2 text-[12.5px] font-black text-white shadow-[0_5px_12px_rgba(2,132,199,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <option value={16}>16</option>
                   <option value={32}>32</option>
@@ -5876,25 +5991,97 @@ const Data: React.FC<DataProps> = ({
               </label>
             </div>
 
+            {hasKnownTotalCount && (
+              <div
+                className="catalog-page-indicator inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-[14px] border border-cyan-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f0fbff_55%,#eefdf6_100%)] p-1 shadow-[0_8px_20px_rgba(14,165,233,0.12),inset_0_1px_0_rgba(255,255,255,0.85)]"
+                role="group"
+                aria-label="Перемикання сторінок каталогу"
+              >
+                <button
+                  type="button"
+                  onClick={handlePrevPageClick}
+                  disabled={!canGoToPrevPage || isJumpingPages}
+                  title="Попередня сторінка"
+                  aria-label="Попередня сторінка"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-white/70 text-sky-700 ring-1 ring-inset ring-sky-100 transition-[background,color,box-shadow] duration-200 hover:bg-sky-50 hover:text-sky-800 disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <ChevronLeft size={15} strokeWidth={2.6} />
+                </button>
+
+                <div className="flex shrink-0 items-center justify-center gap-1.5" aria-live="polite">
+                  {isLoadingNextPage && jumpTargetPage !== null ? (
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-1 text-[11px] font-black text-sky-700">
+                      <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                      Сторінка {Math.min(loadedPageCount, jumpTargetPage)} з {jumpTargetPage}
+                    </span>
+                  ) : isLoadingNextPage ? (
+                    <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                  ) : (
+                    paginationItems.map((item) =>
+                      item.type === "ellipsis" ? (
+                        <span
+                          key={item.key}
+                          aria-hidden="true"
+                          className="inline-flex h-7 w-3.5 shrink-0 items-end justify-center pb-1 text-[11px] font-black text-slate-400"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={item.page}
+                          type="button"
+                          data-page={item.page}
+                          onClick={handlePageNumberButtonClick}
+                          disabled={isJumpingPages}
+                          aria-current={item.page === clampedDisplayedPage ? "page" : undefined}
+                          title={`Сторінка ${item.page}`}
+                          className={`inline-flex h-7 min-w-[26px] shrink-0 items-center justify-center rounded-[9px] px-1 text-[11.5px] font-black tabular-nums transition-[background,color,box-shadow] duration-200 ${
+                            item.page === clampedDisplayedPage
+                              ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_4px_10px_rgba(2,132,199,0.38)]"
+                              : "text-slate-500 hover:bg-sky-50 hover:text-sky-700 disabled:pointer-events-none disabled:opacity-40"
+                          }`}
+                        >
+                          {item.page}
+                        </button>
+                      )
+                    )
+                  )}
+                </div>
+
+                <button
+                  ref={loadMoreButtonRef}
+                  type="button"
+                  onClick={handleNextPageClick}
+                  disabled={!canGoToNextPage}
+                  title="Наступна сторінка"
+                  aria-label="Наступна сторінка"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-white/70 text-sky-700 ring-1 ring-inset ring-sky-100 transition-[background,color,box-shadow] duration-200 hover:bg-sky-50 hover:text-sky-800 disabled:pointer-events-none disabled:opacity-30"
+                >
+                  <ChevronRight size={15} strokeWidth={2.6} />
+                </button>
+
+                <span className="ml-1 shrink-0 whitespace-nowrap pr-0.5 text-[10px] font-bold text-slate-500">
+                  {visibleSortedData.length} з {catalogTotalCount}
+                </span>
+              </div>
+            )}
+
             {hasMore && (
               <button
-                ref={loadMoreButtonRef}
                 type="button"
-                onClick={handleLoadMoreClick}
+                onClick={handleLoadMoreItemsClick}
                 disabled={loading || isLoadingNextPage}
-                className="catalog-load-more-button inline-flex min-h-11 w-auto min-w-[220px] max-w-full items-center justify-center gap-2 rounded-[15px] border px-5 py-2.5 text-[13px] font-black focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-wait disabled:opacity-75 sm:min-w-[240px] sm:text-sm"
+                className="inline-flex min-h-11 w-auto min-w-[200px] max-w-full items-center justify-center gap-2 rounded-[15px] border border-cyan-200/70 bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] px-5 py-2.5 text-[13px] font-black text-white shadow-[0_10px_26px_rgba(2,132,199,0.32)] transition-[filter,box-shadow] duration-200 hover:brightness-110 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-wait disabled:opacity-60 sm:min-w-[220px] sm:text-sm"
               >
                 {isLoadingNextPage ? (
                   <>
                     <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
-                    <span className="relative z-[2]">Готую наступні товари</span>
+                    <span>Готую наступні товари</span>
                   </>
                 ) : (
                   <>
-                    <span className="catalog-load-more-icon" aria-hidden="true">
-                      <ChevronsDown size={17} strokeWidth={2.6} />
-                    </span>
-                    <span className="relative z-[2]">Більше товарів</span>
+                    <ChevronsDown size={17} strokeWidth={2.6} />
+                    <span>Більше товарів</span>
                   </>
                 )}
               </button>

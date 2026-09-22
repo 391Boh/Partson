@@ -154,6 +154,8 @@ export const prefetchCatalogListing = async (href: string) => {
           hasMore?: boolean;
           nextCursor?: string;
           cursorField?: string;
+          correctedQuery?: string;
+          totalCount?: number | null;
         }
       | null;
 
@@ -168,6 +170,8 @@ export const prefetchCatalogListing = async (href: string) => {
       hasMore: payload.hasMore === true,
       nextCursor: typeof payload.nextCursor === "string" ? payload.nextCursor : "",
       cursorField: typeof payload.cursorField === "string" ? payload.cursorField : "",
+      correctedQuery: payload.correctedQuery,
+      totalCount: payload.totalCount ?? null,
     });
   })().finally(() => {
     catalogPagePrefetchInFlight.delete(cacheKey);

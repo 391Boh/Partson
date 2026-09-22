@@ -105,7 +105,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-50 bg-[linear-gradient(101deg,transparent_0%,transparent_34%,rgba(255,255,255,0.22)_48%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.18)_52%,transparent_66%,transparent_100%)]" />
       <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
         {/* ---- Header + store card: one balanced two-column row ---- */}
-        <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
+        <div className="home-story-grid grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
           <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:min-h-[520px] lg:p-8">
             <div className="flex items-center gap-3">
               <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600 sm:h-11 sm:w-11">
@@ -123,7 +123,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 PartsON · Львів
               </span>
             </div>
-            <h2 className="mt-4 max-w-[20ch] font-display text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
+            <h2 className="mt-4 max-w-[20ch] font-display font-display-readable text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
               Інтернет-магазин <span className="text-teal-600">автозапчастин у Львові</span>
             </h2>
             {/* Distinct from the hero's own H1/lead ("Автозапчастини у Львові

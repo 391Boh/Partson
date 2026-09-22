@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { fetchCatalogProductsByQuery, fetchPromoCatalogProducts } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
+import { normalizeSearchQuery } from "app/lib/catalog-search";
 import {
   routeSuccessCache,
   type CatalogPageApiPayload,
@@ -35,19 +36,6 @@ const toNonNegativeNumber = (value: unknown) => {
   return parsed;
 };
 
-const CYRILLIC_TO_LATIN: Record<string, string> = {
-  "й":"q","ц":"w","у":"e","к":"r","е":"t","н":"y","г":"u","ш":"i","щ":"o","з":"p",
-  "ф":"a","і":"s","в":"d","а":"f","п":"g","р":"h","о":"j","л":"k","д":"l",
-  "я":"z","ч":"x","с":"c","м":"v","и":"b","т":"n","ь":"m",
-};
-
-// Converts Cyrillic (UA keyboard layout) → Latin, then strips everything except letters, digits, and /
-const normalizeArticleQuery = (query: string): string =>
-  query
-    .toLowerCase()
-    .replace(/[Ѐ-ӿ]/g, (ch) => CYRILLIC_TO_LATIN[ch] ?? "")
-    .replace(/[^a-z0-9/]/g, "");
-
 const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawFilter =
     body.searchFilter === "article" ||
@@ -57,11 +45,11 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
     body.searchFilter === "description"
       ? body.searchFilter
       : "all";
-  const effectiveFilter = rawFilter === "article" ? "name" : rawFilter;
+  const effectiveFilter = rawFilter;
   const rawSearch = toTrimmedString(body.searchQuery);
-  const effectiveSearch = rawFilter === "article" ? normalizeArticleQuery(rawSearch) : rawSearch;
+  const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v33-all-products",
+    source: "catalog-page:v34-unified-search",
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -125,20 +113,18 @@ const awaitCatalogPayloadWithinBudget = async (
   promise: Promise<CatalogPageApiPayload>,
   timeoutMs: number
 ) => {
-  const result = await Promise.race<
-    CatalogPageApiPayload | typeof CATALOG_ROUTE_TIMEOUT_RESULT
-  >([
-    promise,
-    new Promise<typeof CATALOG_ROUTE_TIMEOUT_RESULT>((resolve) => {
-      setTimeout(() => resolve(CATALOG_ROUTE_TIMEOUT_RESULT), timeoutMs);
-    }),
-  ]);
-
-  if (result === CATALOG_ROUTE_TIMEOUT_RESULT) {
-    return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      promise,
+      new Promise<typeof CATALOG_ROUTE_TIMEOUT_RESULT>((resolve) => {
+        timer = setTimeout(() => resolve(CATALOG_ROUTE_TIMEOUT_RESULT), timeoutMs);
+      }),
+    ]);
+    return result === CATALOG_ROUTE_TIMEOUT_RESULT ? null : result;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return result;
 };
 
 const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
@@ -244,10 +230,8 @@ export async function POST(request: Request) {
       body.searchFilter === "description"
         ? body.searchFilter
         : "all";
-    const effectiveSearchFilter = searchFilterValue === "article" ? "name" : searchFilterValue;
-    const normalizedSearchQuery = searchFilterValue === "article"
-      ? normalizeArticleQuery(rawSearchQuery)
-      : rawSearchQuery;
+    const effectiveSearchFilter = searchFilterValue;
+    const normalizedSearchQuery = normalizeSearchQuery(rawSearchQuery);
     const normalizedGroup = toTrimmedString(body.group);
     const normalizedSubcategory = toTrimmedString(body.subcategory);
     const normalizedProducer = toTrimmedString(body.producer);
@@ -309,7 +293,9 @@ export async function POST(request: Request) {
       inStock: body.inStock === true,
     } as const;
 
-    const toApiPayload = (result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>>) => {
+    const toApiPayload = (
+      result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> & { correctedQuery?: string }
+    ) => {
       const items = result.items;
       return {
         items,
@@ -319,6 +305,7 @@ export async function POST(request: Request) {
         nextCursor: result.nextCursor,
         cursorField: result.cursorField || "",
         totalCount: result.totalCount ?? null,
+        ...(result.correctedQuery ? { correctedQuery: result.correctedQuery } : {}),
       };
     };
 
@@ -361,6 +348,10 @@ export async function POST(request: Request) {
         });
 
       let allgoodsPrimary: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> | null = null;
+
+      // One shared search pipeline performs all field queries and fallbacks.
+      // Do not retry a valid empty result through the same cached source.
+      if (queryBase.searchQuery && canUseCompleteAllgoodsCatalog) return runAllgoodsQuery();
 
       if (canUseCompleteAllgoodsCatalog) {
         allgoodsPrimary = await runAllgoodsQuery().catch(() => null);

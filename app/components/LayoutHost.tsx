@@ -523,7 +523,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     const root = document.documentElement;
     const body = document.body;
     const mediaQuery = window.matchMedia("(max-width: 639px)");
-    const overlaySelector = ".soft-modal-shell, .app-overlay-panel";
+    const overlaySelector = ".soft-modal-shell, .app-overlay-panel, .floating-dialog-shell";
 
     if (!mediaQuery.matches && !isChatOpen && !isAdminPanelOpen) {
       return;

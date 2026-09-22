@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type Synthetic
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, Factory, Search, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
-import BrandsLogosBackdrop from "./BrandsLogosBackdrop";
+import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
@@ -687,7 +687,7 @@ export default function BrandCarousel({
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
-      <BrandsLogosBackdrop />
+      <DeferredBrandsBackdrop />
       {/* edge bridges — blend into the categories section above and the
           store (teal) section below */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[linear-gradient(to_bottom,rgba(214,238,246,0.55)_0%,rgba(214,238,246,0.1)_58%,transparent_100%)]" />
@@ -712,7 +712,7 @@ export default function BrandCarousel({
             visually at lg: the tile list now sits on the left and the
             heading+search card on the right — order-1/order-2, same idiom
             Auto.tsx already uses for this exact swap. */}
-        <div className="grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8">
+        <div className="home-brands-grid grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8">
           <div className="reveal-head relative min-w-0 overflow-hidden rounded-[26px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.86)_58%,rgba(224,242,254,0.82)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(30,64,175,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:order-2 lg:p-7">
             <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
             {/* Soft glow anchored behind the heading — a light, blurred wash
@@ -740,7 +740,7 @@ export default function BrandCarousel({
               </span>
             </div>
 
-            <h2 className="relative font-display mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
+            <h2 className="relative font-display font-display-readable mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
               Виробники автозапчастин:{" "}
               <span className="text-blue-600">оригінали та аналоги</span>
             </h2>
@@ -851,7 +851,7 @@ export default function BrandCarousel({
               have no purpose over the detail panel), so this wrapper being
               their `relative` positioning root the whole time is harmless
               while the panel is showing — nothing else inside is absolute. */}
-          <div className="relative min-w-0 px-7 sm:px-10 lg:order-1">
+          <div className="home-brand-cards relative min-w-0 px-7 sm:px-10 lg:order-1">
             <AnimatePresence mode="wait" initial={false}>
               {selectedBrand ? (
                 <motion.div

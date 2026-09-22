@@ -4,7 +4,8 @@ import { Check, ChevronDown, ImagePlus, Minus, Package, Pencil, Plus, Settings2,
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
+import { getAdminIdToken } from "app/lib/get-admin-token";
+import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
@@ -372,12 +373,7 @@ export default function ProductPageAdminEditPanel({
     setError(null);
   };
 
-  const getToken = async (): Promise<string | null> => {
-    const snapshot = await waitForFirebaseAuthReady();
-    const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
-    if (!user) return null;
-    try { return await user.getIdToken(); } catch { return null; }
-  };
+  const getToken = getAdminIdToken;
 
   const save = async (overrideVal?: string) => {
     if (!editing) return;
@@ -388,34 +384,29 @@ export default function ProductPageAdminEditPanel({
     const token = await getToken();
     if (!token) { setError("Не авторизовано"); return; }
 
-    const body: Record<string, unknown> = { Код: code, article: values.article };
-    if (editing === "name") body.name = raw;
-    else if (editing === "article") body["НомерПоКаталогу"] = raw;
-    else if (editing === "producer") body.producer = raw;
+    const fields: ProductAdminEditFields = {};
+    if (editing === "name") fields.name = raw;
+    else if (editing === "article") fields.catalogNumber = raw;
+    else if (editing === "producer") fields.producer = raw;
     else if (editing === "category") {
-      body.category = raw;
-      body.group = metaGroupEdit.trim();
-      body.subGroup = metaSubGroupEdit.trim();
+      fields.category = raw;
+      fields.group = metaGroupEdit.trim();
+      fields.subGroup = metaSubGroupEdit.trim();
     } else if (editing === "priceEuro") {
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
-      body.priceEuro = n;
+      fields.priceEuro = n;
     } else if (editing === "costPriceEuro") {
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
-      body.costPriceEuro = n;
+      fields.costPriceEuro = n;
     }
 
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/product-update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
-      if (!data.ok) { setError([data.error, data.details].filter(Boolean).join(": ") || "Помилка збереження"); return; }
+      const result = await saveProductAdminFields(code, values.article || "", fields, token);
+      if (!result.ok) { setError(result.error || "Помилка збереження"); return; }
       const field = editing;
       if (field === "category") {
         setValues((prev) => ({
@@ -559,13 +550,8 @@ export default function ProductPageAdminEditPanel({
     setDescError(null);
     setDescSaved(false);
     try {
-      const res = await fetch("/api/product-update-description", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ code, article: values.article, description: descVal }),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
-      if (!data.ok) { setDescError([data.error, data.details].filter(Boolean).join(": ") || "Помилка збереження"); return; }
+      const result = await saveProductAdminFields(code, values.article || "", { description: descVal }, token);
+      if (!result.ok) { setDescError(result.error || "Помилка збереження"); return; }
       setDescSaved(true);
       setDescEditing(false);
       setTimeout(() => setDescSaved(false), 3000);
@@ -576,28 +562,27 @@ export default function ProductPageAdminEditPanel({
   };
 
   const changeQuantity = async (type: "receipt" | "sale") => {
+    if (qtySaving) return;
     const n = Number(qtyInput.replace(",", "."));
-    if (!Number.isFinite(n) || n <= 0) { setQtyError("Введіть число > 0"); return; }
-    const token = await getToken();
-    if (!token) { setQtyError("Не авторизовано"); return; }
+    if (!Number.isSafeInteger(n) || n <= 0) { setQtyError("Введіть число > 0"); return; }
     setQtySaving(true);
+    const token = await getToken();
+    if (!token) { setQtyError("Не авторизовано"); setQtySaving(false); return; }
     setQtyError(null);
     setQtySavedType(null);
     try {
-      const body: Record<string, unknown> = { Код: code };
-      if (values.article) body.article = values.article;
-      body[type === "receipt" ? "Поступлення" : "Реалізація"] = n;
-      const res = await fetch("/api/product-update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string; details?: string; quantity?: number };
-      if (!data.ok) { setQtyError([data.error, data.details].filter(Boolean).join(": ") || "Помилка"); return; }
-      const newQty = typeof data.quantity === "number"
-        ? data.quantity
-        : type === "receipt" ? quantity + n : Math.max(0, quantity - n);
-      setQuantity(newQty);
+      const result = await saveProductAdminFields(
+        code,
+        values.article || "",
+        type === "receipt" ? { receipt: n } : { sale: n },
+        token
+      );
+      if (!result.ok) { setQtyError(result.error || "Помилка"); return; }
+      const confirmedQuantity = result.results[0]?.quantity;
+      if (typeof confirmedQuantity !== "number" || !Number.isFinite(confirmedQuantity)) {
+        setQtyError("Не вдалося підтвердити залишок. Оновіть сторінку."); return;
+      }
+      setQuantity(confirmedQuantity);
       setQtyInput("");
       setQtySavedType(type);
       setTimeout(() => setQtySavedType(null), 3000);

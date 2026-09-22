@@ -1999,6 +1999,9 @@ const deliverAdminReplyToCustomer = async (
   adminChatId: string,
   targetUserId: string
 ) => {
+  const repliedByName =
+    normalizeText(message.from?.first_name, 100) || normalizeText(message.from?.username, 100) || undefined;
+
   const photos = message.photo;
   if (photos?.length) {
     const largest = photos[photos.length - 1];
@@ -2013,6 +2016,7 @@ const deliverAdminReplyToCustomer = async (
       type: "image",
       imageUrl,
       imageName: "Фото",
+      repliedByName,
     });
     await sendTelegramMessage(adminChatId, adminReplyConfirmation(result, "Фото"));
     return;
@@ -2023,7 +2027,7 @@ const deliverAdminReplyToCustomer = async (
     await sendTelegramMessage(adminChatId, "✍️ Порожньо. Напишіть текст відповіді для клієнта.");
     return;
   }
-  const result = await createManagerChatMessageServer({ userId: targetUserId, text });
+  const result = await createManagerChatMessageServer({ userId: targetUserId, text, repliedByName });
   await sendTelegramMessage(adminChatId, adminReplyConfirmation(result, "Відповідь"));
 };
 

@@ -1,7 +1,8 @@
-﻿import "server-only";
+import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductTreeDataset } from "app/lib/product-tree";
+import { decodeSearchCursor, encodeSearchCursor, searchAlternatives, searchProductFields, type SearchField } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -26,6 +27,7 @@ export interface CatalogQueryPageResult {
   nextCursor: string;
   cursorField?: string | null;
   totalCount?: number | null;
+  correctedQuery?: string;
 }
 
 export type CatalogSearchFilter =
@@ -352,6 +354,9 @@ const parseItemsFromText = (payload: string) => {
 const parseAllgoodsPayload = (payload: string) => {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
+    if (parsed?.success === false || !Array.isArray(parsed?.items)) {
+      throw new Error("Invalid catalog search response");
+    }
     const records = Array.isArray(parsed?.items) ? parsed.items : [];
     // total_count = всі записи за фільтром; count = кількість на поточній сторінці
     const rawCount = Number(parsed?.total_count ?? parsed?.totalCount);
@@ -362,14 +367,10 @@ const parseAllgoodsPayload = (payload: string) => {
       parsed?.cursor,
       parsed?.[ALLGOODS_CURSOR_FIELD],
     ].find((value) => typeof value === "string" && value.trim()) as string | undefined;
-    const hasMore =
-      parsed?.has_more === true ||
-      parsed?.has_more === 1 ||
-      parsed?.hasMore === true ||
-      parsed?.hasMore === 1 ||
-      parsed?.has_more === "true" ||
-      parsed?.hasMore === "true" ||
-      Boolean(nextCursor && records.length > 0);
+    const rawHasMore = parsed?.has_more ?? parsed?.hasMore;
+    const hasMore = rawHasMore === undefined || rawHasMore === null
+      ? Boolean(nextCursor && records.length > 0)
+      : rawHasMore === true || rawHasMore === 1 || rawHasMore === "true" || rawHasMore === "1";
 
     return {
       items: records.map(normalizeProduct),
@@ -378,12 +379,7 @@ const parseAllgoodsPayload = (payload: string) => {
       totalCount,
     };
   } catch {
-    return {
-      items: parseItemsFromText(payload),
-      hasMore: false,
-      nextCursor: "",
-      totalCount: null,
-    };
+    throw new Error("Catalog returned an invalid response");
   }
 };
 
@@ -770,7 +766,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   }
 
   if (requestedCursor) {
-    const parsed = await requestAllgoodsPage({
+    let parsed = await requestAllgoodsPage({
       ...requestBodyBase,
       // 1C already performs its own one-row look-ahead (`Лимит + 1`) and
       // returns only `Лимит` items. Sending `limit + 1` here caused the API
@@ -798,6 +794,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
         0
       ).catch(() => null);
       if (freshParsed) {
+        parsed = freshParsed;
         items = filterPricedItems(freshParsed.items);
         pageItems = items.slice(0, limit);
       }
@@ -844,9 +841,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
         return {
           items: items.slice(0, limit),
           hasMore:
-            parsed.hasMore ||
-            hasMoreFromWindow ||
-            Boolean(resolvedCursor && parsed.items.length >= limit),
+            parsed.hasMore || hasMoreFromWindow,
           nextCursor: resolvedCursor,
           totalCount: parsed.totalCount,
         };
@@ -1368,13 +1363,12 @@ const fetchCatalogProductsByQueryInner = async (options: {
     : [];
   const searchFilter = options.searchFilter || "all";
   const rawSearchQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
-  const searchQuery = rawSearchQuery;
+  const searchQuery = rawSearchQuery.toLocaleLowerCase("uk-UA");
   const group = (options.group || "").trim();
   const subcategory = (options.subcategory || "").trim();
   const producer = (options.producer || "").trim();
   const sortOrder = options.sortOrder || "none";
   const cursor = typeof options.cursor === "string" ? options.cursor.trim() : "";
-  const cursorField = typeof options.cursorField === "string" ? options.cursorField.trim() : "";
   const forceAllgoodsSource = options.forceAllgoodsSource === true;
   const expandHierarchy = options.expandHierarchy === true;
   const compactSearchQuery = searchQuery.replace(/\s+/g, "");
@@ -1393,6 +1387,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
     sortOrder === "none" &&
     !cursor &&
     !forceAllgoodsSource &&
+    !searchQuery &&
     !hasPriceRangeFilter &&
     (options.preferLegacySource === true || options.includePriceEnrichment !== true);
   const shouldEnrichInlinePrices = options.includePriceEnrichment === true;
@@ -1604,25 +1599,6 @@ const fetchCatalogProductsByQueryInner = async (options: {
       allgoodsBaseBody[ALLGOODS_SUBGROUP_FIELD] = selectedCategories[0];
     }
 
-    const allgoodsSearchKeys = (() => {
-      if (!searchQuery) return [] as string[];
-      if (searchFilter === "name" || searchFilter === "article") return [ALLGOODS_NAME_FIELD];
-      if (searchFilter === "code") return [ALLGOODS_CODE_FIELD];
-      if (searchFilter === "producer") return [ALLGOODS_PRODUCER_FIELD];
-      // The loop below (effectiveAllgoodsSearchKeys) stops at the first field
-      // that returns anything — and 1C's own "Наименование" (name) search is
-      // loose/fuzzy, so it returns SOME items for almost any short query,
-      // which used to always win this race and hide a real, exact article/code
-      // match sitting deeper in the catalog (e.g. searching "oc90" returned
-      // 135 loosely name-matched products while the actual "OC90" oil filter
-      // was never reached). looksLikeIdentifierSearch already exists for
-      // exactly this call — it's what the legacy getdata path above uses to
-      // make the same choice; this just brings allgoods in line with it.
-      return looksLikeIdentifierSearch
-        ? [ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD, ALLGOODS_NAME_FIELD]
-        : [ALLGOODS_NAME_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_CODE_FIELD];
-    })();
-
     const runAllgoods = async (searchKey?: string, queryOverride?: string) => {
       const body: Record<string, unknown> = { ...allgoodsBaseBody };
       const q = queryOverride ?? searchQuery;
@@ -1813,56 +1789,50 @@ const fetchCatalogProductsByQueryInner = async (options: {
         return { ...pageResult, cursorField: null };
       }
 
-      const effectiveAllgoodsSearchKeys =
-        searchQuery && cursor && cursorField && allgoodsSearchKeys.includes(cursorField)
-          ? [cursorField]
-          : allgoodsSearchKeys;
-
-      if (effectiveAllgoodsSearchKeys.length === 0) {
-        const pageResult = await runAllgoods();
-        const shouldFallbackToLegacyPagedSource =
-          sortOrder !== "none" &&
-          page > 1 &&
-          !cursor &&
-          pageResult.items.length === 0;
-
-        if (shouldFallbackToLegacyPagedSource) {
-          throw new Error("allgoods empty sorted page fallback");
-        }
-
-        return {
-          ...pageResult,
-          cursorField: null,
+      if (searchQuery) {
+        const fieldKeys: Record<SearchField, string> = {
+          name: ALLGOODS_NAME_FIELD, article: ALLGOODS_ARTICLE_FIELD,
+          code: ALLGOODS_CODE_FIELD, producer: ALLGOODS_PRODUCER_FIELD,
         };
-      }
-
-      for (const searchKey of effectiveAllgoodsSearchKeys) {
-        // Same reasoning as the legacy getdata path above: article/code
-        // fields never contain spaces in 1C, and even the name field commonly
-        // embeds a cross-reference code as a space-free substring — so a
-        // spaced query (e.g. "AD 330143" typed with a stray space) can fail
-        // every field in this loop and return no results, even though the
-        // product genuinely exists and the compact form would have matched.
-        const keyQuery =
-          searchKey === ALLGOODS_ARTICLE_FIELD || searchKey === ALLGOODS_CODE_FIELD
-            ? compactSearchQuery
-            : looksLikeIdentifierSearch
-              ? compactSearchQuery
-              : searchQuery;
-        const pageResult = await runAllgoods(searchKey, keyQuery);
-        if (pageResult.items.length > 0 || cursor) {
-          return {
-            ...pageResult,
-            cursorField: searchKey,
-          };
+        const fields: SearchField[] = searchFilter === "all"
+          ? ["name", "article", "code", "producer"]
+          : [searchFilter as SearchField];
+        const runSearchPage = (after: string) => searchProductFields({
+          query: searchQuery, fields, limit, cursor: after, sort: sortOrder,
+          fetchPage: (field, sourceCursor, batchLimit) => {
+            const body = { ...allgoodsBaseBody, [fieldKeys[field]]:
+              field === "article" || field === "code" ? compactSearchQuery : searchQuery };
+            if (field === "producer") {
+              if (producer) {
+                if (!producer.toLowerCase().includes(searchQuery.toLowerCase())) {
+                  return Promise.resolve({ items: [], hasMore: false, nextCursor: "" });
+                }
+                body[ALLGOODS_PRODUCER_FIELD] = producer;
+              } else body[ALLGOODS_PRODUCER_PREFIX_SEARCH_FIELD] = true;
+            }
+            return fetchAllgoodsProductsPageDetailed({
+              page: 1, limit: batchLimit, body, cursor: sourceCursor,
+              timeoutMs: options.timeoutMs, retries: options.retries,
+              retryDelayMs: options.retryDelayMs, cacheTtlMs: options.cacheTtlMs,
+              pricedItemsOnly: options.pricedItemsOnly, priceFrom: options.priceFrom, priceTo: options.priceTo,
+            });
+          },
+        });
+        let result = await runSearchPage(cursor);
+        if (!cursor) {
+          for (let currentPage = 1; currentPage < page; currentPage++) {
+            if (!result.hasMore) return { items: [], hasMore: false, nextCursor: "", cursorField: "search" };
+            result = await runSearchPage(result.nextCursor);
+          }
         }
+        return { ...result, cursorField: "search" };
       }
 
-      // No results in any allgoods pass — return empty.
-      // Description fallback is intentionally disabled: it matches too broadly
-      // and shows the entire catalog when no specific results are found.
-      // Description search is only available via explicit filter="description".
-      return { items: [], hasMore: false, nextCursor: "", cursorField: null };
+      const pageResult = await runAllgoods();
+      if (sortOrder !== "none" && page > 1 && !cursor && !pageResult.items.length) {
+        throw new Error("allgoods empty sorted page fallback");
+      }
+      return { ...pageResult, cursorField: null };
     } catch (err) {
       // Price constraints and ordering are implemented only by allgoods.
       // Falling through to legacy getdata after a transient allgoods failure
@@ -1879,7 +1849,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
       if (searchQuery) {
         // For text searches, never fall through to legacy getdata.
         // getdata ignores unknown search fields and returns the full catalog.
-        return { items: [], hasMore: false, nextCursor: "", cursorField: null };
+        throw err;
       }
       // No search query — safe to fall back to legacy getdata for browsing.
       void err;
@@ -2021,7 +1991,35 @@ const fetchCatalogProductsByQueryInner = async (options: {
 export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInner = async (
   options
 ) => {
-  const result = await fetchCatalogProductsByQueryInner(options);
+  const originalQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
+  const continuation = decodeSearchCursor(options.cursor || "");
+  const resolvedOptions = continuation
+    ? { ...options, searchQuery: continuation.query, cursor: continuation.cursor }
+    : options;
+  const result = await fetchCatalogProductsByQueryInner(resolvedOptions);
+  const wrapSearchResult = (value: CatalogQueryPageResult, query: string): CatalogQueryPageResult => ({
+    ...value,
+    nextCursor: encodeSearchCursor(query, value.nextCursor),
+    ...(query !== originalQuery ? { correctedQuery: query } : {}),
+  });
+  if (originalQuery) {
+    if (continuation) return wrapSearchResult(result, continuation.query);
+    if (!result.items.length && !options.cursor && (!options.page || options.page === 1)) {
+      const alternatives = searchAlternatives(originalQuery);
+      const attempts = await Promise.allSettled(alternatives.map((searchQuery) =>
+        fetchCatalogProductsByQueryInner({ ...options, searchQuery })
+      ));
+      for (let i = 0; i < attempts.length; i++) {
+        const attempt = attempts[i];
+        if (attempt.status === "fulfilled" && attempt.value.items.length) {
+          return wrapSearchResult(attempt.value, alternatives[i]);
+        }
+      }
+      const failed = attempts.find((attempt) => attempt.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+    }
+    return wrapSearchResult(result, originalQuery);
+  }
 
   // A subcategory leaf from the navigation tree can have zero products in
   // stock even though the (group, subcategory) pair is tagged correctly.
