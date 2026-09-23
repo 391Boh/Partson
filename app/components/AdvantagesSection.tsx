@@ -106,7 +106,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
         {/* ---- Header + store card: one balanced two-column row ---- */}
         <div className="home-story-grid grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
-          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:min-h-[520px] lg:p-8">
+          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:order-2 lg:min-h-[520px] lg:p-8">
             <div className="flex items-center gap-3">
               <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600 sm:h-11 sm:w-11">
                 {/* Shared line-art open-box mark — same style language (viewBox
@@ -156,7 +156,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </div>
 
           {/* store / map card — same flat card language as the rest of the section */}
-          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:order-1">
             <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/9] min-h-[220px] flex-1 cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60 lg:aspect-auto lg:min-h-[360px]">
               <DeferredStoreMap src={STORE_MAP_EMBED_URL} title="Карта розташування PartsON у Львові" />
               <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />

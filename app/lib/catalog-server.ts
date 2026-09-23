@@ -28,6 +28,7 @@ export interface CatalogQueryPageResult {
   cursorField?: string | null;
   totalCount?: number | null;
   correctedQuery?: string;
+  directOffset?: number;
 }
 
 export type CatalogSearchFilter =
@@ -374,6 +375,7 @@ const parseAllgoodsPayload = (payload: string) => {
 
     return {
       items: records.map(normalizeProduct),
+      directOffset: parsed.pagination_mode === "offset_v1" && typeof parsed.offset === "number" ? parsed.offset : undefined,
       hasMore,
       nextCursor: typeof nextCursor === "string" ? nextCursor.trim() : "",
       totalCount,
@@ -605,6 +607,7 @@ const extractResponseErrorDetails = (responseText: string) => {
 };
 
 const fetchAllgoodsProductsPageDetailed = async (options: {
+  directOffset?: number;
   page?: number;
   limit?: number;
   body?: Record<string, unknown>;
@@ -714,6 +717,21 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
 
     return parseAllgoodsPayload(response.text);
   };
+
+  if (options.directOffset !== undefined) {
+    const parsed = await requestAllgoodsPage({
+      ...requestBodyBase,
+      ПрямаяСтраница: true,
+      Смещение: options.directOffset,
+      [ALLGOODS_LIMIT_FIELD]: limit,
+    }, 0);
+    // Older installations silently ignore pagination parameters. Never show
+    // their first page under the requested last-page number.
+    if (parsed.directOffset !== options.directOffset) {
+      throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+    }
+    return { ...parsed, items: parsed.items.slice(0, limit), cursorField: null };
+  }
 
   if (isPriceSorted) {
     // The optimized 1C function returns a stable price+code keyset cursor.
@@ -1322,6 +1340,7 @@ export const fetchCatalogProductsPage = async (options: {
 };
 
 const fetchCatalogProductsByQueryInner = async (options: {
+  directOffset?: number;
   page?: number;
   limit?: number;
   selectedCars?: string[];
@@ -1621,6 +1640,19 @@ const fetchCatalogProductsByQueryInner = async (options: {
         priceTo: options.priceTo,
       });
     };
+
+    if (options.directOffset !== undefined) {
+      const body = { ...allgoodsBaseBody };
+      if (searchQuery) {
+        body.Поиск = searchQuery;
+        body.ПолеПоиска = searchFilter;
+      }
+      return fetchAllgoodsProductsPageDetailed({
+        page, limit, body, directOffset: options.directOffset,
+        timeoutMs: options.timeoutMs, retries: 0, cacheTtlMs: options.cacheTtlMs,
+        pricedItemsOnly: options.pricedItemsOnly, priceFrom: options.priceFrom, priceTo: options.priceTo,
+      });
+    }
 
     // Enrich descriptions via getinfo for items that allgoods didn't populate.
     const enrichDescriptions = async (items: CatalogProduct[]): Promise<CatalogProduct[]> => {
@@ -1991,6 +2023,14 @@ const fetchCatalogProductsByQueryInner = async (options: {
 export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInner = async (
   options
 ) => {
+  if (options.directOffset !== undefined) {
+    // Multi-car / expanded hierarchy are assembled from multiple independent
+    // streams and cannot share a single offset without an upstream union.
+    if ((options.selectedCars?.length || 0) > 0 || options.expandHierarchy || (options.selectedCategories?.length || 0) > 1) {
+      throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+    }
+    return fetchCatalogProductsByQueryInner({ ...options, forceAllgoodsSource: true });
+  }
   const originalQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
   const continuation = decodeSearchCursor(options.cursor || "");
   const resolvedOptions = continuation

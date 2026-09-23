@@ -17,6 +17,7 @@ export type CatalogPageApiPayload = {
   // correction (e.g. a UA-typed query read as EN) found results instead —
   // these items match this corrected query, not the one the client sent.
   correctedQuery?: string;
+  directOffset?: number;
 };
 
 export type RouteSuccessCacheEntry = {

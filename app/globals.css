@@ -6560,8 +6560,13 @@ svg.catalog-filter-search-icon {
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   }
 
+  /* reveal-head (1st column, text/CTA card) targets the same 0.4 share as
+     home-auto-grid's own 1st-column nav/search card and the hero's benefits
+     panel — narrow, matching the single-column button-grid override for
+     .home-brands-grid > .reveal-head below (that override only makes sense
+     if this card is actually the narrow one). */
   .home-static .home-brands-grid {
-    grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.76fr);
+    grid-template-columns: minmax(340px, 0.8fr) minmax(0, 1.2fr);
   }
 
   /* Search block (2nd column) targets the same share of the shared

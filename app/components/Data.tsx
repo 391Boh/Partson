@@ -3,6 +3,7 @@
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useCallback,
   useRef,
@@ -125,7 +126,6 @@ const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
-const NEXT_PAGE_REQUEST_COOLDOWN_MS = 45;
 // Matches ProductCard's actual h-[360px]/sm:h-[340px] plus CATALOG_GRID_CLASS's
 // gap-3/sm:gap-5/lg:gap-4 (372 below 640px, ~356-360 at sm/lg) — kept in sync
 // with the non-virtualized fallback below (both feed virtualRowHeightPx) so
@@ -833,6 +833,13 @@ const createAbortError = () => {
   }
 };
 
+// Plain useLayoutEffect makes React warn during SSR ("does nothing on the
+// server") even though nothing here needs to run before hydration — this
+// swaps to a harmless useEffect there and only uses the real layout effect
+// (needed to fold a same-tick hide+show into one paint, avoiding a visible
+// flash) once running in the browser.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 const swallowAbortError = (error: unknown) => {
   if (isAbortLikeError(error)) {
     return;
@@ -1301,6 +1308,15 @@ function useCatalogData(params: {
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
   viewMode?: "grid" | "list";
+  // Set true for the duration of a multi-page jump (Data's handleGoToPageClick
+  // chaining several raw fetches to reach a distant page). Every page fetched
+  // mid-chain is never actually shown — only the page the jump lands on is —
+  // so firing a price/image batch request per intermediate raw fetch was pure
+  // waste that also queued up behind the real, needed catalog-page requests
+  // (browsers cap concurrent requests per origin), stalling the jump itself.
+  // The already-existing visibleSortedData-driven prefetch effects pick up
+  // the landing page's items once the jump finishes and displayedPage moves.
+  suppressPagePrefetchRef?: { current: boolean };
 }) {
   const {
     selectedCars,
@@ -1324,6 +1340,7 @@ function useCatalogData(params: {
     initialQuerySignature,
     initialTotalCount = null,
     viewMode = "grid",
+    suppressPagePrefetchRef,
   } = params;
 
   const { addToCart, cartItems, removeFromCart } = useCart();
@@ -1368,6 +1385,12 @@ function useCatalogData(params: {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
+  const [directMode, setDirectMode] = useState(false);
+  const [dataStartIndex, setDataStartIndex] = useState(0);
+  const directRequestRef = useRef<AbortController | null>(null);
+  const directUnsupportedUntilRef = useRef(0);
+  const [pageRetryNonce, setPageRetryNonce] = useState(0);
+  const failedPageRef = useRef(false);
   // Which already-fetched page of pageBatchSize items is on screen. Distinct
   // from `page`, which tracks the backend's forward-only cursor position —
   // this only slices data already sitting in memory, so paging backward
@@ -1540,7 +1563,6 @@ function useCatalogData(params: {
   const priceRetryCooldownUntilRef = useRef<Record<string, number>>({});
   const nextPageLoaderShownAtRef = useRef(0);
   const nextPageLoaderHideTimerRef = useRef<number | null>(null);
-  const lastNextPageRequestAtRef = useRef(0);
   const prefetchNextPageTriggerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -3038,6 +3060,70 @@ function useCatalogData(params: {
   );
 
   // reset при зміні фільтрів / пошуку
+  const loadDirectPage = useCallback(async (targetPage: number, pageSize: number, append = false) => {
+    if (Date.now() < directUnsupportedUntilRef.current) return "unsupported" as const;
+    directRequestRef.current?.abort();
+    const controller = new AbortController();
+    directRequestRef.current = controller;
+    const signature = activeQuerySignatureRef.current;
+    const offset = append ? dataStartIndex + dataRef.current.length : (targetPage - 1) * pageSize;
+    showNextPageLoader();
+    setError(null);
+    try {
+      const response = await fetch(CATALOG_PAGE_ROUTE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          directPage: true, offset, page: targetPage, limit: pageSize,
+          selectedCars, selectedCategories: effectiveSelectedCategories,
+          searchQuery: correctedQuery || normalizedSearch, searchFilter,
+          group: groupFromURL, subcategory: subcategoryFromURL, producer: producerFromURL,
+          expandHierarchy: expandHierarchyFromURL, promoOnly,
+          sortOrder: effectiveServerSortOrder, pricedOnly,
+          priceFrom: priceFrom != null ? Math.round(priceFrom / euroRate * 100) / 100 : null,
+          priceTo: priceTo != null ? Math.round(priceTo / euroRate * 100) / 100 : null,
+          inStock,
+        }),
+      });
+      const payload = await response.json();
+      if (controller.signal.aborted || signature !== activeQuerySignatureRef.current) return "error" as const;
+      if (payload.directPageUnsupported) {
+        directUnsupportedUntilRef.current = Date.now() + 60_000;
+        return "unsupported" as const;
+      }
+      if (!response.ok || payload.serviceUnavailable || payload.directOffset !== offset || !Array.isArray(payload.items)) {
+        throw new Error("Не вдалося відкрити сторінку. Спробуйте ще раз.");
+      }
+      const items = payload.items.map(normalizeProduct) as Product[];
+      if (!items.length && offset > 0) throw new Error("Склад каталогу змінився. Оновіть каталог і спробуйте ще раз.");
+      setDirectMode(true);
+      if (!append) setDataStartIndex(offset);
+      const nextData = append ? mergeUniqueProducts(dataRef.current, items) : items;
+      dataRef.current = nextData;
+      setData(nextData);
+      setDisplayedPage(targetPage);
+      setHasMore(payload.hasMore === true);
+      if (typeof payload.totalCount === "number") setCatalogTotalCount(payload.totalCount);
+      applyResolvedPagePrices(items, payload.prices);
+      setPageImages((previous) => append ? { ...previous, ...(payload.images || {}) } : payload.images || {});
+      failedPageRef.current = false;
+      return "loaded" as const;
+    } catch (error) {
+      if (!controller.signal.aborted && signature === activeQuerySignatureRef.current) {
+        setError(error instanceof Error ? error.message : "Не вдалося відкрити сторінку");
+      }
+      return "error" as const;
+    } finally {
+      if (directRequestRef.current === controller) hideNextPageLoader(true);
+    }
+  }, [dataStartIndex, selectedCars, effectiveSelectedCategories, correctedQuery, normalizedSearch,
+    searchFilter, groupFromURL, subcategoryFromURL, producerFromURL, expandHierarchyFromURL,
+    promoOnly, effectiveServerSortOrder, pricedOnly, priceFrom, priceTo, euroRate, inStock,
+    showNextPageLoader, hideNextPageLoader, applyResolvedPagePrices]);
+
+  useEffect(() => () => { directRequestRef.current?.abort(); }, []);
+
   useEffect(() => {
     const isSortOnlyChange =
       !isInitialResetRunRef.current &&
@@ -3052,11 +3138,14 @@ function useCatalogData(params: {
     pagingRequestedRef.current = false;
     duplicatePageStreakRef.current = 0;
     cursorDuplicateStreakRef.current = 0;
-    lastNextPageRequestAtRef.current = 0;
     nextCursorByPageRef.current = { 1: "" };
     nextCursorFieldByPageRef.current = { 1: "" };
     priceLoadingKeysRef.current.clear();
     priceRetryCooldownUntilRef.current = {};
+    directRequestRef.current?.abort();
+    setDirectMode(false);
+    setDataStartIndex(0);
+    failedPageRef.current = false;
     setPage(1);
     setDisplayedPage(1);
     setHasMore(true);
@@ -3225,6 +3314,7 @@ function useCatalogData(params: {
 
   // --- Завантаження списку товарів ---
   useEffect(() => {
+    if (directMode) return;
     const currentQuerySignature = querySignature;
     if (
       page > 1 &&
@@ -3261,6 +3351,17 @@ function useCatalogData(params: {
         pagingRequestedRef.current = false;
         return true;
       }
+      if (payload.serviceUnavailable) {
+        failedPageRef.current = page > 1;
+        setError(sanitizeUiErrorMessage(payload.message) || "Не вдалося завантажити сторінку. Спробуйте ще раз.");
+        setHasLoadedOnce(true);
+        setLoading(false);
+        setFilterLoading(false);
+        pagingRequestedRef.current = false;
+        hideNextPageLoader();
+        return false;
+      }
+      failedPageRef.current = false;
       const ttl =
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       const uniqueIncoming = mergeUniqueProducts([], items);
@@ -3385,31 +3486,37 @@ function useCatalogData(params: {
       hideNextPageLoader();
 
       cancelPageWarmup();
-      // Start the image batch before React flushes the new product list. Cards
-      // therefore render with batchImagePending already set and cannot race the
-      // 150 ms direct fallback while the shared 1C request is starting.
-      fetchCatalogPageImages(itemsForIncrementalWarmup, {
-        prefetchedImages: payload.images,
-        cacheKey,
-        ttlMs: ttl,
-        querySignatureSnapshot: currentQuerySignature,
-        signal: controller.signal,
-        skipLeadingPhotos:
-          page === 1
-            ? viewMode === "list"
-              ? IMAGE_EAGER_ITEMS_COUNT_LIST
-              : IMAGE_EAGER_ITEMS_COUNT
-            : 0,
-      });
       applyResolvedPagePrices(itemsForIncrementalWarmup, payload.prices);
-      void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
-        prefetchedPrices: payload.prices,
-        cacheKey,
-        ttlMs: ttl,
-        querySignatureSnapshot: currentQuerySignature,
-        signal: controller.signal,
-        allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-      }).catch(swallowAbortError);
+      // Skipped mid multi-page jump: this page is never shown (only the one
+      // the jump lands on is), so batch-fetching its images/prices would
+      // just queue behind the real, still-needed catalog-page requests —
+      // see suppressPagePrefetchRef's definition above.
+      if (!suppressPagePrefetchRef?.current) {
+        // Start the image batch before React flushes the new product list. Cards
+        // therefore render with batchImagePending already set and cannot race the
+        // 150 ms direct fallback while the shared 1C request is starting.
+        fetchCatalogPageImages(itemsForIncrementalWarmup, {
+          prefetchedImages: payload.images,
+          cacheKey,
+          ttlMs: ttl,
+          querySignatureSnapshot: currentQuerySignature,
+          signal: controller.signal,
+          skipLeadingPhotos:
+            page === 1
+              ? viewMode === "list"
+                ? IMAGE_EAGER_ITEMS_COUNT_LIST
+                : IMAGE_EAGER_ITEMS_COUNT
+              : 0,
+        });
+        void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
+          prefetchedPrices: payload.prices,
+          cacheKey,
+          ttlMs: ttl,
+          querySignatureSnapshot: currentQuerySignature,
+          signal: controller.signal,
+          allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+        }).catch(swallowAbortError);
+      }
       pagingRequestedRef.current = false;
       return true;
     };
@@ -3517,6 +3624,7 @@ function useCatalogData(params: {
           pagingRequestedRef.current = false;
           return;
         }
+        failedPageRef.current = page > 1;
         setError("Не вдалося звернутися до сервера. Спробуйте ще раз трохи пізніше.");
         setHasLoadedOnce(true);
         setFilterLoading(false);
@@ -3558,6 +3666,8 @@ function useCatalogData(params: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
+    pageRetryNonce,
+    directMode,
     querySignature,
     normalizedSearch,
     searchFilter,
@@ -3578,16 +3688,21 @@ function useCatalogData(params: {
     sortOrder,
   ]);
 
-  // The legacy 1C source used for car-filtered browsing (getdata) never
-  // returns a total_count the way allgoods does, so catalogTotalCount stays
-  // null even when there are far more matches than the loaded page — the
-  // catalog counter would then silently fall back to the merely-loaded-so-far
-  // count. Backfill an authoritative total via the dedicated counting
-  // endpoint (which paginates/dedupes server-side) whenever a car filter is
-  // active and the primary fetch couldn't establish a real total on its own.
+  // Two 1C sources never return a total_count the way plain allgoods
+  // browsing does: the legacy car-filtered source (getdata), and text search
+  // (searchProductFields merges results across up to 4 separate field
+  // queries — name/article/code/producer — so there's no single upstream
+  // total to report). Either way catalogTotalCount stays null even though
+  // there are more matches than the loaded page, which previously meant no
+  // total → hasKnownTotalCount false → the whole pagination bar just didn't
+  // render for a search with more than one page of results. Backfill an
+  // authoritative total via the dedicated counting endpoint (which
+  // paginates/dedupes server-side and already handles search-only queries
+  // fine) whenever either case applies and the primary fetch alone couldn't
+  // establish a real total.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (selectedCars.length === 0) return;
+    if (selectedCars.length === 0 && !normalizedSearch) return;
     if (catalogTotalCount !== null) return;
     if (!hasLoadedOnce) return;
     if (loading || filterLoading) return;
@@ -3620,8 +3735,8 @@ function useCatalogData(params: {
       signal: controller.signal,
     })
       .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { totalCount?: number } | null) => {
-        if (controller.signal.aborted) return;
+      .then((payload: { totalCount?: number; exact?: boolean } | null) => {
+        if (controller.signal.aborted || payload?.exact === false) return;
         if (activeQuerySignatureRef.current !== signatureAtStart) return;
         if (typeof payload?.totalCount !== "number" || !Number.isFinite(payload.totalCount)) return;
         setCatalogTotalCount(Math.max(0, payload.totalCount));
@@ -3651,7 +3766,7 @@ function useCatalogData(params: {
   ]);
 
   useEffect(() => {
-    if (loading || !hasMore || safeData.length === 0) return;
+    if (directMode || loading || !hasMore || safeData.length === 0) return;
 
     const prefetchDepth = BACKGROUND_PAGE_PREFETCH_DEPTH;
     if (prefetchDepth < 1) return;
@@ -3779,6 +3894,7 @@ function useCatalogData(params: {
     fetchCatalogPagePayload,
     fetchCatalogPagePrices,
     hasMore,
+    directMode,
     loading,
     normalizedSearch,
     page,
@@ -3962,18 +4078,12 @@ function useCatalogData(params: {
   const loadNextPage = useCallback(() => {
     if (loading || isLoadingNextPage || !hasMore || pagingRequestedRef.current) return;
 
-    if (typeof window !== "undefined") {
-      const nowMs = Date.now();
-      if (nowMs - lastNextPageRequestAtRef.current < NEXT_PAGE_REQUEST_COOLDOWN_MS) {
-        return;
-      }
-
-      lastNextPageRequestAtRef.current = nowMs;
-    }
-
+    // The synchronous in-flight ref already prevents duplicate clicks.
+    // A time-based cooldown also blocked legitimate cached-page continuations.
     pagingRequestedRef.current = true;
     showNextPageLoader();
-    setPage((prevPage) => prevPage + 1);
+    if (failedPageRef.current) setPageRetryNonce((value) => value + 1);
+    else setPage((prevPage) => prevPage + 1);
   }, [
     hasMore,
     isLoadingNextPage,
@@ -4174,6 +4284,9 @@ function useCatalogData(params: {
 
   return {
     filteredData,
+    directMode,
+    dataStartIndex,
+    loadDirectPage,
     quantities,
     prices,
     costPrices,
@@ -4238,6 +4351,10 @@ const Data: React.FC<DataProps> = ({
 }) => {
   const searchParams = useSearchParams();
   const catalogGridRef = useRef<HTMLDivElement | null>(null);
+  // True for the duration of a multi-page jump — see its own definition in
+  // useCatalogData's params for why intermediate pages skip price/image
+  // prefetch entirely while this is set.
+  const suppressPagePrefetchDuringJumpRef = useRef(false);
   const currentSearchParams = useMemo(() => searchParams ?? new URLSearchParams(), [searchParams]);
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
@@ -4344,6 +4461,9 @@ const Data: React.FC<DataProps> = ({
 
   const {
     filteredData,
+    directMode,
+    dataStartIndex,
+    loadDirectPage,
     quantities,
     prices,
     costPrices,
@@ -4406,6 +4526,7 @@ const Data: React.FC<DataProps> = ({
     initialPagePayload,
     initialQuerySignature,
     viewMode,
+    suppressPagePrefetchRef: suppressPagePrefetchDuringJumpRef,
   });
 
   const router = useRouter();
@@ -4442,29 +4563,16 @@ const Data: React.FC<DataProps> = ({
   // progress instead of a stall. A plain single-page Next/Більше товарів
   // fetch never sets this; the small spinner already reads fine there.
   const [jumpTargetPage, setJumpTargetPage] = useState<number | null>(null);
+  // The chain-completion effect that reacts to these lives further down,
+  // after loadedPageCount exists — it needs to clamp against it. See there.
+
   useEffect(() => {
-    const wasLoading = wasLoadingNextPageRef.current;
-    wasLoadingNextPageRef.current = isLoadingNextPage;
-    if (!wasLoading || isLoadingNextPage) return;
-    if (pendingBatchStepsRef.current > 0 && hasMore) {
-      pendingBatchStepsRef.current -= 1;
-      loadNextPage();
-      return;
-    }
     pendingBatchStepsRef.current = 0;
+    pendingDisplayedPageTargetRef.current = null;
+    pendingManualExtraItemsRef.current = 0;
+    suppressPagePrefetchDuringJumpRef.current = false;
     setJumpTargetPage(null);
-    if (pendingManualExtraItemsRef.current > 0) {
-      const extra = pendingManualExtraItemsRef.current;
-      pendingManualExtraItemsRef.current = 0;
-      setManualExtraItemCount((prev) => prev + extra);
-      return;
-    }
-    if (pendingDisplayedPageTargetRef.current !== null) {
-      const target = pendingDisplayedPageTargetRef.current;
-      pendingDisplayedPageTargetRef.current = null;
-      setDisplayedPage(target);
-    }
-  }, [isLoadingNextPage, hasMore, loadNextPage, setDisplayedPage]);
+  }, [catalogQuerySignature, pageBatchSize]);
 
   const handleLoadMoreClick = useCallback(() => {
     pendingBatchStepsRef.current = Math.max(0, Math.round(pageBatchSize / ITEMS_PER_PAGE) - 1);
@@ -4765,7 +4873,7 @@ const Data: React.FC<DataProps> = ({
   const totalPageCount = hasKnownTotalCount
     ? Math.max(1, Math.ceil((catalogTotalCount as number) / effectivePageSize))
     : null;
-  const loadedPageCount = Math.max(1, Math.ceil(accumulatedSortedData.length / effectivePageSize));
+  const loadedPageCount = Math.max(1, Math.ceil((dataStartIndex + accumulatedSortedData.length) / effectivePageSize));
   const clampedDisplayedPage = totalPageCount
     ? Math.min(displayedPage, totalPageCount)
     : Math.min(displayedPage, loadedPageCount);
@@ -4780,13 +4888,55 @@ const Data: React.FC<DataProps> = ({
     return { start, end: start + effectivePageSize + manualExtraItemCount };
   }, [clampedDisplayedPage, effectivePageSize, manualExtraItemCount]);
   const visibleSortedEntries = useMemo(
-    () => accumulatedSortedEntries.slice(displayedPageBounds.start, displayedPageBounds.end),
-    [accumulatedSortedEntries, displayedPageBounds]
+    () => accumulatedSortedEntries.slice(Math.max(0, displayedPageBounds.start - dataStartIndex), Math.max(0, displayedPageBounds.end - dataStartIndex)),
+    [accumulatedSortedEntries, displayedPageBounds, dataStartIndex]
   );
   const visibleSortedData = useMemo(
-    () => accumulatedSortedData.slice(displayedPageBounds.start, displayedPageBounds.end),
-    [accumulatedSortedData, displayedPageBounds]
+    () => accumulatedSortedData.slice(Math.max(0, displayedPageBounds.start - dataStartIndex), Math.max(0, displayedPageBounds.end - dataStartIndex)),
+    [accumulatedSortedData, displayedPageBounds, dataStartIndex]
   );
+
+  // Continue the cursor chain before paint. Keep the target operation active
+  // until enough products for its entire display page have actually arrived.
+  useIsomorphicLayoutEffect(() => {
+    const wasLoading = wasLoadingNextPageRef.current;
+    wasLoadingNextPageRef.current = isLoadingNextPage;
+    if (!wasLoading || isLoadingNextPage) return;
+    // Stop on an error; another click retries the failed cursor page rather
+    // than advancing over it. The current visible page remains intact.
+    const target = pendingDisplayedPageTargetRef.current;
+    const targetItemCount = target === null ? 0 : Math.min(
+      target * effectivePageSize,
+      catalogTotalCount ?? Number.POSITIVE_INFINITY
+    );
+    const needsTargetItems = target !== null && accumulatedSortedData.length < targetItemCount;
+    if ((needsTargetItems || (target === null && pendingBatchStepsRef.current > 0)) && hasMore && !error) {
+      pendingBatchStepsRef.current = Math.max(0, pendingBatchStepsRef.current - 1);
+      loadNextPage();
+      return;
+    }
+    pendingBatchStepsRef.current = 0;
+    setJumpTargetPage(null);
+    suppressPagePrefetchDuringJumpRef.current = false;
+    if (pendingManualExtraItemsRef.current > 0) {
+      const extra = pendingManualExtraItemsRef.current;
+      pendingManualExtraItemsRef.current = 0;
+      setManualExtraItemCount((prev) => prev + extra);
+      return;
+    }
+    if (pendingDisplayedPageTargetRef.current !== null) {
+      const target = pendingDisplayedPageTargetRef.current;
+      pendingDisplayedPageTargetRef.current = null;
+      // catalogTotalCount can overstate how many pages the forward cursor
+      // actually reaches (1C's own count vs. duplicate-page early-stopping,
+      // see cursorDuplicateStreakRef above) — landing on a target beyond
+      // what truly loaded left visibleSortedData slicing past the end of
+      // accumulatedSortedData, i.e. an empty grid that looked like the
+      // click had silently failed. Clamp to what's real.
+      if (!error) setDisplayedPage(Math.min(target, loadedPageCount));
+    }
+  }, [isLoadingNextPage, hasMore, error, loadNextPage, setDisplayedPage, loadedPageCount,
+    effectivePageSize, catalogTotalCount, accumulatedSortedData.length]);
 
   // "Більше товарів": reveal another effectivePageSize worth of items on the
   // *current* page instead of moving to the next one (unlike the Next arrow,
@@ -4796,6 +4946,12 @@ const Data: React.FC<DataProps> = ({
   // items once that lands.
   const handleLoadMoreItemsClick = useCallback(() => {
     if (loading || isLoadingNextPage) return;
+    if (directMode) {
+      void loadDirectPage(clampedDisplayedPage, effectivePageSize, true).then((result) => {
+        if (result === "loaded") setManualExtraItemCount((previous) => previous + effectivePageSize);
+      });
+      return;
+    }
     const neededLength = displayedPageBounds.end + effectivePageSize;
     if (accumulatedSortedData.length >= neededLength) {
       setManualExtraItemCount((prev) => prev + effectivePageSize);
@@ -4810,10 +4966,10 @@ const Data: React.FC<DataProps> = ({
     pendingManualExtraItemsRef.current = effectivePageSize;
     loadNextPage();
   }, [
+    directMode, loadDirectPage, clampedDisplayedPage, effectivePageSize,
     loading,
     isLoadingNextPage,
     displayedPageBounds.end,
-    effectivePageSize,
     accumulatedSortedData.length,
     hasMore,
     loadNextPage,
@@ -4821,15 +4977,18 @@ const Data: React.FC<DataProps> = ({
 
   const handleNextPageClick = useCallback(() => {
     if (loading || isLoadingNextPage) return;
+    if (directMode) { void loadDirectPage(clampedDisplayedPage + 1, effectivePageSize); return; }
     if (displayedPage < loadedPageCount) {
       setDisplayedPage((prev) => prev + 1);
       return;
     }
     if (hasMore) {
       pendingDisplayedPageTargetRef.current = clampedDisplayedPage + 1;
+      setJumpTargetPage(clampedDisplayedPage + 1);
       handleLoadMoreClick();
     }
   }, [
+    directMode, loadDirectPage, effectivePageSize,
     loading,
     isLoadingNextPage,
     displayedPage,
@@ -4841,21 +5000,22 @@ const Data: React.FC<DataProps> = ({
   ]);
 
   const handlePrevPageClick = useCallback(() => {
+    if (directMode) { void loadDirectPage(Math.max(1, clampedDisplayedPage - 1), effectivePageSize); return; }
     setDisplayedPage((prev) => Math.max(1, prev - 1));
-  }, [setDisplayedPage]);
+  }, [directMode, loadDirectPage, clampedDisplayedPage, effectivePageSize, setDisplayedPage]);
 
-  // Jumps ahead to an arbitrary page. 1C has no real offset pagination
-  // (offset=8 and offset=0 come back byte-identical — see fetch layer), so
-  // reaching an unloaded page means chaining the same forward-cursor raw
-  // fetches "Більше товарів" already uses, just for N pages instead of one.
+  // Request the target page directly when 1C confirms offset support.
+  // Older 1C modules retain the forward-cursor fallback.
   const handleGoToPageClick = useCallback(
-    (targetPage: number) => {
+    async (targetPage: number) => {
       if (loading || isLoadingNextPage) return;
       const safeTarget = Math.max(1, Math.round(targetPage));
-      if (safeTarget <= loadedPageCount) {
+      if (!directMode && safeTarget <= loadedPageCount) {
         setDisplayedPage(safeTarget);
         return;
       }
+      const directResult = await loadDirectPage(safeTarget, effectivePageSize);
+      if (directResult !== "unsupported") return;
       if (!hasMore) {
         setDisplayedPage(loadedPageCount);
         return;
@@ -4864,10 +5024,12 @@ const Data: React.FC<DataProps> = ({
       const stepsPerBatch = Math.max(1, Math.round(effectivePageSize / ITEMS_PER_PAGE));
       pendingBatchStepsRef.current = pagesToLoad * stepsPerBatch - 1;
       pendingDisplayedPageTargetRef.current = safeTarget;
-      if (pagesToLoad > 1) setJumpTargetPage(safeTarget);
+      setJumpTargetPage(safeTarget);
+      suppressPagePrefetchDuringJumpRef.current = true;
       loadNextPage();
     },
     [
+      directMode, loadDirectPage,
       loading,
       isLoadingNextPage,
       loadedPageCount,
@@ -4933,8 +5095,8 @@ const Data: React.FC<DataProps> = ({
 
   const canGoToPrevPage = clampedDisplayedPage > 1;
   const canGoToNextPage =
-    !(loading || isLoadingNextPage) && (clampedDisplayedPage < loadedPageCount || hasMore);
-  const isJumpingPages = loading || isLoadingNextPage;
+    !(loading || isLoadingNextPage || jumpTargetPage !== null) && (clampedDisplayedPage < loadedPageCount || hasMore);
+  const isJumpingPages = loading || isLoadingNextPage || jumpTargetPage !== null;
 
   // Classic "1 … 4 5 6 … N" layout: page 1 and the last page are always
   // reachable as plain number pills (no separate first/last arrow buttons —
@@ -4977,8 +5139,9 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (prevPageBatchSizeRef.current === pageBatchSize) return;
     prevPageBatchSizeRef.current = pageBatchSize;
-    setDisplayedPage(1);
-  }, [pageBatchSize, setDisplayedPage]);
+    if (directMode) void loadDirectPage(1, pageBatchSize);
+    else setDisplayedPage(1);
+  }, [pageBatchSize, directMode, loadDirectPage, setDisplayedPage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6009,14 +6172,7 @@ const Data: React.FC<DataProps> = ({
                 </button>
 
                 <div className="flex shrink-0 items-center justify-center gap-1.5" aria-live="polite">
-                  {isLoadingNextPage && jumpTargetPage !== null ? (
-                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-1 text-[11px] font-black text-sky-700">
-                      <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
-                      Сторінка {Math.min(loadedPageCount, jumpTargetPage)} з {jumpTargetPage}
-                    </span>
-                  ) : isLoadingNextPage ? (
-                    <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
-                  ) : (
+                  {
                     paginationItems.map((item) =>
                       item.type === "ellipsis" ? (
                         <span
@@ -6045,7 +6201,7 @@ const Data: React.FC<DataProps> = ({
                         </button>
                       )
                     )
-                  )}
+                  }
                 </div>
 
                 <button
@@ -6059,11 +6215,16 @@ const Data: React.FC<DataProps> = ({
                 >
                   <ChevronRight size={15} strokeWidth={2.6} />
                 </button>
-
-                <span className="ml-1 shrink-0 whitespace-nowrap pr-0.5 text-[10px] font-bold text-slate-500">
-                  {visibleSortedData.length} з {catalogTotalCount}
-                </span>
               </div>
+            )}
+
+            {(jumpTargetPage !== null || isLoadingNextPage) && (
+              <span role="status" className="inline-flex items-center gap-2 text-xs font-semibold text-sky-700">
+                <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                {jumpTargetPage !== null
+                  ? `Завантажую сторінку ${jumpTargetPage} · отримано ${loadedPageCount} стор.`
+                  : "Завантажую товари…"}
+              </span>
             )}
 
             {hasMore && (

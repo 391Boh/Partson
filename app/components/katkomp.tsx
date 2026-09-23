@@ -868,7 +868,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Результати пошуку категорій"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
               >
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
@@ -905,7 +905,7 @@ const Category: React.FC<CategoryProps> = ({
                   <HorizontalDirectoryRail
                     ariaLabel="Категорії автозапчастин"
                     rows={2}
-                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
                   >
                     {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
@@ -955,7 +955,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Групи автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
               >
                 {filteredGroupItems.length > 0 ? (
                   filteredGroupItems.map((group) => {
@@ -995,7 +995,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Підгрупи автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
               >
                 {filteredSubgroupItems.length > 0 ? (
                   filteredSubgroupItems.map((item) => {

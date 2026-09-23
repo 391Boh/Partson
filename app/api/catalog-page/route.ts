@@ -49,7 +49,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v34-unified-search",
+    source: "catalog-page:v35-direct-pages",
+    directOffset: body.directPage === true ? toNonNegativeNumber(body.offset) : null,
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
     cursor: toTrimmedString(body.cursor),
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
       const { products, stale } = await fetchPromoCatalogProducts();
       const page = toPositiveInt(body.page, 1);
       const limit = toPositiveInt(body.limit, 10);
-      const start = (page - 1) * limit;
+      const start = body.directPage === true ? Math.floor(toNonNegativeNumber(body.offset) ?? 0) : (page - 1) * limit;
       const items = products.slice(start, start + limit);
 
       return NextResponse.json(
@@ -203,6 +204,7 @@ export async function POST(request: Request) {
           nextCursor: "",
           cursorField: "",
           totalCount: products.length,
+          ...(body.directPage === true ? { directOffset: start } : {}),
           stale,
         },
         { headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" } }
@@ -270,7 +272,12 @@ export async function POST(request: Request) {
       ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
       : ROUTE_SUCCESS_STALE_TTL_MS;
 
+    const directOffset = body.directPage === true ? toNonNegativeNumber(body.offset) : null;
+    if (body.directPage === true && (directOffset === null || !Number.isSafeInteger(directOffset))) {
+      return NextResponse.json({ error: "Invalid page offset" }, { status: 400 });
+    }
     const queryBase = {
+      ...(directOffset !== null ? { directOffset } : {}),
       page: toPositiveInt(body.page, 1),
       limit: toPositiveInt(body.limit, 10),
       cursor: toTrimmedString(body.cursor),
@@ -305,6 +312,7 @@ export async function POST(request: Request) {
         nextCursor: result.nextCursor,
         cursorField: result.cursorField || "",
         totalCount: result.totalCount ?? null,
+        ...(result.directOffset !== undefined ? { directOffset: result.directOffset } : {}),
         ...(result.correctedQuery ? { correctedQuery: result.correctedQuery } : {}),
       };
     };
@@ -351,7 +359,7 @@ export async function POST(request: Request) {
 
       // One shared search pipeline performs all field queries and fallbacks.
       // Do not retry a valid empty result through the same cached source.
-      if (queryBase.searchQuery && canUseCompleteAllgoodsCatalog) return runAllgoodsQuery();
+      if (queryBase.directOffset !== undefined || (queryBase.searchQuery && canUseCompleteAllgoodsCatalog)) return runAllgoodsQuery();
 
       if (canUseCompleteAllgoodsCatalog) {
         allgoodsPrimary = await runAllgoodsQuery().catch(() => null);
@@ -555,6 +563,9 @@ export async function POST(request: Request) {
       headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "DIRECT_PAGINATION_UNSUPPORTED") {
+      return NextResponse.json({ directPageUnsupported: true }, { status: 409, headers: { "cache-control": "no-store" } });
+    }
     if (!routeCacheKey) {
       routeCacheKey = buildRouteCacheKey(body);
     }

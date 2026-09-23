@@ -708,12 +708,16 @@ export default function BrandCarousel({
         transition={shouldAnimate ? { duration: 0.32, ease: "easeOut" } : undefined}
       >
         {/* DOM order keeps the heading first (mobile stacking + reading
-            order match Auto.tsx's own reveal-head/reveal-search pair), but
-            visually at lg: the tile list now sits on the left and the
-            heading+search card on the right — order-1/order-2, same idiom
-            Auto.tsx already uses for this exact swap. */}
-        <div className="home-brands-grid grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8">
-          <div className="reveal-head relative min-w-0 overflow-hidden rounded-[26px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.86)_58%,rgba(224,242,254,0.82)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(30,64,175,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:order-2 lg:p-7">
+            order), and at md: (same breakpoint hero.tsx switches at — lg:
+            here left this narrower at the in-between md-to-lg widths where
+            the hero's own panel was already narrow) it sits on the left
+            with the tile list on the right — order-1/order-2. Track widths
+            match the hero's text/benefits-panel split (hero.tsx's
+            home-hero-grid, md:grid-cols-[minmax(0,1.06fr)_minmax(340px,0.94fr)])
+            — narrow column mirrored to the left here since that's where the
+            text card sits, not the right like in the hero. */}
+        <div className="home-brands-grid grid gap-5 md:grid-cols-[minmax(340px,0.94fr)_minmax(0,1.06fr)] md:items-stretch lg:gap-8">
+          <div className="reveal-head relative min-w-0 overflow-hidden rounded-[26px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.86)_58%,rgba(224,242,254,0.82)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(30,64,175,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 md:order-1 lg:p-7">
             <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
             {/* Soft glow anchored behind the heading — a light, blurred wash
                 (not a hard shape) so the title lifts off the card without
@@ -851,7 +855,7 @@ export default function BrandCarousel({
               have no purpose over the detail panel), so this wrapper being
               their `relative` positioning root the whole time is harmless
               while the panel is showing — nothing else inside is absolute. */}
-          <div className="home-brand-cards relative min-w-0 px-7 sm:px-10 lg:order-1">
+          <div className="home-brand-cards relative min-w-0 px-7 sm:px-10 md:order-2">
             <AnimatePresence mode="wait" initial={false}>
               {selectedBrand ? (
                 <motion.div

@@ -738,7 +738,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Виробники автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
               >
                 {visibleProducerBrands.map((b, index) => (
                     <button
