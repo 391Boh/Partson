@@ -1,4 +1,4 @@
-export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v50-unified-search";
+export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v51-fresh-search";
 export const CATALOG_PRODUCTS_CACHE_KEY = "partson:getprod";
 export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 30;
 export const CATALOG_PRODUCTS_STALE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -131,8 +131,30 @@ export const clearCatalogBrowserCache = () => {
   }
 };
 
-export const invalidateCatalogClientCache = () => {
+export type CatalogInvalidationDetail = {
+  code?: string;
+  article?: string;
+  name?: string;
+  producer?: string;
+  group?: string;
+  subGroup?: string;
+  category?: string;
+  quantity?: number;
+  priceEuro?: number;
+  costPriceEuro?: number;
+};
+
+// `detail` carries the just-confirmed field(s) for one product, when the
+// caller already knows them (e.g. a successful admin save) — an already-
+// mounted catalog grid uses it to patch that item's row in place immediately
+// instead of only clearing caches for some *future* fetch to pick up. It's
+// optional and additive: existing listeners that ignore the event object
+// entirely (they just re-fetch/clear on any invalidation) keep working as-is.
+export const invalidateCatalogClientCache = (detail?: CatalogInvalidationDetail) => {
   clearCatalogBrowserCache();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("partson:catalog-invalidated", { detail }));
+  }
   catalogVersionHash = null;
   catalogVersionFetchedAt = 0;
   catalogVersionPromise = null;

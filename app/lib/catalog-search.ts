@@ -50,16 +50,21 @@ export async function searchProductFields<T extends SearchItem>(options: {
     const matches: T[] = [];
     let cursor = options.cursor;
     let more = true;
+    const seenCursors = new Set([cursor]);
+    let batchSize = Math.min(500, Math.max(32, Math.ceil((options.limit + 1) / 32) * 32));
     // Scan upstream fuzzy matches until the visible page is full or the source
     // ends. Filtering just one batch would hide later matching products.
     while (more && matches.length <= options.limit) {
-      const page = await options.fetchPage(field, cursor, Math.min(500, Math.max(50, options.limit + 1)));
+      const page = await options.fetchPage(field, cursor, batchSize);
       matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field)));
       more = page.hasMore;
-      if (more && (!page.nextCursor || page.nextCursor === cursor)) {
+      if (more && (!page.items.length || !page.nextCursor || seenCursors.has(page.nextCursor))) {
         throw new Error("Search source returned a non-advancing cursor");
       }
       cursor = page.nextCursor;
+      seenCursors.add(cursor);
+      // Noisy upstream matches should not require hundreds of small requests.
+      if (matches.length <= options.limit) batchSize = Math.min(500, batchSize * 4);
     }
     return { items: matches, hasMore: more };
   }));
@@ -96,4 +101,16 @@ export function decodeSearchCursor(value: string): { query: string; cursor: stri
     const parsed = JSON.parse(value.slice(CURSOR_PREFIX.length));
     return typeof parsed.query === "string" && typeof parsed.cursor === "string" ? parsed : null;
   } catch { return null; }
+}
+
+// Presentation only: retain the original name for matching and product URLs.
+export function suggestionDisplayName(name: string): string {
+  let depth = 0;
+  let result = "";
+  for (const char of name) {
+    if (char === "(" || char === "（") { depth++; if (depth === 1) result += " "; }
+    else if (char === ")" || char === "）") { depth = Math.max(0, depth - 1); }
+    else if (depth === 0) result += char;
+  }
+  return normalizeSearchQuery(result);
 }

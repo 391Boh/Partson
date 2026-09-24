@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import sharp from "sharp";
+import { optimizeCatalogImage } from "app/lib/catalog-image-optimize";
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { buildProductImagePath } from "app/lib/product-image-path";
@@ -22,10 +22,6 @@ type CatalogImageIdentity = {
   article?: string;
 };
 
-const CATALOG_IMAGE_MAX_WIDTH = 320;
-const CATALOG_IMAGE_MAX_HEIGHT = 320;
-const CATALOG_IMAGE_QUALITY = 64;
-const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 120 * 1024;
 const CATALOG_ROUTE_MEMORY_CACHE_TTL_MS = 1000 * 60 * 60 * 4;
 
 let fallbackImageHashPromise: Promise<string | null> | null = null;
@@ -90,43 +86,6 @@ const detectImageContentType = (buffer: Buffer) => {
     return "image/gif";
   }
   return "";
-};
-
-const optimizeCatalogImage = async (
-  buffer: Buffer,
-  contentType: string
-): Promise<{ buffer: Buffer; contentType: string }> => {
-  if (
-    contentType === "image/gif" ||
-    (contentType === "image/webp" &&
-      buffer.length <= CATALOG_WEBP_PASSTHROUGH_MAX_BYTES)
-  ) {
-    return { buffer, contentType };
-  }
-
-  try {
-    const transformed = await sharp(buffer, {
-      failOn: "none",
-      animated: false,
-    })
-      .rotate()
-      .resize({
-        width: CATALOG_IMAGE_MAX_WIDTH,
-        height: CATALOG_IMAGE_MAX_HEIGHT,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({ quality: CATALOG_IMAGE_QUALITY, effort: 2 })
-      .toBuffer();
-
-    if (transformed.length > 0 && transformed.length < buffer.length) {
-      return { buffer: transformed, contentType: "image/webp" };
-    }
-  } catch {
-    // The original image is still valid and can be served unchanged.
-  }
-
-  return { buffer, contentType };
 };
 
 export const materializeCatalogImageBase64 = async (

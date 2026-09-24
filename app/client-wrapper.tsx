@@ -10,6 +10,26 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
       return;
     }
 
+    let isAdmin = false;
+    const setAdmin = (value: boolean) => {
+      isAdmin = value;
+      document.documentElement.dataset.adminCopy = value ? 'true' : 'false';
+    };
+    try {
+      const uid = localStorage.getItem('user_id');
+      setAdmin(Boolean(uid && localStorage.getItem(`partson:isAdmin:${uid}`) === '1'));
+    } catch { setAdmin(false); }
+    const onAdminState = (event: Event) => {
+      setAdmin((event as CustomEvent<{ isAdmin?: boolean }>).detail?.isAdmin === true);
+    };
+    window.addEventListener('partson:adminStateChange', onAdminState);
+    const allowAdmin = (event: Event) => {
+      if (!isAdmin) return false;
+      // Skip component-level copy blockers while preserving the browser default.
+      event.stopPropagation();
+      return true;
+    };
+
     const isAdminCopyTarget = (target: EventTarget | null) => {
       const element =
         target instanceof Element
@@ -24,6 +44,7 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     };
 
     const handleCopy = (event: ClipboardEvent) => {
+      if (allowAdmin(event)) return;
       if (isAdminCopyTarget(event.target)) {
         return;
       }
@@ -31,6 +52,7 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     };
 
     const handleCut = (event: ClipboardEvent) => {
+      if (allowAdmin(event)) return;
       if (isAdminCopyTarget(event.target)) {
         return;
       }
@@ -38,22 +60,26 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     };
 
     const handleSelectStart = (event: Event) => {
+      if (allowAdmin(event)) return;
       if (!isEditableTarget(event.target)) {
         event.preventDefault();
       }
     };
 
     const handleContextMenu = (event: MouseEvent) => {
+      if (allowAdmin(event)) return;
       if (!isEditableTarget(event.target)) {
         event.preventDefault();
       }
     };
 
     const handleDragStart = (event: DragEvent) => {
+      if (isAdmin) return;
       event.preventDefault();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isAdmin) return;
       if (!event.ctrlKey && !event.metaKey) {
         return;
       }
@@ -77,6 +103,8 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     document.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
+      window.removeEventListener('partson:adminStateChange', onAdminState);
+      delete document.documentElement.dataset.adminCopy;
       document.removeEventListener('copy', handleCopy, true);
       document.removeEventListener('cut', handleCut, true);
       document.removeEventListener('selectstart', handleSelectStart, true);

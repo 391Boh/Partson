@@ -2356,7 +2356,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         articleHint={product.article}
                         hasKnownPhoto={productHasKnownPhoto}
                         preferCachedPreview
-                        unoptimized
                         syncWithProductGallery
                         className={heroProductImageClass}
                       />

@@ -12,6 +12,7 @@ export type ProductAdminEditFields = {
   description?: string;
   priceEuro?: number;
   costPriceEuro?: number;
+  promoPriceEuro?: number;
   imageDataUrl?: string;
   imageName?: string;
   name?: string;
@@ -32,8 +33,10 @@ export type ProductAdminMutationResult = {
   Код?: string;
   priceEuro?: number;
   costPriceEuro?: number;
+  promoPriceEuro?: number;
   ЦінаПрод?: number;
   ЦінаЗакуп?: number;
+  Акція?: number;
   name?: string;
   catalogNumber?: string;
   quantity?: number;
@@ -81,6 +84,7 @@ export async function saveProductAdminFields(
   if (
     data.priceEuro !== undefined ||
     data.costPriceEuro !== undefined ||
+    data.promoPriceEuro !== undefined ||
     data.imageDataUrl ||
     data.name !== undefined ||
     data.catalogNumber !== undefined ||
@@ -97,6 +101,7 @@ export async function saveProductAdminFields(
     if (article) productUpdateBody.article = article;
     if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
     if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
+    if (data.promoPriceEuro !== undefined) productUpdateBody["Акція"] = data.promoPriceEuro;
     if (data.imageDataUrl) {
       productUpdateBody.imageDataUrl = data.imageDataUrl;
       if (data.imageName) productUpdateBody.file_name = data.imageName;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { clearBrowserCatalogCache } from "app/components/Data";
+import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import {
   formatProductImageSize,
@@ -27,6 +28,7 @@ const EMPTY = {
   priceEuro: "",
   costPriceEuro: "",
   quantity: "0",
+  description: "",
 };
 
 type SuggestType = "category" | "group" | "subGroup";
@@ -165,7 +167,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   };
 
   const submitProduct = async () => {
-    if (saving) return;
+    if (saving || createdCode) return;
     if (!fields.name.trim()) { setError("Введіть назву товару"); return; }
 
     const snapshot = await waitForFirebaseAuthReady();
@@ -213,7 +215,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         body: JSON.stringify(body),
       });
       const data = (await res.json()) as { ok: boolean; code?: string; article?: string; name?: string; error?: string };
-      if (!data.ok) { setError(data.error ?? "Помилка створення"); return; }
+      if (!res.ok || !data.ok) { setError(data.error ?? "Помилка створення"); return; }
 
       const code = data.code || "";
       const article = data.article || data.code || "";
@@ -228,13 +230,13 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       const navParam = primary ? `${primary}~${secondary}` : "";
 
       // Wait for prices and opening stock before showing the product page.
-      // The newly created price record must be addressed by internal code.
+      // Product lookup uses the code; the price directory uses the article.
       if (price !== undefined || cost !== undefined || quantity > 0) {
         if (!code) {
           setError("Товар створено, але 1С не повернула код для збереження ціни та кількості.");
           return;
         }
-        const updateBody: Record<string, unknown> = { Код: code };
+        const updateBody: Record<string, unknown> = { Код: code, article, requirePriceConfirmation: true };
         if (price !== undefined) updateBody["ЦінаПрод"] = price;
         if (cost !== undefined) updateBody["ЦінаЗакуп"] = cost;
         if (quantity > 0) updateBody["Кількість"] = quantity;
@@ -254,11 +256,38 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           return;
         } finally {
           clearBrowserCatalogCache();
+          invalidateCatalogClientCache();
+        }
+      }
+
+      // Description lives on a separate 1C endpoint keyed by article (see
+      // product-admin-mutations.ts's saveProductAdminFields), not the
+      // product-update body above.
+      if (fields.description.trim()) {
+        if (!article) {
+          setError("Товар створено, але немає артикулу для збереження опису.");
+          return;
+        }
+        try {
+          const descRes = await fetch("/api/product-update-description", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ article, description: fields.description.trim() }),
+          });
+          const descResult = await descRes.json();
+          if (!descRes.ok || !descResult.ok) {
+            setError(`Товар створено, але опис не збережено: ${descResult.error || "Помилка збереження"}. Відкрийте товар і додайте опис вручну.`);
+            return;
+          }
+        } catch {
+          setError("Товар створено, але не вдалося зберегти опис. Відкрийте товар і додайте опис вручну.");
+          return;
         }
       }
 
       if (navParam) {
         clearBrowserCatalogCache();
+        invalidateCatalogClientCache();
         setTimeout(() => {
           onClose();
           router.push(`/product/${encodeURIComponent(navParam)}`);
@@ -542,6 +571,16 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 <input type="number" min="0" step="1" value={fields.quantity}
                   onChange={(e) => set("quantity", e.target.value)}
                   className={fieldClass} />
+              </Field>
+
+              <Field label="Опис (необов'язково)">
+                <textarea
+                  value={fields.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  placeholder="Короткий опис товару для картки на сайті"
+                  rows={3}
+                  className={`${fieldClass} resize-y`}
+                />
               </Field>
 
               {/* Фото */}

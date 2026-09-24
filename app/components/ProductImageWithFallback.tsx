@@ -400,11 +400,19 @@ export default function ProductImageWithFallback({
             sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
             placeholder="blur"
             blurDataURL={BLUR_DATA_URL}
-            unoptimized={
-              unoptimizedProp ||
-              requestSrc.startsWith("data:image/") ||
-              requestSrc.startsWith("/product-image/")
-            }
+            // /product-image/[code] used to be listed here too, which made
+            // this `unoptimized` for essentially every real product photo —
+            // that route always serves a fixed up-to-1400x1400 image
+            // regardless of viewport (app/product-image/[code]/route.ts's
+            // FULL_IMAGE_MAX_WIDTH/HEIGHT), and `unoptimized` skips Next's
+            // own resizing entirely, so the `sizes` above had no effect: a
+            // phone on a ~350px box downloaded the same ~1400px file as a
+            // desktop. /product-image/** is already in next.config.ts's
+            // localPatterns, so Next's optimizer can fetch and further
+            // resize it per deviceSizes bucket (cached a year via
+            // minimumCacheTTL) — a one-time re-encode cost per size, well
+            // worth it for this page's single largest, most-requested image.
+            unoptimized={unoptimizedProp || requestSrc.startsWith("data:image/")}
             className={`h-full w-full object-contain transition-[opacity,transform] ${
               preferImmediateDecode ? "duration-100" : "duration-180"
             } ${isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"}`}

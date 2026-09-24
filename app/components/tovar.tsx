@@ -341,7 +341,8 @@ const warmedGroupPreviewImages = new Set<string>();
 
 const preloadChildPreviews = (
   parent: ProductNode,
-  limit = DESKTOP_ITEMS_PER_PAGE
+  limit = DESKTOP_ITEMS_PER_PAGE,
+  priority: "high" | "low" = "high"
 ) => {
   for (const child of (parent.children ?? []).slice(0, limit)) {
     void loadGroupPreview(parent.name, child.name).then((src) => {
@@ -349,10 +350,14 @@ const preloadChildPreviews = (
       warmedGroupPreviewImages.add(src);
       const image = new window.Image();
       image.decoding = "async";
-      // These are the cards opened by the user's current action. Starting the
-      // request at high priority avoids a second-long skeleton while the
-      // browser is still processing below-the-fold images.
-      image.fetchPriority = "high";
+      // These are the cards opened by the user's current action (hover,
+      // focus, or the click that just expanded this group) — high priority
+      // avoids a second-long skeleton while the browser is still processing
+      // below-the-fold images. The one caller warming *every* still-unopened
+      // category up front (no interaction yet) passes "low" instead, so up
+      // to 36 speculative image requests stop competing with the hero photo
+      // and other actually-visible content for bandwidth right after load.
+      image.fetchPriority = priority;
       image.onload = () => {
         // Keep the URL marked as warm; the decoded response is now in the
         // browser cache and the visible Next Image can paint immediately.
@@ -892,7 +897,7 @@ const ProductFetcher: React.FC<Props> = ({
     // before its images had even started downloading. Warm the complete first
     // page because all of these previews can become visible after one click.
     for (const category of filteredGroups.slice(0, itemsPerPage)) {
-      preloadChildPreviews(category, DESKTOP_ITEMS_PER_PAGE);
+      preloadChildPreviews(category, DESKTOP_ITEMS_PER_PAGE, "low");
     }
   }, [activeCategory, filteredGroups, isHydrated, itemsPerPage]);
 

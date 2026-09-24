@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   fetchCatalogPriceDetailsByLookupKeys,
@@ -9,6 +9,7 @@ import {
   type PromoAvailability,
 } from "app/lib/catalog-server";
 import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
+import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,12 +34,17 @@ type ProductPricePayload = {
 
 const productPriceRouteInFlight = new Map<string, Promise<ProductPricePayload>>();
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const lookupKeys = normalizeLookupKeys(url.searchParams.getAll("lookup"));
+  // Admins need the same detailed/promo price view as a qualifying partner
+  // (e.g. to see the current promo price before editing it), even though
+  // verifyPartnerRequest's spend-threshold check would reject most admin
+  // accounts. Checked unconditionally, but verifyAdminRequest short-circuits
+  // on the (near-universal, on this route) case of no bearer token at all.
   const isPartner =
     url.searchParams.get("mode") === "partner" &&
-    Boolean(await verifyPartnerRequest(request));
+    (Boolean(await verifyPartnerRequest(request)) || Boolean(await verifyAdminRequest(request)));
 
   if (lookupKeys.length === 0) {
     return NextResponse.json(

@@ -301,6 +301,7 @@ const ProductListRow: React.FC<Props> = ({
                             batchImagePending={batchImagePending}
                             batchImageMissing={batchImageMissing}
                             disableDirectLoad={batchImageOnly}
+                            sizes="64px"
                         />
                     </button>
                     {canEdit && (

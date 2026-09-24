@@ -67,6 +67,9 @@ export default function ProductPurchasePanelClient(
     resolvedCode,
   } = props;
 
+  const isMountedRef = useRef(true);
+  useEffect(() => () => { isMountedRef.current = false; }, []);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCostPrice, setShowCostPrice] = useState(false);
   const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
@@ -454,6 +457,86 @@ export default function ProductPurchasePanelClient(
       controller.abort();
     };
   }, [hasAuthenticatedUser, partnerRequestUrl]);
+
+  // The three effects above only ever run again when their own dependencies
+  // change (normalizedInitialPrice/requestUrl, publicPromoCheckUrl,
+  // hasAuthenticatedUser/partnerRequestUrl) — none of which change on their
+  // own right after an admin edits this product's price on the same page, so
+  // this panel would otherwise keep showing the pre-edit price/promo until a
+  // full reload. ProductPageAdminEditPanel dispatches this event right after
+  // a successful price/cost/promo save; on it, go re-fetch the authoritative
+  // values directly instead of waiting for any of that.
+  useEffect(() => {
+    const handlePriceUpdated = () => {
+      void (async () => {
+        const params = new URLSearchParams();
+        for (const key of lookupKeys) {
+          const normalized = (key || "").trim();
+          if (normalized) params.append("lookup", normalized);
+        }
+        if (params.getAll("lookup").length === 0) return;
+
+        const publicPayload = await fetch(`/api/product-price?${params.toString()}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null) as {
+            priceUah?: number | null;
+            hasPromo?: boolean;
+            promoPercent?: number | null;
+          } | null;
+        if (!isMountedRef.current || !publicPayload) return;
+
+        if (
+          typeof publicPayload.priceUah === "number" &&
+          Number.isFinite(publicPayload.priceUah) &&
+          publicPayload.priceUah > 0
+        ) {
+          setPriceUah(publicPayload.priceUah);
+          if (cacheKey) {
+            try {
+              const stored = JSON.stringify({ value: publicPayload.priceUah, t: Date.now() });
+              window.sessionStorage.setItem(cacheKey, stored);
+              window.localStorage.setItem(cacheKey, stored);
+            } catch {}
+          }
+        }
+        setHasPromo(publicPayload.hasPromo === true);
+        setPromoPercent(
+          typeof publicPayload.promoPercent === "number" ? publicPayload.promoPercent : null
+        );
+
+        if (!hasAuthenticatedUser || !partnerRequestUrl) return;
+        const snapshot = await waitForFirebaseAuthReady();
+        const token = snapshot.user ? await snapshot.user.getIdToken().catch(() => null) : null;
+        if (!token || !isMountedRef.current) return;
+
+        const partnerPayload = await fetch(partnerRequestUrl, {
+          headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null) as { promoPriceUah?: number | null; isPartner?: boolean } | null;
+        if (!isMountedRef.current || !partnerPayload) return;
+
+        const partnerAccess = partnerPayload.isPartner === true;
+        setIsPartner(partnerAccess);
+        setPromoPriceUah(
+          partnerAccess &&
+            typeof partnerPayload.promoPriceUah === "number" &&
+            Number.isFinite(partnerPayload.promoPriceUah) &&
+            partnerPayload.promoPriceUah > 0
+            ? partnerPayload.promoPriceUah
+            : null
+        );
+      })();
+    };
+
+    window.addEventListener("partson:price-updated", handlePriceUpdated);
+    return () => window.removeEventListener("partson:price-updated", handlePriceUpdated);
+  }, [lookupKeys, cacheKey, hasAuthenticatedUser, partnerRequestUrl]);
 
   const isLoading = priceUah === undefined;
   const hasPromoPrice =

@@ -49,7 +49,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v35-direct-pages",
+    source: "catalog-page:v36-fresh-search",
     directOffset: body.directPage === true ? toNonNegativeNumber(body.offset) : null,
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
           ...(body.directPage === true ? { directOffset: start } : {}),
           stale,
         },
-        { headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" } }
+        { headers: { "cache-control": "no-store" } }
       );
     }
 
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
     const cacheHit = getFreshRouteCacheValue(routeCacheKey);
     if (cacheHit) {
       return NextResponse.json(cacheHit, {
-        headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
+        headers: { "cache-control": "no-store" },
       });
     }
 
@@ -267,8 +267,14 @@ export async function POST(request: Request) {
         : 3600;
     const retries = 0;
     const retryDelayMs = hasTightFilterContext ? 80 : 150;
-    const cacheTtlMs = hasTightFilterContext ? 1000 * 60 * 8 : 1000 * 60 * 5;
-    const staleTtlMs = hasTightFilterContext
+    // 15s used to be the cap here (see the matching client-side pageCacheTtl
+    // in Data.tsx for why a low TTL was never actually needed for
+    // freshness-after-edit — clearCatalogPageRouteCache() already blanket-
+    // clears this whole cache on any admin write). Raised to cut repeat 1C
+    // round trips for the common retype/backspace/Back-button case.
+    const cacheTtlMs = normalizedSearchQuery ? 60_000 : hasTightFilterContext ? 1000 * 60 * 8 : 1000 * 60 * 5;
+    const freshTtlMs = normalizedSearchQuery ? 60_000 : ROUTE_SUCCESS_CACHE_TTL_MS;
+    const staleTtlMs = normalizedSearchQuery ? 60_000 : hasTightFilterContext
       ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
       : ROUTE_SUCCESS_STALE_TTL_MS;
 
@@ -525,8 +531,8 @@ export async function POST(request: Request) {
         .then((payload) => {
           if (routeCacheKey) {
             routeSuccessCache.set(routeCacheKey, {
-              freshUntil: Date.now() + ROUTE_SUCCESS_CACHE_TTL_MS,
-              staleUntil: Date.now() + Math.max(ROUTE_SUCCESS_CACHE_TTL_MS, staleTtlMs),
+              freshUntil: Date.now() + freshTtlMs,
+              staleUntil: Date.now() + Math.max(freshTtlMs, staleTtlMs),
               value: payload,
             });
           }
@@ -540,7 +546,7 @@ export async function POST(request: Request) {
       routeInFlightRequests.set(routeCacheKey, inFlight);
     }
 
-    if (staleCacheHit) {
+    if (staleCacheHit && !normalizedSearchQuery) {
       void inFlight.catch(() => null);
       const stalePayload = buildStaleCatalogPayload(staleCacheHit);
       return NextResponse.json(stalePayload, {
@@ -560,7 +566,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(payload, {
-      headers: { "cache-control": "private, max-age=60, stale-while-revalidate=600" },
+      headers: { "cache-control": "no-store" },
     });
   } catch (error) {
     if (error instanceof Error && error.message === "DIRECT_PAGINATION_UNSUPPORTED") {
@@ -571,7 +577,7 @@ export async function POST(request: Request) {
     }
     pruneRouteSuccessCache();
     const staleHit = getStaleRouteCacheValue(routeCacheKey);
-    if (staleHit) {
+    if (staleHit && !toTrimmedString(body.searchQuery)) {
       return NextResponse.json(
         buildStaleCatalogPayload(staleHit)
       );

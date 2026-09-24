@@ -193,7 +193,7 @@ const fetchCatalogSeoSnapshotPayload = async (
     timeoutMs: 4200,
     retries: 0,
     retryDelayMs: 140,
-    cacheTtlMs: 1000 * 60 * 15,
+    cacheTtlMs: query.searchQuery ? 15_000 : 1000 * 60 * 15,
     includePriceEnrichment: false,
     preferLegacySource: false,
     forceAllgoodsSource: true,
@@ -1346,7 +1346,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const [rawInitialPagePayload, seoFacets, productTreeDataset, euroRate, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
-      () => getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
+      () => state.searchQuery
+        ? fetchCatalogSeoSnapshotPayload(snapshotCacheKey)
+        : getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
       initialCatalogTimeoutMs
     ),

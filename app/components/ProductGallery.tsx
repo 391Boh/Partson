@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { Check, ImagePlus, Loader2, RotateCcw, X } from "lucide-react";
 
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
@@ -226,15 +227,19 @@ export default function ProductGallery({
                   : "border border-slate-200/90 shadow-[0_3px_10px_rgba(15,23,42,0.07)] hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              {/* Thumbnails render at 64-72px CSS, but image.url points at the
+                  raw, full-resolution Firebase Storage upload (up to 3MB) —
+                  a plain <img> pulled that whole file for a postage-stamp
+                  preview. Firebase Storage is already an allowed remote
+                  pattern in next.config.ts, so next/image downsizes and
+                  re-encodes (AVIF/WebP) it through the normal optimizer. */}
+              <Image
                 src={image.url}
                 alt={`${productName} — додаткове фото ${index + 1}`}
-                width={64}
-                height={64}
+                fill
+                sizes="72px"
                 loading="lazy"
-                decoding="async"
-                className="h-full w-full object-contain p-1"
+                className="object-contain p-1"
               />
               {selectedImageUrl === image.url ? (
                 <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sky-600 text-white shadow-md">

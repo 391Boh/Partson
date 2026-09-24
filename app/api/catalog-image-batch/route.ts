@@ -18,6 +18,7 @@ import {
   getProductRouteImageCacheRevision,
   hasPersistentRouteImage,
   isRouteImageCacheInvalidating,
+  routeImageHitCache,
 } from "app/lib/product-image-route-cache";
 
 export const runtime = "nodejs";
@@ -212,11 +213,9 @@ export async function POST(request: Request) {
     const persistentHits = await Promise.all(
       workEntries.map(async (entry) => ({
         entry,
-        hasImage: await hasPersistentRouteImage(
-          buildPersistentCatalogRouteImageKey(
-            entry.item.code,
-            entry.item.article
-          )
+        hasImage: !isRouteImageCacheInvalidating(entry.item.code, entry.item.article) && (
+          (routeImageHitCache.get(buildPersistentCatalogRouteImageKey(entry.item.code, entry.item.article))?.expiresAt ?? 0) > Date.now() ||
+          await hasPersistentRouteImage(buildPersistentCatalogRouteImageKey(entry.item.code, entry.item.article))
         ),
       }))
     );

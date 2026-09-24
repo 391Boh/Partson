@@ -127,6 +127,15 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "costPriceEuro/ЦінаЗакуп must be a non-negative number" }, 400);
   }
 
+  // Promo price shares 1C's price directory record with ЦінаПрод/ЦінаЗакуп
+  // (see PROMO_PRICE_FIELDS in catalog-server.ts — "Акція" is the exact 1C
+  // column). 0 clears an active promo: the read side already treats
+  // promoPriceEuro > 0 as "has promo", so 0/absent both mean "no promo".
+  const promoPriceEuro = readNonNegativeNumber(value, "promoPriceEuro", "Акція");
+  if (promoPriceEuro === null) {
+    return json({ ok: false, error: "promoPriceEuro/Акція must be a non-negative number" }, 400);
+  }
+
   const image = readImage(value, code);
   if (!image.ok) return json({ ok: false, error: image.error }, 400);
 
@@ -174,11 +183,12 @@ export async function POST(request: NextRequest) {
   if (stockValues.some((n) => n === null || !Number.isSafeInteger(n)) || stockValues.length > 1) {
     return json({ ok: false, error: "Вкажіть одну операцію з цілою невід’ємною кількістю" }, 400);
   }
-  const hasPriceUpdate = priceEuro !== undefined || costPriceEuro !== undefined;
+  const hasPriceUpdate = priceEuro !== undefined || costPriceEuro !== undefined || promoPriceEuro !== undefined;
 
   const oneCBody: Record<string, unknown> = { Код: code };
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
   if (costPriceEuro !== undefined) oneCBody["ЦінаЗакуп"] = costPriceEuro;
+  if (promoPriceEuro !== undefined) oneCBody["Акція"] = promoPriceEuro;
   if (image.fileName) oneCBody.file_name = image.fileName;
   if (image.imageBase64) oneCBody.image_base64 = image.imageBase64;
   if (productName) oneCBody["Наименование"] = productName;
@@ -214,7 +224,7 @@ export async function POST(request: NextRequest) {
   if (sale !== undefined) oneCBody["Реалізація"] = sale;
 
   if (Object.keys(oneCBody).length === 1) {
-    return json({ ok: false, error: "Provide price, cost price, image, name, catalog number, producer, group, category, or quantity" }, 400);
+    return json({ ok: false, error: "Provide price, cost price, promo price, image, name, catalog number, producer, group, category, or quantity" }, 400);
   }
 
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
@@ -249,7 +259,7 @@ export async function POST(request: NextRequest) {
     has_more?: boolean;
     next_cursor?: string;
     product_result?: { success?: boolean; message?: string; error_message?: string; Наименование?: string; НомерПоКаталогу?: string; ПроизводительНаименование?: string };
-    price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Артикул?: string };
+    price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Акція?: number | null; Артикул?: string };
     photo_result?: { success?: boolean; message?: string; error_message?: string; file_name?: string };
     Кількість?: number | string;
     quantity?: number | string;
@@ -355,6 +365,20 @@ export async function POST(request: NextRequest) {
     typeof parsed.price_result?.ЦінаПрод === "number" ? parsed.price_result.ЦінаПрод : priceEuro;
   const confirmedCostPriceEuro =
     typeof parsed.price_result?.ЦінаЗакуп === "number" ? parsed.price_result.ЦінаЗакуп : costPriceEuro;
+  const confirmedPromoPriceEuro =
+    typeof parsed.price_result?.Акція === "number" ? parsed.price_result.Акція : promoPriceEuro;
+  if (value.requirePriceConfirmation === true && hasPriceUpdate) {
+    const confirmed = parsed.price_result;
+    const matches = (expected: number | undefined, actual: unknown) => expected === undefined ||
+      (typeof actual === "number" && Number.isFinite(actual) && Math.abs(actual - expected) < 0.000001);
+    if (
+      !matches(priceEuro, confirmed?.ЦінаПрод) ||
+      !matches(costPriceEuro, confirmed?.ЦінаЗакуп) ||
+      !matches(promoPriceEuro, confirmed?.Акція)
+    ) {
+      return json({ ok: false, error: "1С не підтвердила введену ціну. Перевірте запис ціни за артикулом товару." }, 502);
+    }
+  }
   const confirmedName = parsed.product_result?.Наименование ?? productName;
   const confirmedCatalogNumber = parsed.product_result?.НомерПоКаталогу ?? catalogNumber;
 
@@ -369,6 +393,7 @@ export async function POST(request: NextRequest) {
     updatedBy: adminEmail,
     ...(confirmedPriceEuro !== undefined ? { priceEuro: confirmedPriceEuro, "ЦінаПрод": confirmedPriceEuro } : {}),
     ...(confirmedCostPriceEuro !== undefined ? { costPriceEuro: confirmedCostPriceEuro, "ЦінаЗакуп": confirmedCostPriceEuro } : {}),
+    ...(confirmedPromoPriceEuro !== undefined ? { promoPriceEuro: confirmedPromoPriceEuro, "Акція": confirmedPromoPriceEuro } : {}),
     ...((confirmedPriceEuro !== undefined || confirmedCostPriceEuro !== undefined)
       ? { hasPrice: hasUpdatedPrice, "ЕстьЦена": hasUpdatedPrice }
       : {}),

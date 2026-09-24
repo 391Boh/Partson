@@ -97,3 +97,24 @@ products.push(product("0200", "Фільтр OC90", "REAL"), product("0201", "Ф�
 assert.deepEqual(await collect("OC90"), ["0200", "0201"]);
 assert.equal((await search("OC90")).totalCount, 2);
 console.log("Catalog search regression checks passed: fields, duplicates, pagination, sorting, layout, transliteration, failures and fuzzy matches.");
+
+const helpers = loadCatalogSearch(transport);
+assert.equal(helpers.suggestionDisplayName("Фільтр (примітка (вкладена)) оливи (OEM)"), "Фільтр оливи");
+assert.equal(helpers.suggestionDisplayName("Фільтр (незакрита примітка"), "Фільтр");
+assert.equal(helpers.suggestionDisplayName("Фільтр （OEM）"), "Фільтр");
+await assert.rejects(helpers.searchProductFields({
+  query: "OC90", fields: ["name"], limit: 8, cursor: "", sort: "none",
+  fetchPage: async () => ({ items: [], hasMore: true, nextCursor: "001" }),
+}), /non-advancing cursor/);
+
+// Suggestions and catalog reuse identical upstream batches despite visible limits.
+products = Array.from({ length: 40 }, (_, i) => product(String(i).padStart(4, "0"), "Фільтр OC90", "OC90-" + i));
+calls = [];
+const suggestionPage = await search("OC90", { limit: 8 });
+const suggestionRequests = calls.map(body => JSON.stringify(body)).sort();
+calls = [];
+const catalogPage = await search("OC90", { limit: 16 });
+assert.deepEqual(calls.map(body => JSON.stringify(body)).sort(), suggestionRequests);
+assert.equal(suggestionPage.items.length, 8);
+assert.equal(catalogPage.items.length, 16);
+console.log("Search batch reuse passed for suggestions and catalog.");

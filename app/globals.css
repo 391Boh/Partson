@@ -6572,13 +6572,16 @@ svg.catalog-filter-search-icon {
   /* Search block (2nd column) targets the same share of the shared
      page-shell-inline content width as the hero's own benefits card
      (home-hero-grid's minmax(340px, 1fr) out of a 1.5fr+1fr track — a
-     0.4 fraction), not home-story-grid's or home-brands-grid's ratios. */
+     0.4 fraction), not home-brands-grid's ratio. */
   .home-static .home-category-grid {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   }
 
+  /* Map card (2nd column, order-2 in AdvantagesSection.tsx — same slot as
+     the hero's own benefits card) targets that same 0.4 share: same
+     minmax(340px, 1fr) out of a 1.5fr+1fr track. */
   .home-static .home-story-grid {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
   }
 
   .home-static .home-category-grid .reveal-head,
@@ -6940,4 +6943,12 @@ svg.catalog-filter-search-icon {
 .home-static .hero-photo {
   opacity: 0.72 !important;
   transition: none !important;
+}
+
+/* Admins can select and copy product information, including select-none cards. */
+html[data-admin-copy="true"] body,
+html[data-admin-copy="true"] body * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
 }

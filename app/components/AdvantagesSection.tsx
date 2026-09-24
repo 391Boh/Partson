@@ -105,9 +105,9 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-50 bg-[linear-gradient(101deg,transparent_0%,transparent_34%,rgba(255,255,255,0.22)_48%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.18)_52%,transparent_66%,transparent_100%)]" />
       <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
         {/* ---- Header + store card: one balanced two-column row ---- */}
-        <div className="home-story-grid grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10">
-          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:order-2 lg:min-h-[520px] lg:p-8">
-            <div className="flex items-center gap-3">
+        <div className="home-story-grid grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)] lg:items-stretch lg:gap-8 xl:gap-10">
+          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:order-1 lg:min-h-[520px] lg:p-8">
+            <div className="flex items-center justify-end gap-3">
               <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600 sm:h-11 sm:w-11">
                 {/* Shared line-art open-box mark — same style language (viewBox
                     24, thin round-cap stroke, no fill) as HeroIntroCard's own
@@ -123,7 +123,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 PartsON · Львів
               </span>
             </div>
-            <h2 className="mt-4 max-w-[20ch] font-display font-display-readable text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
+            <h2 className="ml-auto mt-4 max-w-[20ch] text-right font-display font-display-readable text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
               Інтернет-магазин <span className="text-teal-600">автозапчастин у Львові</span>
             </h2>
             {/* Distinct from the hero's own H1/lead ("Автозапчастини у Львові
@@ -132,7 +132,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 instead of repeating that claim, and sets up the category
                 breakdown below with matching keywords (двигун, ходова,
                 електрика й кузов). */}
-            <p className="mt-3.5 max-w-[50ch] text-[15px] leading-[1.68] text-slate-600 sm:text-[16px]">
+            <p className="ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] leading-[1.68] text-slate-600 sm:text-[16px]">
               Понад 10&nbsp;000 запчастин у каталозі — від двигуна й ходової до електрики та кузовних деталей — для десятків марок легкових авто. Знайдіть потрібну позицію за VIN-кодом, номером кузова, артикулом чи моделлю.
             </p>
 
@@ -156,7 +156,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           </div>
 
           {/* store / map card — same flat card language as the rest of the section */}
-          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:order-1">
+          <div className="reveal-adv-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:order-2">
             <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="group/map relative block aspect-[16/9] min-h-[220px] flex-1 cursor-zoom-in overflow-hidden bg-sky-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-sky-400/60 lg:aspect-auto lg:min-h-[360px]">
               <DeferredStoreMap src={STORE_MAP_EMBED_URL} title="Карта розташування PartsON у Львові" />
               <span className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10" />

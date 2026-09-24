@@ -26,7 +26,11 @@ import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import ProductListRow from "app/components/ProductListRow";
 import CatalogLoaderCard from "app/components/CatalogLoaderCard";
-import { CATALOG_PAGE_CACHE_VERSION, invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
+import {
+  CATALOG_PAGE_CACHE_VERSION,
+  invalidateCatalogClientCache,
+  type CatalogInvalidationDetail,
+} from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { stripRomanNumeralsFromModel, stripTrailingChassisCode } from "app/lib/car-model-search";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
@@ -1020,12 +1024,23 @@ const stripCostPriceFromPayload = (payload: CatalogPagePayload): CatalogPagePayl
   items: payload.items.map((item) => ({ ...item, costPriceEuro: undefined })),
 });
 
+// The 15s cap this used to carry was there for "freshness after an admin
+// edit", but every edit path already does a blanket clearBrowserCatalogCache()
+// (this whole pageCache.clear(), not a per-key delete — see below) — so this
+// TTL only ever governs the case nothing edited anything, where a much
+// longer cap costs nothing and cuts repeat network round trips (retype after
+// a backspace, browser Back to a prior search) within the window.
+const pageCacheTtl = (key: string, ttlMs: number) => {
+  try { return JSON.parse(key).q ? Math.min(ttlMs, 60_000) : ttlMs; }
+  catch { return ttlMs; }
+};
+
 const writePageToMemory = (key: string, payload: CatalogPagePayload, ttlMs: number) => {
   if (ttlMs <= 0 || payload.serviceUnavailable) return;
   const nowTs = now();
   pageCache.set(key, {
     payload: stripCostPriceFromPayload(payload),
-    expiresAt: nowTs + ttlMs,
+    expiresAt: nowTs + pageCacheTtl(key, ttlMs),
     lastAccessedAt: nowTs,
   });
   prunePageMemoryCache();
@@ -1202,7 +1217,7 @@ const writePageToSession = (
   if (typeof window === "undefined" || payload.serviceUnavailable) return;
   try {
     const nowTs = now();
-    const expiresAt = nowTs + ttlMs;
+    const expiresAt = nowTs + pageCacheTtl(key, ttlMs);
     window.sessionStorage.setItem(
       key,
       JSON.stringify({
@@ -1533,6 +1548,10 @@ function useCatalogData(params: {
     hasInitialPage ? initialQuerySignature ?? null : null
   );
   const pagingRequestedRef = useRef(false);
+  // Debounce input: lets the fetch effect below tell "the search box changed"
+  // apart from "a page/car/category click changed" without adding a second
+  // effect — the latter should stay instant.
+  const previousSearchTermRef = useRef("");
   const duplicatePageStreakRef = useRef(0);
   const cursorDuplicateStreakRef = useRef(0);
   const nextCursorByPageRef = useRef<Record<number, string>>({
@@ -2891,6 +2910,7 @@ function useCatalogData(params: {
       const requestPromise: Promise<CatalogPagePayload> = (async () => {
         const res = await fetch(CATALOG_PAGE_ROUTE, {
           method: "POST",
+          signal: AbortSignal.timeout(15_000),
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             page: requestPage,
@@ -3327,10 +3347,19 @@ function useCatalogData(params: {
 
     let cancelled = false;
     const controller = new AbortController();
-    const debounceDelay = 0;
     const cancelPageWarmup = () => {};
 
     const trimmed = normalizedSearch;
+    // Only the search box needs debouncing — clicking a page number, a car,
+    // or a category is a single discrete action already, not a keystroke
+    // stream, so those stay instant. Comparing against the last search this
+    // same effect saw (not e.g. a value from render) means a plain filter
+    // change while a search term is already active and unchanged still runs
+    // with debounceDelay 0. Clearing the box (trimmed === "") also skips the
+    // wait — going back to browsing shouldn't pause either.
+    const searchTermChanged = previousSearchTermRef.current !== trimmed;
+    previousSearchTermRef.current = trimmed;
+    const debounceDelay = searchTermChanged && trimmed ? 200 : 0;
     const requestCursor =
       canUseCursorPagination && page > 1
         ? nextCursorByPageRef.current[page] ?? ""
@@ -4282,6 +4311,41 @@ function useCatalogData(params: {
     []
   );
 
+  // An admin edit made elsewhere (currently: the product page) dispatches
+  // this with the confirmed field(s) that changed. If this catalog grid is
+  // already mounted — e.g. still alive behind Next's router cache after the
+  // admin navigates back here — patch that one row directly, the same way
+  // an in-grid edit already updates itself above, instead of leaving it
+  // showing the pre-edit value until some future refetch happens to include it.
+  useEffect(() => {
+    const handleCatalogInvalidated = (event: Event) => {
+      const detail = (event as CustomEvent<CatalogInvalidationDetail>).detail;
+      if (!detail?.code) return;
+
+      const { code, priceEuro, costPriceEuro, ...rest } = detail;
+      if (priceEuro !== undefined || costPriceEuro !== undefined) {
+        updateCatalogItemPrice({ code, priceEuro, costPriceEuro });
+      }
+
+      const fieldsToApply: {
+        name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string; quantity?: number;
+      } = {};
+      if (rest.name !== undefined) fieldsToApply.name = rest.name;
+      if (rest.article !== undefined) fieldsToApply.article = rest.article;
+      if (rest.producer !== undefined) fieldsToApply.producer = rest.producer;
+      if (rest.group !== undefined) fieldsToApply.group = rest.group;
+      if (rest.subGroup !== undefined) fieldsToApply.subGroup = rest.subGroup;
+      if (rest.category !== undefined) fieldsToApply.category = rest.category;
+      if (rest.quantity !== undefined) fieldsToApply.quantity = rest.quantity;
+      if (Object.keys(fieldsToApply).length) {
+        updateCatalogItemFields(code, fieldsToApply);
+      }
+    };
+
+    window.addEventListener("partson:catalog-invalidated", handleCatalogInvalidated);
+    return () => window.removeEventListener("partson:catalog-invalidated", handleCatalogInvalidated);
+  }, [updateCatalogItemPrice, updateCatalogItemFields]);
+
   return {
     filteredData,
     directMode,
@@ -5047,12 +5111,19 @@ const Data: React.FC<DataProps> = ({
   // hasLoadedOnce so handleGoToPageClick has a real loadedPageCount/hasMore
   // to clamp against, and runs at most once per mount.
   const restoredPageFromUrlRef = useRef(false);
+  // Consumed by the scroll-on-page-change effect below: a restored page
+  // wasn't reached by any click, so jumping the viewport down to the
+  // results the instant the page finishes loading read as a random,
+  // unprovoked scroll — exactly the "page suddenly throws itself down"
+  // complaint, just on load instead of mid-session.
+  const skipNextPageScrollRef = useRef(false);
   useEffect(() => {
     if (restoredPageFromUrlRef.current) return;
     if (!hasLoadedOnce) return;
     restoredPageFromUrlRef.current = true;
     const rawPage = Number(currentSearchParams.get("page"));
     if (Number.isFinite(rawPage) && rawPage > 1) {
+      skipNextPageScrollRef.current = true;
       handleGoToPageClick(rawPage);
     }
   }, [hasLoadedOnce, currentSearchParams, handleGoToPageClick]);
@@ -5126,6 +5197,10 @@ const Data: React.FC<DataProps> = ({
   useEffect(() => {
     if (isInitialDisplayedPageMountRef.current) {
       isInitialDisplayedPageMountRef.current = false;
+      return;
+    }
+    if (skipNextPageScrollRef.current) {
+      skipNextPageScrollRef.current = false;
       return;
     }
     if (typeof document === "undefined") return;

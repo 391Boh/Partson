@@ -64,3 +64,15 @@ assert.equal(created.body.quantity, 4);
 assert.equal(sent.body.Кількість, 4);
 assert.equal(sent.body.артикул_ціни, undefined, "New product prices use the internal code");
 console.log("Product stock regression checks passed.");
+
+const savedPrices = await update({ article: 'NEW-ARTICLE', ЦінаПрод: 12.5, ЦінаЗакуп: 8.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true, ЦінаПрод: 12.5, ЦінаЗакуп: 8.25 },
+});
+assert.equal(savedPrices.status, 200);
+assert.equal(sent.body.артикул_ціни, 'NEW-ARTICLE');
+assert.equal(sent.body.НомерПоКаталогу, undefined);
+for (const price_result of [undefined, { success: true }, { success: true, ЦінаПрод: 0 }]) {
+  assert.equal((await update({ ЦінаПрод: 12.5, requirePriceConfirmation: true }, { success: true, price_result })).status, 502);
+}
+assert.equal((await update({ ЦінаПрод: 0, requirePriceConfirmation: true }, { success: true, price_result: { ЦінаПрод: 0 } })).status, 200);
+console.log('New product price confirmation checks passed.');

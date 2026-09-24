@@ -1,6 +1,6 @@
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
 
-export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v10:img-route-v2:";
+export const PRODUCT_IMAGE_CLIENT_CACHE_PREFIX = "partson:v11:img-route-v5:";
 export const PRODUCT_IMAGE_CLIENT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_PREFIX = "partson:v4:img-miss-route-v2:";
 export const PRODUCT_IMAGE_CLIENT_MISSING_CACHE_TTL_MS = 1000 * 60 * 60;

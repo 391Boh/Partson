@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { NextResponse } from "next/server";
 import sharp from "sharp";
+import { CATALOG_IMAGE_VARIANT, optimizeCatalogImage } from "app/lib/catalog-image-optimize";
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
@@ -64,8 +65,18 @@ const FULL_IMAGE_LOOKUP_OPTIONS = {
   allowUrlDownload: true,
   skipMissCache: true,
 };
+// Catalog thumbnails chain up to 3 attempts client-side (ProductCardImage.tsx:
+// primarySrc -> recoverySrc[retry=1] -> finalRetrySrc[retry=2], one fully
+// sequential — each waits for the previous to finish/fail first). At the old
+// 2800/2800/3000ms budgets, a product with genuinely no photo (common —
+// plenty of SKUs in this catalog have no image on file) paid up to ~8.6s
+// total before the card gave up and showed a placeholder; production logs
+// showed individual 404s taking 2.8-3.7s. A thumbnail is not worth that wait
+// the way the full product-page photo (FULL_IMAGE_LOOKUP_OPTIONS, untouched)
+// is — halved here so a real-but-slow 1C answer still gets a fair shot
+// across the retry chain, while a genuine miss resolves far faster.
 const CATALOG_IMAGE_LOOKUP_OPTIONS = {
-  timeoutMs: 2800,
+  timeoutMs: 1400,
   retries: 0,
   retryDelayMs: 60,
   cacheTtlMs: 1000 * 60 * 60 * 2,
@@ -73,7 +84,7 @@ const CATALOG_IMAGE_LOOKUP_OPTIONS = {
   allowUrlDownload: false,
 };
 const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
-  timeoutMs: 2800,
+  timeoutMs: 1400,
   retries: 0,
   retryDelayMs: 70,
   cacheTtlMs: 1000 * 60 * 20,
@@ -82,7 +93,7 @@ const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
   skipMissCache: true,
 };
 const CATALOG_IMAGE_FINAL_LOOKUP_OPTIONS = {
-  timeoutMs: 3000,
+  timeoutMs: 1500,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 20,
@@ -130,14 +141,10 @@ const ensureDiskCacheDir = () => {
 // again for the "full" variant now upscaling small sources (see its
 // withoutEnlargement comment below) — old sub-696px cached files must not
 // keep being served under the same key.
-const IMAGE_OPTIMIZATION_VERSION = "v3-seo-upscale";
-const CATALOG_IMAGE_MAX_WIDTH = 480;
-const CATALOG_IMAGE_MAX_HEIGHT = 480;
-const CATALOG_IMAGE_QUALITY = 74;
+const IMAGE_OPTIMIZATION_VERSION = "v4-catalog-unified";
 const FULL_IMAGE_MAX_WIDTH = 1400;
 const FULL_IMAGE_MAX_HEIGHT = 1400;
 const FULL_IMAGE_QUALITY = 82;
-const CATALOG_WEBP_PASSTHROUGH_MAX_BYTES = 48 * 1024;
 const CATALOG_ROUTE_MISS_CACHE_TTL_MS = 1000 * 120;
 const CATALOG_ROUTE_RETRY_MISS_CACHE_TTL_MS = 1000 * 180;
 let fallbackImageHashPromise: Promise<string | null> | null = null;
@@ -301,33 +308,19 @@ const optimizeImageBuffer = async (
       return original;
     }
 
-    if (
-      !options.acceptsAvif &&
-      options.variant === "catalog" &&
-      options.originalContentType === "image/webp" &&
-      imageBuffer.length > 0 &&
-      imageBuffer.length <= CATALOG_WEBP_PASSTHROUGH_MAX_BYTES
-    ) {
+    if (options.variant === "catalog") {
+      const optimized = await optimizeCatalogImage(imageBuffer, options.originalContentType);
       optimizedImageCache.set(cacheKey, {
-        expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS,
-        value: original,
+        expiresAt: Date.now() + OPTIMIZED_IMAGE_CACHE_TTL_MS, value: optimized,
       });
-      return original;
+      void writeDiskCache(cacheKey, "webp", optimized);
+      return optimized;
     }
 
     try {
-      const resizeOptions =
-        options.variant === "catalog"
-          ? {
-              width: CATALOG_IMAGE_MAX_WIDTH,
-              height: CATALOG_IMAGE_MAX_HEIGHT,
-              quality: CATALOG_IMAGE_QUALITY,
-            }
-          : {
-              width: FULL_IMAGE_MAX_WIDTH,
-              height: FULL_IMAGE_MAX_HEIGHT,
-              quality: FULL_IMAGE_QUALITY,
-            };
+      const resizeOptions = {
+        width: FULL_IMAGE_MAX_WIDTH, height: FULL_IMAGE_MAX_HEIGHT, quality: FULL_IMAGE_QUALITY,
+      };
 
       const sharpInstance = sharp(imageBuffer, {
         failOn: "none",
@@ -346,12 +339,12 @@ const optimizeImageBuffer = async (
           // live: 310x310, 600x400, 200x150). Below that floor the image is
           // simply not eligible, so upscale it up toward the 1400px box
           // instead of leaving it disqualified by size.
-          withoutEnlargement: options.variant === "catalog",
+          withoutEnlargement: false,
         });
 
       const transformed = await (options.acceptsAvif
-        ? sharpInstance.avif({ quality: resizeOptions.quality, effort: options.variant === "catalog" ? 2 : 3 })
-        : sharpInstance.webp({ quality: resizeOptions.quality, effort: options.variant === "catalog" ? 2 : 3 })
+        ? sharpInstance.avif({ quality: resizeOptions.quality, effort: 3 })
+        : sharpInstance.webp({ quality: resizeOptions.quality, effort: 3 })
       ).toBuffer();
 
       const optimized =
@@ -559,7 +552,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // Miss status is format-independent: if the image doesn't exist, it's gone regardless of format.
   const routeMissCacheKey = [
     strictMode ? "strict" : "normal",
-    catalogMode ? "catalog" : "full",
+    catalogMode ? CATALOG_IMAGE_VARIANT : "full",
     noRedirectFallback ? "404" : "redirect",
     retryAttempt,
     normalizedCode.toLowerCase(),
@@ -568,7 +561,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // Hit cache must be keyed by format since AVIF and WebP are different cached responses.
   const routeHitCacheKey = [
     strictMode ? "strict" : "normal",
-    catalogMode ? "catalog" : "full",
+    catalogMode ? CATALOG_IMAGE_VARIANT : "full",
     noRedirectFallback ? "404" : "redirect",
     retryAttempt,
     normalizedCode.toLowerCase(),

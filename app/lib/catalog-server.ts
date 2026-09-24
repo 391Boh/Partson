@@ -2046,11 +2046,18 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
     if (continuation) return wrapSearchResult(result, continuation.query);
     if (!result.items.length && !options.cursor && (!options.page || options.page === 1)) {
       const alternatives = searchAlternatives(originalQuery);
-      const attempts = await Promise.allSettled(alternatives.map((searchQuery) =>
-        fetchCatalogProductsByQueryInner({ ...options, searchQuery })
-      ));
-      for (let i = 0; i < attempts.length; i++) {
-        const attempt = attempts[i];
+      // Start alternatives together, but return the preferred correction as
+      // soon as it succeeds instead of waiting for unrelated slower variants.
+      const pendingAttempts = alternatives.map((searchQuery) =>
+        fetchCatalogProductsByQueryInner({ ...options, searchQuery }).then(
+          (value) => ({ status: "fulfilled" as const, value }),
+          (reason: unknown) => ({ status: "rejected" as const, reason })
+        )
+      );
+      const attempts: Awaited<(typeof pendingAttempts)[number]>[] = [];
+      for (let i = 0; i < pendingAttempts.length; i++) {
+        const attempt = await pendingAttempts[i];
+        attempts.push(attempt);
         if (attempt.status === "fulfilled" && attempt.value.items.length) {
           return wrapSearchResult(attempt.value, alternatives[i]);
         }

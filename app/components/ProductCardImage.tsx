@@ -7,7 +7,7 @@ import { ImageOff } from "lucide-react";
 
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import {
   readProductImageSuccess,
   writeProductImageSuccess,
@@ -64,6 +64,7 @@ interface Props {
   disableDirectLoad?: boolean;
   batchImagePending?: boolean;
   batchImageMissing?: boolean;
+  sizes?: string;
 }
 
 type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
@@ -71,7 +72,7 @@ type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
 // batch logic removed
 
 
-const ProductCardImage: React.FC<Props> = ({
+const ProductCardImageContent: React.FC<Props> = ({
   productCode,
   articleHint,
   hasKnownPhoto = true,
@@ -83,8 +84,14 @@ const ProductCardImage: React.FC<Props> = ({
   fetchPriority = "low",
   deferDirectLoad = false,
   disableDirectLoad = false,
-  batchImagePending = false,
   batchImageMissing = false,
+  // Matches CATALOG_GRID_CLASS in Data.tsx (grid-cols-1 / sm:grid-cols-2 /
+  // lg:grid-cols-4, capped by page-shell-inline's 1360px max-width) — the
+  // previous "10vw at lg:" etc. claimed roughly half to a third of each
+  // card's real width at every breakpoint, so the optimizer kept serving an
+  // undersized source that the grid then stretched, blurring every catalog
+  // photo. ProductListRow passes its own much smaller fixed-box value.
+  sizes = "(max-width: 639px) 92vw, (max-width: 1023px) 46vw, (min-width: 1360px) 300px, 24vw",
 }) => {
   const normalizedCode = (productCode || "").trim();
   const normalizedArticle = (articleHint || "").trim();
@@ -122,7 +129,6 @@ const ProductCardImage: React.FC<Props> = ({
   const lastSuccessfulSrcRef = useRef("");
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(status);
-  const directFallbackQueuedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isNearViewport, setIsNearViewport] = useState(loadingMode === "eager");
 
@@ -184,7 +190,10 @@ const ProductCardImage: React.FC<Props> = ({
     let deferredLoadTimer: number | null = null;
 
     if (normalizedPrefetchedSrc) {
-      directFallbackQueuedRef.current = false;
+      // A late batch must not replace a successfully recovered image with the
+      // original failed URL. Explicit admin cache-busted replacements still load.
+      if (normalizedPrefetchedSrc === primarySrc && statusRef.current === "loaded") return;
+
       const isAlreadyShowingSameSrc =
         statusRef.current === "loaded" &&
         requestSrcRef.current === normalizedPrefetchedSrc;
@@ -210,7 +219,6 @@ const ProductCardImage: React.FC<Props> = ({
 
     const cachedSrc = readProductImageSuccess(normalizedCode, normalizedArticle || undefined);
     if (cachedSrc) {
-      directFallbackQueuedRef.current = false;
       const isAlreadyShowingSameSrc =
         statusRef.current === "loaded" &&
         requestSrcRef.current === cachedSrc;
@@ -225,7 +233,6 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (!hasKnownPhoto) {
-      directFallbackQueuedRef.current = false;
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
       setRequestSrc("");
       setStatus("missing");
@@ -234,7 +241,6 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (!primarySrc) {
-      directFallbackQueuedRef.current = false;
       setRequestSrc("");
       setStatus("missing");
       setFinalRetryQueued(false);
@@ -242,7 +248,6 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (disableDirectLoad) {
-      directFallbackQueuedRef.current = false;
       // Keep a successfully loaded image visible while batch is pending.
       if (statusRef.current === "loaded") return () => {};
       setRequestSrc("");
@@ -252,7 +257,7 @@ const ProductCardImage: React.FC<Props> = ({
     }
 
     if (deferDirectLoad) {
-      directFallbackQueuedRef.current = false;
+      if (!isNearViewport && loadingMode !== "eager") return;
       // Keep a successfully loaded image visible when deferral props change.
       if (statusRef.current === "loaded") return () => {};
       setRequestSrc("");
@@ -283,7 +288,6 @@ const ProductCardImage: React.FC<Props> = ({
     setRequestSrc(primarySrc);
     setStatus("loading");
     setFinalRetryQueued(false);
-    directFallbackQueuedRef.current = false;
     return () => {};
   }, [
     hasKnownPhoto,
@@ -293,8 +297,9 @@ const ProductCardImage: React.FC<Props> = ({
     primarySrc,
     recoverySrc,
     finalRetrySrc,
-    batchImagePending,
     batchImageMissing,
+    isNearViewport,
+    loadingMode,
     deferDirectLoad,
     disableDirectLoad,
   ]);
@@ -319,6 +324,7 @@ const ProductCardImage: React.FC<Props> = ({
   useEffect(() => {
     if (!hasKnownPhoto) return;
     if (!disableDirectLoad) return;
+    if (!isNearViewport && loadingMode !== "eager") return;
     if (!primarySrc) return;
     if (requestSrc) return;
 
@@ -329,28 +335,13 @@ const ProductCardImage: React.FC<Props> = ({
     }, DISABLE_DIRECT_LOAD_RELEASE_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [disableDirectLoad, hasKnownPhoto, primarySrc, requestSrc]);
+  }, [disableDirectLoad, hasKnownPhoto, primarySrc, requestSrc, isNearViewport, loadingMode]);
 
   const handleError = useCallback(() => {
     clearProductImageSuccess(normalizedCode, normalizedArticle || undefined);
 
     if (!hasKnownPhoto) {
       writeProductImageMissing(normalizedCode, normalizedArticle || undefined);
-      setRequestSrc("");
-      setStatus("missing");
-      return;
-    }
-
-    // disableDirectLoad: batch still in-flight, no src yet — queue a direct load once cleared.
-    if (disableDirectLoad) {
-      if (!directFallbackQueuedRef.current && primarySrc) {
-        directFallbackQueuedRef.current = true;
-        setRequestSrc(primarySrc);
-        setStatus("retrying");
-        setFinalRetryQueued(false);
-        return;
-      }
-
       setRequestSrc("");
       setStatus("missing");
       return;
@@ -385,11 +376,9 @@ const ProductCardImage: React.FC<Props> = ({
   }, [
     finalRetryQueued,
     finalRetrySrc,
-    disableDirectLoad,
     hasKnownPhoto,
     normalizedArticle,
     normalizedCode,
-    primarySrc,
     recoverySrc,
     requestSrc,
   ]);
@@ -414,7 +403,7 @@ const ProductCardImage: React.FC<Props> = ({
   const imageAlt = (alt || "Фото товару").trim();
   const showLoadingSkeleton = status === "loading" || status === "retrying";
   const showPlaceholder = status === "missing";
-  const imageDecodingMode = fetchPriority === "high" ? "sync" : "async";
+  const imageDecodingMode = "async";
   // A zero-duration "fade" is really an instant opacity snap the moment
   // `status` flips to "loaded" — across a full grid where every card's image
   // resolves at a slightly different time, that reads as the whole page
@@ -478,7 +467,7 @@ const ProductCardImage: React.FC<Props> = ({
               src={requestSrc}
               alt={imageAlt}
               fill
-              sizes="(max-width: 639px) 33vw, (max-width: 767px) 18vw, (max-width: 1023px) 13vw, 10vw"
+              sizes={sizes}
               loading={effectiveLoadingMode}
               fetchPriority={fetchPriority}
               unoptimized={
@@ -498,4 +487,8 @@ const ProductCardImage: React.FC<Props> = ({
   );
 };
 
+// A recycled card must never keep the previous product's image or retry state.
+const ProductCardImage: React.FC<Props> = (props) => (
+  <ProductCardImageContent key={buildProductImageBatchKey(props.productCode, props.articleHint)} {...props} />
+);
 export default ProductCardImage;

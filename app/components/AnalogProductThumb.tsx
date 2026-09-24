@@ -30,7 +30,13 @@ const IMAGE_FALLBACK_PATH = PRODUCT_IMAGE_FALLBACK_PATH.toLowerCase();
 
 const withStrictMode = (src: string) => {
   if (!src) return src;
-  return src.includes("?") ? `${src}&strict=1` : `${src}?strict=1`;
+  // Naive `${src}&strict=1` duplicated the param (?strict=1&strict=1, seen
+  // in production request logs) whenever the caller's own src already
+  // carried strict=1 — parse it instead so this is a no-op in that case.
+  const [path, query = ""] = src.split("?");
+  const params = new URLSearchParams(query);
+  params.set("strict", "1");
+  return `${path}?${params.toString()}`;
 };
 
 export default function AnalogProductThumb({

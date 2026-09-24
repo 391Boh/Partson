@@ -1,4 +1,5 @@
 import "server-only";
+import { CATALOG_IMAGE_VARIANT } from "app/lib/catalog-image-optimize";
 
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -70,7 +71,7 @@ export const buildPersistentCatalogRouteImageKey = (
 
   return [
     "normal",
-    "catalog",
+    CATALOG_IMAGE_VARIANT,
     "redirect",
     0,
     normalizedCode,

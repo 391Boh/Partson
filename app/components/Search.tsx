@@ -15,7 +15,7 @@ import {
 } from "app/lib/safe-storage";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
-import { normalizeSearchQuery } from "app/lib/catalog-search";
+import { normalizeSearchQuery, suggestionDisplayName } from "app/lib/catalog-search";
 import {
   pushAnalyticsEvent,
   pushEcommerceEvent,
@@ -47,8 +47,10 @@ type SuggestionResult = {
 
 const MAX_HISTORY          = 8;
 const SUGGESTION_COUNT     = 8;
+// Warm the same first page the catalog will request after Enter.
+const SEARCH_PAGE_SIZE = 16;
 const SUGGESTION_MIN_CHARS = 2;
-const DEBOUNCE_MS          = 180;
+const DEBOUNCE_MS          = 120;
 const DEFAULT_EURO_RATE    = 50;
 const EURO_RATE_CACHE_KEY  = "partson:v1:euro-rate";
 
@@ -65,10 +67,13 @@ const FILTER_ITEMS: { value: SearchFilter; label: string }[] = [
 
 // ── module-level suggestion cache ──────────────────────────────────────────
 const CACHE_MAX   = 60;
+// An admin edit already force-clears this via the "partson:catalog-invalidated"
+// listener below, so this TTL only matters when nothing changed — safe to
+// keep well past the old 15s to cut repeat lookups (retype after backspace).
 const CACHE_TTL   = 60_000;
 const sCache      = new Map<string, SuggestionResult>();
 const sCacheTimes = new Map<string, number>();
-const sPending    = new Map<string, Promise<SuggestionResult>>();
+
 
 const normalizeSearchKey = (value: string) =>
   value.replace(/\s+/g, " ").trim().toLocaleLowerCase("uk-UA");
@@ -107,17 +112,14 @@ const formatUAH = (eur: number | null | undefined, rate: number): string | null 
 };
 
 const fetchSuggestions = async (
-  query: string, filter: SearchFilter
+  query: string, filter: SearchFilter, signal: AbortSignal
 ): Promise<SuggestionResult> => {
-  const key = ck(query, filter);
-  const existing = sPending.get(key);
-  if (existing) return existing;
-
   const request = fetch("/api/catalog-page", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SUGGESTION_COUNT }),
-    signal: AbortSignal.timeout(12_000),
+    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SEARCH_PAGE_SIZE }),
+    signal,
+    cache: "no-store",
   }).then(async (res) => {
     const data = await res.json() as {
       items?: SuggestionProduct[]; totalCount?: number | null; correctedQuery?: string;
@@ -134,11 +136,7 @@ const fetchSuggestions = async (
           ? Math.max(0, data.totalCount)
           : null,
     };
-  }).finally(() => {
-    sPending.delete(key);
   });
-
-  sPending.set(key, request);
   return request;
 };
 
@@ -165,6 +163,7 @@ const SuggestionImage: React.FC<{ code: string; article: string; name: string; h
 // ── SearchBar ───────────────────────────────────────────────────────────────
 const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [query,      setQuery]      = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [filter,     setFilter]     = useState<SearchFilter>("all");
   const [history,    setHistory]    = useState<string[]>([]);
   const [dropdown,   setDropdown]   = useState(false);
@@ -200,6 +199,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     } catch { safeRemoveStorageItem(window.localStorage, "searchHistory"); }
   }, []);
 
+  useEffect(() => {
+    const invalidate = () => {
+      sCache.clear();
+      sCacheTimes.clear();
+      setRetry((value) => value + 1);
+    };
+    window.addEventListener("partson:catalog-invalidated", invalidate);
+    return () => window.removeEventListener("partson:catalog-invalidated", invalidate);
+  }, []);
+
   // close on outside click
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -212,8 +221,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  // Shared network requests are independent of a particular input's lifetime.
-  // An abandoned consumer cannot abort a newer consumer of the same query.
+  // Each input owns its request, so obsolete queries can be cancelled safely.
   useEffect(() => {
     let current = true;
     const trimmed = normalizeSearchQuery(query);
@@ -222,7 +230,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     setSuggestions([]);
     setTotalCount(null);
     setFallback(null);
-    if (!dropdown || trimmed.length < SUGGESTION_MIN_CHARS) {
+    if (!dropdown || isComposing || trimmed.length < SUGGESTION_MIN_CHARS) {
       setLoading(false);
       return;
     }
@@ -236,19 +244,21 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const cached = cGet(key);
     if (cached) { apply(cached); return; }
     setLoading(true);
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
-      fetchSuggestions(trimmed, filter).then((result) => {
-        cSet(key, result);
-        if (current) apply(result);
+      timeout = setTimeout(() => controller.abort(), 12_000);
+      fetchSuggestions(trimmed, filter, controller.signal).then((result) => {
+        if (current) { cSet(key, result); apply(result); }
       }).catch(() => {
         if (current) {
           setSearchError("Пошук тимчасово недоступний. Спробуйте ще раз.");
           setLoading(false);
         }
-      });
+      }).finally(() => clearTimeout(timeout));
     }, DEBOUNCE_MS);
-    return () => { current = false; clearTimeout(timer); };
-  }, [query, filter, dropdown, retry]);
+    return () => { current = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
+  }, [query, filter, dropdown, retry, isComposing]);
 
   const saveHistory = (q: string) => {
     const next = [q, ...history.filter(h => h !== q)].slice(0, MAX_HISTORY);
@@ -354,6 +364,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           className="font-ui min-w-0 self-stretch flex-1 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.025),transparent_45%,rgba(2,6,23,0.10))] px-3 py-1.5 text-[16px] font-semibold tracking-[-0.005em] text-slate-50 shadow-[inset_0_1px_2px_rgba(255,255,255,0.025),inset_0_-2px_5px_rgba(2,6,23,0.20)] outline-none placeholder:font-normal placeholder:text-slate-400/75 sm:text-[13px]"
           value={query}
           onChange={e => { setQuery(e.target.value); setDropdown(true); }}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           onFocus={() => setDropdown(true)}
           onKeyDown={onKey}
           data-search="true"
@@ -476,6 +488,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           {/* items */}
           <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading} className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
           {suggestions.map((p, i) => {
+            const displayName = suggestionDisplayName(p.name) || p.article || p.code;
             const priceStr = formatUAH(p.priceEuro, euroRate);
             const inStock  = typeof p.quantity === "number" ? p.quantity > 0 : true;
             const productHref = buildProductPath({
@@ -518,15 +531,15 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                       },
                     ],
                   });
-                  setDropdown(false); setQuery(""); onSearch(p.name, "name");
+                  setDropdown(false); setQuery("");
                 }}
               >
                 <div className="h-12 w-12 shrink-0 sm:h-14 sm:w-14">
-                  <SuggestionImage code={p.code} article={p.article} name={p.name} hasPhoto={p.hasPhoto} />
+                  <SuggestionImage code={p.code} article={p.article} name={displayName} hasPhoto={p.hasPhoto} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-[12.5px] font-bold leading-[1.3] tracking-[-0.01em] text-slate-100 transition-colors group-hover:text-white sm:text-[13.5px]">
-                    {p.name}
+                    {displayName}
                   </p>
                   <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                     {p.article && (

@@ -21,6 +21,7 @@ type FieldKey =
   | "producer"
   | "priceEuro"
   | "costPriceEuro"
+  | "promoPriceEuro"
   | "group"
   | "subGroup"
   | "category";
@@ -69,6 +70,7 @@ const SECTIONS: {
     fields: [
       { key: "priceEuro", label: "Продаж €", isNum: true },
       { key: "costPriceEuro", label: "Закуп €", isNum: true },
+      { key: "promoPriceEuro", label: "Акція €", isNum: true },
     ],
   },
   {
@@ -150,9 +152,19 @@ export default function ProductPageAdminEditPanel({
   const router = useRouter();
   // The mutation API routes revalidatePath() the product page server-side
   // (see e.g. app/api/product-update/route.ts) right after clearing the 1C
-  // cache, so by the time this runs the ISR cache is already fresh —
-  // router.refresh() just needs to re-fetch this route's RSC payload.
-  const refreshPage = () => router.refresh();
+  // cache, so in principle router.refresh() just needs to re-fetch this
+  // route's RSC payload. In practice, Next.js 16 has a race between
+  // revalidateTag/revalidatePath actually landing and the very next
+  // router.refresh() picking it up (see the longer note on this in
+  // app/product/[code]/page.tsx above getResolvedProductRouteDataCached) —
+  // admins saw the edit panel update but the rest of the page (title, price,
+  // structured data) keep showing the pre-edit value until a manual reload.
+  // A second refresh shortly after is a cheap, safe way to win that race
+  // without having to fully pin down Next's cache timing.
+  const refreshPage = () => {
+    router.refresh();
+    window.setTimeout(() => router.refresh(), 400);
+  };
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState<FieldKey | null>(null);
@@ -162,6 +174,13 @@ export default function ProductPageAdminEditPanel({
     producer: initialProducer,
     priceEuro: initialPrice,
     costPriceEuro: initialCost,
+    // Unlike the other price fields, not seeded from a server-passed prop:
+    // promo price is deliberately excluded from CatalogProduct/the shared
+    // product payload (see PROMO_PRICE_FIELDS in catalog-server.ts) since
+    // this page is ISR-cached and shared across every viewer, admin or not.
+    // Populated after mount, only once isAdmin is confirmed — see the
+    // dedicated effect below.
+    promoPriceEuro: null as number | null,
     group: initialGroup,
     subGroup: initialSubGroup,
     category: initialCategory,
@@ -259,6 +278,46 @@ export default function ProductPageAdminEditPanel({
       retryTimers.forEach((id) => window.clearTimeout(id));
     };
   }, []);
+
+  // /api/product-price's "partner" detail tier also accepts an admin token
+  // (see its own route.ts) — reuse it here instead of adding a dedicated
+  // endpoint just to read one field.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+
+    (async () => {
+      const token = await getAdminIdToken();
+      if (!token || cancelled) return;
+
+      const params = new URLSearchParams({ mode: "partner" });
+      if (values.article) params.append("lookup", values.article);
+      if (code) params.append("lookup", code);
+      if (!params.has("lookup")) return;
+
+      try {
+        const res = await fetch(`/api/product-price?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { promoPriceEuro?: number | null };
+        if (cancelled) return;
+        setValues((prev) => ({
+          ...prev,
+          promoPriceEuro:
+            typeof data.promoPriceEuro === "number" && Number.isFinite(data.promoPriceEuro)
+              ? data.promoPriceEuro
+              : null,
+        }));
+      } catch {
+        // Leave promoPriceEuro at null — admin can still type a new value.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, code, values.article]);
 
   useEffect(() => {
     if (editing) setTimeout(() => inputRef.current?.focus(), 0);
@@ -400,6 +459,17 @@ export default function ProductPageAdminEditPanel({
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
       fields.costPriceEuro = n;
+    } else if (editing === "promoPriceEuro") {
+      const n = Number(raw.replace(",", "."));
+      if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
+      fields.promoPriceEuro = n;
+      // 1C's price-record update in ОбновитьТовар appears to only touch that
+      // record at all when ЦінаПрод/ЦінаЗакуп is present in the request —
+      // sending Акція alone came back ok:true (nothing in 1C's own response
+      // said it failed) but never actually persisted. Resending the current,
+      // unchanged sell price alongside it is a harmless no-op price-wise and
+      // reliably wakes up that branch.
+      if (typeof values.priceEuro === "number") fields.priceEuro = values.priceEuro;
     }
 
     setSaving(true);
@@ -418,16 +488,52 @@ export default function ProductPageAdminEditPanel({
       } else {
         setValues((prev) => ({
           ...prev,
-          [field]: field === "priceEuro" || field === "costPriceEuro"
+          [field]: field === "priceEuro" || field === "costPriceEuro" || field === "promoPriceEuro"
             ? Number(raw.replace(",", "."))
             : raw,
         }));
       }
       setSavedField(field);
       closeEdit();
-      invalidateCatalogClientCache();
-      if (field === "priceEuro" || field === "costPriceEuro") {
+      // Pass along what just changed so an already-open catalog grid (e.g.
+      // still mounted behind Next's router cache after navigating back from
+      // this product page) can patch that one row's state directly instead
+      // of only clearing caches for some future fetch to pick up.
+      if (field === "category") {
+        invalidateCatalogClientCache({
+          code,
+          category: raw,
+          group: metaGroupEdit.trim(),
+          subGroup: metaSubGroupEdit.trim(),
+        });
+      } else if (field === "priceEuro" || field === "costPriceEuro") {
+        invalidateCatalogClientCache({
+          code,
+          [field]: Number(raw.replace(",", ".")),
+        });
+      } else if (field === "promoPriceEuro") {
+        // Promo price isn't shown in the catalog grid, but this save also
+        // resends the current, unchanged sell price (see the comment above
+        // where fields.priceEuro is set) — nothing new to patch there.
+        invalidateCatalogClientCache();
+      } else if (field === "name" || field === "producer" || field === "article") {
+        invalidateCatalogClientCache({ code, [field]: raw });
+      } else {
+        invalidateCatalogClientCache({ code });
+      }
+      if (field === "priceEuro" || field === "costPriceEuro" || field === "promoPriceEuro") {
         clearProductPriceBrowserCache();
+        // ProductPurchasePanelClient's regular price is seeded once from an
+        // SSR prop and only ever re-synced by router.refresh() picking up a
+        // fresh render — which races revalidateTag/revalidatePath actually
+        // landing (see refreshPage's own note above) and its promo teaser
+        // effects don't even re-run on refresh at all (their deps never
+        // change post-mount). This event tells it to go re-fetch the price
+        // directly instead of waiting on any of that, so an admin sees their
+        // own price edit reflected immediately, first try.
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("partson:price-updated"));
+        }
       }
       if (field === "article") {
         const newNavParam = raw + (code ? `~${code}` : "");
