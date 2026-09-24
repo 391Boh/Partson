@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronRight, Factory, Search, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Search, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
@@ -763,8 +763,9 @@ export default function BrandCarousel({
             {/* Search — collapse-to-button, same pattern as Auto.tsx's
                 "Швидкий пошук" / tovar.tsx's category search: starts as a
                 trigger pill, expands into the field on click. "Усі
-                виробники" sits right under it as one consistent action set,
-                like "Усі марки автомобілів" under Auto's search field. */}
+                виробники" used to sit right under it as a second button —
+                moved down next to the pager instead (reveal-tail below),
+                since that's the control it's actually paired with. */}
             <div className="mt-5">
               <AnimatePresence mode="wait" initial={false}>
                 {!isSearchOpen ? (
@@ -774,7 +775,6 @@ export default function BrandCarousel({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.96 }}
                     transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
                   >
                     <button
                       type="button"
@@ -783,7 +783,7 @@ export default function BrandCarousel({
                         setIsSearchOpen(true);
                       }}
                       onMouseLeave={(event) => event.currentTarget.blur()}
-                      className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-blue-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(30,64,175,0.32)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-blue-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
+                      className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-blue-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(30,64,175,0.32)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-blue-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
                     >
                       <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200/70 bg-blue-100 text-blue-600 shadow-[0_0_16px_rgba(59,130,246,0.16)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-blue-300 group-hover/trigger:bg-blue-200">
                         <Search size={16} strokeWidth={2.2} aria-hidden />
@@ -799,28 +799,6 @@ export default function BrandCarousel({
                         className="shrink-0 text-blue-400 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                       />
                     </button>
-
-                    <SmartLink
-                      href="/manufacturers"
-                      prefetchOnIntent
-                      onClick={(event) => event.currentTarget.blur()}
-                      onMouseLeave={(event) => event.currentTarget.blur()}
-                      className="group/allbrands inline-flex items-center gap-3 rounded-[16px] border border-blue-200/80 bg-white/70 px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(30,64,175,0.32)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-blue-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
-                    >
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200/70 bg-blue-100 text-blue-600 shadow-[0_0_16px_rgba(59,130,246,0.16)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allbrands:scale-[1.06] group-hover/allbrands:border-blue-300 group-hover/allbrands:bg-blue-200">
-                        <Factory size={16} strokeWidth={2.2} aria-hidden />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-blue-500/80">Каталог за виробником</span>
-                        <span className="block text-[14.5px] font-black leading-tight text-slate-800">Усі виробники</span>
-                      </span>
-                      <ChevronRight
-                        size={16}
-                        strokeWidth={3}
-                        aria-hidden
-                        className="shrink-0 text-blue-400 transition-transform duration-200 ease-out group-hover/allbrands:translate-x-1"
-                      />
-                    </SmartLink>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -934,7 +912,7 @@ export default function BrandCarousel({
                       ))}
                     </div>
                   </div>
-                  <div className="reveal-tail mt-3 flex min-h-9 items-center justify-center">
+                  <div className="reveal-tail mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
                     <SectionPagination
                       page={safePage + 1}
                       totalPages={totalPages}
@@ -944,6 +922,28 @@ export default function BrandCarousel({
                       canGoNext={canGoNext}
                       tone="blue"
                     />
+                    {/* Same rounded-pill/border/shadow language as
+                        SectionPagination above, so this reads as one
+                        consistent control set beside it rather than a
+                        separate button — moved here from the intro column
+                        (see the comment up there) since it belongs with the
+                        control it actually pairs with. */}
+                    <SmartLink
+                      href="/manufacturers"
+                      prefetchOnIntent
+                      onClick={(event) => event.currentTarget.blur()}
+                      onMouseLeave={(event) => event.currentTarget.blur()}
+                      className="group/allbrands inline-flex items-center gap-1.5 rounded-full border border-blue-200/80 bg-white/85 py-1.5 pl-3 pr-2.5 text-[11px] font-extrabold text-blue-700 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-colors duration-200 hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
+                    >
+                      <ManufacturersIcon size={13} strokeWidth={2.6} aria-hidden />
+                      Усі виробники
+                      <ChevronRight
+                        size={13}
+                        strokeWidth={3}
+                        aria-hidden
+                        className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
+                      />
+                    </SmartLink>
                   </div>
                 </motion.div>
               )}

@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchCatalogCount } from "app/lib/catalog-count-client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -10,11 +12,6 @@ type CatalogSearchTotalCountClientProps = {
   // /katalog): the SSR facet aggregate is already the exact catalog-wide
   // total there, so there's nothing for the live endpoint to improve on.
   initialFallbackCount?: number | null;
-};
-
-type SearchCountPayload = {
-  totalCount?: number;
-  exact?: boolean;
 };
 
 const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
@@ -48,6 +45,7 @@ export default function CatalogSearchTotalCountClient({
   const [priceFilterActive, setPriceFilterActive] = useState(false);
   const [isExact, setIsExact] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const activeFilterSignatureRef = useRef("");
 
   const countQuery = useMemo(() => {
@@ -97,6 +95,7 @@ export default function CatalogSearchTotalCountClient({
       Number.isFinite(catalogWindow.__partsonCatalogVisibleCount)
     ) {
       setOpenCount(Math.max(0, catalogWindow.__partsonCatalogVisibleCount));
+      setCatalogLoading(false);
     }
     if (
       typeof catalogWindow.__partsonCatalogTotalCount === "number" &&
@@ -108,6 +107,7 @@ export default function CatalogSearchTotalCountClient({
 
     const handleVisibleCount = (event: Event) => {
       const detail = (event as CustomEvent<{ count?: number; loading?: boolean }>).detail;
+      setCatalogLoading(Boolean(detail?.loading));
       if (detail?.loading) { setIsLoading(true); return; }
       setIsLoading(false);
       if (typeof detail?.count !== "number" || !Number.isFinite(detail.count)) return;
@@ -167,20 +167,14 @@ export default function CatalogSearchTotalCountClient({
       return;
     }
 
+    if (catalogLoading || filterTotal !== null || priceFilterActive) return;
     let cancelled = false;
-    const controller = new AbortController();
     setIsLoading(true);
     setTotalCount(null);
     setIsExact(true);
 
-    fetch(`/api/catalog-search-count?${countQuery}`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as SearchCountPayload;
-      })
+    const timer = window.setTimeout(() => {
+      void fetchCatalogCount(countQuery)
       .then((payload) => {
         if (cancelled || !payload) return;
         if (
@@ -199,11 +193,13 @@ export default function CatalogSearchTotalCountClient({
         if (!cancelled) setIsLoading(false);
       });
 
+    }, 400);
+
     return () => {
       cancelled = true;
-      controller.abort();
+      window.clearTimeout(timer);
     };
-  }, [countQuery]);
+  }, [countQuery, catalogLoading, filterTotal, priceFilterActive]);
 
   const resolvedCount = useMemo(() => {
     if (!countQuery && !priceFilterActive) {
@@ -234,7 +230,7 @@ export default function CatalogSearchTotalCountClient({
 
   return (
     <span className={className}>
-      {isCounting ? "рахую..." : formatCount(resolvedCount, isExact)}
+      {isCounting ? "рахую..." : formatCount(resolvedCount, filterTotal !== null || isExact)}
     </span>
   );
 }

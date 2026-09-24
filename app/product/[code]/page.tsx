@@ -2364,6 +2364,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       code={product.code || resolvedCode}
                       productName={product.name}
                       initialImages={galleryImageUrls}
+                      mainImageSrc={productHasKnownPhoto ? productSeoImagePath : null}
                     />
                   </div>
                 </div>

@@ -179,6 +179,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     if (lastCommittedPriceRef.current.from === priceFrom && lastCommittedPriceRef.current.to === priceTo) {
       return;
     }
+    if (priceDebounceRef.current) {
+      clearTimeout(priceDebounceRef.current);
+      priceDebounceRef.current = null;
+    }
     lastCommittedPriceRef.current = { from: priceFrom, to: priceTo };
     setLocalPriceFrom(priceFrom);
     setLocalPriceTo(priceTo);

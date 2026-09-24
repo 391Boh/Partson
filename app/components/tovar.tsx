@@ -546,7 +546,7 @@ const LoadingNotice = ({ shouldAnimate, title, subtitle }: LoadingNoticeProps) =
     <div className="pointer-events-none absolute right-0 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-emerald-300/25 blur-3xl" />
     <div className="relative flex items-center gap-3">
       <div className="shrink-0">
-        <div className="loader loader-brand scale-[0.95]" aria-hidden="true" />
+        <div className="loader scale-[0.95]" aria-hidden="true" />
       </div>
 
       <div className="min-w-0">
@@ -1351,7 +1351,7 @@ const ProductFetcher: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              <div className="reveal-tail relative mt-3 flex min-h-10 items-center gap-3 px-2 sm:px-3">
+              <div className="reveal-tail relative mt-3 flex min-h-10 flex-wrap items-center gap-2.5 px-2 sm:px-3">
                 {/* Pagination now sits directly beside the counter text
                     instead of centered across the whole row — a plain flex
                     row, no grow on either side, so it reads as one group
@@ -1380,6 +1380,28 @@ const ProductFetcher: React.FC<Props> = ({
                     />
                   </div>
                 ) : null}
+                {!searchTerm.trim() && (
+                  // Same rounded-pill/border/shadow language as
+                  // SectionPagination, so this reads as one consistent
+                  // control set beside it — moved here from the intro
+                  // column (see the comment up there) since it belongs
+                  // with the row it actually pairs with.
+                  <Link
+                    href="/groups"
+                    onClick={(event) => event.currentTarget.blur()}
+                    onMouseLeave={(event) => event.currentTarget.blur()}
+                    className="group/allgroups ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-200/80 bg-white/85 py-1.5 pl-3 pr-2.5 text-[11px] font-extrabold text-sky-700 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                  >
+                    <LayoutGrid size={13} strokeWidth={2.6} aria-hidden />
+                    Усі групи товарів
+                    <ChevronRight
+                      size={13}
+                      strokeWidth={3}
+                      aria-hidden
+                      className="transition-transform duration-200 ease-out group-hover/allgroups:translate-x-0.5"
+                    />
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -1523,7 +1545,6 @@ const ProductFetcher: React.FC<Props> = ({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -8, scale: 0.96 }}
                       transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                      className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
                     >
                       <button
                         type="button"
@@ -1532,7 +1553,7 @@ const ProductFetcher: React.FC<Props> = ({
                           setIsSearchOpen(true);
                         }}
                         onMouseLeave={(event) => event.currentTarget.blur()}
-                        className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                        className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
                       >
                         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
                           <Search size={16} strokeWidth={2.2} aria-hidden />
@@ -1548,30 +1569,6 @@ const ProductFetcher: React.FC<Props> = ({
                           className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                         />
                       </button>
-
-                      {/* Same card design as the search trigger beside it, so
-                          the two read as one consistent action set (like "Усі
-                          марки автомобілів" beside Auto.tsx's search field). */}
-                      <Link
-                        href="/groups"
-                        onClick={(event) => event.currentTarget.blur()}
-                        onMouseLeave={(event) => event.currentTarget.blur()}
-                        className="group/allgroups inline-flex items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                      >
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allgroups:scale-[1.06] group-hover/allgroups:border-sky-300 group-hover/allgroups:bg-sky-200">
-                          <LayoutGrid size={16} strokeWidth={2.2} aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Весь каталог</span>
-                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Усі групи товарів</span>
-                        </span>
-                        <ChevronRight
-                          size={16}
-                          strokeWidth={3}
-                          aria-hidden
-                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/allgroups:translate-x-1"
-                        />
-                      </Link>
                     </motion.div>
                   ) : (
                     <motion.div

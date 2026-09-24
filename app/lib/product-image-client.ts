@@ -362,3 +362,43 @@ export const clearProductImageMissing = (
   pendingPersistedImageRemovals.add(cacheKey);
   schedulePersistedImageFlush();
 };
+
+// Used to decorate the catalog loading spinner with real product photos
+// instead of an abstract shape — sourced from whatever this visitor has
+// already loaded (this session or a past one), so it costs zero extra
+// network requests and is never empty-feeling-but-fake. Callers must treat
+// an empty result (nothing cached yet, e.g. a first-ever visit) as a normal
+// case and fall back to a non-photo loader design.
+export const pickRandomCachedProductImageSrcs = (count: number): string[] => {
+  if (typeof window === "undefined" || count <= 0) return [];
+
+  const collected = new Set<string>();
+
+  const scan = (storage: Storage) => {
+    try {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (!key?.startsWith(PRODUCT_IMAGE_CLIENT_CACHE_PREFIX)) continue;
+        const src = readProductImageSuccessFromStorage(storage, key);
+        if (src) collected.add(src);
+      }
+    } catch {
+      // Ignore storage access issues.
+    }
+  };
+
+  try {
+    scan(window.sessionStorage);
+    if (collected.size < count) scan(window.localStorage);
+  } catch {
+    // Ignore storage access issues (private-browsing, quota, etc).
+  }
+
+  const pool = Array.from(collected);
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return pool.slice(0, count);
+};

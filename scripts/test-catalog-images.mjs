@@ -4,7 +4,7 @@ const { chromium } = await import(process.argv[2] || 'playwright');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const image = await sharp({ create: { width: 80, height: 80, channels: 3, background: '#0a8' } }).png().toBuffer();
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({ viewport: process.argv.includes('--mobile') ? { width: 390, height: 844 } : { width: 1440, height: 1000 } });
   page.setDefaultTimeout(30_000);
   const requests = [];
   const makeItems = start => Array.from({ length: 16 }, (_, i) => ({ code: `IMAGE-${start + i}`, article: `ART-${start + i}`, name: `Фото тест ${start + i}`, quantity: 2, priceEuro: 10, hasPhoto: true }));

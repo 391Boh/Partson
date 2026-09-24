@@ -33,6 +33,7 @@ import {
 } from "app/lib/catalog-client-cache";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { stripRomanNumeralsFromModel, stripTrailingChassisCode } from "app/lib/car-model-search";
+import { fetchCatalogCount } from "app/lib/catalog-count-client";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
@@ -2804,10 +2805,10 @@ function useCatalogData(params: {
 
   // Safety net: якщо дані вже є, але фільтр-оверлей лишився після скасованого запиту — ховаємо тільки його.
   useEffect(() => {
-    if (filterLoading && safeData.length > 0) {
+    if (filterLoading && safeData.length > 0 && catalogReadyQuerySignature === querySignature) {
       setFilterLoading(false);
     }
-  }, [filterLoading, safeData]);
+  }, [filterLoading, safeData, catalogReadyQuerySignature, querySignature]);
 
   // РєРѕСЂР·РёРЅР° > РјР°РїР°
   const cartMap = useMemo(() => {
@@ -2818,11 +2819,21 @@ function useCatalogData(params: {
     return map;
   }, [cartItems]);
 
-  // С‚РѕРІР°СЂРё РїРѕ РєРѕРґСѓ
+  // товари по коду
+  // First occurrence wins per code — must match uniqueData's own dedup
+  // convention below (which also keeps the first occurrence, keyed by the
+  // stricter getProductStableListKey). 1C's cursor pagination can return the
+  // same product again across pages with a since-changed quantity (stock
+  // sold in between fetches); last-wins here disagreed with which copy
+  // uniqueData/filteredData actually renders, so the qty stepper's max
+  // (read from this map) could silently be a stale/different figure than
+  // the one the "+" button's own disabled check used (item.quantity from
+  // the rendered card) — the button stayed enabled but clicking it did
+  // nothing once it hit that other quantity's cap.
   const productsByCode = useMemo(() => {
     const map: Record<string, Product> = {};
     for (const it of safeData) {
-      if (it.code) map[it.code] = it;
+      if (it.code && !(it.code in map)) map[it.code] = it;
     }
     return map;
   }, [safeData]);
@@ -3759,11 +3770,7 @@ function useCatalogData(params: {
     }
     if (inStock) params.set("inStock", "1");
 
-    fetch(`/api/catalog-search-count?${params.toString()}`, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : null))
+    fetchCatalogCount(params.toString())
       .then((payload: { totalCount?: number; exact?: boolean } | null) => {
         if (controller.signal.aborted || payload?.exact === false) return;
         if (activeQuerySignatureRef.current !== signatureAtStart) return;

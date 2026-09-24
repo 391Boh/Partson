@@ -1431,7 +1431,7 @@ const AutoSection: React.FC<AutoProps> = ({
           </div>
         </div>
       )}
-      <div className="mt-3 flex min-h-9 items-center justify-center">
+      <div className="mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
         {!showAllBrands ? (
           <SectionPagination
             page={safeBrandPage + 1}
@@ -1443,6 +1443,29 @@ const AutoSection: React.FC<AutoProps> = ({
             tone="sky"
           />
         ) : null}
+        {/* Homepage-widget-only (this same brandsListNode is reused verbatim
+            for the filter/compact embed, which has no use for a link back to
+            /auto) — moved here from the header's search column, next to the
+            control it's actually paired with. Same rounded-pill/border/
+            shadow language as SectionPagination beside it. */}
+        {useFixedBrandTable && !showAllBrands && !selectedBrand && (
+          <Link
+            href="/auto"
+            aria-label="Переглянути всі марки автомобілів"
+            onClick={(event) => event.currentTarget.blur()}
+            onMouseLeave={(event) => event.currentTarget.blur()}
+            className="group/allbrands inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.08] py-1.5 pl-3 pr-2.5 text-[11px] font-extrabold text-white shadow-[0_6px_18px_-8px_rgba(15,23,42,0.4),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-sm transition-colors duration-200 hover:border-sky-300/45 hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+          >
+            <Car size={13} strokeWidth={2.6} aria-hidden />
+            Усі марки
+            <ChevronRight
+              size={13}
+              strokeWidth={3}
+              aria-hidden
+              className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
+            />
+          </Link>
+        )}
       </div>
     </motion.div>
   );
@@ -1509,17 +1532,17 @@ const AutoSection: React.FC<AutoProps> = ({
                   <div className="mt-4 border-t border-white/12 pt-4">
                   <AnimatePresence mode="wait" initial={false}>
                     {!isSearchOpen ? (
-                      // Trigger + "Усі марки автомобілів" side by side — same
-                      // card design (bordered pill, icon square, eyebrow +
-                      // title, chevron) so the two read as one consistent set
-                      // instead of two different styles stacked together.
+                      // "Усі марки автомобілів" used to sit right beside this
+                      // trigger as a second button — moved down next to the
+                      // brand grid's own pager instead (see useFixedBrandTable
+                      // near the SectionPagination below), since that's the
+                      // control it's actually paired with.
                       <motion.div
                         key="buttons"
                         initial={{ opacity: 0, y: -8, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                        className="grid grid-cols-1 min-[420px]:grid-cols-2 items-stretch gap-2.5"
                       >
                         <button
                           type="button"
@@ -1528,7 +1551,7 @@ const AutoSection: React.FC<AutoProps> = ({
                             setIsSearchOpen(true);
                           }}
                           onMouseLeave={(event) => event.currentTarget.blur()}
-                          className="group/trigger inline-flex items-center gap-3 rounded-[16px] border border-white/14 bg-white/[0.06] px-3.5 py-3 text-left transition-colors duration-200 ease-out hover:border-sky-300/45 hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                          className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-white/14 bg-white/[0.06] px-3.5 py-3 text-left transition-colors duration-200 ease-out hover:border-sky-300/45 hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
                         >
                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/30 bg-sky-400/10 text-sky-200 shadow-[0_0_20px_rgba(56,189,248,0.18)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-200/55 group-hover/trigger:bg-sky-400/20">
                             <Search size={16} strokeWidth={2.2} aria-hidden />
@@ -1544,25 +1567,6 @@ const AutoSection: React.FC<AutoProps> = ({
                             className="shrink-0 text-sky-300/80 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                           />
                         </button>
-
-                        {!selectedBrand && (
-                          <Link
-                            href="/auto"
-                            aria-label="Переглянути всі марки автомобілів"
-                            onClick={(event) => event.currentTarget.blur()}
-                            onMouseLeave={(event) => event.currentTarget.blur()}
-                            className="group/allbrands inline-flex items-center gap-3 rounded-[16px] border border-white/14 bg-white/[0.06] px-3.5 py-3 transition-colors duration-200 ease-out hover:border-sky-300/45 hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                          >
-                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/30 bg-sky-400/10 text-sky-200 shadow-[0_0_20px_rgba(56,189,248,0.18)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/allbrands:scale-[1.06] group-hover/allbrands:border-sky-200/55 group-hover/allbrands:bg-sky-400/20">
-                              <Car size={16} strokeWidth={2.2} aria-hidden />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-200/80">Каталог за авто</span>
-                              <span className="block text-[14.5px] font-black leading-tight text-white">Усі марки автомобілів</span>
-                            </span>
-                            <ChevronRight size={16} strokeWidth={3} className="shrink-0 text-sky-300/80 transition-transform duration-200 ease-out group-hover/allbrands:translate-x-1" aria-hidden />
-                          </Link>
-                        )}
                       </motion.div>
                     ) : (
                       <motion.div

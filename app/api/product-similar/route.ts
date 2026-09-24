@@ -57,24 +57,16 @@ export async function GET(request: Request) {
         )
     );
 
-    if (!Array.isArray(result)) {
-      return NextResponse.json(
-        { items: [], retryable: true, reason: "timeout" },
-        {
-          status: 503,
-          headers: {
-            "cache-control": NO_STORE_CACHE_CONTROL,
-            "retry-after": "1",
-          },
-        }
-      );
-    }
+    // Live subgroup lookup can legitimately come back empty, or (matching
+    // /api/product-analogs's own fallback) simply time out under a slow 1C —
+    // either way, try the static sitemap-based recommendations before giving
+    // up, so "схожі товари" still has something to show. Previously a
+    // timeout skipped straight to the 503 below with no fallback attempt at
+    // all, unlike product-analogs — under real backend slowness that made
+    // "схожі" come back empty far more often than "аналоги", and once both
+    // ended up empty the whole recommendations block disappeared.
+    let items = Array.isArray(result) ? result.slice(0, PRODUCT_SIMILAR_LIMIT) : [];
 
-    let items = result.slice(0, PRODUCT_SIMILAR_LIMIT);
-
-    // Live subgroup lookup can legitimately come back empty. Fall back to the
-    // static sitemap-based recommendations so "схожі товари" still has
-    // something to show alongside аналоги.
     if (items.length === 0) {
       const staticRecommendations = await getStaticProductRecommendations(
         article,
@@ -86,6 +78,19 @@ export async function GET(request: Request) {
         category
       ).catch(() => ({ analogs: [], similar: [] }));
       items = staticRecommendations.similar.slice(0, PRODUCT_SIMILAR_LIMIT);
+    }
+
+    if (items.length === 0 && !Array.isArray(result)) {
+      return NextResponse.json(
+        { items: [], retryable: true, reason: "timeout" },
+        {
+          status: 503,
+          headers: {
+            "cache-control": NO_STORE_CACHE_CONTROL,
+            "retry-after": "1",
+          },
+        }
+      );
     }
 
     return NextResponse.json(

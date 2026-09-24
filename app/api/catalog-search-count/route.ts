@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const COUNT_PAGE_LIMIT = 500;
 const COUNT_MAX_PAGES = 40;
 const COUNT_TIME_BUDGET_MS = 8500;
-const COUNT_CACHE_TTL_MS = 1000 * 60 * 10;
+const COUNT_CACHE_TTL_MS = 15_000;
 
 type CountCacheEntry = {
   expiresAt: number;
@@ -92,9 +92,9 @@ const fetchSearchCount = async (
   const selectedCategories = params.getAll("category").map(normalizeString).filter(Boolean);
   const pricedOnly = params.get("pricedOnly") === "1";
   const priceFromRaw = Number(params.get("priceFrom"));
-  const priceFrom = Number.isFinite(priceFromRaw) && priceFromRaw > 0 ? priceFromRaw : null;
+  const priceFrom = params.has("priceFrom") && params.get("priceFrom") !== "" && Number.isFinite(priceFromRaw) && priceFromRaw >= 0 ? priceFromRaw : null;
   const priceToRaw = Number(params.get("priceTo"));
-  const priceTo = Number.isFinite(priceToRaw) && priceToRaw > 0 ? priceToRaw : null;
+  const priceTo = params.has("priceTo") && params.get("priceTo") !== "" && Number.isFinite(priceToRaw) && priceToRaw >= 0 ? priceToRaw : null;
   const inStock = params.get("inStock") === "1";
   const seenProducts = new Set<string>();
   const seenCursors = new Set<string>();
@@ -221,7 +221,7 @@ export async function GET(request: Request) {
   const cached = getFreshCache(cacheKey);
   if (cached) {
     return NextResponse.json(cached, {
-      headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
+      headers: { "Cache-Control": "no-store" },
     });
   }
 
@@ -233,13 +233,14 @@ export async function GET(request: Request) {
 
   try {
     const value = await countPromise;
+    if (countCache.size >= 256) countCache.delete(countCache.keys().next().value!);
     countCache.set(cacheKey, {
       expiresAt: Date.now() + COUNT_CACHE_TTL_MS,
       value,
     });
 
     return NextResponse.json(value, {
-      headers: { "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800" },
+      headers: { "Cache-Control": "no-store" },
     });
   } finally {
     inFlightCounts.delete(cacheKey);

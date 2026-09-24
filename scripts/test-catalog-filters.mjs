@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+const { chromium } = await import(process.argv[2] || 'playwright');
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(30_000);
+  const requests = [];
+  await page.route('**/api/catalog-page', async route => {
+    const body = route.request().postDataJSON();
+    requests.push(body);
+    if (body.inStock) await new Promise(resolve => setTimeout(resolve, 1000));
+    const name = body.inStock ? 'ЗАСТАРІЛА ВИБІРКА' : 'АКТУАЛЬНА ВИБІРКА';
+    await route.fulfill({ json: { items: [{ code: body.inStock ? 'OLD' : 'NEW', article: 'TEST', name, producer: 'TEST', priceEuro: 10, quantity: 2, hasPhoto: false }], totalCount: 1, hasMore: false, nextCursor: '' } }).catch(() => {});
+  });
+  console.log('Opening filter test');
+  await page.goto('http://localhost:3000/katalog?search=filters-regression', { waitUntil: 'domcontentloaded' });
+  await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Фільтр та сортування за ціною', exact: true }).click();
+  const stock = page.getByRole('button', { name: 'В наявності', exact: true });
+  const sent = page.waitForRequest(request => request.url().includes('/api/catalog-page') && request.postDataJSON()?.inStock === true);
+  console.log('Testing stock race');
+  await stock.click();
+  await sent;
+  await stock.click();
+  await page.waitForTimeout(1500);
+  assert.equal(await page.getByText('ЗАСТАРІЛА ВИБІРКА', { exact: true }).count(), 0);
+  await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
+  console.log('Testing price range');
+  const from = page.getByLabel('Ціна від (грн)');
+  const before = requests.length;
+  await from.fill('1');
+  await from.fill('10');
+  await from.fill('100');
+  await page.waitForTimeout(600);
+  assert.equal(requests.slice(before).filter(request => request.priceFrom != null).length, 1, 'Price typing should commit only the final value');
+  await page.getByRole('button', { name: 'Очистити цінові фільтри', exact: true }).click();
+  await page.waitForTimeout(500);
+  assert.equal(await from.inputValue(), '');
+  await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
+  console.log('Catalog filters passed: rapid stock toggles ignore stale responses, prices debounce, reset clears prices.');
+} catch (error) { console.error(error); throw error; } finally { await browser.close(); }

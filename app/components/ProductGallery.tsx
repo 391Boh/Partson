@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Check, ImagePlus, Loader2, RotateCcw, X } from "lucide-react";
+import { Check, ImagePlus, Loader2, X } from "lucide-react";
 
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 import {
@@ -19,10 +19,16 @@ export default function ProductGallery({
   code,
   productName,
   initialImages = [],
+  mainImageSrc = null,
 }: {
   code: string;
   productName: string;
   initialImages?: string[];
+  // The main 1C photo shown above this strip — included here as the first,
+  // non-removable tile so this reads as one unified "pick a photo" list
+  // (main + additional) instead of a separate reset button next to a
+  // strip of only the additional ones.
+  mainImageSrc?: string | null;
 }) {
   const [images, setImages] = useState<GalleryImage[]>(() =>
     initialImages.map((url, index) => ({ id: `server-${index}`, url }))
@@ -198,22 +204,44 @@ export default function ProductGallery({
 
   return (
     <div className="relative z-20 shrink-0 border-t border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:px-4 sm:py-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
-          Галерея · {images.length} фото
-        </p>
-        {selectedImageUrl ? (
-          <button
-            type="button"
-            onClick={() => selectImage(null)}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold text-sky-700 transition hover:bg-white hover:text-sky-900"
-          >
-            <RotateCcw size={11} aria-hidden="true" />
-            Основне фото
-          </button>
+      <p className="mb-2 text-[9px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+        Фото · {images.length + (mainImageSrc ? 1 : 0)}
+      </p>
+      {/* Wraps onto as many rows as needed instead of scrolling sideways —
+          every photo (main + additional) stays visible at once. */}
+      <div className="flex flex-wrap gap-2">
+        {mainImageSrc ? (
+          <div className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
+            <button
+              type="button"
+              onClick={() => selectImage(null)}
+              aria-label="Показати основне фото"
+              aria-pressed={!selectedImageUrl}
+              className={`relative h-full w-full overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 ${
+                !selectedImageUrl
+                  ? "border-2 border-sky-500 shadow-[0_10px_22px_rgba(14,165,233,0.22)] ring-2 ring-sky-100"
+                  : "border border-slate-200/90 shadow-[0_3px_10px_rgba(15,23,42,0.07)] hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
+              }`}
+            >
+              <Image
+                src={mainImageSrc}
+                alt={`${productName} — основне фото`}
+                fill
+                sizes="72px"
+                loading="lazy"
+                className="object-contain p-1"
+              />
+              {!selectedImageUrl ? (
+                <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sky-600 text-white shadow-md">
+                  <Check size={12} strokeWidth={3} aria-hidden="true" />
+                </span>
+              ) : null}
+            </button>
+            <span className="pointer-events-none absolute inset-x-1 bottom-1 truncate rounded-full bg-slate-900/60 px-1.5 py-0.5 text-center text-[7px] font-bold uppercase tracking-wide text-white">
+              Основне
+            </span>
+          </div>
         ) : null}
-      </div>
-      <div className="flex items-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
         {images.map((image, index) => (
           <div key={image.id} className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
             <button

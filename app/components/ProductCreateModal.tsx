@@ -42,6 +42,17 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [imageUploadSize, setImageUploadSize] = useState(0);
   const [imageProcessing, setImageProcessing] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  // Extra/gallery photos — unlike the main photo (sent inline with
+  // /api/product-create), these upload to /api/product-gallery, which is
+  // keyed by the product's 1C code. That code doesn't exist until the
+  // product itself has been created, so these just accumulate locally here
+  // and get uploaded one by one right after creation succeeds (see
+  // submitProduct's "Додаткові фото" step below).
+  const [extraPhotos, setExtraPhotos] = useState<
+    { dataUrl: string; fileName: string; sizeBytes: number }[]
+  >([]);
+  const [extraPhotoProcessing, setExtraPhotoProcessing] = useState(false);
+  const [extraPhotoError, setExtraPhotoError] = useState<string | null>(null);
   const submitLock = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +76,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const metaDebounce = useRef<Record<SuggestType, ReturnType<typeof setTimeout> | null>>({ category: null, group: null, subGroup: null });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const extraFileInputRef = useRef<HTMLInputElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -76,6 +88,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       setImageUploadSize(0);
       setImageProcessing(false);
       setImageError(null);
+      setExtraPhotos([]);
+      setExtraPhotoProcessing(false);
+      setExtraPhotoError(null);
       setError(null);
       setCreatedCode(null);
       setCreatedArticle("");
@@ -158,6 +173,35 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     } finally {
       setImageProcessing(false);
     }
+  };
+
+  const MAX_EXTRA_PHOTOS = 8;
+
+  const handleExtraPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (extraPhotos.length >= MAX_EXTRA_PHOTOS) {
+      setExtraPhotoError(`Максимум ${MAX_EXTRA_PHOTOS} додаткових фото`);
+      return;
+    }
+    setExtraPhotoError(null);
+    setExtraPhotoProcessing(true);
+    try {
+      const prepared = await prepareProductImage(file);
+      setExtraPhotos((prev) => [
+        ...prev,
+        { dataUrl: prepared.dataUrl, fileName: prepared.fileName, sizeBytes: prepared.outputBytes },
+      ]);
+    } catch (error) {
+      setExtraPhotoError(error instanceof Error ? error.message : "Не вдалося обробити зображення");
+    } finally {
+      setExtraPhotoProcessing(false);
+    }
+  };
+
+  const removeExtraPhoto = (index: number) => {
+    setExtraPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -285,6 +329,38 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         }
       }
 
+      // Extra/gallery photos — uploaded one by one now that `code` exists
+      // (see extraPhotos' own comment above for why they couldn't go out
+      // with the main /api/product-create call). Sequential, not
+      // Promise.all: /api/product-gallery rate-limits at 20/min per admin,
+      // and this keeps that budget for the admin's next actions too.
+      if (extraPhotos.length > 0) {
+        if (!code) {
+          setError("Товар створено, але немає коду для збереження додаткових фото.");
+          return;
+        }
+        let failedCount = 0;
+        for (const photo of extraPhotos) {
+          try {
+            const galleryRes = await fetch("/api/product-gallery", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ code, imageDataUrl: photo.dataUrl }),
+            });
+            const galleryResult = await galleryRes.json();
+            if (!galleryRes.ok || !galleryResult.ok) failedCount += 1;
+          } catch {
+            failedCount += 1;
+          }
+        }
+        if (failedCount > 0) {
+          setError(
+            `Товар створено, але ${failedCount} з ${extraPhotos.length} додаткових фото не завантажено. Додайте їх вручну на сторінці товару.`
+          );
+          return;
+        }
+      }
+
       if (navParam) {
         clearBrowserCatalogCache();
         invalidateCatalogClientCache();
@@ -299,39 +375,49 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
+    // Docked to the right edge instead of a centered/bottom-sheet modal with
+    // a page-covering backdrop — an admin filling this in often wants to
+    // check something in the catalog first (an existing article, a group
+    // name), and the old backdrop made that impossible without losing the
+    // form. This component already lives in LayoutHost (mounted once at the
+    // root, not per-route), so its state already survives client-side
+    // navigation — only the blocking backdrop was ever stopping that.
+    // Inset from the top by --header-height (the site's own convention for
+    // "below the fixed header", used throughout Header.tsx/globals.css) and
+    // from the bottom by enough to clear LayoutHost's floating action stack
+    // (scroll-to-top / this panel's own trigger / admin-panel / chat
+    // buttons, ~192px tall + its own bottom offset) — this panel used to
+    // span the full viewport height, opaque, sitting on top of both. Also
+    // inset from the right edge now (not just top/bottom) so it reads as a
+    // floating card rather than a strip glued to the screen edge — rounded
+    // on every corner and given an ambient shadow to match.
     <div
-      className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4"
+      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-[12rem] z-[200] flex w-full max-w-[344px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-4 sm:bottom-[14rem]"
       role="dialog"
-      aria-modal="true"
       aria-label="Створити товар"
     >
-      <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-        onClick={() => { if (!submitLock.current) onClose(); }}
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 w-full max-w-md rounded-t-[24px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.22)] sm:rounded-[20px]">
+      <div className="flex h-full min-h-0 flex-col">
+        <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-violet-100 text-violet-700">
-              <PackagePlus size={16} />
+        <div className="flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
+              <PackagePlus size={14} />
             </span>
-            <h2 className="text-sm font-black text-slate-800">Новий товар</h2>
+            <h2 className="text-[13px] font-black text-slate-800">Новий товар</h2>
           </div>
           <button
             type="button"
             onClick={() => { if (!submitLock.current) onClose(); }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
             aria-label="Закрити"
           >
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
 
         {createdCode !== null ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+          <div className="flex flex-1 flex-col items-center gap-3 overflow-y-auto px-6 py-8 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <Check size={24} />
             </span>
@@ -372,8 +458,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
             </div>
           </div>
         ) : (
-          <div className="max-h-[80vh] overflow-y-auto px-4 pb-4 pt-3">
-            <div className="space-y-2.5">
+          <>
+          <div className="flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5">
+            <div className="space-y-2">
 
               {/* Назва — обов'язково */}
               <Field label="Назва *" required>
@@ -433,7 +520,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               </div>
 
               {/* Ієрархія: Категорія → Група → Підгрупа */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {/* Категорія */}
                 <Field label="Категорія">
                   <div className="relative">
@@ -614,6 +701,39 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 )}
                 {imageError && <p className="mt-1 text-[10px] font-semibold text-red-500">{imageError}</p>}
               </Field>
+
+              {/* Extra gallery photos — separate from the single photo above,
+                  same as the existing per-product gallery on the product page
+                  (ProductGallery.tsx) that these end up in once uploaded. */}
+              <Field label={`Додаткові фото (необов'язково) · ${extraPhotos.length}/${MAX_EXTRA_PHOTOS}`}>
+                <input ref={extraFileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT}
+                  className="hidden" onChange={(e) => void handleExtraPhotoChange(e)} />
+                {extraPhotos.length > 0 && (
+                  <div className="mb-1.5 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+                    {extraPhotos.map((photo, index) => (
+                      <div key={`${photo.fileName}-${index}`} className="group relative h-12 w-12 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photo.dataUrl} alt="" className="h-full w-full rounded-[6px] border border-slate-200 object-contain" />
+                        <button type="button" onClick={() => removeExtraPhoto(index)}
+                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+                          aria-label="Видалити фото">
+                          <X size={9} strokeWidth={3} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {extraPhotos.length < MAX_EXTRA_PHOTOS && (
+                  <button type="button" onClick={() => extraFileInputRef.current?.click()} disabled={extraPhotoProcessing}
+                    className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
+                    {extraPhotoProcessing
+                      ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                      : <ImagePlus size={13} />}
+                    {extraPhotoProcessing ? "Обробка фото..." : "Додати фото"}
+                  </button>
+                )}
+                {extraPhotoError && <p className="mt-1 text-[10px] font-semibold text-red-500">{extraPhotoError}</p>}
+              </Field>
             </div>
 
             {error && (
@@ -621,23 +741,27 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 {error}
               </div>
             )}
-
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button type="button" onClick={() => { if (!submitLock.current) onClose(); }} disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
-                Скасувати
-              </button>
-              <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || !fields.name.trim()}
-                className="inline-flex items-center gap-2 rounded-[10px] bg-violet-600 px-5 py-2 text-[12px] font-black text-white shadow-[0_4px_12px_rgba(109,40,217,0.28)] transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {saving ? (
-                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-300 border-t-white" />
-                ) : (
-                  <PackagePlus size={14} />
-                )}
-                {saving ? "Створення..." : "Створити товар"}
-              </button>
-            </div>
           </div>
+
+          {/* Outside the scrollable area, its own shrink-0 row — stays
+              visible at the bottom of the panel regardless of scroll
+              position, instead of being buried below a long form. */}
+          <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+            <button type="button" onClick={() => { if (!submitLock.current) onClose(); }} disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
+              Скасувати
+            </button>
+            <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || !fields.name.trim()}
+              className="inline-flex items-center gap-1.5 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-3.5 py-1.5 text-[11.5px] font-black text-white shadow-[0_4px_14px_rgba(124,58,237,0.35)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60">
+              {saving ? (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-300 border-t-white" />
+              ) : (
+                <PackagePlus size={13} />
+              )}
+              {saving ? "Створення..." : "Створити товар"}
+            </button>
+          </div>
+          </>
         )}
       </div>
     </div>
@@ -645,7 +769,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 }
 
 const fieldClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
+  "w-full rounded-[8px] border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
 
 function Field({
   label,
@@ -658,7 +782,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-[10px] font-semibold text-slate-500">
+      <label className="mb-0.5 block text-[9.5px] font-semibold text-slate-500">
         {label}
         {required && <span className="ml-0.5 text-red-400">*</span>}
       </label>

@@ -55,7 +55,13 @@ export async function GET(request: Request) {
       { description },
       {
         headers: {
-          "Cache-Control": "no-store",
+          // The 5-minute server-side cache above exists specifically so a
+          // repeat view of the same product returns instantly — but
+          // "no-store" here told every browser and CDN edge to never reuse
+          // the response anyway, so every single view (even the same
+          // visitor reloading) still paid a full round trip to this route.
+          // Not per-user/permission-gated, so a short public cache is safe.
+          "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
         },
       }
     );
