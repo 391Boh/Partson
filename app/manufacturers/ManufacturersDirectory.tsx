@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowRight, Factory, Layers3, PackageSearch, Search, Tags, X } from "lucide-react";
+import { ArrowRight, Factory, PackageSearch, Search, X } from "lucide-react";
 
 import {
   directoryActionIconClass,
@@ -78,7 +78,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={manufacturerHref}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} h-[166px] animate-fadeIn`}
+      className={`${directoryCardClass} card-metal h-[112px] animate-fadeIn`}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -92,84 +92,50 @@ const ManufacturerCard = memo(function ManufacturerCard({
         className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
       />
 
-      <div className="relative z-[1] flex h-full flex-col overflow-hidden p-3.5">
-        <div className="flex min-w-0 items-start justify-between gap-2.5">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/70 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e7f5fb_52%,#e1f7f1_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.085),inset_0_1px_0_rgba(255,255,255,0.98)] transition-[border-color,box-shadow] duration-300 group-hover:border-teal-300 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14)]">
-              {item.logoPath ? (
-                <Image
-                  src={item.logoPath}
-                  alt={`Логотип виробника автозапчастин ${item.label}`}
-                  width={96}
-                  height={56}
-                  sizes="56px"
-                  quality={85}
-                  priority={priorityLogo}
-                  loading={priorityLogo ? undefined : "lazy"}
-                  unoptimized={item.logoPath.endsWith(".svg")}
-                  className="h-9 w-11 object-contain"
-                />
-              ) : (
-                <span className="directory-card-title line-clamp-2 px-1 text-center text-[9px] font-black uppercase leading-tight tracking-[-0.02em] text-slate-700">
-                  {item.label}
-                </span>
-              )}
+      <div className="relative z-[1] flex h-full items-center gap-3 overflow-hidden p-3">
+        <span className="relative inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-cyan-200/70 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e7f5fb_52%,#e1f7f1_100%)] shadow-[0_12px_26px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.98)] transition-[border-color,box-shadow] duration-300 group-hover:border-teal-300 group-hover:shadow-[0_15px_30px_rgba(13,148,136,0.16)]">
+          {item.logoPath ? (
+            <Image
+              src={item.logoPath}
+              alt={`Логотип виробника автозапчастин ${item.label}`}
+              width={112}
+              height={64}
+              sizes="64px"
+              quality={85}
+              priority={priorityLogo}
+              loading={priorityLogo ? undefined : "lazy"}
+              unoptimized={item.logoPath.endsWith(".svg")}
+              className="h-11 w-14 object-contain"
+            />
+          ) : (
+            <span className="directory-card-title line-clamp-2 px-1 text-center text-[10px] font-black uppercase leading-tight tracking-[-0.02em] text-slate-700">
+              {item.label}
             </span>
+          )}
+        </span>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex h-[18px] items-center gap-1.5 overflow-hidden">
-                <span className="directory-kicker inline-flex shrink-0 rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
-                  Виробник
-                </span>
-              </div>
-
-              <p
-                itemProp="name"
-                title={item.label}
-                className="directory-card-title mt-2 line-clamp-2 min-h-[2.5rem] text-[18px] leading-[1.12] text-slate-950"
-              >
-                {item.label}
-              </p>
-            </div>
-          </div>
-
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-sky-200 bg-white/92 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.11)] transition-colors duration-200 group-hover:border-sky-300 group-hover:bg-sky-50 min-[420px]:inline-flex">
-            Відкрити
-            <span className={`${directoryActionIconClass} h-7 w-7 rounded-md`}>
-              <ArrowRight size={15} strokeWidth={2.3} />
-            </span>
-          </span>
-        </div>
-
-        <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-2.5">
-          <span className="rounded-[12px] border border-sky-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(231,245,252,0.78))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
-            <PackageSearch className="mx-auto h-3.5 w-3.5 text-sky-700 drop-shadow-[0_2px_4px_rgba(14,165,233,0.18)]" aria-hidden="true" />
-            <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
+        <div className="min-w-0 flex-1">
+          <p
+            itemProp="name"
+            title={item.label}
+            className="directory-card-title line-clamp-2 text-[16px] leading-[1.2] text-slate-950"
+          >
+            {item.label}
+          </p>
+          <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/70 bg-sky-50/70 px-2.5 py-1">
+            <PackageSearch className="h-3 w-3 text-sky-700" aria-hidden="true" />
+            <span className="directory-counter bg-gradient-to-br from-sky-600 to-cyan-600 bg-clip-text text-[11px] leading-none text-transparent">
               {formatDirectoryCount(item.productCount, countFallback)}
             </span>
-            <span className="directory-counter-label mt-0.5 block truncate text-[9px] uppercase text-slate-500">
+            <span className="text-[10px] font-medium normal-case tracking-normal text-slate-500">
               {pluralize(item.productCount, "товар", "товари", "товарів")}
             </span>
           </span>
-          <span className="rounded-[12px] border border-teal-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(222,247,240,0.8))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
-            <Layers3 className="mx-auto h-3.5 w-3.5 text-teal-700 drop-shadow-[0_2px_4px_rgba(13,148,136,0.18)]" aria-hidden="true" />
-            <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
-              {formatDirectoryCount(item.groupsCount, countFallback)}
-            </span>
-            <span className="directory-counter-label mt-0.5 block truncate text-[9px] uppercase text-slate-500">
-              {pluralize(item.groupsCount, "група", "групи", "груп")}
-            </span>
-          </span>
-          <span className="rounded-[12px] border border-indigo-200/65 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(239,242,252,0.84))] px-2 py-1.5 text-center shadow-[inset_0_1px_0_white]">
-            <Tags className="mx-auto h-3.5 w-3.5 text-indigo-700 drop-shadow-[0_2px_4px_rgba(79,70,229,0.16)]" aria-hidden="true" />
-            <span className="directory-counter mt-1 block text-[11px] leading-none text-slate-900">
-              {formatDirectoryCount(item.categoriesCount, countFallback)}
-            </span>
-            <span className="directory-counter-label mt-0.5 block truncate text-[9px] uppercase text-slate-500">
-              {pluralize(item.categoriesCount, "категорія", "категорії", "категорій")}
-            </span>
-          </span>
         </div>
+
+        <span className={`${directoryActionIconClass} shrink-0`}>
+          <ArrowRight size={14} strokeWidth={2.3} />
+        </span>
       </div>
     </SmartLink>
   );
@@ -330,7 +296,7 @@ export default function ManufacturersDirectory({
                 <HorizontalDirectoryRail
                   ariaLabel="Виробники автозапчастин"
                   rows={2}
-                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:350px]"
+                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:300px]"
                 >
                   {filteredItems.map((item, index) => (
                     <div key={item.slug} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">

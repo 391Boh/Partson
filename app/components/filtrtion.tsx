@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import {
   Car,
   BadgeDollarSign,
+  BadgePercent,
   CheckCircle,
   ChevronDown,
   ChevronUp,
@@ -154,6 +155,19 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const router = useRouter();
   const pathname = usePathname() || '/katalog';
   const producerParam = (currentSearchParams.get('producer') || '').trim();
+  // Data.tsx already reads `?promo=1` straight from the URL (see its own
+  // promoOnlyFromURL) and the catalog-page API route already filters on it
+  // — this UI toggle was the only missing piece, not a new backend feature.
+  const promoOnlyParam = currentSearchParams.get('promo') === '1';
+  const handleTogglePromoOnly = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParamsKey);
+    if (promoOnlyParam) {
+      nextParams.delete('promo');
+    } else {
+      nextParams.set('promo', '1');
+    }
+    router.replace(nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname);
+  }, [pathname, promoOnlyParam, router, searchParamsKey]);
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price'>('auto');
   const formatPriceInput = (value: number | null | undefined) =>
     typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
@@ -356,7 +370,17 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
   const isPriceTabActive = activeComponent === 'price';
-  const hasPriceFilter = !isSortNone;
+  // Previously only reflected sort order — turning on "Акційні товари" (or,
+  // pre-existing, "З ціною"/"В наявності"/a price range) left the outer
+  // "Ціна" summary chip looking completely idle despite a real filter from
+  // this same tab being active.
+  const hasPriceFilter =
+    !isSortNone ||
+    promoOnlyParam ||
+    pricedOnly ||
+    inStock ||
+    localPriceFrom != null ||
+    localPriceTo != null;
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
     code: 'Код',
@@ -379,6 +403,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
+    promoOnlyParam ||
     pricedOnly ||
     localPriceFrom != null ||
     localPriceTo != null ||
@@ -554,6 +579,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('filter');
     nextParams.delete('carSearch');
     nextParams.delete('reset');
+    nextParams.delete('promo');
     const nextQuery = nextParams.toString();
     if (nextQuery !== searchParamsKey) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -690,6 +716,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setLocalPriceTo(null);
     onPriceRangeChange?.(null, null);
     onPricedOnlyChange?.(false);
+    if (promoOnlyParam) handleTogglePromoOnly();
     if (onSortOrderChange) onSortOrderChange('none');
     else setLocalSortOrder('none');
   };
@@ -780,12 +807,21 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                             : pathname
                         );
                       }}
-                      className={`catalog-filter-brand-card group/card flex h-[72px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
+                      className={`catalog-filter-brand-card card-metal group/card relative flex h-[68px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
                         producerParam === b.name
                           ? 'border-violet-300 bg-violet-50 text-violet-800 shadow-[0_10px_22px_rgba(124,58,237,0.14),inset_0_1px_0_white]'
                           : 'border-slate-200 bg-white shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] hover:border-violet-300 hover:shadow-[0_14px_28px_rgba(124,58,237,0.12),inset_0_1px_0_white]'
                       }`}
                     >
+                      {/* Same top accent stripe + glass sheen (.card-metal) as
+                          the homepage's own brand tiles (Brands.tsx) — this
+                          list previously had none of that texture, reading as
+                          a plainer, separate design pass from the rest of the
+                          site instead of the same picker just made compact. */}
+                      <span
+                        className="pointer-events-none absolute inset-x-4 top-0 z-[3] h-[2.5px] rounded-full bg-[linear-gradient(90deg,transparent,#a855f7_30%,#e9d5ff_50%,#818cf8_70%,transparent)] transition-opacity duration-300 group-hover/card:opacity-100"
+                        style={{ opacity: producerParam === b.name ? 1 : 0 }}
+                      />
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-white/70 bg-white shadow-[inset_0_1px_0_white] sm:h-10 sm:w-10">
                         {b.logo ? (
                           <Image
@@ -816,13 +852,20 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                           </span>
                         )}
                       </span>
-                      <span className="line-clamp-2 min-w-0 flex-1 text-left text-[12px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-violet-600 sm:text-sm sm:leading-snug">
-                        {b.name}
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="line-clamp-1 block text-[12px] font-bold leading-tight text-slate-900 transition-colors duration-300 ease-out group-hover/card:text-violet-600 sm:text-sm">
+                          {b.name}
+                        </span>
+                        {typeof b.productCount === 'number' && b.productCount > 0 ? (
+                          <span className="mt-0.5 block text-[10px] font-semibold leading-none text-slate-500">
+                            {b.productCount.toLocaleString('uk-UA')} товарів
+                          </span>
+                        ) : null}
                       </span>
                     </button>
                   ))}
                 {hiddenProducerCount > 0 ? (
-                  <div className="flex h-[72px] w-full min-w-0 items-center justify-center rounded-[14px] border border-dashed border-violet-300 bg-violet-50/70 px-2 text-center text-[9px] font-semibold leading-3 text-slate-500">
+                  <div className="flex h-[68px] w-full min-w-0 items-center justify-center rounded-[16px] border border-dashed border-violet-300 bg-violet-50/70 px-2 text-center text-[9px] font-semibold leading-3 text-slate-500">
                     +{hiddenProducerCount.toLocaleString('uk-UA')} виробників.
                     Уточніть пошук
                   </div>
@@ -842,7 +885,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 <span className="block text-[12px] font-black leading-tight text-slate-800 sm:text-[13px]">Ціна та сортування</span>
                 <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-slate-500">Вкажіть діапазон або виберіть швидкий варіант</span>
               </span>
-              {(hasPriceFilter || pricedOnly || localPriceFrom != null || localPriceTo != null) && (
+              {hasPriceFilter && (
                 <button
                   type="button"
                   onClick={clearPriceSettings}
@@ -956,6 +999,27 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 })}
               </div>
             )}
+
+            {/* Акційні товари — the catalog fetch/API already support
+                ?promo=1 (see Data.tsx's promoOnlyFromURL and
+                app/api/catalog-page/route.ts), this button was the only
+                missing piece. Full-width and visually distinct (rose/promo
+                accent, not the same neutral toggle style as "З ціною"/"В
+                наявності" below) since it's the headline filter here, not a
+                secondary refinement. */}
+            <button
+              type="button"
+              onClick={handleTogglePromoOnly}
+              aria-pressed={promoOnlyParam}
+              className={`flex w-full items-center justify-center gap-2 rounded-[15px] px-3 py-2.5 text-[12px] font-black leading-none transition-all duration-150 ${
+                promoOnlyParam
+                  ? 'border border-rose-300 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_22px_rgba(225,29,72,0.32),inset_0_1px_0_rgba(255,255,255,0.3)]'
+                  : 'border border-rose-200/70 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] text-rose-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] hover:border-rose-300 hover:shadow-[0_8px_18px_rgba(225,29,72,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]'
+              }`}
+            >
+              <BadgePercent size={16} strokeWidth={2.4} className={promoOnlyParam ? 'text-white' : 'text-rose-500'} aria-hidden="true" />
+              Акційні товари
+            </button>
 
             {/* Toggles */}
             {(onPricedOnlyChange || onInStockChange) && (

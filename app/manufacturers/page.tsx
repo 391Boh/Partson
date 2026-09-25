@@ -82,7 +82,6 @@ export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
   const { clientProducers, indexedBrands, indexedProducts, hasIndexedCounts } =
     await getFullManufacturersDirectoryData();
-  const featuredManufacturers = clientProducers.slice(0, 2);
   const totalBrandsLabel = clientProducers.length.toLocaleString("uk-UA");
   const indexedBrandsLabel = indexedBrands.toLocaleString("uk-UA");
   const indexedProductsLabel = indexedProducts.toLocaleString("uk-UA");
@@ -157,13 +156,6 @@ export default async function ManufacturersPage() {
             icon={Factory}
             title="Бренди та виробники автозапчастин"
             description="Знайдіть потрібний бренд, перегляньте його асортимент і відкрийте каталог з уже вибраним виробником."
-            highlights={[
-              "Пошук бренду за назвою",
-              hasIndexedCounts && indexedProducts > 0
-                ? "Актуальний асортимент з каталогу"
-                : "Асортимент синхронізується з каталогом",
-              "Готовий фільтр виробника",
-            ]}
             stats={[
               {
                 label: "Виробників",
@@ -188,11 +180,6 @@ export default async function ManufacturersPage() {
                 icon: Search,
                 accent: true,
               },
-              ...featuredManufacturers.map((manufacturer) => ({
-                href: buildManufacturerPath(manufacturer.slug),
-                label: manufacturer.label,
-                icon: Factory,
-              })),
             ]}
           />
 

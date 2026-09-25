@@ -5200,6 +5200,14 @@ const Data: React.FC<DataProps> = ({
     return items;
   }, [clampedDisplayedPage, totalPageCount]);
 
+  // Also fires on a filter/search/sort change (catalogQuerySignature), not
+  // just a page-number switch — previously only pagination scrolled back to
+  // the results, so changing a category/producer/search while scrolled down
+  // on the current page left the (now entirely different) results loading
+  // in below the fold instead of where you were looking. Both deps share
+  // this one effect rather than two separate ones so a change that touches
+  // both at once (e.g. a new filter also resetting the page to 1) still
+  // only scrolls once, not twice.
   const isInitialDisplayedPageMountRef = useRef(true);
   useEffect(() => {
     if (isInitialDisplayedPageMountRef.current) {
@@ -5212,7 +5220,7 @@ const Data: React.FC<DataProps> = ({
     }
     if (typeof document === "undefined") return;
     document.getElementById("catalog-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [clampedDisplayedPage]);
+  }, [clampedDisplayedPage, catalogQuerySignature]);
 
   // Changing "На сторінці" reshuffles what a "page" means (different window
   // size), so any page position from before the change is meaningless — back

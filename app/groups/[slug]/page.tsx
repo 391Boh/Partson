@@ -512,12 +512,13 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </Link>
         </div>
 
-        <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
+              <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(20,184,166,0.06)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
                   src={primaryImagePath}
                   alt={primaryImageAlt}
@@ -569,14 +570,15 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
             <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-teal-100/70 sm:grid-cols-2 xl:grid-cols-1">
               {[
-                { label: "товарів у групі", value: formatCount(group.productCount) },
-                { label: "підгруп", value: formatCount(group.subgroupsCount) },
+                { label: "товарів у групі", value: formatCount(group.productCount), from: "from-teal-500", to: "to-cyan-500" },
+                { label: "підгруп", value: formatCount(group.subgroupsCount), from: "from-cyan-500", to: "to-sky-500" },
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3"
+                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
                 >
-                  <span className="directory-counter block text-2xl leading-none text-slate-900">
+                  <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
+                  <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
                     {metric.value}
                   </span>
                   <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
@@ -708,36 +710,80 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   </div>
                 </div>
                 <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
-                  {subgroup.children.map((child) => (
-                    <li key={child.slug}>
-                      <CatalogPrefetchLink
-                        href={buildGroupItemPath(group.slug, child.slug)}
-                        className={`${directoryListCardClass} flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-slate-700`}
-                      >
-                        <span className="min-w-0 font-semibold leading-snug">
-                          {buildVisibleProductName(child.label)}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          {child.productCount > 0 ? (
-                            <span className={directoryCompactMetricClass}>
-                              <span>{formatCount(child.productCount)}</span>
-                              <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
-                            </span>
-                          ) : null}
-                          <span className="text-teal-700">&rarr;</span>
-                        </span>
-                      </CatalogPrefetchLink>
-                    </li>
-                  ))}
+                  {subgroup.children.map((child) => {
+                    const childPreview = getGroupProductPreview({
+                      categoryLabel: group.label,
+                      itemLabel: child.label,
+                      parentLabel: subgroup.label,
+                    });
+
+                    return (
+                      <li key={child.slug}>
+                        <CatalogPrefetchLink
+                          href={buildGroupItemPath(group.slug, child.slug)}
+                          className={`${directoryListCardClass} group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                        >
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
+                            {childPreview ? (
+                              <Image
+                                src={childPreview.url}
+                                alt=""
+                                aria-hidden
+                                width={44}
+                                height={44}
+                                sizes="44px"
+                                className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                              />
+                            ) : (
+                              <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 font-semibold leading-snug">
+                            {buildVisibleProductName(child.label)}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            {child.productCount > 0 ? (
+                              <span className={directoryCompactMetricClass}>
+                                <span>{formatCount(child.productCount)}</span>
+                                <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
+                              </span>
+                            ) : null}
+                            <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
+                          </span>
+                        </CatalogPrefetchLink>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ) : (
-              <div key={subgroup.slug} className={directoryListCardClass}>
+              <div key={subgroup.slug} className={`${directoryListCardClass} group/row`}>
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="flex items-start justify-between gap-3 rounded-lg px-4 py-3 text-sm text-slate-700"
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
                 >
-                  <div className="min-w-0">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
+                    {(() => {
+                      const subgroupPreview = getGroupProductPreview({
+                        categoryLabel: group.label,
+                        itemLabel: subgroup.label,
+                      });
+                      return subgroupPreview ? (
+                        <Image
+                          src={subgroupPreview.url}
+                          alt=""
+                          aria-hidden
+                          width={44}
+                          height={44}
+                          sizes="44px"
+                          className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                        />
+                      ) : (
+                        <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
+                      );
+                    })()}
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <span className="block font-semibold leading-snug">
                       {buildVisibleProductName(subgroup.label)}
                     </span>
@@ -750,14 +796,14 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                       })}
                     </span>
                   </div>
-                  <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="flex shrink-0 items-center gap-1.5 self-start">
                     {subgroup.productCount > 0 ? (
                       <span className={directoryCompactMetricClass}>
                         <span>{formatCount(subgroup.productCount)}</span>
                         <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
                       </span>
                     ) : null}
-                    <span className="text-teal-700">&rarr;</span>
+                    <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
                   </span>
                 </CatalogPrefetchLink>
               </div>

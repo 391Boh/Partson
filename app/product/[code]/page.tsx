@@ -27,6 +27,7 @@ import {
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
+import ProductSectionNav from "app/components/ProductSectionNav";
 import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import {
@@ -2201,9 +2202,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
         quantity: product.quantity,
       })
     : null;
+  // Horizontal padding matches the header/section-nav's own px-3/sm:px-5/
+  // lg:px-7 scale exactly — it used to be a smaller, independent p-2.5/
+  // sm:p-3.5/lg:p-4 scale, so the content cards' left edge sat inset from
+  // the nav pills' left edge instead of sharing the same grid line.
   const contentGridClass = isModalView
-    ? "grid gap-2.5 p-2.5 sm:p-3"
-    : "grid gap-3 p-2.5 sm:gap-3.5 sm:p-3.5 lg:p-4";
+    ? "grid gap-2.5 px-2.5 py-2.5 sm:px-3 sm:py-3"
+    : "grid gap-3 px-3 py-2.5 sm:gap-3.5 sm:px-5 sm:py-3.5 lg:px-7 lg:py-4";
   const heroProductImageClass = isModalView
     ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
     : "mx-auto aspect-square w-full max-w-[360px] rounded-[20px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[460px] lg:max-w-[520px]";
@@ -2398,7 +2403,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:mt-4 sm:text-[13px]">
-                    <a href="#product-reviews" className="inline-flex items-center gap-1.5 rounded-full text-slate-600 transition hover:text-sky-700">
+                    {/* Same pill treatment as the in-stock badge above, so this
+                        reads as a clickable chip at a glance instead of the
+                        page's only plain-text link among otherwise-styled
+                        supplementary facts. */}
+                    <a
+                      href="#product-reviews"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                    >
                       <Star size={16} className="fill-amber-400 text-amber-400" aria-hidden="true" />
                       {reviewStats ? (
                         <>
@@ -2425,7 +2437,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       {productAnalogCodes.map((code) => (
                         <span
                           key={code}
-                          className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[-0.01em] text-sky-800"
+                          // rounded-[12px], not rounded-full — matches the
+                          // info-card radius family right below (rounded-[18px])
+                          // instead of the full-pill shape this page reserves
+                          // for status/availability badges (in-stock, above).
+                          className="inline-flex items-center rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[-0.01em] text-sky-800"
                         >
                           {code}
                         </span>
@@ -2520,24 +2536,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
           />
 
           {!isModalView ? (
-            <nav aria-label="Розділи сторінки товару" className="border-b border-slate-200/80 bg-white px-3 py-2.5 sm:px-5 lg:px-7">
-              <div className="mx-auto flex max-w-[1280px] items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {[
-                  { href: "#product-description", label: "Опис і характеристики" },
-                  { href: "#product-alternatives", label: "Аналоги" },
-                  { href: "#product-reviews", label: "Відгуки" },
-                ].map((item, index) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[11px] font-extrabold transition sm:px-3.5 sm:text-[12px] ${index === 0 ? "bg-slate-950 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]" : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"}`}
-                  >
-                    {item.label}
-                    <ChevronRight size={13} aria-hidden="true" />
-                  </a>
-                ))}
-              </div>
-            </nav>
+            <ProductSectionNav
+              items={[
+                { href: "#product-description", label: "Опис і характеристики" },
+                { href: "#product-faq", label: "Популярні запитання" },
+                { href: "#product-alternatives", label: "Аналоги" },
+                { href: "#product-reviews", label: "Відгуки" },
+              ]}
+            />
           ) : null}
 
           <div className={contentGridClass}>
@@ -2563,14 +2569,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </div>
 
               {!isModalView && (
-                <ProductFaqSection
-                  name={visibleProductName}
-                  producer={product.producer}
-                  group={productGroup}
-                  subGroup={productSubgroup}
-                  hasPrice={initialPriceUah != null}
-                  quantity={product.quantity}
-                />
+                <div id="product-faq" className="scroll-mt-24">
+                  <ProductFaqSection
+                    name={visibleProductName}
+                    producer={product.producer}
+                    group={productGroup}
+                    subGroup={productSubgroup}
+                    hasPrice={initialPriceUah != null}
+                    quantity={product.quantity}
+                  />
+                </div>
               )}
 
               {!isModalView && (

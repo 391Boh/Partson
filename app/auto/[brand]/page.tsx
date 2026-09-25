@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Script from "next/script";
 import { notFound } from "next/navigation";
 import { ArrowRight, CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
@@ -182,6 +183,24 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
         <div className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
+        {/* Only the JSON-LD breadcrumb existed here before — every other
+            detail-tier page (manufacturer, groups, auto model) has a real
+            breadcrumb nav too. */}
+        <nav aria-label="Навігаційні хлібні крихти" className="mb-3 sm:mb-4">
+          <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+            <li className="inline-flex items-center gap-2">
+              <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <span aria-hidden="true">/</span>
+              <Link href="/auto" className="transition hover:text-slate-800">Підбір по авто</Link>
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <span aria-hidden="true">/</span>
+              <span className="text-slate-700">{brand.name}</span>
+            </li>
+          </ol>
+        </nav>
         <CatalogHubHero
           current="auto"
           badge={`Марка: ${brand.name}`}
@@ -210,8 +229,6 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
         />
         </div>
       </div>
-
-      <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
 
       <CatalogSeoTextSection
         badge={`Запчастини для ${brand.name}`}
@@ -245,6 +262,8 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
           { href: "/manufacturers", label: "Виробники деталей" },
         ]}
       />
+
+      <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
     </main>
   );
 }

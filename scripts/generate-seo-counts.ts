@@ -87,7 +87,9 @@ async function main() {
     ...brands.map((brand) => brand.name),
     ...facets.producers.map((producer) => producer.label),
   ];
-  const producerTotalCounts = await getProducerTotalCounts(producerLabelsToQuery).catch(
+  const producerTotalCounts = await getProducerTotalCounts(producerLabelsToQuery, {
+    onProgress: (done, total) => console.log(`   … опитано ${done}/${total} виробників`),
+  }).catch(
     (error) => {
       console.warn("⚠️  Не вдалося опитати лічильники товарів по виробниках:", error);
       return {} as Record<string, number>;

@@ -119,14 +119,41 @@ function getEndpointConcurrencyLimit(endpoint) {
   }
 }
 
-function runWithEndpointConcurrency(endpoint, task) {
+// A request's own timeoutMs (below, req.setTimeout) only bounds time spent
+// actually in flight — it starts counting once this function calls `task`,
+// not while queued waiting for a concurrency slot. Under a genuinely slow
+// 1C, every endpoint's fixed slot count (getEndpointConcurrencyLimit) fills
+// with requests that are themselves each taking up to their own timeout to
+// fail, so later callers queue behind them with no bound on that wait at
+// all — one degraded window compounds into an ever-growing backlog instead
+// of every caller failing fast on roughly the same schedule. queueTimeoutMs
+// gives a queued (not yet started) task the same kind of ceiling: if its
+// turn hasn't come by then, it fails now instead of eventually.
+function runWithEndpointConcurrency(endpoint, task, queueTimeoutMs) {
   const limit = getEndpointConcurrencyLimit(endpoint);
   if (!Number.isFinite(limit) || limit <= 0) {
     return Promise.resolve().then(task);
   }
 
   return new Promise((resolve, reject) => {
+    let settledInQueue = false;
+    let queueTimer = null;
+
+    const removeFromQueue = (entry) => {
+      const queue = endpointQueues.get(endpoint);
+      if (!queue) return;
+      const index = queue.indexOf(entry);
+      if (index !== -1) queue.splice(index, 1);
+      if (queue.length === 0) endpointQueues.delete(endpoint);
+    };
+
     const start = () => {
+      if (settledInQueue) return;
+      if (queueTimer) {
+        clearTimeout(queueTimer);
+        queueTimer = null;
+      }
+
       endpointActiveRequests.set(
         endpoint,
         (endpointActiveRequests.get(endpoint) || 0) + 1
@@ -160,6 +187,18 @@ function runWithEndpointConcurrency(endpoint, task) {
     const queue = endpointQueues.get(endpoint) || [];
     queue.push(start);
     endpointQueues.set(endpoint, queue);
+
+    if (Number.isFinite(queueTimeoutMs) && queueTimeoutMs > 0) {
+      queueTimer = setTimeout(() => {
+        settledInQueue = true;
+        removeFromQueue(start);
+        reject(
+          new Error(
+            `Timed out after ${queueTimeoutMs}ms waiting for a free "${endpoint}" request slot`
+          )
+        );
+      }, queueTimeoutMs);
+    }
   });
 }
 
@@ -515,7 +554,7 @@ export async function oneCRequest(endpoint, options = {}) {
         await sleep(delay);
       }
     }
-  }).finally(() => {
+  }, timeoutMs).finally(() => {
     inFlightRequests.delete(resolvedCacheKey);
   });
 

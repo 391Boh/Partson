@@ -5,6 +5,19 @@ import * as Sentry from "@sentry/nextjs";
 // SENTRY_DSN (server/edge) and NEXT_PUBLIC_SENTRY_DSN (client, in
 // instrumentation-client.ts) to activate.
 export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Warm the "Акційні товари" (promo-only) snapshot right away in the
+    // background. fetchPromoCatalogProducts only runs its full scan
+    // (~20 sequential, cursor-chained 1C calls — can't be parallelized,
+    // each page's cursor depends on the previous one) when its cache is
+    // genuinely empty; without this, that cost landed on whichever real
+    // visitor happened to be first to open the promo filter after every
+    // deploy/restart instead of on the server itself at startup.
+    void import("app/lib/catalog-server")
+      .then((mod) => mod.fetchPromoCatalogProducts())
+      .catch(() => undefined);
+  }
+
   if (!process.env.SENTRY_DSN) return;
 
   if (process.env.NEXT_RUNTIME === "nodejs" || process.env.NEXT_RUNTIME === "edge") {

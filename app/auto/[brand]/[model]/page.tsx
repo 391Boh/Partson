@@ -369,7 +369,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               </Link>
             </div>
 
-            <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
+            <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
+              <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
               <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
               <div className="relative grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
@@ -507,12 +508,13 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </Link>
           </div>
 
-          <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+            <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
             <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
             <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                   <Image
                     src={brandEntry.logo}
                     alt={`Логотип марки автомобіля ${brand}`}
@@ -561,17 +563,18 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
               <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70 sm:grid-cols-2 xl:grid-cols-1">
                 {[
-                  { label: "товарів знайдено", value: formatCount(totalProducts) },
-                  { label: "груп запчастин", value: formatCount(groups.length) },
+                  { label: "товарів знайдено", value: formatCount(totalProducts), from: "from-sky-500", to: "to-cyan-500" },
+                  { label: "груп запчастин", value: formatCount(groups.length), from: "from-cyan-500", to: "to-teal-500" },
                   ...(categories.length > 0
-                    ? [{ label: "категорій", value: formatCount(categories.length) }]
+                    ? [{ label: "категорій", value: formatCount(categories.length), from: "from-teal-500", to: "to-emerald-500" }]
                     : []),
                 ].map((metric) => (
                   <div
                     key={metric.label}
-                    className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3"
+                    className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
                   >
-                    <span className="directory-counter block text-2xl leading-none text-slate-900">
+                    <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
+                    <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
                       {metric.value}
                     </span>
                     <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">

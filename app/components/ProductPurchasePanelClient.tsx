@@ -636,12 +636,14 @@ export default function ProductPurchasePanelClient(
                 <button
                   type="button"
                   onClick={() => setShowCostPrice(false)}
-                  className={`rounded-[6px] px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition ${!showCostPrice ? "bg-white text-sky-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                  aria-pressed={!showCostPrice}
+                  className={`rounded-[6px] px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] transition ${!showCostPrice ? "bg-white text-sky-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >Продаж</button>
                 <button
                   type="button"
                   onClick={() => setShowCostPrice(true)}
-                  className={`rounded-[6px] px-2 py-1 text-[8px] font-black uppercase tracking-[0.06em] transition ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                  aria-pressed={showCostPrice}
+                  className={`rounded-[6px] px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] transition ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >Закуп</button>
               </div>
             ) : null}

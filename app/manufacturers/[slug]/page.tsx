@@ -1273,7 +1273,11 @@ export default async function ManufacturerDetailPage({
     producer.productCount,
     producer.groupsCount
   );
-  const seoCopy = getProducerSeoCopy(producer.label, producer.productCount);
+  const seoCopy = getProducerSeoCopy(
+    producer.label,
+    producer.productCount,
+    producer.topGroups.map((group) => group.label)
+  );
   const hasAnySubgroups = producer.topCategories?.length
     ? producer.topCategories.some((cat) => cat.groups.some((g) => g.subgroups.length > 0))
     : producer.topGroups.some((g) => g.subgroups.length > 0);
@@ -1589,12 +1593,13 @@ export default async function ManufacturerDetailPage({
           </Link>
         </div>
 
-        <section className="relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
+              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                 {producer.logoPath ? (
                   <Image
                     src={producer.logoPath}
@@ -1661,15 +1666,16 @@ export default async function ManufacturerDetailPage({
 
             <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70 sm:grid-cols-3 xl:grid-cols-1">
               {[
-                { label: "товарів бренду", value: formatCount(producer.productCount) },
-                { label: "груп товарів", value: formatCount(producer.groupsCount) },
-                { label: "підгруп", value: formatCount(producer.categoriesCount) },
+                { label: "товарів бренду", value: formatCount(producer.productCount), from: "from-sky-500", to: "to-cyan-500" },
+                { label: "груп товарів", value: formatCount(producer.groupsCount), from: "from-cyan-500", to: "to-teal-500" },
+                { label: "підгруп", value: formatCount(producer.categoriesCount), from: "from-teal-500", to: "to-emerald-500" },
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3"
+                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
                 >
-                  <span className="directory-counter block text-2xl leading-none text-slate-900">
+                  <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
+                  <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
                     {metric.value}
                   </span>
                   <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">

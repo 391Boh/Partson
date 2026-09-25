@@ -55,13 +55,17 @@ export async function GET(request: Request) {
       { description },
       {
         headers: {
-          // The 5-minute server-side cache above exists specifically so a
-          // repeat view of the same product returns instantly — but
-          // "no-store" here told every browser and CDN edge to never reuse
-          // the response anyway, so every single view (even the same
-          // visitor reloading) still paid a full round trip to this route.
-          // Not per-user/permission-gated, so a short public cache is safe.
-          "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+          // Reverted a public max-age here (added in an earlier pass to
+          // avoid re-paying this route's round trip on repeat views) — the
+          // "repeat view returns instantly" goal is already covered by the
+          // 5-minute server-side cache above, which clearAllOneCCache()
+          // correctly busts the moment an admin edits a description. A
+          // browser/CDN-level HTTP cache on top of that has no such hook:
+          // it can't be told "this description just changed," so it kept
+          // serving the old text for up to a minute (or longer via a shared
+          // cache) after an edit — the exact catalog/product-page
+          // description mismatch this was meant to fix caused instead.
+          "Cache-Control": "no-store",
         },
       }
     );

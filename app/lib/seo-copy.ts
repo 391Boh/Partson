@@ -3552,7 +3552,13 @@ const PRODUCER_COPY_MAP: Record<string, ProducerSeoCopyEntry> = {
 
 export const getProducerSeoCopy = (
   label: string,
-  productCount: number
+  productCount: number,
+  // Real per-producer group labels (already sorted by product count on the
+  // caller's side) — used to build the fallback's "sells X, Y, Z" claim
+  // from what this brand actually stocks. Optional only for callers that
+  // haven't computed groups yet; the fallback below degrades to a claim-free
+  // sentence rather than ever guessing.
+  topGroupLabels: string[] = []
 ): ProducerSeoCopy => {
   const productCountLabel =
     productCount > 0
@@ -3573,6 +3579,18 @@ export const getProducerSeoCopy = (
     };
   }
 
+  // Previously 7 paragraphs that mostly restated the same "groups/
+  // categories/navigation" idea in different words (padded-out word count
+  // rather than distinct information) and never mentioned pickup/delivery
+  // the way the hand-written PRODUCER_COPY_MAP entries do. Rewritten so each
+  // paragraph carries one genuinely new fact; the groups one now names this
+  // producer's own real top groups instead of talking about "groups" as a
+  // vague concept.
+  const topGroupsSentence =
+    topGroupLabels.length > 0
+      ? `Основні групи товарів ${label} у каталозі: ${topGroupLabels.slice(0, 4).join(", ")}.`
+      : `Товари ${label} розподілені за групами й категоріями, щоб структуру бренду було видно одразу.`;
+
   return {
     title: `${label} — каталог бренду PartsON`,
     intro:
@@ -3580,18 +3598,31 @@ export const getProducerSeoCopy = (
     paragraphs: [
       `На сторінці бренду можна перейти до груп, категорій і популярних товарів без повторного введення фільтрів у каталозі.`,
       `У каталозі ${label} доступні ${productCountLabel}. Для кожної позиції можна перевірити ціну, наявність, фото, артикул і сторінку товару.`,
-      `Навігація розділена за групами, щоб користувач бачив структуру бренду змістовно: від загальної групи до конкретної категорії.`,
+      topGroupsSentence,
       `Якщо потрібна сумісність, PartsON допомагає підібрати деталь за кодом, артикулом або VIN і запропонувати доречний аналог.`,
-      `Сторінка виробника корисна, коли потрібно купити запчастини ${label} без змішування з іншими брендами: фільтр уже підготовлений, а групи показують основні напрямки каталогу.`,
       `Для точного вибору звертайте увагу на артикул, оригінальний номер, сторону встановлення, розміри й сумісність з моделлю авто. Якщо даних недостатньо, менеджер перевірить позицію перед замовленням.`,
-      `Опис бренду доповнює навігацію: користувач отримує контекст про каталог ${label}, популярні групи, типові запити та сценарії підбору деталей у Львові з доставкою по Україні.`,
+      `Самовивіз запчастин ${label} у Львові та доставка по всій Україні.`,
     ],
-    highlights: [
-      `амортизатори, фільтри, колодки, диски ${label};`,
-      `важелі, сайлентблоки, підшипники, ремені ${label};`,
-      `датчики, помпи, термостати, прокладки ${label};`,
-      "каталог бренду, підбір і доставка по Україні;",
-    ],
+    // Previously a hardcoded "shocks, filters, pads, discs / arms,
+    // bushings, bearings, belts / sensors, pumps, thermostats, gaskets"
+    // list, shown verbatim on every producer without hand-written copy
+    // (PRODUCER_COPY_MAP covers only 9) — asserting a specific parts
+    // lineup regardless of what that brand actually sells (e.g. a
+    // wiper-blade-only brand shown claiming to sell shocks and bearings).
+    // Built from this producer's own top groups now; degrades to a
+    // claim-free list when no group data is available yet, never a guess.
+    highlights:
+      topGroupLabels.length > 0
+        ? [
+            ...topGroupLabels.slice(0, 3).map((groupLabel) => `${groupLabel} ${label};`),
+            "каталог бренду, підбір і доставка по Україні;",
+          ]
+        : [
+            `каталог ${label} у PartsON;`,
+            "групи, категорії та популярні товари бренду;",
+            "підбір за кодом, артикулом або VIN;",
+            "каталог бренду, підбір і доставка по Україні;",
+          ],
   };
 };
 

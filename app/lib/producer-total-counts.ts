@@ -36,7 +36,8 @@ const fetchOneProducerTotal = async (label: string): Promise<number | null> => {
 
 // producerLabel -> total 1C product count, unfiltered by price/photo.
 export const getProducerTotalCounts = async (
-  labels: string[]
+  labels: string[],
+  options?: { onProgress?: (done: number, total: number) => void }
 ): Promise<Record<string, number>> => {
   const uniqueLabels = Array.from(
     new Set(labels.map((label) => label.trim()).filter(Boolean))
@@ -53,6 +54,14 @@ export const getProducerTotalCounts = async (
         counts[slug] = total;
       }
     });
+    // Each producer is capped at REQUEST_TIMEOUT_MS, but the "allgoods"
+    // endpoint's own concurrency limit (4, see oneC.js) means a batch of 8
+    // still takes up to ~2x that under a genuinely slow/degraded 1C, and the
+    // whole run (100+ producers) can take a couple of minutes in that case.
+    // This script previously printed nothing between its start and end
+    // banners, so a slow-but-progressing run was indistinguishable from a
+    // hung one — this line is the only fix that actually needed.
+    options?.onProgress?.(Math.min(i + BATCH_SIZE, uniqueLabels.length), uniqueLabels.length);
   }
 
   return counts;
