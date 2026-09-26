@@ -103,19 +103,26 @@ const pruneBatchResponseCache = () => {
   }
 };
 
+// Deliberately ignores any individual caller's AbortSignal: this fetch is
+// shared (deduplicated) across every caller whose items landed in the same
+// batch via batchItemInFlight/batchInFlight below, including callers who
+// arrive after it's already started and never get a say in its signal. Wiring
+// one caller's signal in here used to mean whichever component happened to
+// unmount first (e.g. a product-card scrolled out of view) aborted the
+// in-flight request for every other caller still waiting on the same items —
+// visible as "fetch aborted" failures and images that silently never
+// resolved. Only the fixed timeout below can cancel it now; a caller that
+// stops caring simply lets its own copy of the (eventually settled) result
+// go unused, same as any other stale-response guard already does upstream.
 const requestCatalogImageBatch = async (
   missingItems: CatalogImageBatchRequestItem[],
-  options?: { deep?: boolean; signal?: AbortSignal }
+  options?: { deep?: boolean }
 ) => {
-  if (options?.signal?.aborted) return [];
-
   const controller = new AbortController();
   const timeoutId = window.setTimeout(
     () => controller.abort(),
     BATCH_REQUEST_TIMEOUT_MS
   );
-  const abortFromCaller = () => controller.abort(options?.signal?.reason);
-  options?.signal?.addEventListener("abort", abortFromCaller, { once: true });
 
   try {
     const response = await fetch(CATALOG_IMAGE_BATCH_ROUTE, {
@@ -142,7 +149,6 @@ const requestCatalogImageBatch = async (
     return Array.isArray(payload.items) ? payload.items : [];
   } finally {
     window.clearTimeout(timeoutId);
-    options?.signal?.removeEventListener("abort", abortFromCaller);
   }
 };
 
@@ -255,7 +261,7 @@ export const fetchCatalogImageBatch = async (
     const freshRequestPromise =
       newItems.length === 0
         ? Promise.resolve([] as CatalogImageBatchResponseItem[])
-        : requestCatalogImageBatch(newItems, { deep, signal: options?.signal })
+        : requestCatalogImageBatch(newItems, { deep })
             .then((results) => {
               const resultsByKey = new Map(
                 results.map((result) => [result.key, result])

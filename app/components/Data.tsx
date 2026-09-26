@@ -754,10 +754,20 @@ const CatalogTransitionLoader = ({
     >
       {compact ? (
         <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/95 px-4 py-3.5 shadow-[0_16px_38px_rgba(14,165,233,0.12)] ring-1 ring-white/90">
-          <span className="catalog-modern-loader" aria-hidden="true"><i /><b /></span>
+          <div className="shrink-0">
+            <div className="loader scale-[0.62]" aria-hidden="true" />
+          </div>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-black leading-tight text-slate-700">{label}</span>
-            <span className="catalog-loader-line mt-2 block" aria-hidden="true" />
+            <div className="loader-dots mt-2" aria-hidden="true">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <span
+                  key={`catalog-transition-dot-${index}`}
+                  className="loader-dot"
+                  style={{ animationDelay: `${index * 0.16}s` }}
+                />
+              ))}
+            </div>
           </span>
         </div>
       ) : (
@@ -3141,7 +3151,16 @@ function useCatalogData(params: {
       failedPageRef.current = false;
       return "loaded" as const;
     } catch (error) {
-      if (!controller.signal.aborted && signature === activeQuerySignatureRef.current) {
+      // Beyond our own controller (already excluded above), a request can
+      // also fail with an abort-shaped error for reasons outside it — e.g.
+      // the browser itself cancelling the connection — which used to surface
+      // as a raw "Fetch is aborted"/"AbortError" message in the UI instead of
+      // being treated like any other transient failure.
+      if (
+        !controller.signal.aborted &&
+        !isAbortLikeError(error) &&
+        signature === activeQuerySignatureRef.current
+      ) {
         setError(error instanceof Error ? error.message : "Не вдалося відкрити сторінку");
       }
       return "error" as const;
@@ -6178,10 +6197,20 @@ const Data: React.FC<DataProps> = ({
             {showFilterTransitionOverlay && (
               <div className="catalog-transition-overlay pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-[24px] bg-white/46 px-4 py-5 backdrop-blur-[1px]">
                 <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/96 px-4 py-3.5 shadow-[0_18px_46px_rgba(14,165,233,0.16)] ring-1 ring-white/90">
-                  <span className="catalog-modern-loader" aria-hidden="true"><i /><b /></span>
+                  <div className="shrink-0">
+                    <div className="loader scale-[0.62]" aria-hidden="true" />
+                  </div>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-black leading-tight text-slate-700">{filterTransitionLabel}</span>
-                    <span className="catalog-loader-line mt-2 block" aria-hidden="true" />
+                    <div className="loader-dots mt-2" aria-hidden="true">
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <span
+                          key={`filter-transition-dot-${index}`}
+                          className="loader-dot"
+                          style={{ animationDelay: `${index * 0.16}s` }}
+                        />
+                      ))}
+                    </div>
                   </span>
                 </div>
               </div>
@@ -6310,7 +6339,7 @@ const Data: React.FC<DataProps> = ({
 
             {(jumpTargetPage !== null || isLoadingNextPage) && (
               <span role="status" className="inline-flex items-center gap-2 text-xs font-semibold text-sky-700">
-                <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                <span className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" aria-hidden="true" />
                 {jumpTargetPage !== null
                   ? `Завантажую сторінку ${jumpTargetPage} · отримано ${loadedPageCount} стор.`
                   : "Завантажую товари…"}
@@ -6326,7 +6355,7 @@ const Data: React.FC<DataProps> = ({
               >
                 {isLoadingNextPage ? (
                   <>
-                    <span className="catalog-modern-loader catalog-modern-loader-small" aria-hidden="true"><i /><b /></span>
+                    <span className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
                     <span>Готую наступні товари</span>
                   </>
                 ) : (

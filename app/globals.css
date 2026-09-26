@@ -2279,61 +2279,6 @@ html.is-scrolling .card-metal::after {
   }
 }
 
-.catalog-modern-loader {
-  position: relative;
-  display: inline-flex;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(224,242,254,0.96), rgba(204,251,241,0.9));
-  box-shadow: inset 0 1px 0 white, 0 8px 20px rgba(14,165,233,0.15);
-}
-
-.catalog-modern-loader::before,
-.catalog-modern-loader i {
-  content: "";
-  position: absolute;
-  border-radius: 999px;
-}
-
-.catalog-modern-loader::before {
-  inset: 8px;
-  border: 2px solid rgba(14,165,233,0.2);
-  border-top-color: #0284c7;
-  border-right-color: #14b8a6;
-  animation: catalogLoaderOrbit 760ms linear infinite;
-}
-
-.catalog-modern-loader i {
-  width: 7px;
-  height: 7px;
-  background: linear-gradient(145deg, #0ea5e9, #14b8a6);
-  box-shadow: 0 0 0 4px rgba(14,165,233,0.1);
-  animation: catalogLoaderPulse 1s ease-in-out infinite;
-}
-
-.catalog-modern-loader b {
-  display: none;
-}
-
-.catalog-modern-loader-small {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-}
-
-.catalog-modern-loader-small::before {
-  inset: 5px;
-}
-
-.catalog-modern-loader-small i {
-  width: 5px;
-  height: 5px;
-}
-
 .catalog-loader-line {
   position: relative;
   width: 132px;
@@ -2353,10 +2298,6 @@ html.is-scrolling .card-metal::after {
   animation: catalogLoaderLine 1.15s ease-in-out infinite;
 }
 
-@keyframes catalogLoaderOrbit {
-  to { transform: rotate(360deg); }
-}
-
 @keyframes catalogPageLoaderOrbit {
   to { transform: rotate(360deg); }
 }
@@ -2373,11 +2314,6 @@ html.is-scrolling .card-metal::after {
 @keyframes catalogPageLoaderSpark {
   0%, 100% { transform: scale(0.55); opacity: 0.35; }
   50% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes catalogLoaderPulse {
-  0%, 100% { opacity: 0.55; transform: scale(0.82); }
-  50% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes catalogLoaderGlowPulse {
@@ -2452,8 +2388,6 @@ html.is-scrolling .card-metal::after {
     opacity: 0.9;
   }
 
-  .catalog-modern-loader::before,
-  .catalog-modern-loader i,
   .catalog-loader-line::after,
   .catalog-transition-overlay,
   .catalog-page-loader::before,

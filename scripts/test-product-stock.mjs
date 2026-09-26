@@ -49,6 +49,16 @@ for (const raw of [7, "7", "7,0", 0, "0"]) {
   assert.equal(sent.retries, 0, "Stock movements must never be retried automatically");
   assert.equal(sent.body.Поступлення, 2);
 }
+// quantity_result.Кількість echoes back the *movement* amount (e.g. the "2"
+// just received), not the resulting balance — quantity_result.КількістьДо is
+// 1C's actual post-movement stock level, and must win whenever present.
+{
+  const result = await update(
+    { receipt: 2 },
+    { success: true, quantity_result: { success: true, Кількість: 2, КількістьДо: 52 } }
+  );
+  assert.equal(result.body.quantity, 52);
+}
 for (const body of [{ receipt: -1 }, { sale: 1.5 }, { quantity: 2, receipt: 1 }]) {
   assert.equal((await update(body, {})).status, 400);
   assert.equal(sent, undefined);

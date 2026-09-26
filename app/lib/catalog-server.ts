@@ -2,7 +2,7 @@ import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { decodeSearchCursor, encodeSearchCursor, searchAlternatives, searchProductFields, type SearchField } from "app/lib/catalog-search";
+import { decodeSearchCursor, encodeSearchCursor, matchesSearchField, searchAlternatives, searchProductFields, type SearchField } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -2562,6 +2562,32 @@ export const fetchPromoAvailabilityByLookupKeys = async (
   );
   if (normalizedKeys.length === 0) return {};
 
+  // Once the shared full-catalog snapshot is warm (see scanFullCatalogSnapshot
+  // above — it already records promoKeys/promoPercents while walking the
+  // catalog for the search index), it holds every product, so it can answer
+  // this definitively for every requested key without a single live 1C call —
+  // the actual fix for "the promo badge takes a while to show up": this used
+  // to always cost up to two live allgoods round trips per product (code,
+  // then article) before the badge could render. Only a cold snapshot (right
+  // after a restart, before instrumentation.ts's warm-up finishes) falls
+  // through to that live per-key lookup below.
+  if (fullCatalogCache) {
+    // Reading the cache directly (not awaiting getFullCatalogSnapshot) means
+    // this never blocks on a refresh — a stale-but-present snapshot still
+    // answers instantly. Still nudge it to revalidate in the background if
+    // it's aged past its fresh window, same as every other reader of it.
+    void getFullCatalogSnapshot().catch(() => undefined);
+
+    const snapshotResult: Record<string, PromoAvailability> = {};
+    for (const key of normalizedKeys) {
+      snapshotResult[key] = {
+        hasPromo: fullCatalogCache.promoKeys.has(key),
+        promoPercent: fullCatalogCache.promoPercents.get(key) ?? null,
+      };
+    }
+    return snapshotResult;
+  }
+
   const timeoutMs =
     Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
       ? Math.floor(options?.timeoutMs as number)
@@ -2656,23 +2682,42 @@ export const fetchPromoAvailabilityByLookupKeys = async (
 // items stay identical to an unfiltered call. The "Акція" price field is,
 // however, present on every record of the normal paginated allgoods
 // response, so the only way to know which items are currently on promo is to
-// walk the whole catalog once and remember which ones qualified.
-const PROMO_CATALOG_PAGE_LIMIT = 500;
-const PROMO_CATALOG_MAX_PAGES = 40; // ceiling ~20 000 items; catalog is ~10 100
-const PROMO_CATALOG_FRESH_TTL_MS = 1000 * 60 * 30;
-const PROMO_CATALOG_STALE_TTL_MS = 1000 * 60 * 60 * 6;
+// walk the whole catalog once and remember which ones qualified. That same
+// full walk also builds the in-memory search index below (searchCatalogIndex)
+// — one scan answers both "which items are on promo" and "what's in the
+// catalog for text search", instead of walking 1C twice for two different
+// questions about the same data.
+const FULL_CATALOG_PAGE_LIMIT = 500;
+const FULL_CATALOG_MAX_PAGES = 40; // ceiling ~20 000 items; catalog is ~10 100
+const FULL_CATALOG_FRESH_TTL_MS = 1000 * 60 * 30;
+const FULL_CATALOG_STALE_TTL_MS = 1000 * 60 * 60 * 6;
 
-let promoCatalogCache: { products: CatalogProduct[]; fetchedAt: number } | null = null;
-let promoCatalogRefreshPromise: Promise<CatalogProduct[]> | null = null;
+type FullCatalogSnapshot = {
+  products: CatalogProduct[];
+  promoKeys: Set<string>;
+  // Same percent lookupPromoForKey computes per key on a live call — keeping
+  // it here too means the public "fast" hasPromo/promoPercent check (see
+  // getPromoAvailabilityFromSnapshot below) never needs that live call at all
+  // once this snapshot is warm.
+  promoPercents: Map<string, number>;
+};
 
-const scanPromoCatalogProducts = async (): Promise<CatalogProduct[]> => {
-  const matches: CatalogProduct[] = [];
+const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
+  normalizeFacetValue(item.code) || normalizeFacetValue(item.article);
+
+let fullCatalogCache: (FullCatalogSnapshot & { fetchedAt: number }) | null = null;
+let fullCatalogRefreshPromise: Promise<FullCatalogSnapshot> | null = null;
+
+const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
+  const products: CatalogProduct[] = [];
+  const promoKeys = new Set<string>();
+  const promoPercents = new Map<string, number>();
   const seen = new Set<string>();
   let cursor = "";
 
-  for (let pageIndex = 0; pageIndex < PROMO_CATALOG_MAX_PAGES; pageIndex += 1) {
+  for (let pageIndex = 0; pageIndex < FULL_CATALOG_MAX_PAGES; pageIndex += 1) {
     const body: Record<string, unknown> = {
-      [ALLGOODS_LIMIT_FIELD]: PROMO_CATALOG_PAGE_LIMIT,
+      [ALLGOODS_LIMIT_FIELD]: FULL_CATALOG_PAGE_LIMIT,
       [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
       [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
     };
@@ -2700,14 +2745,29 @@ const scanPromoCatalogProducts = async (): Promise<CatalogProduct[]> => {
       : [];
 
     for (const record of records) {
-      const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
-      if (!Number.isFinite(promoPriceEuro) || promoPriceEuro <= 0) continue;
-
       const product = normalizeProduct(record);
-      const key = product.code || product.article;
+      const key = catalogItemKey(product);
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      matches.push(product);
+      products.push(product);
+
+      const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
+      if (Number.isFinite(promoPriceEuro) && promoPriceEuro > 0) {
+        promoKeys.add(key);
+
+        // Same formula as lookupPromoForKey's own live per-key computation
+        // below — never the discounted amount itself, just the public-safe
+        // percent (see PromoAvailability's own comment on why that's fine).
+        const regularPriceEuro = readFirstNumber(record, PRICE_FIELDS, Number.NaN);
+        if (
+          Number.isFinite(regularPriceEuro) &&
+          regularPriceEuro > 0 &&
+          promoPriceEuro < regularPriceEuro
+        ) {
+          const percent = Math.round((1 - promoPriceEuro / regularPriceEuro) * 100);
+          if (percent > 0) promoPercents.set(key, percent);
+        }
+      }
     }
 
     const nextCursor = [parsed?.next_cursor, parsed?.nextCursor].find(
@@ -2723,46 +2783,130 @@ const scanPromoCatalogProducts = async (): Promise<CatalogProduct[]> => {
     cursor = nextCursor;
   }
 
-  return matches;
+  return { products, promoKeys, promoPercents };
 };
 
 // Stale-while-revalidate: a full catalog walk costs ~20 sequential 1C calls
-// (see scanPromoCatalogProducts), far too slow to run inline on every request
-// behind the "Акційні товари" button. Serve whatever snapshot is cached
-// (even a stale one) immediately, and kick off a background refresh once
-// it's past PROMO_CATALOG_FRESH_TTL_MS. Only a genuinely empty cache (first
-// hit after a server restart) blocks on the scan.
-export const fetchPromoCatalogProducts = async (): Promise<{
-  products: CatalogProduct[];
+// (see scanFullCatalogSnapshot), far too slow to run inline on every request
+// behind the "Акційні товари" button or a search keystroke. Serve whatever
+// snapshot is cached (even a stale one) immediately, and kick off a
+// background refresh once it's past FULL_CATALOG_FRESH_TTL_MS. Only a
+// genuinely empty cache (first hit after a server restart) blocks on the scan
+// — instrumentation.ts's pre-warm call means that's rare in practice.
+const getFullCatalogSnapshot = async (): Promise<{
+  snapshot: FullCatalogSnapshot;
   stale: boolean;
 }> => {
   const now = Date.now();
 
-  if (promoCatalogCache && now - promoCatalogCache.fetchedAt < PROMO_CATALOG_FRESH_TTL_MS) {
-    return { products: promoCatalogCache.products, stale: false };
+  if (fullCatalogCache && now - fullCatalogCache.fetchedAt < FULL_CATALOG_FRESH_TTL_MS) {
+    return { snapshot: fullCatalogCache, stale: false };
   }
 
   const refresh = () => {
-    if (!promoCatalogRefreshPromise) {
-      promoCatalogRefreshPromise = scanPromoCatalogProducts()
-        .then((products) => {
-          promoCatalogCache = { products, fetchedAt: Date.now() };
-          return products;
+    if (!fullCatalogRefreshPromise) {
+      fullCatalogRefreshPromise = scanFullCatalogSnapshot()
+        .then((snapshot) => {
+          fullCatalogCache = { ...snapshot, fetchedAt: Date.now() };
+          return snapshot;
         })
         .finally(() => {
-          promoCatalogRefreshPromise = null;
+          fullCatalogRefreshPromise = null;
         });
     }
-    return promoCatalogRefreshPromise;
+    return fullCatalogRefreshPromise;
   };
 
-  if (promoCatalogCache && now - promoCatalogCache.fetchedAt < PROMO_CATALOG_STALE_TTL_MS) {
+  if (fullCatalogCache && now - fullCatalogCache.fetchedAt < FULL_CATALOG_STALE_TTL_MS) {
     void refresh().catch(() => undefined);
-    return { products: promoCatalogCache.products, stale: true };
+    return { snapshot: fullCatalogCache, stale: true };
   }
 
-  const products = await refresh();
-  return { products, stale: false };
+  const snapshot = await refresh();
+  return { snapshot, stale: false };
+};
+
+export const fetchPromoCatalogProducts = async (): Promise<{
+  products: CatalogProduct[];
+  stale: boolean;
+}> => {
+  const { snapshot, stale } = await getFullCatalogSnapshot();
+  const products = snapshot.products.filter((product) => {
+    const key = catalogItemKey(product);
+    return key ? snapshot.promoKeys.has(key) : false;
+  });
+  return { products, stale };
+};
+
+// Instant, in-memory text search over the same full-catalog snapshot the
+// promo filter already maintains — this is what makes typing in the header
+// search box feel immediate instead of waiting on a live 1C round trip
+// (searchProductFields below) for every distinct keystroke. Only covers the
+// plain "search everything, first page, no other filters" shape that the
+// quick-search box and a fresh /katalog search actually need (see its one
+// caller in /api/catalog-page); anything more specific — car binding, a
+// facet filter, sorting, a price range, or pagination past page 1 — still
+// goes through the live path unchanged. Returns null when the snapshot isn't
+// warm yet (cold start right after a restart) so the caller falls back.
+export const searchCatalogIndex = async (
+  query: string,
+  options: { filter: SearchField | "all"; limit: number }
+): Promise<{
+  items: CatalogProduct[];
+  totalCount: number;
+  correctedQuery?: string;
+} | null> => {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return null;
+  if (!fullCatalogCache) {
+    // Cold start (no snapshot yet): don't block this request on a ~20-call
+    // scan — kick it off in the background and answer this one query via the
+    // live path instead. Only happens right after a restart in practice.
+    void getFullCatalogSnapshot().catch(() => undefined);
+    return null;
+  }
+
+  // Reuses the exact same fresh/stale bookkeeping fetchPromoCatalogProducts
+  // relies on, so a search request also keeps the shared snapshot warm even
+  // on a site where the promo filter itself is rarely clicked.
+  const { snapshot } = await getFullCatalogSnapshot();
+
+  const fields: SearchField[] =
+    options.filter === "all" ? ["name", "article", "code", "producer"] : [options.filter];
+
+  const matchAgainst = (searchQuery: string) => {
+    const matches = snapshot.products.filter((product) =>
+      fields.some((field) => matchesSearchField(product, searchQuery, field))
+    );
+    // Same tie-break searchProductFields itself falls back to when sortOrder
+    // is "none" (alphabetical by code) — keeps result order identical
+    // regardless of whether a request was answered from this index or the
+    // live path.
+    matches.sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+    return matches;
+  };
+
+  const matches = matchAgainst(trimmedQuery);
+  if (matches.length > 0) {
+    return { items: matches.slice(0, options.limit), totalCount: matches.length };
+  }
+
+  // No hits on the literal query — same typo/layout/transliteration recovery
+  // the live path applies (see fetchCatalogProductsByQuery's own use of
+  // searchAlternatives), just run against the in-memory snapshot instead of
+  // firing off another round of live 1C requests per candidate.
+  for (const alternative of searchAlternatives(trimmedQuery)) {
+    const altMatches = matchAgainst(alternative);
+    if (altMatches.length > 0) {
+      return {
+        items: altMatches.slice(0, options.limit),
+        totalCount: altMatches.length,
+        correctedQuery: alternative,
+      };
+    }
+  }
+
+  return { items: [], totalCount: 0 };
 };
 
 export const fetchCatalogPriceDetailsByLookupKeys = async (

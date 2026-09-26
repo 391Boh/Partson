@@ -1,6 +1,5 @@
 import AnalogProductThumb from "app/components/AnalogProductThumb";
 import SmartLink from "app/components/SmartLink";
-import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildVisibleProductName, buildVisibleCategoryLabel } from "app/lib/product-url";
 
 type ProductCompactRecommendationCardProps = {
@@ -50,8 +49,16 @@ export default function ProductCompactRecommendationCard({
   const categoryLabel = buildVisibleCategoryLabel(item.subGroup || item.group || item.category || "");
   const imageCode = item.code || item.article || sourceArticle;
   const imageArticle = item.article || item.code || sourceArticle;
-  const imageSrc =
-    prefetchedImageSrc || buildProductImagePath(imageCode, imageArticle, { catalog: true });
+  // Wait for the batch lookup's confirmed src instead of guessing one via
+  // buildProductImagePath: a guess for an item with no real photo used to
+  // trigger a real request that 307-redirects to the fallback image, which
+  // AnalogProductThumb then has to detect and retry through twice (strict,
+  // then relaxed) before it settles on the "no photo" placeholder — visible
+  // as the thumbnail flashing/loading for a while. Leaving this empty until
+  // resolved renders the placeholder immediately with no wasted round trips,
+  // and AnalogProductThumb's own success cache still shows an already-seen
+  // image instantly regardless of this prop.
+  const imageSrc = prefetchedImageSrc;
   const hasPrice = priceLabel !== "Ціну уточнити";
 
   return (

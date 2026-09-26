@@ -807,7 +807,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                             : pathname
                         );
                       }}
-                      className={`catalog-filter-brand-card card-metal group/card relative flex h-[68px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
+                      className={`catalog-filter-brand-card card-metal group/card relative flex h-[68px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
                         producerParam === b.name
                           ? 'border-violet-300 bg-violet-50 text-violet-800 shadow-[0_10px_22px_rgba(124,58,237,0.14),inset_0_1px_0_white]'
                           : 'border-slate-200 bg-white shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] hover:border-violet-300 hover:shadow-[0_14px_28px_rgba(124,58,237,0.12),inset_0_1px_0_white]'

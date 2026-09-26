@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { fetchCatalogProductsByQuery, fetchPromoCatalogProducts } from "app/lib/catalog-server";
+import {
+  fetchCatalogProductsByQuery,
+  fetchPromoCatalogProducts,
+  searchCatalogIndex,
+} from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
-import { normalizeSearchQuery } from "app/lib/catalog-search";
+import { normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import {
   routeSuccessCache,
   type CatalogPageApiPayload,
@@ -274,9 +278,21 @@ export async function POST(request: Request) {
     // round trips for the common retype/backspace/Back-button case.
     const cacheTtlMs = normalizedSearchQuery ? 60_000 : hasTightFilterContext ? 1000 * 60 * 8 : 1000 * 60 * 5;
     const freshTtlMs = normalizedSearchQuery ? 60_000 : ROUTE_SUCCESS_CACHE_TTL_MS;
-    const staleTtlMs = normalizedSearchQuery ? 60_000 : hasTightFilterContext
-      ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
-      : ROUTE_SUCCESS_STALE_TTL_MS;
+    // Search used to get NO stale grace period at all (staleTtlMs equaled
+    // freshTtlMs), unlike every other filtered query below, which unlocks a
+    // much longer stale-serve window. That meant a search box's quick
+    // suggestions blocked on a live 1C round trip on every single distinct
+    // query older than 60s — the actual cause of "search feels slow", not
+    // just cold/rare terms. Giving search its own (shorter than the general
+    // tight-filter window) stale window lets a repeated or popular query
+    // return instantly from cache while it revalidates in the background,
+    // same pattern the rest of this route already relies on.
+    const SEARCH_STALE_TTL_MS = 1000 * 60 * 5;
+    const staleTtlMs = normalizedSearchQuery
+      ? SEARCH_STALE_TTL_MS
+      : hasTightFilterContext
+        ? ROUTE_SUCCESS_STALE_TIGHT_FILTER_TTL_MS
+        : ROUTE_SUCCESS_STALE_TTL_MS;
 
     const directOffset = body.directPage === true ? toNonNegativeNumber(body.offset) : null;
     if (body.directPage === true && (directOffset === null || !Number.isSafeInteger(directOffset))) {
@@ -305,6 +321,66 @@ export async function POST(request: Request) {
       priceTo: toNonNegativeNumber(body.priceTo),
       inStock: body.inStock === true,
     } as const;
+
+    // Instant path: a plain "search everything, first page" request — what
+    // the header's quick-search box sends on every keystroke, and what a
+    // fresh /katalog search loads before the user touches any other filter —
+    // can be answered straight from the in-memory catalog snapshot instead of
+    // a live 1C round trip (see searchCatalogIndex's own comment). Anything
+    // with a facet filter, sort, price range, car binding, description
+    // search, or pagination past page 1 falls straight through untouched.
+    const searchIndexFilter: SearchField | "all" | null =
+      effectiveSearchFilter === "description" ? null : effectiveSearchFilter;
+    const canUseSearchIndex =
+      Boolean(normalizedSearchQuery) &&
+      searchIndexFilter !== null &&
+      queryBase.page === 1 &&
+      directOffset === null &&
+      !queryBase.cursor &&
+      !queryBase.cursorField &&
+      queryBase.selectedCars.length === 0 &&
+      queryBase.selectedCategories.length === 0 &&
+      !normalizedGroup &&
+      !normalizedSubcategory &&
+      !normalizedProducer &&
+      !expandHierarchy &&
+      queryBase.sortOrder === "none" &&
+      !queryBase.pricedOnly &&
+      queryBase.priceFrom === null &&
+      queryBase.priceTo === null &&
+      !queryBase.inStock;
+
+    if (canUseSearchIndex && searchIndexFilter) {
+      const indexResult = await searchCatalogIndex(normalizedSearchQuery, {
+        filter: searchIndexFilter,
+        limit: queryBase.limit,
+      });
+
+      if (indexResult) {
+        const payload: CatalogPageApiPayload = {
+          items: indexResult.items,
+          prices: buildInlinePrices(indexResult.items),
+          images: {},
+          hasMore: indexResult.items.length < indexResult.totalCount,
+          nextCursor: "",
+          cursorField: "search",
+          totalCount: indexResult.totalCount,
+          ...(indexResult.correctedQuery ? { correctedQuery: indexResult.correctedQuery } : {}),
+        };
+
+        if (routeCacheKey) {
+          routeSuccessCache.set(routeCacheKey, {
+            freshUntil: Date.now() + freshTtlMs,
+            staleUntil: Date.now() + Math.max(freshTtlMs, staleTtlMs),
+            value: payload,
+          });
+        }
+
+        return NextResponse.json(payload, {
+          headers: { "cache-control": "no-store" },
+        });
+      }
+    }
 
     const toApiPayload = (
       result: Awaited<ReturnType<typeof fetchCatalogProductsByQuery>> & { correctedQuery?: string }
@@ -546,7 +622,7 @@ export async function POST(request: Request) {
       routeInFlightRequests.set(routeCacheKey, inFlight);
     }
 
-    if (staleCacheHit && !normalizedSearchQuery) {
+    if (staleCacheHit) {
       void inFlight.catch(() => null);
       const stalePayload = buildStaleCatalogPayload(staleCacheHit);
       return NextResponse.json(stalePayload, {
@@ -577,7 +653,7 @@ export async function POST(request: Request) {
     }
     pruneRouteSuccessCache();
     const staleHit = getStaleRouteCacheValue(routeCacheKey);
-    if (staleHit && !toTrimmedString(body.searchQuery)) {
+    if (staleHit) {
       return NextResponse.json(
         buildStaleCatalogPayload(staleHit)
       );

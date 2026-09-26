@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
@@ -305,6 +305,30 @@ export default function ProductRelatedItemsClientSection({
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [pendingImageKeys, setPendingImageKeys] = useState<Record<string, true>>({});
   const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
+  // Read inside the image-loading effect below instead of depending on the
+  // state directly: that effect calls setResolvedImages/setPendingImageKeys/
+  // setMissingImageKeys itself, so having them in its own dependency array
+  // made every one of those updates re-run the effect immediately — which
+  // fired the *previous* run's cleanup (cancelled = true; controller.abort())
+  // before that run's own fetchCatalogImageBatch() result had a chance to
+  // apply. A genuinely fetched, "ready" image got discarded at the `if
+  // (cancelled) return` guard, and pendingImageKeys for it was never cleared
+  // either (that reset lives after the same guard) — so the item stayed
+  // "pending" forever and its card was stuck showing the "no photo"
+  // placeholder despite the photo existing. Refs let the effect still read
+  // the latest values without treating its own writes as a reason to restart.
+  const resolvedImagesRef = useRef(resolvedImages);
+  const pendingImageKeysRef = useRef(pendingImageKeys);
+  const missingImageKeysRef = useRef(missingImageKeys);
+  useEffect(() => {
+    resolvedImagesRef.current = resolvedImages;
+  }, [resolvedImages]);
+  useEffect(() => {
+    pendingImageKeysRef.current = pendingImageKeys;
+  }, [pendingImageKeys]);
+  useEffect(() => {
+    missingImageKeysRef.current = missingImageKeys;
+  }, [missingImageKeys]);
 
   const recommendationSearchParams = useMemo(() => {
     if (!articleLabel && !productCode && !productDisplayName) return "";
@@ -666,9 +690,9 @@ export default function ProductRelatedItemsClientSection({
       })
       .filter((item) => {
         if (!item.key || !item.code) return false;
-        if (resolvedImages[item.key]) return false;
-        if (pendingImageKeys[item.key]) return false;
-        if (missingImageKeys[item.key] && item.hasPhoto !== true) return false;
+        if (resolvedImagesRef.current[item.key]) return false;
+        if (pendingImageKeysRef.current[item.key]) return false;
+        if (missingImageKeysRef.current[item.key] && item.hasPhoto !== true) return false;
         return true;
       });
 
@@ -764,13 +788,9 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       controller.abort();
     };
-  }, [
-    articleLabel,
-    missingImageKeys,
-    pendingImageKeys,
-    resolvedImages,
-    allVisibleItems,
-  ]);
+    // resolvedImages/pendingImageKeys/missingImageKeys are read via the refs
+    // synced above, not listed here on purpose — see those refs' own comment.
+  }, [articleLabel, allVisibleItems]);
 
   useEffect(() => {
     try {

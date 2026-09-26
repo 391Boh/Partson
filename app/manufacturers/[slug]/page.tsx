@@ -1567,35 +1567,35 @@ export default async function ManufacturerDetailPage({
   return (
     <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
       <div className="page-shell-inline">
-      <div className="space-y-4 sm:space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav aria-label="Навігаційні хлібні крихти">
-            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-              <li className="inline-flex items-center gap-2">
-                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-              </li>
-              <li className="inline-flex items-center gap-2">
-                <span aria-hidden="true">/</span>
-                <Link href="/manufacturers" className="transition hover:text-slate-800">Виробники</Link>
-              </li>
-              <li className="inline-flex items-center gap-2">
-                <span aria-hidden="true">/</span>
-                <span className="text-slate-700">{producer.label}</span>
-              </li>
-            </ol>
-          </nav>
-
-          <Link
-            href="/manufacturers"
-            className={directorySecondaryButtonClass}
-          >
-            &larr; Усі виробники
-          </Link>
-        </div>
-
+      <div key={producer.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
         <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+
+          <div className="relative z-[1] mb-4 flex flex-wrap items-center justify-between gap-3">
+            <nav aria-label="Навігаційні хлібні крихти">
+              <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+                <li className="inline-flex items-center gap-2">
+                  <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true">/</span>
+                  <Link href="/manufacturers" className="transition hover:text-slate-800">Виробники</Link>
+                </li>
+                <li className="inline-flex items-center gap-2">
+                  <span aria-hidden="true">/</span>
+                  <span className="text-slate-700">{producer.label}</span>
+                </li>
+              </ol>
+            </nav>
+
+            <Link
+              href="/manufacturers"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-white hover:text-sky-800"
+            >
+              &larr; Усі виробники
+            </Link>
+          </div>
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">

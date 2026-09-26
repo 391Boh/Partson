@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
 
 import CatalogSectionNav, {
@@ -36,6 +37,7 @@ interface CatalogHubHeroProps {
   stats?: CatalogHubStat[];
   quickLinks?: CatalogHubQuickLink[];
   highlights?: string[];
+  breadcrumb?: ReactNode;
 }
 
 export default function CatalogHubHero({
@@ -47,6 +49,7 @@ export default function CatalogHubHero({
   stats = [],
   quickLinks = [],
   highlights = [],
+  breadcrumb,
 }: CatalogHubHeroProps) {
   return (
     <section className={`${directoryPanelClass} card-metal group relative overflow-hidden select-none`}>
@@ -55,6 +58,7 @@ export default function CatalogHubHero({
       <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
       <div className="relative px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+        {breadcrumb ? <div className="mb-3.5">{breadcrumb}</div> : null}
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_480px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_520px]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">

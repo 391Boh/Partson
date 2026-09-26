@@ -351,8 +351,20 @@ export async function POST(request: NextRequest) {
     // can throw outside of a request context (e.g., tests/build)
   }
 
-  // Prefer confirmed values from 1C results, fall back to sent values
-  const rawQuantity = parsed.quantity_result?.Кількість ?? parsed.Кількість ?? parsed.quantity;
+  // Prefer confirmed values from 1C results, fall back to sent values.
+  // For a receipt/sale (a delta, not an absolute set), quantity_result's own
+  // "Кількість" echoes back the *movement* amount that was applied (the same
+  // number the admin typed in), not the resulting stock level — reading it
+  // as the new total showed e.g. "5" after adding 5 units to 50 in stock,
+  // instead of 55. "КількістьДо" is 1C's actual post-movement balance field;
+  // prefer it whenever 1C returns it, and only fall back to the old fields
+  // (still correct for a plain "set absolute quantity" edit, where the
+  // request value already equals the result) when it's absent.
+  const rawQuantity =
+    parsed.quantity_result?.КількістьДо ??
+    parsed.quantity_result?.Кількість ??
+    parsed.Кількість ??
+    parsed.quantity;
   const confirmedQuantity = typeof rawQuantity === "number"
     ? rawQuantity
     : typeof rawQuantity === "string" && rawQuantity.trim()
