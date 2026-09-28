@@ -223,7 +223,7 @@ function BrandTile({
         style={{ opacity: isSelected ? 1 : 0 }}
       />
 
-      <span className="relative flex h-14 w-14 items-center justify-center transition-transform duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:scale-[1.08] group-focus-visible/tile:scale-[1.08] sm:h-16 sm:w-16">
+      <span className="relative flex h-14 w-14 items-center justify-center rounded-xl shadow-[0_5px_9px_-2px_rgba(14,116,144,0.14)] transition-[transform,box-shadow] duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:scale-[1.08] group-hover/tile:shadow-[0_10px_18px_-3px_rgba(2,132,199,0.3)] group-focus-visible/tile:scale-[1.08] group-focus-visible/tile:shadow-[0_10px_18px_-3px_rgba(2,132,199,0.3)] sm:h-16 sm:w-16">
         {brand.logo ? (
           <Image
             src={brand.logo}
@@ -241,7 +241,16 @@ function BrandTile({
             // instead of having it ready ahead of time.
             loading={priority ? undefined : "lazy"}
             unoptimized={brand.logo.endsWith(".svg")}
-            className="relative h-14 w-14 object-contain drop-shadow-[0_5px_9px_rgba(14,116,144,0.14)] transition-[filter] duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:brightness-[1.08] group-hover/tile:saturate-[1.16] group-hover/tile:drop-shadow-[0_10px_18px_rgba(2,132,199,0.3)] group-focus-visible/tile:brightness-[1.08] group-focus-visible/tile:saturate-[1.16] sm:h-16 sm:w-16"
+            // Shadow lives on the wrapping span above (a plain box-shadow)
+            // instead of drop-shadow() here: drop-shadow has to rasterize the
+            // image's actual alpha shape every time it repaints, which is
+            // measurably more expensive than a rectangular box-shadow — with
+            // up to ~18 of these tiles mounted at once across the carousel's
+            // virtualization window, and this filter transitioning on every
+            // hover/focus, that cost was a real contributor to swipe jank on
+            // mobile. brightness/saturate stay here since those are cheap,
+            // uniform multiplies rather than per-pixel shape tracing.
+            className="relative h-14 w-14 object-contain transition-[filter] duration-[380ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/tile:brightness-[1.08] group-hover/tile:saturate-[1.16] group-focus-visible/tile:brightness-[1.08] group-focus-visible/tile:saturate-[1.16] sm:h-16 sm:w-16"
             style={{ imageRendering: "auto" }}
             sizes="(max-width: 640px) 44px, 52px"
             onError={handleBrandLogoLoadError}
@@ -390,6 +399,16 @@ export default function BrandCarousel({
   }, [isSyncReady, onReady]);
 
   const itemsPerPage = ITEMS_PER_PAGE;
+  // Unfiltered by search — the real, current catalog total to cite in the
+  // lead paragraph. Was `brands.length` (the static seed list imported for
+  // the pre-sync placeholder render, ~124 entries) instead of the live
+  // count everyone actually sees in the picker grid and the "Доступно для
+  // пошуку" counter below (~192), which read as a bug: two different
+  // manufacturer counts on the same block.
+  const visibleBrandCount = useMemo(
+    () => syncedBrands.filter((brand) => isVisibleManufacturer(brand.name)).length,
+    [syncedBrands]
+  );
   const filteredBrands = useMemo(
     () =>
       syncedBrands.filter(
@@ -749,15 +768,19 @@ export default function BrandCarousel({
               <span className="text-blue-600">оригінали та аналоги</span>
             </h2>
             <span className="mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
-            {/* lead — cites the real catalog size (brands.length, not a
-                hardcoded figure) instead of the old vague "з переходом до
-                каталогу бренду" closer, which described the click-through
-                rather than giving the reader any actual information. */}
+            {/* lead — cites the real, live catalog size (visibleBrandCount,
+                derived from syncedBrands the same way the picker grid and
+                the "Доступно для пошуку" counter below are) and explains
+                what selecting a manufacturer actually does, instead of just
+                restating the heading. Was brands.length — the static seed
+                list's count (~124), which drifted from the live total
+                (~192) shown everywhere else on this same block. */}
             <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-              <span className="font-semibold text-slate-800">{brands.length}+ виробників</span> —
-              оригінальні запчастини та перевірені{" "}
+              <span className="font-semibold text-slate-800">{visibleBrandCount}+ виробників</span> у
+              каталозі — оригінальні запчастини та перевірені{" "}
               <span className="font-semibold text-blue-700">аналоги</span> для
-              кожної марки авто.
+              кожної марки авто. Оберіть виробника нижче, щоб переглянути всі
+              його товари.
             </p>
 
             {/* Search — collapse-to-button, same pattern as Auto.tsx's
@@ -789,7 +812,6 @@ export default function BrandCarousel({
                         <Search size={16} strokeWidth={2.2} aria-hidden />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-blue-500/80">Пошук у каталозі</span>
                         <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук виробника</span>
                       </span>
                       <ChevronRight
@@ -922,10 +944,9 @@ export default function BrandCarousel({
                       canGoNext={canGoNext}
                       tone="blue"
                     />
-                    {/* Same rounded-pill/border/shadow language as
-                        SectionPagination above, so this reads as one
-                        consistent control set beside it rather than a
-                        separate button — moved here from the intro column
+                    {/* Unboxed to match SectionPagination above: no
+                        border/shadow/backdrop-blur chip, just a plain
+                        hover-tinted pill — moved here from the intro column
                         (see the comment up there) since it belongs with the
                         control it actually pairs with. */}
                     <SmartLink
@@ -933,7 +954,7 @@ export default function BrandCarousel({
                       prefetchOnIntent
                       onClick={(event) => event.currentTarget.blur()}
                       onMouseLeave={(event) => event.currentTarget.blur()}
-                      className="group/allbrands inline-flex items-center gap-1.5 rounded-full border border-blue-200/80 bg-white/85 py-1.5 pl-3 pr-2.5 text-[11px] font-extrabold text-blue-700 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-colors duration-200 hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
+                      className="group/allbrands inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-blue-700 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
                     >
                       <ManufacturersIcon size={13} strokeWidth={2.6} aria-hidden />
                       Усі виробники

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { IdCard, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent, PartyPopper, Car } from "lucide-react";
+import { ShoppingBag, IdCard, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent, PartyPopper, Car } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
-import { PARTNER_THRESHOLD_UAH } from "app/lib/partnership-discount";
+import { fetchPartnerStatus } from "app/lib/partner-status-client";
 
 const HeroSavedProfile = dynamic(() => import("./HeroSavedProfile"), {
   ssr: false,
@@ -289,7 +289,7 @@ export default function HeroAccountClient({
   variant = "actions",
 }: HeroAccountClientProps) {
   const [hasOrders, setHasOrders] = useState<boolean | null>(null);
-  const [totalSpent, setTotalSpent] = useState<number | null>(null);
+  const [isPartner, setIsPartner] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const { ready: isAuthReady, user } = useFirebaseAuthState();
   const router = useRouter();
@@ -298,7 +298,7 @@ export default function HeroAccountClient({
   useEffect(() => {
     if ((variant !== "benefits" && variant !== "panel") || !isAuthReady || !user) {
       setHasOrders(null);
-      setTotalSpent(null);
+      setIsPartner(false);
       return;
     }
 
@@ -306,16 +306,16 @@ export default function HeroAccountClient({
     // Needs every order (not just limit(1) like before) to also sum
     // totalAmount — that sum is what decides isPartner below, the same
     // threshold check PartnershipStatusCard.tsx already uses.
-    fetchOrdersSummary(user.uid)
-      .then(({ hasOrders: hasAny, totalSpent: total }) => {
+    Promise.all([fetchOrdersSummary(user.uid), fetchPartnerStatus(user)])
+      .then(([{ hasOrders: hasAny }, status]) => {
         if (cancelled) return;
         setHasOrders(hasAny);
-        setTotalSpent(total);
+        setIsPartner(status.isPartner);
       })
       .catch(() => {
         if (!cancelled) {
           setHasOrders(null);
-          setTotalSpent(null);
+          setIsPartner(false);
         }
       });
 
@@ -338,7 +338,6 @@ export default function HeroAccountClient({
     return subscribeUserProfile(user.uid, setProfile);
   }, [user]);
 
-  const isPartner = totalSpent !== null && totalSpent >= PARTNER_THRESHOLD_UAH;
   const displayName = profile?.name ?? null;
 
   // Optimistic remove (matches AccountInfo.tsx's handleDeleteVin), reverted
@@ -428,21 +427,19 @@ export default function HeroAccountClient({
     const showDiscount = isAuthReady && (!user || hasOrders === false);
 
     return [
-      ...(showDiscount
-        ? [
+      ...[
             {
               id: "discount",
-              icon: Percent,
+              icon: showDiscount ? Percent : ShoppingBag,
               tone: "accent" as const,
               label: (
                 <>
-                  <strong className="text-sky-200">5%</strong> знижка на перше замовлення
+                  {showDiscount ? <><strong className="text-sky-200">5%</strong> знижка на перше замовлення</> : <>Ваші <strong className="text-sky-200">замовлення</strong></>}
                 </>
               ),
               onClick: () => window.dispatchEvent(new Event("openOrderModal")),
             },
-          ]
-        : []),
+          ],
       {
         id: "partnership",
         icon: isPartner ? BadgeCheck : Handshake,

@@ -1201,7 +1201,7 @@ useEffect(() => {
                     {/* Низ */}
                     <div className="catalog-card-actions mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
                         <div className="flex min-w-0 flex-col items-start gap-1">
-                            <div className="group/qty flex items-center gap-1">
+                            <div className="group/qty flex min-w-0 items-center gap-1">
                                 <span
                                     aria-hidden="true"
                                     data-nosnippet
@@ -1210,8 +1210,10 @@ useEffect(() => {
                                             ? `В наявності · ${quantity} шт.`
                                             : "Під замовлення"
                                     }
-                                    className={`text-[11px] font-medium before:content-[attr(data-label)] ${
-                                        quantity > 0 ? "text-green-600" : "text-orange-600"
+                                    className={`min-w-0 rounded-md border px-1.5 py-1 text-[12px] font-bold leading-[1.3] before:content-[attr(data-label)] ${
+                                        quantity > 0
+                                            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                                            : "border-amber-200 bg-amber-50 text-amber-900"
                                     }`}
                                 />
                                 {isAdmin && onAdminEdit && !quickEditQty && (

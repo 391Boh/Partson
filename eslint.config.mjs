@@ -13,6 +13,7 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".next-dev/**",
+    ".next-home-perf/**",
     ".dev-archive/**",
     ".scratch/**",
     ".scratch2/**",

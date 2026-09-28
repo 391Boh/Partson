@@ -889,17 +889,8 @@ const ProductFetcher: React.FC<Props> = ({
     setPage(1);
   }, [searchTerm, selectedCategories]);
 
-  useEffect(() => {
-    if (!isHydrated || activeCategory || filteredGroups.length === 0) return;
-
-    // Start warming as soon as the category cards become available. Waiting
-    // for requestIdleCallback meant that a quick click could open the group
-    // before its images had even started downloading. Warm the complete first
-    // page because all of these previews can become visible after one click.
-    for (const category of filteredGroups.slice(0, itemsPerPage)) {
-      preloadChildPreviews(category, DESKTOP_ITEMS_PER_PAGE, "low");
-    }
-  }, [activeCategory, filteredGroups, isHydrated, itemsPerPage]);
+  // Child preview discovery is triggered by category intent below. Scanning
+  // every unopened category on mount competes with the homepage itself.
 
   useEffect(() => {
     if (hasExternalProducts || !isHydrated) return;
@@ -1381,16 +1372,16 @@ const ProductFetcher: React.FC<Props> = ({
                   </div>
                 ) : null}
                 {!searchTerm.trim() && (
-                  // Same rounded-pill/border/shadow language as
-                  // SectionPagination, so this reads as one consistent
-                  // control set beside it — moved here from the intro
-                  // column (see the comment up there) since it belongs
-                  // with the row it actually pairs with.
+                  // Unboxed to match SectionPagination beside it: no
+                  // border/shadow/backdrop-blur chip, just a plain
+                  // hover-tinted pill — moved here from the intro column
+                  // (see the comment up there) since it belongs with the
+                  // row it actually pairs with.
                   <Link
                     href="/groups"
                     onClick={(event) => event.currentTarget.blur()}
                     onMouseLeave={(event) => event.currentTarget.blur()}
-                    className="group/allgroups ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-sky-200/80 bg-white/85 py-1.5 pl-3 pr-2.5 text-[11px] font-extrabold text-sky-700 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                    className="group/allgroups ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-sky-700 transition-colors duration-200 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
                   >
                     <LayoutGrid size={13} strokeWidth={2.6} aria-hidden />
                     Усі групи товарів
@@ -1526,8 +1517,8 @@ const ProductFetcher: React.FC<Props> = ({
                   card and the grid stack on mobile). */}
               <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
                 Деталі згруповано за{" "}
-                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова. Оберіть категорію або скористайтеся{" "}
-                <span className="font-semibold text-sky-700">пошуком</span>.
+                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова, кожна з підкатегоріями для точного пошуку. Оберіть категорію нижче або скористайтеся{" "}
+                <span className="font-semibold text-sky-700">пошуком</span>, якщо вже знаєте назву чи артикул.
               </p>
 
               {/* search — the primary action. Same collapse-to-button
@@ -1559,8 +1550,7 @@ const ProductFetcher: React.FC<Props> = ({
                           <Search size={16} strokeWidth={2.2} aria-hidden />
                         </span>
                         <span className="min-w-0">
-                          <span className="block text-[9.5px] font-black uppercase tracking-[0.14em] text-sky-600/80">Пошук у каталозі</span>
-                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Швидкий пошук</span>
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук категорії</span>
                         </span>
                         <ChevronRight
                           size={16}

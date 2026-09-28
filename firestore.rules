@@ -76,14 +76,24 @@ service cloud.firestore {
     }
 
     // ── users ─────────────────────────────────────────────────────────────────
-    // Each user can read and write only their own profile document.
+    // Each user can read and write only their own profile document. Admins may
+    // additionally read (but not write — role/partner changes go through the
+    // Admin-SDK-gated app/api/admin/users routes) any profile, since the
+    // admin panel's Users tab lists the whole collection via a plain
+    // onSnapshot(collection(db, 'users')) listener: without this, Firestore
+    // rejects that unfiltered query outright for every caller (a `list`
+    // query is only allowed when the rule can be proven true for every
+    // possible result from the query shape alone, which isOwner() — a
+    // per-document check against the caller's own uid — can never do for an
+    // unconstrained collection query), leaving the tab permanently empty.
     //
     // TRADE-OFF: Phone uniqueness checks in Register.tsx / AuthForm.tsx /
     // AccountInfo.tsx query other users' documents, which this rule blocks.
     // Those queries will silently return zero results, disabling duplicate-phone
     // detection. Move that check to a server API route using the Admin SDK.
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
     }
 
     // ── productGallery (extra product photos, separate from the 1C photo) ────

@@ -1,8 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { BadgeCheck, ChevronRight, ScanLine, Store } from 'lucide-react';
-import { Suspense } from 'react';
-import HeroBlogCard, { HeroBlogCardFallback } from './HeroBlogCard';
+import HeroBlogCard from './HeroBlogCard';
 
 export default function HeroIntroCard() {
 
@@ -52,9 +51,7 @@ export default function HeroIntroCard() {
             <span className="home-feature-action">Дізнатися більше <ChevronRight size={14} aria-hidden="true" /></span>
           </div>
         </Link>
-        <Suspense fallback={<HeroBlogCardFallback />}>
-          <HeroBlogCard />
-        </Suspense>
+        <HeroBlogCard />
       </div>
     </div>
   );

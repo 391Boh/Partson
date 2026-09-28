@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { fetchPartnerStatus } from 'app/lib/partner-status-client';
 import {
   ArrowRight,
   BadgeCheck,
@@ -295,20 +296,10 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       }
       setPartnerDiscountStatus('loading');
       try {
-        const q = query(
-          collection(db, 'orders'),
-          where('uid', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const snap = await getDocs(q);
+        const status = await fetchPartnerStatus(user);
         if (cancelled) return;
-        const total = snap.docs.reduce((sum, doc) => {
-          const data = doc.data() as { totalAmount?: number; total?: number };
-          const amount = Number(data.totalAmount || data.total || 0);
-          return sum + (Number.isFinite(amount) ? amount : 0);
-        }, 0);
-        setTotalSpentOnOrders(total);
-        setPartnerDiscountStatus(total >= PARTNER_THRESHOLD_UAH ? 'active' : 'pending');
+        setTotalSpentOnOrders(status.totalSpent);
+        setPartnerDiscountStatus(status.isPartner ? 'active' : 'pending');
       } catch {
         if (!cancelled) setPartnerDiscountStatus('error');
       }

@@ -1,6 +1,7 @@
 node_modules
 .next
 .next-dev
+.next-home-perf
 logs/
 .pm2/
 .next-stale-*/

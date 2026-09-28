@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { BadgeCheck, Handshake, TrendingUp, LogIn, ChevronRight } from "lucide-react";
-import { db } from "../../firebase";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { PARTNER_DISCOUNT_PERCENT, PARTNER_THRESHOLD_UAH } from "app/lib/partnership-discount";
 
@@ -84,20 +83,10 @@ export default function PartnershipStatusCard({ showCta = true, edge = false }: 
     let cancelled = false;
     void (async () => {
       try {
-        const q = query(
-          collection(db, "orders"),
-          where("uid", "==", user.uid),
-          orderBy("createdAt", "desc"),
-        );
-        const snap = await getDocs(q);
-        const total = snap.docs.reduce((sum, doc) => {
-          const d = doc.data();
-          return sum + Number(d.totalAmount || d.total || 0);
-        }, 0);
-
+        const result = await fetchPartnerStatus(user);
         if (!cancelled) {
-          setTotalSpent(total);
-          setStatus(total >= PARTNER_THRESHOLD_UAH ? "active" : "pending");
+          setTotalSpent(result.totalSpent);
+          setStatus(result.isPartner ? "active" : "pending");
         }
       } catch {
         if (!cancelled) setStatus("guest");

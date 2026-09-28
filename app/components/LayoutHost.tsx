@@ -644,6 +644,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   // SmartLink still warms individual destinations on pointer/focus intent.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (pathname === "/") return;
     if (primaryRoutePrefetchStartedRef.current) return;
     if (shouldUseLightNetworkWarmup()) return;
     primaryRoutePrefetchStartedRef.current = true;

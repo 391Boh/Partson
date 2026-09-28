@@ -138,6 +138,13 @@ export default function Footer() {
       onCut={(e) => e.preventDefault()}
     >
       {/* background layers */}
+      {/* Always-on ambient motion (not gated behind hover, which most
+          visitors — especially on mobile — never trigger on a footer they
+          just scroll past) — two large blurred color blobs drifting slowly
+          past each other, same drift curve as the catalog loader's aurora. */}
+      <span className="footer-aurora-a" aria-hidden="true" />
+      <span className="footer-aurora-b" aria-hidden="true" />
+      <span className="footer-grid-texture" aria-hidden="true" />
       <span
         className="pointer-events-none absolute inset-0 transition-opacity duration-300 ease-in-out opacity-100 group-hover:opacity-0"
         style={{ backgroundImage: baseGradient }}
@@ -151,10 +158,11 @@ export default function Footer() {
           atPageBottom ? "opacity-100" : "opacity-0"
         }`}
       />
-      {/* Same top-hairline accent used on the cards throughout the rest of
-          the site — the footer previously had no seam treatment at all
-          where it meets the section above it. */}
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+      {/* Top seam: same glow-bar + hairline pair used on every hero card this
+          session — ties the footer's transition from the page above it into
+          the same visual language instead of a single flat line. */}
+      <span className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-sky-300/45 to-transparent blur-xl" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/80 to-transparent" />
 
       <div className="page-shell-inline relative z-10">
         {/* 3-column grid */}
@@ -343,7 +351,7 @@ export default function Footer() {
           <SmartLink
             href="/inform/payment"
             aria-label="Онлайн-оплата через LiqPay — умови оплати"
-            className="mx-auto mb-4 flex w-fit items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-[border-color,box-shadow,background-color] hover:border-emerald-200 hover:bg-white hover:shadow-[0_12px_28px_rgba(16,185,129,0.10)]"
+            className="card-metal relative mx-auto mb-4 flex w-fit items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-[border-color,box-shadow,background-color] hover:border-emerald-200 hover:bg-white hover:shadow-[0_12px_28px_rgba(16,185,129,0.10)]"
           >
             <span className="rounded-lg bg-white px-2.5 py-1.5">
               <Image

@@ -10,7 +10,7 @@ import AnalyticsRuntime from "./components/AnalyticsRuntime";
 import DeferredFooter from "./components/DeferredFooter";
 import { trimSeoDescription } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
-import { getGoogleRating } from "./lib/google-rating";
+import { getGoogleRatingForRender } from "./lib/google-rating";
 import { safeJsonLd } from "./lib/safe-json-ld";
 
 // The global stylesheet is intentionally NOT `import`-ed here. A plain
@@ -424,16 +424,16 @@ const localBusinessJsonLd = {
 };
 
 async function LocalBusinessJsonLdWithRating() {
-  const googleRating = await getGoogleRating();
+  const googleRating = await getGoogleRatingForRender();
   const localBusinessWithRating = {
     ...localBusinessJsonLd,
-    aggregateRating: {
+    ...(googleRating ? { aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: String(googleRating.ratingValue),
       reviewCount: String(googleRating.reviewCount),
       bestRating: "5",
       worstRating: "1",
-    },
+    } } : {}),
   };
   return (
     <script

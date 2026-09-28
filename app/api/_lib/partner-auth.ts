@@ -25,10 +25,12 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
   const normalizedUid = uid.trim();
   if (!normalizedUid) return { isPartner: false, totalSpent: 0 };
 
+  const grant = await getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get();
+  const manuallyGranted = grant.data()?.active === true;
   const now = Date.now();
   const cached = partnerStatusCache.get(normalizedUid);
   if (cached && cached.expiresAt > now) {
-    return { isPartner: cached.isPartner, totalSpent: cached.totalSpent };
+    return { isPartner: manuallyGranted || cached.isPartner, totalSpent: cached.totalSpent };
   }
 
   const snapshot = await getFirebaseAdminDb()
@@ -53,7 +55,7 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
     expiresAt: now + PARTNER_STATUS_CACHE_TTL_MS,
   });
 
-  return status;
+  return { ...status, isPartner: manuallyGranted || status.isPartner };
 };
 
 export const verifyPartnerRequest = async (

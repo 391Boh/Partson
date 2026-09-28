@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import DeferredSeoPhotosBackdrop, { DeferredStoreMap } from "./DeferredHomeVisuals";
 import OpenChatButton from "./OpenChatButton";
+import SectionRevealAdvantages from "./SectionRevealAdvantages";
 import StoreOpenStatus from "./StoreOpenStatus";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
@@ -40,21 +41,21 @@ const serviceCards = [
     title: "Підбір за авто чи артикулом",
     eyebrow: "VIN · артикул · модель",
     icon: PackageSearch,
-    text: "Перевіримо, чи підходить деталь до вашої моделі, року й модифікації, та підкажемо різницю між оригіналом і аналогом.",
+    text: "Перевіримо, чи підходить деталь до вашої моделі, року й модифікації, та підкажемо різницю між оригіналом і аналогом. Достатньо VIN-коду, номера кузова або артикула — модель шукати не обов'язково.",
     tone: "sky" as const,
   },
   {
     title: "Наявність і аналоги",
     eyebrow: "Актуальні залишки складу",
     icon: Wrench,
-    text: "Уточнимо виробника, характеристики та залишок на складі. Якщо позиції немає — запропонуємо сумісний аналог у вашому бюджеті.",
+    text: "Уточнимо виробника, характеристики та залишок на складі. Якщо позиції немає — запропонуємо сумісний аналог у вашому бюджеті з тим самим терміном служби.",
     tone: "cyan" as const,
   },
   {
     title: "Оплата та доставка",
     eyebrow: "Львів і вся Україна",
     icon: Truck,
-    text: "Самовивіз із магазину на вул. Перфецького або доставка Новою поштою по Україні. Підкажемо щодо оплати, термінів і повернення.",
+    text: "Самовивіз із магазину на вул. Перфецького або доставка Новою поштою по Україні. Підкажемо щодо оплати, термінів і повернення ще до оформлення замовлення.",
     tone: "blue" as const,
   },
 ] as const;
@@ -103,10 +104,10 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
       <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/seo:shadow-[0_0_22px_rgba(13,148,136,0.7)]" />
       <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(15,118,110,0.18),transparent)]" />
       <span className="pointer-events-none absolute inset-0 z-[1] opacity-50 bg-[linear-gradient(101deg,transparent_0%,transparent_34%,rgba(255,255,255,0.22)_48%,rgba(255,255,255,0.3)_50%,rgba(255,255,255,0.18)_52%,transparent_66%,transparent_100%)]" />
-      <div className="section-reveal-advantages is-revealed page-shell-inline relative z-10 space-y-7 sm:space-y-10">
+      <SectionRevealAdvantages>
         {/* ---- Header + store card: one balanced two-column row ---- */}
         <div className="home-story-grid grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)] lg:items-stretch lg:gap-8 xl:gap-10">
-          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:order-1 lg:min-h-[520px] lg:p-8">
+          <div className="reveal-adv-copy flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white/78 p-5 shadow-sm backdrop-blur-sm sm:p-7 lg:order-1 lg:min-h-[520px] lg:p-8">
             <div className="flex items-center justify-end gap-3">
               <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-600 sm:h-11 sm:w-11">
                 {/* Shared line-art open-box mark — same style language (viewBox
@@ -132,7 +133,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 instead of repeating that claim, and sets up the category
                 breakdown below with matching keywords (двигун, ходова,
                 електрика й кузов). */}
-            <p className="ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] leading-[1.68] text-slate-600 sm:text-[16px]">
+            <p className="ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
               Понад 10&nbsp;000 запчастин у каталозі — від двигуна й ходової до електрики та кузовних деталей — для десятків марок легкових авто. Знайдіть потрібну позицію за VIN-кодом, номером кузова, артикулом чи моделлю.
             </p>
 
@@ -235,7 +236,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
             <p className="parts-help-note">Деталі запиту уточнимо в чаті</p>
           </div>
         </div>
-      </div>
+      </SectionRevealAdvantages>
     </section>
   );
 }

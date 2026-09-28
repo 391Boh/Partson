@@ -89,14 +89,6 @@ import {
 // is far cheaper than wrongly 404ing a real product.
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
-// Used instead of the full budget above when a sitemap-snapshot product is
-// already available as a fallback — see the call site for why a short
-// timeout is safe there specifically. Measured live: this consistently hit
-// its full budget without the 1C call actually resolving in time (900ms
-// wasn't "usually enough, sometimes not" — it was "never enough"), so a
-// shorter cap here loses nothing observed while capping the worst case
-// further.
-const PRODUCT_PAGE_PRODUCT_REFRESH_TIMEOUT_MS = 500;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 4000;
@@ -1929,27 +1921,37 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? loadProductPageGallery(earlyResolvedCode)
     : null;
 
-  if (resolvedCode) {
+  if (resolvedCode && product) {
     // A live 1C lookup here (name/price/quantity refresh) routinely takes
     // 1.9-3.7s — the documented per-call latency elsewhere in this file.
-    // When the sitemap snapshot already gave us a product to show, that's
-    // real, recently-indexed data, not a placeholder — it's worth a short
-    // wait for something fresher, but not worth blocking the whole page's
-    // TTFB on 1C's full budget. The purchase panel already re-verifies price
-    // live client-side (see ProductPurchasePanelClient's own /api/product-
-    // price fetch), so a slightly-stale SSR price here self-corrects within
-    // a second of hydration regardless. Only when there's no fallback to
-    // show at all does this still need the full budget.
-    const freshProductTimeoutMs = product
-      ? PRODUCT_PAGE_PRODUCT_REFRESH_TIMEOUT_MS
-      : PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS;
+    // This used to be `await`ed with a short (500ms) timeout on this exact
+    // path, on the theory that a short wait for something fresher was worth
+    // it. Measured live, that timeout consistently hit its full budget
+    // without the 1C call ever resolving in time — not "usually enough,
+    // sometimes not", but "never enough" — so it was pure dead time on
+    // every sitemap-hit request, not an occasional cost. The sitemap
+    // snapshot product is real, recently-indexed data (not a placeholder),
+    // and the purchase panel already re-verifies price live client-side
+    // (see ProductPurchasePanelClient's own /api/product-price fetch), so a
+    // slightly-stale SSR price here self-corrects within a second of
+    // hydration regardless — nothing here actually depends on this call
+    // finishing before the response goes out. Firing it without awaiting
+    // still warms 1C's own response cache for whoever loads this product
+    // next. Only when there's no sitemap fallback to show at all (the
+    // `else` path below) does the page have to wait for a real answer.
+    void (
+      directCodeProductPromise && resolvedCode === fallbackCodeFromRoute
+        ? directCodeProductPromise
+        : getCatalogProduct(resolvedCode)
+    ).catch(() => undefined);
+  } else if (resolvedCode) {
     const freshProduct = await resolveWithTimeout(
       () =>
         directCodeProductPromise && resolvedCode === fallbackCodeFromRoute
           ? directCodeProductPromise
           : getCatalogProduct(resolvedCode),
       null,
-      freshProductTimeoutMs
+      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
     );
     if (freshProduct) product = freshProduct;
   }

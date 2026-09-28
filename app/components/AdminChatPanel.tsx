@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
 import {
@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Clock3,
   Copy,
+  Handshake,
   ImagePlus,
   Mail,
   Megaphone,
@@ -53,6 +54,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { MessageAdminActivity, saveAdminChatAction, useAdminChatActivity } from './admin-chat-activity';
 import { getAdminIdToken, getCurrentAdminUser } from 'app/lib/get-admin-token';
 
 interface Message {
@@ -331,8 +333,50 @@ export default function AdminChatPanel({
   const [orders, setOrders] = useState<Order[]>([]);
   const [calls, setCalls] = useState<CallRequest[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
-  const [roleUpdatingUid, setRoleUpdatingUid] = useState<string | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
+  const [partnerUids, setPartnerUids] = useState<string[]>([]);
+  const [partnersLoaded, setPartnersLoaded] = useState(false);
+  const [partnerUpdatingUid, setPartnerUpdatingUid] = useState<string | null>(null);
+  const partnerLock = useRef(false);
+  useEffect(() => {
+    if (!isOpen || tab !== 'users') return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const token = await getAdminIdToken();
+        if (!token) throw new Error('Не авторизовано');
+        const response = await fetch('/api/admin/partners', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error('Не вдалося завантажити партнерів');
+        const data = await response.json();
+        if (!cancelled && !partnerLock.current) { setPartnerUids(data.uids); setPartnersLoaded(true); }
+      } catch {
+        if (!cancelled) { setPartnersLoaded(false); setRoleError('Не вдалося завантажити партнерів. Повторна спроба відбудеться автоматично.'); }
+      }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [isOpen, tab]);
+
+  const togglePartner = async (uid: string, active: boolean) => {
+    if (partnerLock.current) return;
+    partnerLock.current = true;
+    setPartnerUpdatingUid(uid);
+    setRoleError(null);
+    try {
+      const token = await getAdminIdToken();
+      if (!token) throw new Error('Не авторизовано');
+      const response = await fetch('/api/admin/partners', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ uid, active }), signal: AbortSignal.timeout(15000),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Не вдалося змінити партнерство');
+      setPartnerUids(previous => active ? [...new Set([...previous, uid])] : previous.filter(id => id !== uid));
+    } catch (error) { setRoleError(error instanceof Error ? error.message : 'Не вдалося змінити партнерство'); }
+    finally { partnerLock.current = false; setPartnerUpdatingUid(null); }
+  };
+  const [roleUpdatingUid, setRoleUpdatingUid] = useState<string | null>(null);
   const [chatPresenceMap, setChatPresenceMap] = useState<
     Record<string, { userIsOnline: boolean; userLastSeenAt?: unknown }>
   >({});
@@ -343,6 +387,17 @@ export default function AdminChatPanel({
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const replyLock = useRef(false);
+  const replyRequest = useRef<{ key: string; id: string } | null>(null);
+  const productLock = useRef(false);
+  const productRequest = useRef<{ key: string; id: string } | null>(null);
+  const chatActivity = useAdminChatActivity(
+    isOpen && tab === 'messages' ? selectedUserId : null,
+    currentAdmin?.uid,
+    messages.filter(message => message.userId === selectedUserId).map(message => message.id)
+  );
   const [showProductForm, setShowProductForm] = useState(false);
   const [productArticle, setProductArticle] = useState('');
   const [productError, setProductError] = useState<string | null>(null);
@@ -537,25 +592,13 @@ export default function AdminChatPanel({
   }, [isOpen, managerPresenceSessionId, selectedUserId, tab]);
 
   const openChat = async (uid: string) => {
+    if (replyLock.current || productLock.current) return;
     setSelectedUserId(uid);
     setReplyText('');
     setShowProductForm(false);
     setProductArticle('');
     setProductError(null);
-    const unread = messages.filter(
-      (m) => m.userId === uid && m.sender === 'user' && !m.readByAdmin
-    );
-    if (unread.length > 0) {
-      try {
-        await Promise.all(
-          unread.map((m) =>
-            updateDoc(doc(db, 'messages', m.id), { readByAdmin: true })
-          )
-        );
-      } catch {
-        console.error('Не вдалося відзначити прочитання повідомлень.');
-      }
-    }
+    setReplyError('');
     setTimeout(
       () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }),
       100
@@ -740,21 +783,25 @@ export default function AdminChatPanel({
   };
 
   const sendReply = async () => {
-    if (!replyText.trim() || !selectedUserId) return;
+    if (!replyText.trim() || !selectedUserId || replyLock.current) return;
     const text = replyText.trim();
-    await addDoc(collection(db, 'messages'), {
-      userId: selectedUserId,
-      text,
-      sender: 'manager',
-      createdAt: new Date(),
-      readByAdmin: true,
-      readByUser: false,
-      textRead: false,
-      type: 'text',
-      ...(currentAdmin ? { repliedByUid: currentAdmin.uid, repliedByName: currentAdmin.name } : {}),
-    });
-    setReplyText('');
-    void notifyChatTelegram(selectedUserId, { type: 'text', text });
+    const userId = selectedUserId;
+    const key = JSON.stringify([userId, text]);
+    if (replyRequest.current?.key !== key) replyRequest.current = { key, id: crypto.randomUUID() };
+    replyLock.current = true;
+    setReplySending(true);
+    setReplyError('');
+    try {
+      await saveAdminChatAction({ action: 'reply', userId, text, type: 'text', requestId: replyRequest.current.id });
+      setReplyText(value => value.trim() === text ? '' : value);
+      replyRequest.current = null;
+      void notifyChatTelegram(userId, { type: 'text', text });
+    } catch (error) {
+      setReplyError(error instanceof Error ? error.message : 'Не вдалося надіслати повідомлення');
+    } finally {
+      replyLock.current = false;
+      setReplySending(false);
+    }
   };
 
   const insertTemplate = (template: MessageTemplate) => {
@@ -1024,10 +1071,12 @@ export default function AdminChatPanel({
   };
 
   const sendProductCard = async () => {
-    if (!selectedUserId) return;
+    if (!selectedUserId || productLock.current) return;
+    const userId = selectedUserId;
     const article = productArticle.trim();
     if (!article) return;
 
+    productLock.current = true;
     setProductLoading(true);
     setProductError(null);
 
@@ -1038,24 +1087,20 @@ export default function AdminChatPanel({
         return;
       }
 
-      await addDoc(collection(db, 'messages'), {
-        userId: selectedUserId,
-        text: product.name || product.article || product.code || 'Product card',
-        sender: 'manager',
-        createdAt: new Date(),
-        readByAdmin: true,
-        readByUser: false,
-        textRead: false,
-        type: 'product',
-        product,
-      });
-      void notifyChatTelegram(selectedUserId, { type: 'product', product });
+      const key = JSON.stringify([userId, product]);
+      if (productRequest.current?.key !== key) productRequest.current = { key, id: crypto.randomUUID() };
+      await saveAdminChatAction({ action: 'reply', userId,
+        text: product.name || product.article || product.code || 'Картка товару',
+        type: 'product', product, requestId: productRequest.current.id });
+      productRequest.current = null;
+      void notifyChatTelegram(userId, { type: 'product', product });
 
       setProductArticle('');
       setShowProductForm(false);
     } catch {
-      setProductError('Не вдалося завантажити товар');
+      setProductError('Не вдалося надіслати товар. Спробуйте ще раз.');
     } finally {
+      productLock.current = false;
       setProductLoading(false);
     }
   };
@@ -1315,7 +1360,7 @@ export default function AdminChatPanel({
   return (
     <div
       ref={panelRef}
-      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:left-auto md:right-4 md:bottom-auto md:top-[4.5rem] md:h-[min(1000px,calc(100dvh-3.5rem))] md:w-[min(1760px,calc(100vw-1.5rem))] md:max-h-none md:rounded-[28px] lg:right-4 lg:w-[min(2160px,calc(100vw-2rem))] xl:w-[min(2480px,calc(100vw-2.5rem))] 2xl:w-[min(2800px,calc(100vw-3rem))]"
+      className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-sky-100/20 bg-[image:linear-gradient(145deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96)_42%,rgba(12,74,110,0.92))] shadow-[0_28px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4rem))] md:max-h-none md:rounded-[28px]"
       style={{
         backgroundSize: '200% 200%',
         animation: 'adminGradient 12s ease infinite',
@@ -1801,10 +1846,23 @@ export default function AdminChatPanel({
                 })}
               </div>
             ) : (
-                <div className="mx-auto flex h-full min-h-0 w-full max-w-[1180px] flex-col">
+                <div className="admin-chat-workspace">
+                  <aside className="admin-chat-sidebar" aria-label="Діалоги">
+                    <input aria-label="Пошук діалогів" placeholder="Пошук діалогів…" value={messageSearch} onChange={event => setMessageSearch(event.target.value)} className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 p-2 text-sm text-white" />
+                    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+                      {messageThreads.map(thread => <button key={thread.uid} disabled={replySending || productLoading} onClick={() => openChat(thread.uid)} aria-current={thread.uid === selectedUserId ? 'true' : undefined} className={`block w-full rounded-xl border p-2 text-left disabled:opacity-50 ${thread.uid === selectedUserId ? 'border-sky-400/40 bg-sky-500/15' : 'border-white/5 hover:bg-white/5'}`}>
+                        <span className="block truncate text-xs font-bold text-white">{thread.label}{thread.unread > 0 && ` · ${thread.unread} нових`}</span>
+                        <span className="mt-1 block truncate text-[11px] text-slate-400">{thread.preview}</span>
+                      </button>)}
+                      {!messageThreads.length && <p className="p-2 text-xs text-slate-400">Діалогів не знайдено</p>}
+                    </div>
+                  </aside>
+                  <div className="flex h-full min-h-0 min-w-0 flex-col">
+                  {(chatActivity.error || replyError) && <p role="alert" className="mb-2 rounded-lg bg-rose-500/15 p-2 text-xs text-rose-200">{replyError || chatActivity.error}</p>}
                   <div className="mb-2 rounded-[18px] border border-white/10 bg-[image:linear-gradient(135deg,rgba(30,41,59,0.9),rgba(15,23,42,0.88))] p-2 shadow-[0_18px_34px_rgba(2,6,23,0.2)]">
                     <div className="flex items-center gap-2.5">
                       <button
+                        disabled={replySending || productLoading}
                         onClick={() => setSelectedUserId(null)}
                         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-100 transition hover:bg-white/10"
                         title="Назад до списку чатів"
@@ -1938,6 +1996,8 @@ export default function AdminChatPanel({
                               </span>
                             </>
                           )}
+                          {isRichCard && m.sender === 'manager' && <span className="mt-1 block text-[10px] text-slate-300">{m.repliedByName || 'Адміністратор'} · {formatTimestampLabel(m.createdAt)}</span>}
+                          <MessageAdminActivity activity={chatActivity.activity[m.id]} adminId={currentAdmin?.uid} onMark={active => chatActivity.mark(m.id, active)} />
                         </div>
                         <button
                           onClick={() => deleteMessage(m.id)}
@@ -2067,6 +2127,7 @@ export default function AdminChatPanel({
                   </button>
                   <button
                     onClick={sendReply}
+                    disabled={replySending || !replyText.trim() || !currentAdmin}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-[15px] bg-sky-600 px-0 py-0 text-white shadow-[0_12px_24px_rgba(14,165,233,0.18)] transition hover:bg-sky-700 sm:w-auto sm:px-3"
                   >
                     <SendHorizontal className="h-5 w-5" />
@@ -2074,6 +2135,7 @@ export default function AdminChatPanel({
                   </button>
                   </div>
                 </div>
+              </div>
               </div>
             )}
           </>
@@ -2144,9 +2206,18 @@ export default function AdminChatPanel({
                               : 'bg-slate-500/70'
                           }`}
                         />
-                        <p className="line-clamp-2 text-[13px] font-semibold leading-snug [overflow-wrap:anywhere] sm:text-sm">
+                        <p className="line-clamp-2 min-w-0 text-[13px] font-semibold leading-snug [overflow-wrap:anywhere] sm:text-sm">
                           {userItem.name || userItem.phone || 'Користувач'}
                         </p>
+                        {partnerUids.includes(userItem.id) && (
+                          <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/30 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-200"
+                            title="Партнер — надано вручну в адмінці"
+                          >
+                            <Handshake size={10} />
+                            Партнер
+                          </span>
+                        )}
                       </div>
                       <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-300">
                           {userItem.phone && <span className="break-all">{userItem.phone}</span>}
@@ -2158,13 +2229,23 @@ export default function AdminChatPanel({
                       </div>
                     </div>
 
-                    <div className="flex min-w-0 items-center justify-end gap-1.5 border-t border-white/8 pt-1.5 sm:border-t-0 sm:pt-0">
+                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 border-t border-white/8 pt-1.5 sm:border-t-0 sm:pt-0">
                       {unreadFromUser > 0 && (
                         <span className="mr-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] leading-none text-white sm:mr-0">
                           {unreadFromUser}
                         </span>
                       )}
 
+                      <button
+                        onClick={() => togglePartner(userItem.id, !partnerUids.includes(userItem.id))}
+                        disabled={!partnersLoaded || partnerUpdatingUid !== null}
+                        aria-pressed={partnerUids.includes(userItem.id)}
+                        aria-label={partnerUids.includes(userItem.id) ? 'Скасувати партнерство' : 'Зробити партнером'}
+                        title={partnerUids.includes(userItem.id) ? 'Скасувати ручне партнерство; автоматичне партнерство за сумою замовлень збережеться' : 'Надати партнерство незалежно від суми замовлень'}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border p-2 transition disabled:cursor-wait disabled:opacity-60 sm:h-10 sm:w-10 sm:rounded-2xl ${partnerUids.includes(userItem.id) ? 'border-emerald-300/30 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/15'}`}
+                      >
+                        <Handshake size={16} />
+                      </button>
                       <button
                         onClick={() =>
                           handleRoleToggle(

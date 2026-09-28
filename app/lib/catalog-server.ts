@@ -2700,6 +2700,15 @@ type FullCatalogSnapshot = {
   // getPromoAvailabilityFromSnapshot below) never needs that live call at all
   // once this snapshot is warm.
   promoPercents: Map<string, number>;
+  // The exact discounted EUR price — unlike promoPercents above, this never
+  // leaves the server for an unauthenticated caller (see PromoAvailability's
+  // own comment on why the public path only ever gets the percent). It's
+  // only read from fetchCatalogPriceDetailsByLookupKeys below, which itself
+  // is only ever called for the already partner/admin-verified "partner"/
+  // "full" catalog-prices modes — caching the value here doesn't loosen that
+  // boundary, it just answers the same already-gated question instantly
+  // instead of with a fresh live 1C round trip per key.
+  promoPrices: Map<string, number>;
 };
 
 const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
@@ -2712,6 +2721,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
   const products: CatalogProduct[] = [];
   const promoKeys = new Set<string>();
   const promoPercents = new Map<string, number>();
+  const promoPrices = new Map<string, number>();
   const seen = new Set<string>();
   let cursor = "";
 
@@ -2754,6 +2764,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
       const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
       if (Number.isFinite(promoPriceEuro) && promoPriceEuro > 0) {
         promoKeys.add(key);
+        promoPrices.set(key, promoPriceEuro);
 
         // Same formula as lookupPromoForKey's own live per-key computation
         // below — never the discounted amount itself, just the public-safe
@@ -2783,7 +2794,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
     cursor = nextCursor;
   }
 
-  return { products, promoKeys, promoPercents };
+  return { products, promoKeys, promoPercents, promoPrices };
 };
 
 // Stale-while-revalidate: a full catalog walk costs ~20 sequential 1C calls
@@ -2963,6 +2974,40 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   const resolvedPromoPrices = new Map<string, number>();
   const matchedKeys = new Set<string>();
   const includeCostPrices = options?.includeCostPrices !== false;
+
+  // Fast path: once the shared full-catalog snapshot (see
+  // scanFullCatalogSnapshot above) is warm, it already holds every active
+  // promo's exact EUR price, keyed the same way as this function's own live
+  // lookup below. This function is only ever called for the "partner"/"full"
+  // catalog-prices modes, both already partner/admin-verified before this
+  // runs — so answering from the snapshot doesn't expose anything a fresh 1C
+  // call wouldn't have, it just skips a live round trip per key for a value
+  // that hasn't changed since the last catalog scan. This was the actual
+  // reason the promo price visibly lagged behind the rest of a /katalog
+  // card. Cost price isn't captured in the snapshot, so a key still needs
+  // the live lookup below whenever includeCostPrices is true.
+  if (fullCatalogCache) {
+    void getFullCatalogSnapshot().catch(() => undefined);
+    for (const key of normalizedKeys) {
+      const snapshotPromoPrice = fullCatalogCache.promoPrices.get(key);
+      if (typeof snapshotPromoPrice === "number") {
+        resolvedPromoPrices.set(key, snapshotPromoPrice);
+        matchedKeys.add(key);
+      }
+    }
+  }
+  const liveLookupKeys = includeCostPrices
+    ? normalizedKeys
+    : normalizedKeys.filter((key) => !resolvedPromoPrices.has(key));
+
+  if (liveLookupKeys.length === 0) {
+    return {
+      prices: Object.fromEntries(resolvedPrices),
+      costPrices: Object.fromEntries(resolvedCostPrices),
+      promoPrices: Object.fromEntries(resolvedPromoPrices),
+    };
+  }
+
   const timeoutMs =
     Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
       ? Math.floor(options?.timeoutMs as number)
@@ -3012,7 +3057,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   const broadSweepPromise = oneCRequest("allgoods", {
     method: "POST",
     body: {
-      [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+      [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(liveLookupKeys.length * 6, 120)),
       ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
     },
     timeoutMs,
@@ -3021,7 +3066,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     cacheKey: JSON.stringify({
       endpoint: "allgoods:price-details",
       body: {
-        [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(normalizedKeys.length * 6, 120)),
+        [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(liveLookupKeys.length * 6, 120)),
         ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
       },
     }),
@@ -3040,7 +3085,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
 
   await Promise.all([
     broadSweepPromise,
-    fetchTargetedDetails(normalizedKeys, [ALLGOODS_CODE_FIELD]),
+    fetchTargetedDetails(liveLookupKeys, [ALLGOODS_CODE_FIELD]),
   ]);
 
   // Only genuine article-only keys (no match under Код from either source

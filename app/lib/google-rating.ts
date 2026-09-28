@@ -15,14 +15,8 @@ const FALLBACK_RATING: GoogleRating = {
 
 const REVALIDATE_SECONDS = 60 * 60 * 24; // 24 hours
 
-// Plain `fetch` has no default timeout — Node/undici will happily wait on a
-// slow or hung Google endpoint for minutes. This function sits directly in
-// app/layout.tsx's render path (`await getGoogleRating()`), which wraps
-// every single page, so an unbounded call here doesn't just delay one
-// feature — it stalls the entire site's response behind a third party any
-// time Google's API has a hiccup (rate limiting, network blip, slow
-// response). A short, explicit timeout keeps that failure mode local to
-// this one rating fetch instead of the whole page.
+// Bound the upstream request for API consumers and background cache refresh.
+// Server-rendered schema uses the shorter getGoogleRatingForRender budget below.
 const GOOGLE_RATING_TIMEOUT_MS = 4_000;
 
 const fetchGoogleRatingUncached = async (): Promise<GoogleRating> => {
@@ -67,3 +61,15 @@ export const getGoogleRating = unstable_cache(
   ["google-rating-v1"],
   { revalidate: REVALIDATE_SECONDS, tags: ["google-rating"] }
 );
+
+// Optional schema enrichment must not hold the HTML stream open on a cold
+// third-party cache. The original request can still populate the shared cache.
+export async function getGoogleRatingForRender(): Promise<GoogleRating | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getGoogleRating().catch(() => null),
+      new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 150); }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+}

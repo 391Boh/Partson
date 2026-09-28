@@ -1,8 +1,10 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { getPublishedBlogPosts } from 'app/lib/blog';
-import { isStorageMediaUrl } from 'app/lib/blog-media';
+import { useEffect, useState } from 'react';
+import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
 
 export function HeroBlogCardFallback() {
   return (
@@ -17,28 +19,25 @@ export function HeroBlogCardFallback() {
   );
 }
 
-export default async function HeroBlogCard() {
-  // getPublishedBlogPosts is unstable_cache (10 min) + React-cache wrapped,
-  // so this costs a real Firestore read only once per revalidation window,
-  // not per visit or per homepage regeneration — safe to await directly
-  // instead of hardcoding a generic teaser (which previously showed the
-  // PartsON logo mark here instead of a real article photo).
-  const posts = await getPublishedBlogPosts().catch(() => []);
-  const latestPost = posts.find((post) => post.imageDataUrl?.trim()) ?? posts[0] ?? null;
-  const coverImage = latestPost?.imageDataUrl;
-  // Legacy covers can be hundreds of kilobytes of base64. Embedding one in
-  // this server component duplicates it in both HTML and the RSC payload.
-  // Serve those covers through the existing image endpoint so next/image can
-  // send a cached thumbnail at the card's actual size instead.
-  const isInlineCover = coverImage?.startsWith('data:image/');
-  const coverVersion = latestPost?.updatedAt || latestPost?.publishedAt || latestPost?.createdAt;
-  const blogImage = isInlineCover && latestPost?.slug
-    ? `/api/blog/og-image/${encodeURIComponent(latestPost.slug)}${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ''}`
-    : coverImage || '/Car-parts-fullwidth.webp';
-  const blogTitle = latestPost?.title?.trim() || 'Поради з вибору автозапчастин';
-  const blogHref = latestPost?.slug ? `/blog/${latestPost.slug}` : '/blog';
-  const blogAlt =
-    latestPost?.imageAlt?.trim() || latestPost?.title?.trim() || 'Остання стаття блогу PartsON';
+type BlogTeaser = { title: string; href: string; alt: string; image: string; unoptimized: boolean };
+
+export default function HeroBlogCard() {
+  const [post, setPost] = useState<BlogTeaser | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const cancel = scheduleBackgroundTask(() => {
+      void fetch('/api/home-blog', { signal: controller.signal })
+        .then(response => response.ok ? response.json() : null)
+        .then(result => { if (!controller.signal.aborted && result) setPost(result); })
+        .catch(() => {});
+    });
+    return () => { cancel(); controller.abort(); };
+  }, []);
+  if (!post) return <HeroBlogCardFallback />;
+  const blogImage = post.image;
+  const blogTitle = post.title;
+  const blogHref = post.href;
+  const blogAlt = post.alt;
 
   return (
         <Link href={blogHref} prefetch={false} className="home-feature-card home-blog-card" title={blogTitle}>
@@ -47,8 +46,8 @@ export default async function HeroBlogCard() {
               src={blogImage}
               alt={blogAlt}
               fill
-              unoptimized={Boolean(coverImage && !isInlineCover && !isStorageMediaUrl(coverImage))}
-              quality={90}
+              unoptimized={post.unoptimized}
+              quality={75}
               sizes="(max-width: 479px) 96px, 120px"
               className="object-contain"
             />

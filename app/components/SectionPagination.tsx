@@ -3,32 +3,32 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // Shared pagination control for the homepage's three catalogue widgets
-// (Auto/tovar/Brands) — each used to build its own: small bare circles,
-// slightly-different-sized bare circles, and a pair of large borderless
-// floating arrows pinned to the grid's edges. One bounded "chip" reads as a
-// single deliberate control instead of three loose pieces, and unifies size/
-// shape across all three; `tone` keeps each section's own accent colour so
-// the widgets stay visually distinct from one another, matching the rest of
-// the homepage's per-section colour identity.
-type SectionPaginationTone = "sky" | "blue";
+// (Auto/tovar/Brands). Deliberately unboxed — no shared bordered/shadowed
+// "chip" wrapping the whole control. A pair of plain circular icon buttons
+// flank a compact page counter with a thin progress line underneath, so the
+// control reads as light, modern UI chrome rather than a separate card
+// sitting in the section. `tone` keeps each section's own accent colour so
+// the three widgets stay visually distinct, matching the rest of the
+// homepage's per-section colour identity.
+type SectionPaginationTone = "sky" | "blue" | "indigo";
 
 const TONE = {
   sky: {
-    ring: "border-sky-200/80 bg-white/85",
-    icon: "text-sky-700 hover:bg-sky-50 hover:text-cyan-600",
-    active: "text-sky-800",
-    divider: "text-cyan-400",
+    icon: "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
+    active: "text-sky-700",
+    fill: "bg-sky-500",
   },
   blue: {
-    ring: "border-blue-200/80 bg-white/85",
-    icon: "text-blue-700 hover:bg-blue-50 hover:text-sky-600",
-    active: "text-blue-800",
-    divider: "text-sky-400",
+    icon: "text-slate-500 hover:bg-blue-50 hover:text-blue-700",
+    active: "text-blue-700",
+    fill: "bg-blue-500",
   },
-} as const satisfies Record<
-  SectionPaginationTone,
-  { ring: string; icon: string; active: string; divider: string }
->;
+  indigo: {
+    icon: "text-slate-500 hover:bg-indigo-50 hover:text-indigo-700",
+    active: "text-indigo-700",
+    fill: "bg-indigo-500",
+  },
+} as const satisfies Record<SectionPaginationTone, { icon: string; active: string; fill: string }>;
 
 type SectionPaginationProps = {
   page: number;
@@ -53,35 +53,45 @@ export default function SectionPagination({
 }: SectionPaginationProps) {
   if (totalPages <= 1) return null;
   const t = TONE[tone];
+  const progress = totalPages > 1 ? (page - 1) / (totalPages - 1) : 1;
 
   return (
     <div
       role="group"
       aria-label={`Сторінка ${page} з ${totalPages}`}
-      className={`inline-flex items-center gap-0.5 rounded-full border ${t.ring} p-1 shadow-[0_6px_18px_-8px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm ${className}`}
+      className={`inline-flex items-center gap-2 ${className}`}
     >
       <button
         type="button"
         onClick={onPrev}
         disabled={!canGoPrev}
         aria-label="Попередня сторінка"
-        className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${t.icon} disabled:pointer-events-none disabled:opacity-30 sm:h-8 sm:w-8`}
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-200 ${t.icon} disabled:pointer-events-none disabled:opacity-25`}
       >
-        <ChevronLeft size={16} strokeWidth={2.8} />
+        <ChevronLeft size={17} strokeWidth={2.6} />
       </button>
-      <span className="inline-flex items-center gap-1 px-1.5 text-[11px] font-bold tabular-nums sm:text-xs">
-        <span className={`text-[15px] font-black ${t.active}`}>{page}</span>
-        <span className={`font-semibold ${t.divider}`}>/</span>
-        <span className="font-extrabold text-slate-500">{totalPages}</span>
-      </span>
+
+      <div className="flex flex-col items-center gap-1 px-0.5">
+        <span className="text-[11px] font-bold leading-none tabular-nums">
+          <span className={t.active}>{page}</span>
+          <span className="text-slate-400"> / {totalPages}</span>
+        </span>
+        <span aria-hidden="true" className="relative h-[3px] w-11 overflow-hidden rounded-full bg-slate-200/80">
+          <span
+            className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-300 ease-out ${t.fill}`}
+            style={{ width: `${Math.max(10, progress * 100)}%` }}
+          />
+        </span>
+      </div>
+
       <button
         type="button"
         onClick={onNext}
         disabled={!canGoNext}
         aria-label="Наступна сторінка"
-        className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 ${t.icon} disabled:pointer-events-none disabled:opacity-30 sm:h-8 sm:w-8`}
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors duration-200 ${t.icon} disabled:pointer-events-none disabled:opacity-25`}
       >
-        <ChevronRight size={16} strokeWidth={2.8} />
+        <ChevronRight size={17} strokeWidth={2.6} />
       </button>
     </div>
   );
