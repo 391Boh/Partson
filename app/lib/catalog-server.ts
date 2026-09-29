@@ -2717,6 +2717,27 @@ const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
 let fullCatalogCache: (FullCatalogSnapshot & { fetchedAt: number }) | null = null;
 let fullCatalogRefreshPromise: Promise<FullCatalogSnapshot> | null = null;
 
+// Called after an admin product edit (see app/api/product-update/route.ts).
+// This snapshot backs several fast, cache-only reads added this session
+// (promo price/percent for the catalog and product pages) that
+// clearAllOneCCache() in oneC.js knows nothing about — that function only
+// evicts the raw per-request response cache, not this derived, batched
+// snapshot. Without this, an edited product's promo price kept reading back
+// as its pre-edit value for up to FULL_CATALOG_FRESH_TTL_MS (30 minutes)
+// after a successful save, which is indistinguishable from "the edit didn't
+// take" to whoever made it. Rewinding fetchedAt (rather than clearing the
+// cache outright) puts it just past the fresh window so the very next read
+// still gets an instant answer while a real rescan runs in the background —
+// nulling it out instead would force that next read to block on a full
+// ~20-sequential-1C-call scan.
+export function invalidateFullCatalogSnapshot() {
+  if (!fullCatalogCache) return;
+  fullCatalogCache = {
+    ...fullCatalogCache,
+    fetchedAt: Date.now() - FULL_CATALOG_FRESH_TTL_MS - 1000,
+  };
+}
+
 const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
   const products: CatalogProduct[] = [];
   const promoKeys = new Set<string>();
