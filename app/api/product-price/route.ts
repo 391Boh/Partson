@@ -10,6 +10,7 @@ import {
 } from "app/lib/catalog-server";
 import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { getProductEditOverride } from "app/lib/product-edit-overrides";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -116,9 +117,24 @@ export async function GET(request: NextRequest) {
           hasPromoPromise,
         ]);
         const lookupPrices = { ...fallbackLookupPrices, ...detail.prices };
-        const priceEuro = lookupKeys
-          .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
+        // product-update/route.ts records the sell price 1C just confirmed
+        // for `code` right after a successful edit (see
+        // product-edit-overrides.ts). This client-triggered re-fetch fires
+        // within the same second as that save, and a live re-query of 1C's
+        // own price directory can lag behind its own write by a beat — the
+        // exact staleness class the override exists for on the product
+        // page's SSR path. Without checking it here too, an admin edits the
+        // price, the "Купити" panel immediately re-fetches, and 1C hands
+        // back the pre-edit number for one refresh cycle, reading as "the
+        // edit didn't take".
+        const overridePriceEuro = lookupKeys
+          .map((lookupKey) => getProductEditOverride(lookupKey)?.priceEuro)
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+        const priceEuro =
+          overridePriceEuro ??
+          lookupKeys
+            .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
+            .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
         const rawPromoPriceEuro = lookupKeys
           .map((lookupKey) => detail.promoPrices[lookupKey.trim().toLowerCase()])
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);

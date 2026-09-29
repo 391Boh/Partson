@@ -62,6 +62,7 @@ import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { SEO_TITLE_MAX_LENGTH } from "app/lib/seo-metadata";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { getProductEditOverride } from "app/lib/product-edit-overrides";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   getAllPricedProductSitemapEntries,
@@ -2033,6 +2034,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const hasResolvedCatalogProduct = Boolean(product);
   if (!product) {
     notFound();
+  }
+
+  // See product-edit-overrides.ts: an admin edit's confirmed fields are
+  // recorded there right after a successful save, specifically because the
+  // sitemap-derived fast path above (and its own live-refresh call, now
+  // fire-and-forget) can otherwise keep rendering pre-edit data for a given
+  // product indefinitely. Applied last, after every resolution branch above
+  // has settled on a final `product`, so an edit always wins regardless of
+  // which branch produced it.
+  const productEditOverride = getProductEditOverride(resolvedCode);
+  if (productEditOverride) {
+    product = { ...product, ...productEditOverride } as CatalogProduct;
   }
 
   const isModalView = false;

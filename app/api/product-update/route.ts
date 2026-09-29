@@ -5,6 +5,8 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
+import { invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
+import { setProductEditOverride } from "app/lib/product-edit-overrides";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
@@ -327,6 +329,7 @@ export async function POST(request: NextRequest) {
   // still return stale data even after the product was updated in 1C.
   clearAllOneCCache();
   clearCatalogPageRouteCache();
+  invalidateFullCatalogSnapshot();
   clearProductImageCacheForProduct(code);
   if (article) clearProductImageCacheForProduct(article);
   if (productCode) clearProductImageCacheForProduct(productCode);
@@ -397,6 +400,23 @@ export async function POST(request: NextRequest) {
   const hasUpdatedPrice =
     (typeof confirmedPriceEuro === "number" && Number.isFinite(confirmedPriceEuro) && confirmedPriceEuro > 0) ||
     (typeof confirmedCostPriceEuro === "number" && Number.isFinite(confirmedCostPriceEuro) && confirmedCostPriceEuro > 0);
+
+  // See product-edit-overrides.ts for why this exists: the product page's
+  // sitemap-derived fast path and its own live-refresh call (now
+  // fire-and-forget, not awaited) can both keep showing pre-edit data
+  // indefinitely without this — recording what 1C just confirmed here makes
+  // the edit visible on the very next request regardless.
+  const overridePatch = {
+    ...(confirmedName ? { name: confirmedName } : {}),
+    ...(confirmedCatalogNumber ? { article: confirmedCatalogNumber } : {}),
+    ...(producer !== undefined ? { producer } : {}),
+    ...(typeof confirmedQuantity === "number" && Number.isFinite(confirmedQuantity)
+      ? { quantity: confirmedQuantity }
+      : {}),
+    ...(typeof confirmedPriceEuro === "number" ? { priceEuro: confirmedPriceEuro } : {}),
+    ...(typeof confirmedCostPriceEuro === "number" ? { costPriceEuro: confirmedCostPriceEuro } : {}),
+  };
+  setProductEditOverride(code, overridePatch);
 
   return json({
     ok: true,

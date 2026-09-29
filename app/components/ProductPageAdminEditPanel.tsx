@@ -150,20 +150,23 @@ export default function ProductPageAdminEditPanel({
   description: initialDescription = "",
 }: ProductPageAdminEditPanelProps) {
   const router = useRouter();
-  // The mutation API routes revalidatePath() the product page server-side
-  // (see e.g. app/api/product-update/route.ts) right after clearing the 1C
-  // cache, so in principle router.refresh() just needs to re-fetch this
-  // route's RSC payload. In practice, Next.js 16 has a race between
-  // revalidateTag/revalidatePath actually landing and the very next
-  // router.refresh() picking it up (see the longer note on this in
-  // app/product/[code]/page.tsx above getResolvedProductRouteDataCached) —
-  // admins saw the edit panel update but the rest of the page (title, price,
-  // structured data) keep showing the pre-edit value until a manual reload.
-  // A second refresh shortly after is a cheap, safe way to win that race
-  // without having to fully pin down Next's cache timing.
+  // router.refresh() + a delayed second refresh used to live here, trying to
+  // out-wait a race between revalidateTag/revalidatePath actually landing
+  // server-side and the very next router.refresh() picking it up (see the
+  // longer note on this in app/product/[code]/page.tsx above
+  // getResolvedProductRouteDataCached) — admins saw the edit panel update
+  // but the rest of the page (title, price, structured data) keep showing
+  // the pre-edit value, and a guessed 400ms delay didn't always win that
+  // race either. product-edit-overrides.ts now makes this moot: the product
+  // page merges 1C's just-confirmed value on top of whatever the cache
+  // still says on every real invocation of that route, so the only thing
+  // actually required here is a genuine new request — no amount of
+  // router.refresh() timing matters once that happens. A hard reload always
+  // gets one, unlike router.refresh() which can still be served from the
+  // browser's own Router Cache for this route in some Next.js/Turbopack
+  // timing windows.
   const refreshPage = () => {
-    router.refresh();
-    window.setTimeout(() => router.refresh(), 400);
+    window.location.reload();
   };
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
