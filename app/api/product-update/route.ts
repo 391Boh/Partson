@@ -376,12 +376,34 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1С не підтвердила поточний залишок. Оновіть товар перед повторною зміною кількості." }, 502);
   }
 
+  // 1C's price_result echoes back its whole price row, not just the field(s)
+  // this request actually asked to change — editing only ЦінаЗакуп (cost
+  // price) still comes back with a price_result.ЦінаПрод, but as an
+  // unpopulated 0 rather than the product's real, unrelated sell price.
+  // Trusting that unconditionally overwrote a perfectly good sell price with
+  // 0 every time an admin edited only the cost or promo price — confirmed by
+  // testing directly against the API. Only trust 1C's echo for a field this
+  // request actually sent; otherwise there's nothing to confirm, so leave it
+  // undefined (setProductEditOverride below then leaves that field alone
+  // instead of clobbering it).
   const confirmedPriceEuro =
-    typeof parsed.price_result?.ЦінаПрод === "number" ? parsed.price_result.ЦінаПрод : priceEuro;
+    priceEuro === undefined
+      ? undefined
+      : typeof parsed.price_result?.ЦінаПрод === "number"
+        ? parsed.price_result.ЦінаПрод
+        : priceEuro;
   const confirmedCostPriceEuro =
-    typeof parsed.price_result?.ЦінаЗакуп === "number" ? parsed.price_result.ЦінаЗакуп : costPriceEuro;
+    costPriceEuro === undefined
+      ? undefined
+      : typeof parsed.price_result?.ЦінаЗакуп === "number"
+        ? parsed.price_result.ЦінаЗакуп
+        : costPriceEuro;
   const confirmedPromoPriceEuro =
-    typeof parsed.price_result?.Акція === "number" ? parsed.price_result.Акція : promoPriceEuro;
+    promoPriceEuro === undefined
+      ? undefined
+      : typeof parsed.price_result?.Акція === "number"
+        ? parsed.price_result.Акція
+        : promoPriceEuro;
   if (value.requirePriceConfirmation === true && hasPriceUpdate) {
     const confirmed = parsed.price_result;
     const matches = (expected: number | undefined, actual: unknown) => expected === undefined ||
