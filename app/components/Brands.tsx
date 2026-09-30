@@ -3,19 +3,19 @@
 import Image from "next/image";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Search, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Info, Search, ShoppingBag, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
-import { buildManufacturerPath } from "app/lib/catalog-links";
+import { buildCatalogProducerPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { brands } from "./brandsData";
 import { getManufacturerCounts, type ManufacturerCountsApiPayload } from "app/lib/manufacturer-counts-client";
 
-// 4 cols at every breakpoint, 2 rows per page.
+// Three columns, two rows per page.
 const ITEMS_PER_PAGE = 6;
 const SWIPE_INTENT_PX = 7;
 const SWIPE_VELOCITY_THRESHOLD = 0.34;
@@ -138,7 +138,6 @@ const BrandSearchInput = memo(
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onTouchStart={(e) => { e.currentTarget.focus(); }}
           onBlur={() => {
             if (!value) onCollapse?.();
           }}
@@ -155,13 +154,13 @@ const BrandSearchInput = memo(
           spellCheck={false}
           autoFocus
           aria-label="Пошук виробника"
-          className="h-10 w-full rounded-[13.5px] border-0 bg-white pl-10 pr-9 text-[14px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[color] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:text-slate-900 select-text sm:h-11"
+          className="h-10 w-full rounded-[13.5px] border-0 bg-white pl-10 pr-9 text-[16px] sm:text-[14px] font-semibold text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,1)] outline-none transition-[color] duration-300 placeholder:font-medium placeholder:text-slate-400 focus:text-slate-900 select-text sm:h-11"
         />
 
         {value && (
           <button
             type="button"
-            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
             onClick={() => {
               onChange("");
               onCollapse?.();
@@ -287,8 +286,16 @@ function BrandInfoPanel({
   brand: BrandItem;
   onClose: () => void;
 }) {
+  const manufacturerSlug = buildSeoSlug(brand.name);
+
   return (
-    <div className="flex min-h-[220px] flex-col rounded-[20px] border border-blue-100 bg-white/75 p-4 shadow-[0_18px_44px_-22px_rgba(30,64,175,0.28),inset_0_1px_0_#fff] sm:p-5">
+    <div className="relative flex min-h-[220px] flex-col overflow-hidden rounded-[20px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.88)_60%,rgba(224,242,254,0.84)_100%)] p-4 shadow-[0_18px_44px_-22px_rgba(30,64,175,0.28),inset_0_1px_0_#fff] sm:p-5">
+      {/* Same soft top hairline + corner glow language as the intro card
+          this panel sits beside, so the swap between grid/detail states
+          reads as one coherent surface instead of two different card
+          styles. */}
+      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
+      <span className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.18),transparent_70%)] blur-2xl" aria-hidden="true" />
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={brand.name}
@@ -296,26 +303,31 @@ function BrandInfoPanel({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="flex h-full flex-col"
+          className="relative flex h-full flex-col"
         >
           <div className="flex items-start justify-between gap-2">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
-              {brand.logo ? (
-                <Image
-                  src={brand.logo}
-                  alt={`Логотип виробника автозапчастин ${brand.name}`}
-                  width={64}
-                  height={48}
-                  quality={85}
-                  unoptimized={brand.logo.endsWith(".svg")}
-                  className="h-10 w-10 object-contain"
-                  onError={handleBrandLogoLoadError}
-                />
-              ) : (
-                <span className="text-[13px] font-black text-slate-600 tracking-tight">
-                  {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-blue-100/80 bg-white shadow-[0_6px_16px_-6px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]">
+                {brand.logo ? (
+                  <Image
+                    src={brand.logo}
+                    alt={`Логотип виробника автозапчастин ${brand.name}`}
+                    width={64}
+                    height={48}
+                    quality={85}
+                    unoptimized={brand.logo.endsWith(".svg")}
+                    className="h-10 w-10 object-contain"
+                    onError={handleBrandLogoLoadError}
+                  />
+                ) : (
+                  <span className="text-[13px] font-black text-slate-600 tracking-tight">
+                    {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
+                  </span>
+                )}
+              </span>
+              <h3 className="text-[17px] font-extrabold leading-tight text-slate-900 sm:text-[19px]">
+                {brand.name}
+              </h3>
             </div>
             <button
               type="button"
@@ -327,11 +339,7 @@ function BrandInfoPanel({
             </button>
           </div>
 
-          <h3 className="mt-3 text-[17px] font-extrabold leading-tight text-slate-900 sm:text-[19px]">
-            {brand.name}
-          </h3>
-
-          <p className="mt-2 flex-1 text-[13px] leading-[1.65] text-slate-600 sm:text-[14px]">
+          <p className="home-description mt-3 flex-1 text-[13px] leading-[1.65] text-slate-600 sm:text-[14px]">
             {brand.description}
           </p>
 
@@ -348,18 +356,35 @@ function BrandInfoPanel({
             ) : null}
           </div>
 
-          <SmartLink
-            href={buildManufacturerPath(buildSeoSlug(brand.name))}
-            prefetchOnIntent
-            className="group/cta mt-4 inline-flex items-center justify-center gap-1.5 rounded-[13px] bg-[linear-gradient(135deg,#0d9488,#0284c7)] px-4 py-2.5 text-[13px] font-bold text-white shadow-[0_10px_24px_-10px_rgba(8,145,178,0.55)] transition-transform duration-300 hover:-translate-y-0.5 active:translate-y-0"
-          >
-            Перейти до каталогу
-            <ArrowRight
-              size={15}
-              strokeWidth={2.6}
-              className="transition-transform duration-300 group-hover/cta:translate-x-0.5"
-            />
-          </SmartLink>
+          {/* Two distinct actions instead of one ambiguously-labeled CTA:
+              the catalog filtered to this producer's products (primary,
+              filled — matches the tile grid's teal/sky accent) and the
+              manufacturer's own SEO landing page (secondary, outlined —
+              same visual weight relationship as directoryPrimaryButtonClass/
+              directorySecondaryButtonClass on the /manufacturers pages). */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <SmartLink
+              href={buildCatalogProducerPath(brand.name)}
+              prefetchOnIntent
+              className="group/cta inline-flex flex-1 basis-[160px] items-center justify-center gap-1.5 rounded-[13px] bg-[linear-gradient(135deg,#0d9488,#0284c7)] px-4 py-2.5 text-[13px] font-bold text-white shadow-[0_10px_24px_-10px_rgba(8,145,178,0.55)] transition-transform duration-300 hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <ShoppingBag size={15} strokeWidth={2.4} aria-hidden />
+              Товари виробника
+              <ArrowRight
+                size={15}
+                strokeWidth={2.6}
+                className="transition-transform duration-300 group-hover/cta:translate-x-0.5"
+              />
+            </SmartLink>
+            <SmartLink
+              href={buildManufacturerPath(manufacturerSlug)}
+              prefetchOnIntent
+              className="group/cta2 inline-flex flex-1 basis-[130px] items-center justify-center gap-1.5 rounded-[13px] border border-blue-200 bg-white/80 px-4 py-2.5 text-[13px] font-bold text-blue-700 shadow-[0_6px_16px_-10px_rgba(30,64,175,0.3)] transition-colors duration-300 hover:border-blue-300 hover:bg-blue-50 active:translate-y-0"
+            >
+              <Info size={15} strokeWidth={2.4} aria-hidden />
+              Детальніше
+            </SmartLink>
+          </div>
         </motion.div>
       </AnimatePresence>
     </div>
@@ -432,10 +457,35 @@ export default function BrandCarousel({
   const canGoNext = safePage < totalPages - 1;
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
+  const scrollGuardRef = useRef(createPagedRailScrollGuard());
+  const currentBrandPageRef = useRef(safePage);
+  useEffect(() => { currentBrandPageRef.current = safePage; }, [safePage]);
+  const railResizeRef = useRef<ResizeObserver | null>(null);
+  const railFrameRef = useRef<number | null>(null);
+  const attachBrandPages = useCallback((node: HTMLDivElement | null) => {
+    railResizeRef.current?.disconnect();
+    if (railFrameRef.current !== null) cancelAnimationFrame(railFrameRef.current);
+    brandPagesRef.current = node;
+    if (!node) return;
+    let previousWidth = 0;
+    const align = () => {
+      const firstPage = node.querySelector<HTMLElement>('[data-brand-page]');
+      const width = firstPage ? parseFloat(getComputedStyle(firstPage).width) : node.clientWidth;
+      if (!width || width === previousWidth) return;
+      previousWidth = width;
+      scrollGuardRef.current.release();
+      node.style.scrollSnapType = '';
+      node.scrollTo({ left: currentBrandPageRef.current * width, behavior: 'auto' });
+    };
+    railFrameRef.current = requestAnimationFrame(align);
+    if (typeof ResizeObserver !== 'undefined') {
+      railResizeRef.current = new ResizeObserver(align);
+      railResizeRef.current.observe(node);
+    }
+  }, []);
   const suppressBrandClickRef = useRef(false);
   // Holds the scroll-driven page sync while a programmatic `scrollTo` (arrow
   // tap, swipe release, clamp) is still animating — see paged-rail-scroll.ts.
-  const scrollGuardRef = useRef(createPagedRailScrollGuard());
   const swipeRef = useRef<{
     pointerId: number;
     startX: number;
@@ -452,7 +502,7 @@ export default function BrandCarousel({
     const container = brandPagesRef.current;
     if (!container) return 0;
     const el = container.querySelector<HTMLElement>("[data-brand-page]");
-    return el?.offsetWidth ?? container.clientWidth;
+    return el ? parseFloat(getComputedStyle(el).width) : container.clientWidth;
   }, []);
   const scrollToBrandPage = useCallback(
     (targetPage: number, behavior: ScrollBehavior = "smooth") => {
@@ -461,15 +511,16 @@ export default function BrandCarousel({
       const pageWidth = getBrandPageWidth();
       if (!pageWidth) return;
       const left = targetPage * pageWidth;
-      scrollGuardRef.current.arm(left, behavior);
+      const resolvedBehavior = shouldReduceMotion ? "auto" : behavior;
+      scrollGuardRef.current.arm(left, resolvedBehavior);
       // Mandatory scroll-snap fights a smooth `scrollTo` in WebKit — the snap
       // engine yanks toward the nearest snap point while the animation runs,
       // which reads as a bounce. Drop snap for the duration of our own
       // animation; it is restored once the scroll settles (see the handler).
-      if (behavior === "smooth") container.style.scrollSnapType = "none";
-      container.scrollTo({ left, behavior });
+      if (resolvedBehavior === "smooth") container.style.scrollSnapType = "none";
+      container.scrollTo({ left, behavior: resolvedBehavior });
     },
-    [getBrandPageWidth]
+    [getBrandPageWidth, shouldReduceMotion]
   );
 
   const handleBrandPointerDown = useCallback(
@@ -483,6 +534,12 @@ export default function BrandCarousel({
       // previous gesture / arrow tap.
       scrollGuardRef.current.release();
       container.style.scrollSnapType = "";
+      // Let iOS/Android own touch scrolling, momentum and gesture direction.
+      // Custom pointer capture is reserved for dragging with a mouse.
+      if (event.pointerType !== "mouse") {
+        swipeRef.current = null;
+        return;
+      }
       swipeRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -635,6 +692,9 @@ export default function BrandCarousel({
 
   useEffect(() => {
     setPage(0);
+    currentBrandPageRef.current = 0;
+    scrollGuardRef.current.release();
+    suppressBrandClickRef.current = false;
     setSelectedBrand(null);
     const container = brandPagesRef.current;
     if (!container) return;
@@ -775,7 +835,7 @@ export default function BrandCarousel({
                 restating the heading. Was brands.length — the static seed
                 list's count (~124), which drifted from the live total
                 (~192) shown everywhere else on this same block. */}
-            <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+            <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
               <span className="font-semibold text-slate-800">{visibleBrandCount}+ виробників</span> у
               каталозі — оригінальні запчастини та перевірені{" "}
               <span className="font-semibold text-blue-700">аналоги</span> для
@@ -887,7 +947,7 @@ export default function BrandCarousel({
                   transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <div
-                    ref={brandPagesRef}
+                    ref={attachBrandPages}
                     onScroll={handleBrandPagesScroll}
                     onPointerDown={handleBrandPointerDown}
                     onPointerMove={handleBrandPointerMove}
@@ -901,7 +961,7 @@ export default function BrandCarousel({
                     }}
                     role="region"
                     aria-label="Сторінки виробників"
-                    className="brand-pages-swipe no-scrollbar cursor-grab touch-pan-y select-none overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
+                    className="brand-pages-swipe no-scrollbar cursor-grab touch-auto select-none overflow-x-auto overflow-y-hidden overscroll-x-contain [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]"
                   >
                     <div className="flex">
                       {(brandPages as BrandItem[][]).map((pageBrands, pageIndex) => (
@@ -913,7 +973,7 @@ export default function BrandCarousel({
                           className="w-full min-w-0 shrink-0 snap-start bg-transparent px-1.5 [scroll-snap-stop:always] sm:px-2"
                         >
                           {Math.abs(pageIndex - safePage) <= 1 ? (
-                            <div className={`grid grid-cols-3 gap-2.5 place-items-stretch sm:gap-3${pageIndex === 0 ? " reveal-grid" : ""}`}>
+                            <div className={`grid min-h-[286px] grid-cols-3 content-start gap-2.5 place-items-stretch sm:min-h-[320px] sm:gap-3${pageIndex === 0 ? " reveal-grid" : ""}`}>
                               {pageBrands.map((brand: BrandItem, idx: number) => (
                                 <BrandTile
                                   key={`${brand.name}-${pageIndex}-${idx}`}
@@ -926,7 +986,7 @@ export default function BrandCarousel({
                             </div>
                           ) : (
                             <div
-                              className="h-[98px] bg-transparent sm:h-[110px]"
+                              className="h-[286px] bg-transparent sm:h-[320px]"
                               aria-hidden="true"
                             />
                           )}

@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+/* Only application sources generate utilities; scripts, reports and build
+   artifacts must not inflate the render-blocking stylesheet. */
+@source "./";
 
 @font-face {
   font-family: "Exo 2";
@@ -2530,7 +2533,8 @@ html.is-scrolling .card-metal::after {
   to { opacity: 1; }
 }
 
-.productcreate-panel-in {
+.productcreate-panel-in,
+.product-edit-panel-in {
   animation: productCreatePanelIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -2540,7 +2544,8 @@ html.is-scrolling .card-metal::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .productcreate-panel-in {
+  .productcreate-panel-in,
+  .product-edit-panel-in {
     animation: none;
   }
 }
@@ -3281,12 +3286,10 @@ h4, h5, h6 {
   background: linear-gradient(120deg, rgba(37, 99, 235, 1), rgba(14, 165, 233, 0.98), rgba(6, 182, 212, 0.98));
 }
 
-/* Homepage manufacturer pages use an intentional pointer gesture so a swipe
-   that starts over a clickable logo never turns into an accidental selection.
-   Vertical pan remains native; only an established horizontal drag gets this
-   lightweight visual state. */
+/* Touch scrolling stays native in both directions. Mouse dragging uses
+   pointer capture and the lightweight visual state below. */
 .overflow-x-auto.brand-pages-swipe {
-  touch-action: pan-y;
+  touch-action: pan-x pan-y pinch-zoom;
   scroll-behavior: auto;
 }
 
@@ -4886,8 +4889,8 @@ body::-webkit-scrollbar-corner,
 
 .app-panel-enter {
   transform-origin: top right;
-  will-change: opacity, transform, filter;
-  animation: appPanelEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+  animation: appPanelEnter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .app-panel-scroll {
@@ -5005,37 +5008,43 @@ body::-webkit-scrollbar-corner,
 .catalog-filter-search-shell {
   position: relative;
   display: flex;
-  min-height: 44px;
+  min-height: 46px;
   align-items: center;
-  border: 1px solid rgba(186, 230, 253, 0.92);
+  /* A distinctly saturated border + tinted fill, not the near-white shell
+     this used to be — every filter window (category/producer/car-brand
+     search all share this one class) sat the search box on a background
+     barely different from the panel around it, so it read as just another
+     row instead of "the search box". */
+  border: 1.5px solid rgba(14, 165, 233, 0.45);
   border-radius: 15px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(240, 249, 255, 0.94));
+  background: linear-gradient(145deg, rgba(224, 242, 254, 0.85), rgba(204, 251, 241, 0.55));
   padding: 4px;
   box-shadow:
-    0 8px 20px rgba(14, 116, 144, 0.09),
-    inset 0 1px 0 #fff;
+    0 10px 24px rgba(14, 116, 144, 0.14),
+    0 0 0 3px rgba(125, 211, 252, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: border-color 220ms ease, box-shadow 220ms ease, background-position 300ms ease;
 }
 
 .catalog-filter-search-shell:focus-within {
-  border-color: rgba(14, 165, 233, 0.72);
+  border-color: rgba(14, 165, 233, 0.85);
   box-shadow:
-    0 12px 26px rgba(14, 116, 144, 0.14),
-    0 0 0 3px rgba(125, 211, 252, 0.16),
-    inset 0 1px 0 #fff;
+    0 14px 30px rgba(14, 116, 144, 0.2),
+    0 0 0 4px rgba(125, 211, 252, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .catalog-filter-search-icon {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   align-items: center;
   justify-content: center;
   border-radius: 11px;
   background: linear-gradient(145deg, #0284c7, #2563eb 56%, #0d9488);
   color: #fff;
-  box-shadow: 0 7px 16px rgba(14, 116, 144, 0.23), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 18px rgba(14, 116, 144, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 svg.catalog-filter-search-icon {
@@ -5044,7 +5053,7 @@ svg.catalog-filter-search-icon {
 
 .catalog-filter-search-input {
   width: 100%;
-  height: 34px;
+  height: 36px;
   min-width: 0;
   border: 0;
   border-radius: 10px;
@@ -5085,6 +5094,34 @@ svg.catalog-filter-search-icon {
     0 9px 20px rgba(15, 23, 42, 0.07),
     inset 0 1px 0 #fff,
     inset 0 -1px 0 rgba(14, 165, 233, 0.08);
+}
+
+/* Groups the panel's controls into three even columns (lg:grid-cols-3 in
+   filtrtion.tsx) instead of two mismatched-height ones — a short right
+   column used to leave a large empty band under it while the panel's own
+   background kept going, unfilled. Each block gets its own light card so
+   the three columns read as one balanced row instead of loose controls
+   floating in whitespace. */
+.catalog-price-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(186, 230, 253, 0.55);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.6), rgba(240, 249, 255, 0.4));
+  padding: 0.6rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.catalog-price-block-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  padding-inline: 0.1rem;
 }
 
 .catalog-price-panel-header {
@@ -5173,19 +5210,30 @@ svg.catalog-filter-search-icon {
     grid-auto-columns: minmax(150px, calc((100% - 1.5rem) / 4));
   }
 
-  .catalog-filter-price-panel {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    align-content: center;
-    gap: 0.55rem;
-  }
+  /* .catalog-filter-price-panel itself is NOT a grid anymore — the header
+     and the three-column control layout below it are both single, full-width
+     children stacked in the panel's own flex column. The three-way column
+     split (sort+range / presets / promo+toggles) lives on that inner wrapper
+     via Tailwind's lg:grid-cols-3, gated at 1024px, not here at 640px. A
+     stale display:grid on the OUTER panel used to confine that entire inner
+     wrapper to a single 1fr-wide grid cell (its sibling being the header,
+     forced to span both columns), leaving roughly half the panel's width
+     permanently blank regardless of what the inner wrapper did — exactly the
+     "much of the window is empty" bug reported against this panel. */
 
-  .catalog-price-toggle-grid {
-    grid-column: 1 / -1;
-  }
-
+  /* Presets card is full panel width here (the lg: 3-column split below
+     hasn't kicked in yet), so 4-across uses that width well. */
   .catalog-price-presets {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  /* Above lg, the presets card is only ~1/3 of the panel (see
+     lg:grid-cols-3 on the wrapper in filtrtion.tsx) — 4-across gets too
+     cramped there, so drop back to a 2x2 grid. */
+  .catalog-price-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -6420,30 +6468,23 @@ svg.catalog-filter-search-icon {
   }
 }
 
+/* Profile/orders/contacts (and auth) share this entrance via .app-panel-enter.
+   Was a busy multi-stage wobble — rotate, blur, saturate/brightness pumping,
+   two overshoot corrections after the main move — reads as gimmicky rather
+   than polished, and the blur+filter changes force a paint on every frame
+   instead of a compositor-only animation. Replaced with a single clean
+   fade + gentle rise + scale-up, still enough motion to read as "arriving"
+   from its trigger (top-right origin, matching where these panels open
+   from) without the busywork. */
 @keyframes appPanelEnter {
-  0% {
+  from {
     opacity: 0;
-    transform: translate3d(30px, -16px, 0) scale(0.82) rotate(2.2deg);
-    filter: saturate(0.78) brightness(0.86) blur(5px);
+    transform: translate3d(0, -10px, 0) scale(0.96);
   }
 
-  45% {
+  to {
     opacity: 1;
-    filter: saturate(1.1) brightness(1.04) blur(0);
-  }
-
-  70% {
-    transform: translate3d(-4px, 3px, 0) scale(1.035) rotate(-0.6deg);
-  }
-
-  88% {
-    transform: translate3d(1px, -1px, 0) scale(0.99) rotate(0.15deg);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
-    filter: saturate(1) brightness(1) blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -7188,7 +7229,7 @@ svg.catalog-filter-search-icon {
 .home-static .home-intro-refined {
   display: flex;
   flex-direction: column;
-  gap: clamp(0.875rem, 1.4vw, 1.25rem);
+  gap: 40px;
   height: auto;
 }
 
@@ -7199,17 +7240,17 @@ svg.catalog-filter-search-icon {
 .home-static .home-intro-identity {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .home-static .home-intro-icon {
   display: grid;
-  flex: 0 0 42px;
-  height: 42px;
+  flex: 0 0 32px;
+  height: 32px;
   place-items: center;
   border: 1px solid rgb(125 211 252 / 35%);
-  border-radius: 14px;
+  border-radius: 10px;
   color: #e0f2fe;
   background: linear-gradient(145deg, rgb(56 189 248 / 24%), rgb(14 116 144 / 12%));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), 0 8px 24px rgb(2 6 23 / 16%);
@@ -7219,75 +7260,45 @@ svg.catalog-filter-search-icon {
   color: #bae6fd;
   font-size: 13px;
   font-weight: 700;
+  font-variation-settings: "wght" 700;
   letter-spacing: 0.06em;
   line-height: 1.4;
   text-transform: uppercase;
 }
 
 .home-static .home-intro-refined h1 {
-  max-width: 19ch;
+  max-width: 24ch;
   color: #fff;
-  font-size: clamp(1.75rem, 3.4vw, 2.75rem);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
   font-weight: 800;
+  font-variation-settings: "wght" 800;
   letter-spacing: -0.03em;
   line-height: 1.08;
   text-shadow: 0 2px 16px rgb(2 6 23 / 35%);
 }
 
 .home-static .home-intro-refined h1 > span {
-  display: block;
+  display: inline;
   color: #7dd3fc;
 }
 
 .home-static .home-intro-refined .home-intro-subtitle {
   max-width: 56ch;
   margin-top: 10px;
-  padding-left: 14px;
-  border-left: 2px solid #38bdf8;
-  color: #e0f2fe;
-  font-size: clamp(0.875rem, 1.3vw, 1rem);
-  font-weight: 500;
-  line-height: 1.5;
+  padding-left: 0;
+  color: #f0f7ff;
+  font-size: clamp(0.9375rem, 1.4vw, 1.0625rem);
+  font-weight: 600;
+  font-variation-settings: "wght" 600;
+  line-height: 1.6;
+  text-shadow: 0 1px 4px rgb(2 6 23 / 24%);
   text-wrap: pretty;
 }
 
-.home-static .home-intro-facts {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 12px;
-}
-
-.home-static .home-intro-facts li {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  color: #e0f2fe;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-align: right;
-}
-
-.home-static .home-intro-facts-icon {
-  display: grid;
-  flex: 0 0 26px;
-  height: 26px;
-  place-items: center;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 9px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
-}
-
-.home-static .home-intro-facts-icon-cyan {
-  color: #e0f2fe;
-  background: linear-gradient(145deg, rgb(56 189 248 / 28%), rgb(14 116 144 / 14%));
-}
-
-.home-static .home-intro-facts-icon-emerald {
-  color: #ecfdf5;
-  background: linear-gradient(145deg, rgb(52 211 153 / 28%), rgb(6 95 70 / 14%));
+.home-static .home-intro-refined .home-intro-subtitle strong {
+  color: #fff;
+  font-weight: 700;
+  font-variation-settings: "wght" 700;
 }
 
 .home-static .home-feature-links {
@@ -7319,8 +7330,8 @@ svg.catalog-filter-search-icon {
 
 .home-static .home-feature-image {
   position: relative;
-  flex: 0 0 96px;
-  min-height: 144px;
+  flex: 0 0 108px;
+  min-height: 160px;
   background: #0c2439;
 }
 
@@ -7335,22 +7346,24 @@ svg.catalog-filter-search-icon {
   flex-direction: column;
   align-items: start;
   gap: 8px;
-  padding: 16px 12px;
+  padding: 18px 14px;
 }
 
 .home-static .home-feature-label {
   color: #7dd3fc;
   font-size: 10px;
   font-weight: 700;
+  font-variation-settings: "wght" 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .home-static .home-feature-copy h2 {
   color: #f8fafc;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
+  font-size: 16px;
+  font-weight: 750;
+  font-variation-settings: "wght" 750;
+  line-height: 1.35;
   text-wrap: pretty;
 }
 
@@ -7373,7 +7386,8 @@ svg.catalog-filter-search-icon {
   padding-top: 4px;
   color: #bae6fd;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  font-variation-settings: "wght" 700;
 }
 
 @container (max-width: 580px) {
@@ -7384,15 +7398,15 @@ svg.catalog-filter-search-icon {
 
 @media (max-width: 479px) {
   .home-static .home-feature-image {
-    flex-basis: 80px;
-    min-height: 128px;
+    flex-basis: 88px;
+    min-height: 140px;
   }
 }
 
 /* Article covers are landscape images. Preserve the whole cover instead of
    magnifying a narrow centre crop to fill the tall service thumbnail slot. */
 .home-static .home-feature-image-blog {
-  flex: 0 0 120px;
+  flex: 0 0 136px;
   min-height: 0;
   aspect-ratio: 4 / 3;
   align-self: center;
@@ -7403,7 +7417,7 @@ svg.catalog-filter-search-icon {
 
 @media (max-width: 479px) {
   .home-static .home-feature-image-blog {
-    flex-basis: 96px;
+    flex-basis: 104px;
     margin-left: 8px;
   }
 }
@@ -7427,4 +7441,168 @@ html[data-admin-copy="true"] body * {
   -webkit-user-select: text !important;
   user-select: text !important;
   -webkit-touch-callout: default !important;
+}
+
+/* Native scroll reveals: no scroll listeners, measurements or layout changes.
+   Unsupported browsers and reduced-motion devices keep the static design. */
+.home-scroll-seam {
+  position: absolute;
+  inset: 0 8% auto;
+  z-index: 5;
+  height: 2px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(var(--home-depth-color, 14, 165, 233) / 60%), #e0f2fe, rgb(var(--home-depth-color, 14, 165, 233) / 60%), transparent);
+}
+
+@keyframes homeSectionSlide {
+  from { opacity: 0.55; translate: var(--home-slide-x, 0px) 18px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes homeSeamUnfold {
+  from { opacity: 0.25; scale: 0.35 1; }
+  to { opacity: 1; scale: 1 1; }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html:not(.reduce-scroll-effects) .home-static :is(.home-slot-auto, .home-slot-product, .home-slot-brands) {
+      view-timeline-name: --home-section-entry;
+      view-timeline-axis: block;
+    }
+
+    html:not(.reduce-scroll-effects) .home-static .home-slot-auto { --home-slide-x: -14px; }
+    html:not(.reduce-scroll-effects) .home-static .home-slot-product { --home-slide-x: 14px; }
+    html:not(.reduce-scroll-effects) .home-static .home-slot-brands { --home-slide-x: -14px; }
+
+    html:not(.reduce-scroll-effects) .home-static .home-slot-ready :is(.reveal-head, .reveal-search) {
+      animation: homeSectionSlide 1ms linear both;
+      animation-timeline: --home-section-entry;
+      animation-range: entry 0% entry 100%;
+    }
+
+    html:not(.reduce-scroll-effects) .home-static .home-scroll-seam {
+      animation: homeSeamUnfold 1ms linear both;
+      animation-timeline: --home-section-entry;
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}
+
+/* Stronger descriptions on the homepage, with distinct light/dark tones.
+   Each needs its own font-variation-settings alongside font-weight — this
+   is plain CSS, not a Tailwind utility class, so it isn't covered by the
+   global .font-* overrides added elsewhere for the same inherited
+   font-variation-settings ("wght" 630 from body) issue: without it, these
+   font-weight values were silently ignored. */
+.home-static .home-description {
+  color: #24364b;
+  font-weight: 600;
+  font-variation-settings: "wght" 600;
+  text-shadow: none;
+}
+
+.home-static .home-description :is(strong, .font-semibold) {
+  font-weight: 750;
+  font-variation-settings: "wght" 750;
+}
+
+.home-static .home-story-grid dd {
+  color: #334155;
+  font-weight: 500;
+  font-variation-settings: "wght" 500;
+}
+
+/* Manufacturer detail page — the brand logo itself stays static (no
+   spinning/pulsing chrome competing with the identity it's showing), but
+   drifts a few pixels against the page as the hero scrolls past — a real
+   parallax tied to the browser's own scroll position via a CSS scroll-
+   driven animation, not a fixed-duration one. `view-timeline-name` is set
+   on the dedicated hero wrapper below (not the shared `.card-metal` class,
+   which is used all over the site) so this never leaks into unrelated
+   cards. Falls back to a plain static frame on browsers without
+   `animation-timeline: view()` support (Safari at the time of writing) —
+   see the @supports gate. */
+.manufacturer-logo-frame {
+  will-change: transform;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .manufacturer-hero-section {
+      view-timeline-name: --manufacturer-hero-entry;
+      view-timeline-axis: block;
+    }
+    .manufacturer-hero-section .manufacturer-logo-frame {
+      animation: manufacturerLogoParallax 1ms linear both;
+      animation-timeline: --manufacturer-hero-entry;
+      animation-range: cover 0% cover 100%;
+    }
+  }
+}
+@keyframes manufacturerLogoParallax {
+  0% {
+    transform: translateY(-18px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(18px);
+  }
+}
+
+/* Slow-drifting aurora blobs behind the manufacturer hero — same
+   radial-gradient-blob language as the rest of the site's section glows,
+   but actually in motion here (very slowly) instead of static, so the hero
+   itself feels alive without competing with the readable content on top of
+   it (blurred, low opacity, GPU-cheap transform-only animation). */
+.manufacturer-hero-aurora {
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.75;
+  background-image:
+    radial-gradient(ellipse 46% 40% at 12% 18%, rgba(56, 189, 248, 0.22), transparent 68%),
+    radial-gradient(ellipse 40% 36% at 88% 12%, rgba(20, 184, 166, 0.18), transparent 66%),
+    radial-gradient(ellipse 50% 42% at 50% 100%, rgba(99, 102, 241, 0.12), transparent 70%);
+  filter: blur(2px);
+  animation: manufacturerAuroraDrift 22s ease-in-out infinite alternate;
+}
+@keyframes manufacturerAuroraDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(1.5%, -2%, 0) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .manufacturer-hero-aurora {
+    animation: none;
+  }
+}
+
+/* Quick-jump pills under the manufacturer hero's intro — a small in-page
+   nav so a long brand page (hero → about → groups → products) reads as a
+   structured document instead of one long scroll with no map. */
+.manufacturer-quicknav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+  border-radius: 9999px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.375rem 0.75rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0c4a6e;
+  transition: background-color 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.manufacturer-quicknav-pill:hover {
+  background-color: #fff;
+  border-color: rgba(14, 165, 233, 0.4);
+  transform: translateY(-1px);
 }

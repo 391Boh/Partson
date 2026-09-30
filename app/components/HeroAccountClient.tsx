@@ -18,6 +18,9 @@ type HeroAccountClientProps = {
 
 const actionButtonBase = [
   "inline-flex",
+  "flex-1",
+  "min-w-0",
+  "whitespace-nowrap",
   "relative",
   "items-center",
   "gap-2",
@@ -26,7 +29,7 @@ const actionButtonBase = [
   "rounded-[10px]",
   "border",
   "px-5",
-  "py-3",
+  "py-2.5",
   "font-ui",
   "text-[12px]",
   "font-bold",
@@ -523,15 +526,6 @@ export default function HeroAccountClient({
                 Додати VIN номер
               </span>
             </button>
-            {profile ? (
-              <HeroSavedProfile
-                profile={profile}
-                onOpenCatalogForCars={openCatalogForCars}
-                onOpenDeliverySettings={openDeliverySettings}
-                onDeleteCar={handleDeleteCar}
-                onDeleteVin={handleDeleteVin}
-              />
-            ) : null}
           </>
         ) : (
           <>
@@ -570,6 +564,28 @@ export default function HeroAccountClient({
           </>
         )}
         </div>
+        {/* Fixed-size slot for saved cars/VINs/delivery, reserved the moment
+            a user is authorized — not only once `profile` itself loads —
+            so the panel's height never changes between "just logged in,
+            nothing loaded yet", "logged in, nothing saved" and "logged in,
+            one thing saved" (the common cases). h-20 here left a visibly
+            empty gap below a single saved chip — sized for two rows when
+            most authorized users only ever have zero or one. Snugged to fit
+            exactly one row; a user with two or more scrolls inside this box
+            instead of growing the panel. */}
+        {user && (
+          <div className="app-panel-scroll flex h-10 w-full min-w-0 flex-col items-center justify-start gap-1.5 overflow-y-auto pr-0.5">
+            {profile ? (
+              <HeroSavedProfile
+                profile={profile}
+                onOpenCatalogForCars={openCatalogForCars}
+                onOpenDeliverySettings={openDeliverySettings}
+                onDeleteCar={handleDeleteCar}
+                onDeleteVin={handleDeleteVin}
+              />
+            ) : null}
+          </div>
+        )}
       </>
     );
   })();
@@ -583,7 +599,7 @@ export default function HeroAccountClient({
   // tagline/buttons block down below it, no matter how the block below was
   // told to align itself — the real fix was here, not there.
   const benefits = (
-    <div className="flex w-full min-w-0 flex-col space-y-3">
+    <div className="flex w-full min-w-0 flex-col space-y-2.5">
       <div className="flex items-center justify-start gap-3">
         {/* Was wrapped in a bordered rounded-full badge span — now just the
             bare icon, no container, so it reads as a bigger standalone
@@ -645,8 +661,8 @@ export default function HeroAccountClient({
                 onClick={onClick}
                 className={
                   tone === "success"
-                    ? "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-emerald-300/40 bg-emerald-400/[0.14] px-3.5 py-3 text-left shadow-[0_4px_14px_rgba(16,185,129,0.20)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-emerald-200/65 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(52,211,153,0.22)_0%,rgba(255,255,255,0.14)_100%)]"
-                    : "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/18 bg-white/14 px-3.5 py-3 text-left shadow-[0_4px_14px_rgba(2,6,23,0.24)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.18)_0%,rgba(255,255,255,0.14)_100%)]"
+                    ? "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-emerald-300/40 bg-emerald-400/[0.14] px-3.5 py-2.5 text-left shadow-[0_4px_14px_rgba(16,185,129,0.20)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-emerald-200/65 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(52,211,153,0.22)_0%,rgba(255,255,255,0.14)_100%)]"
+                    : "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/18 bg-white/14 px-3.5 py-2.5 text-left shadow-[0_4px_14px_rgba(2,6,23,0.24)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.18)_0%,rgba(255,255,255,0.14)_100%)]"
                 }
               >
                 <span

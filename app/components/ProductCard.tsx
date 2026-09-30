@@ -355,6 +355,14 @@ const [quickProducerSuggestions, setQuickProducerSuggestions] = useState<string[
 const [quickProducerActiveSug, setQuickProducerActiveSug] = useState(-1);
 const producerSuggestAbortRef = useRef<AbortController | null>(null);
 const [displayProducer, setDisplayProducer] = useState(producer);
+// setDisplayProducer(quickProducerVal.trim()) below shows a saved producer
+// edit immediately, before the parent's own item.producer catches up. But
+// with nothing syncing it back, this got stuck on whatever value that was
+// (or the one from mount) forever after — including when the catalog's live
+// background refresh (useLiveCatalogRefresh) later pushes a genuinely fresh
+// producer name into item.producer, which this card would otherwise never
+// pick up without a full remount.
+useEffect(() => setDisplayProducer(producer), [producer]);
 
 // Quick quantity edit (receipt / sale)
 const [quickEditQty, setQuickEditQty] = useState(false);

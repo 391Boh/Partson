@@ -48,7 +48,7 @@ export default function HeroBlogCard() {
               fill
               unoptimized={post.unoptimized}
               quality={75}
-              sizes="(max-width: 479px) 96px, 120px"
+              sizes="(max-width: 479px) 104px, 136px"
               className="object-contain"
             />
           </div>

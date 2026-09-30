@@ -13,6 +13,7 @@ import {
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
+import CatalogLoaderCard from "app/components/CatalogLoaderCard";
 
 interface CategoryProps {
   selectedCategories: string[];
@@ -850,9 +851,8 @@ const Category: React.FC<CategoryProps> = ({
         className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white"
       >
         {loading && (
-          <div className="py-6 text-center text-[11px] text-slate-400">
-            <div className="loader mx-auto mb-2" />
-            {"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."}
+          <div className="flex justify-center py-6">
+            <CatalogLoaderCard label="\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0439" />
           </div>
         )}
 
@@ -868,7 +868,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Результати пошуку категорій"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
+                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
               >
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
@@ -905,7 +905,7 @@ const Category: React.FC<CategoryProps> = ({
                   <HorizontalDirectoryRail
                     ariaLabel="Категорії автозапчастин"
                     rows={2}
-                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
+                    className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
                   >
                     {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
@@ -955,7 +955,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Групи автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
+                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
               >
                 {filteredGroupItems.length > 0 ? (
                   filteredGroupItems.map((group) => {
@@ -995,7 +995,7 @@ const Category: React.FC<CategoryProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Підгрупи автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
+                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
               >
                 {filteredSubgroupItems.length > 0 ? (
                   filteredSubgroupItems.map((item) => {

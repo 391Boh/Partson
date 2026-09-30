@@ -64,7 +64,15 @@ async function main() {
   );
 
   const snapshot = await getGoogleMerchantFeedSnapshot();
-  const outputDir = join(process.cwd(), "public");
+  // Not public/ — a file there is auto-served by Next.js at its matching
+  // URL, which collides with app/google-merchant-feed.xml/route.ts (the
+  // actual serving endpoint, which reads this file from disk rather than
+  // over HTTP). Both claiming /google-merchant-feed.xml made Next.js refuse
+  // to resolve the route at all ("conflicting public file and page file"),
+  // returning 500 for the URL Google Merchant Center actually fetches —
+  // .cache/ is gitignored build output, readable by the route the same way,
+  // without being served directly.
+  const outputDir = join(process.cwd(), ".cache");
   const outputPath = join(outputDir, "google-merchant-feed.xml");
 
   mkdirSync(outputDir, { recursive: true });

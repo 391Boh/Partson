@@ -5,6 +5,7 @@ import {
   fetchEuroRate,
   fetchPriceEuroMapByLookupKeys,
   fetchPromoAvailabilityByLookupKeys,
+  getSnapshotPriceLookup,
   toPriceUah,
   type PromoAvailability,
 } from "app/lib/catalog-server";
@@ -72,7 +73,20 @@ export async function GET(request: NextRequest) {
     const payloadPromise =
       existing ??
       (async (): Promise<ProductPricePayload> => {
-        const priceMapPromise = fetchPriceEuroMapByLookupKeys(lookupKeys, {
+        // Same fix as /api/catalog-prices: resolve whatever the warm
+        // full-catalog snapshot already knows in memory first, so this
+        // never waits on a live 1C round trip purely to re-confirm a price
+        // (and, via the same Promise.all below, hold the promo badge
+        // hostage to it) the last full scan already answered.
+        const snapshotPriceByKey = getSnapshotPriceLookup(lookupKeys);
+        const snapshotPrices: Record<string, number> = {};
+        for (const [key, entry] of Object.entries(snapshotPriceByKey)) {
+          if (entry.priceEuro != null) snapshotPrices[key] = entry.priceEuro;
+        }
+        const unresolvedPriceLookupKeys = lookupKeys.filter(
+          (key) => snapshotPrices[key.trim().toLowerCase()] == null
+        );
+        const priceMapPromise = fetchPriceEuroMapByLookupKeys(unresolvedPriceLookupKeys, {
           sourceTimeoutMs: 750,
           sourceCacheTtlMs: 0,
           timeoutMs: 900,
@@ -116,7 +130,7 @@ export async function GET(request: NextRequest) {
           detailPromise,
           hasPromoPromise,
         ]);
-        const lookupPrices = { ...fallbackLookupPrices, ...detail.prices };
+        const lookupPrices = { ...snapshotPrices, ...fallbackLookupPrices, ...detail.prices };
         // product-update/route.ts records the sell price 1C just confirmed
         // for `code` right after a successful edit (see
         // product-edit-overrides.ts). This client-triggered re-fetch fires

@@ -104,23 +104,23 @@ const Hero = () => {
               "online catalogue" intro line + VIN/analog/delivery chips
               beneath it, split by a hairline. */}
           <div
-            className="hero-account-surface flex min-w-0 flex-col justify-center gap-4 rounded-[24px] border border-white/30 bg-slate-950/70 p-4 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-5"
+            className="hero-account-surface flex min-w-0 flex-col justify-center gap-3 rounded-[24px] border border-white/30 bg-slate-950/70 p-3.5 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-4"
           >
             <LazyHeroAccountClient variant="panel" />
 
-            <div className="border-t border-white/12 pt-4">
+            <div className="border-t border-white/12 pt-3">
               <div className="grid grid-cols-3 gap-2">
-                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-200/40 bg-cyan-300/15 px-2 py-2.5 text-center">
+                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-cyan-200/40 bg-cyan-300/15 px-2 py-2 text-center">
                   <Factory className="h-4 w-4 text-cyan-100" strokeWidth={2.2} aria-hidden="true" />
                   <span className="text-[16px] font-black leading-none text-white sm:text-[18px]">130+</span>
                   <span className="text-[9px] font-bold uppercase leading-snug tracking-[0.06em] text-cyan-100/80 sm:text-[9.5px]">виробників</span>
                 </span>
-                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-white/30 bg-white/12 px-2 py-2.5 text-center">
+                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-white/30 bg-white/12 px-2 py-2 text-center">
                   <Package className="h-4 w-4 text-white" strokeWidth={2.2} aria-hidden="true" />
                   <span className="text-[15px] font-black leading-none text-white sm:text-[17px]">10 000+</span>
                   <span className="text-[9px] font-bold uppercase leading-snug tracking-[0.06em] text-white/75 sm:text-[9.5px]">товарів</span>
                 </span>
-                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-emerald-200/40 bg-emerald-300/15 px-2 py-2.5 text-center">
+                <span className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-emerald-200/40 bg-emerald-300/15 px-2 py-2 text-center">
                   <Car className="h-4 w-4 text-emerald-100" strokeWidth={2.2} aria-hidden="true" />
                   <span className="text-[16px] font-black leading-none text-white sm:text-[18px]">60+</span>
                   <span className="text-[9px] font-bold uppercase leading-snug tracking-[0.06em] text-emerald-100/80 sm:text-[9.5px]">марок авто</span>

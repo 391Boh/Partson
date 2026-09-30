@@ -23,6 +23,10 @@ export type ProductAdminEditFields = {
   category?: string;
   receipt?: number;
   sale?: number;
+  // Absolute set — unlike receipt/sale (a delta), this replaces the current
+  // stock level outright. Used by the full-edit form, where the admin edits
+  // "the current quantity" directly rather than recording a movement.
+  quantity?: number;
 };
 
 export type ProductAdminMutationResult = {
@@ -93,7 +97,8 @@ export async function saveProductAdminFields(
     data.subGroup !== undefined ||
     data.category !== undefined ||
     data.receipt !== undefined ||
-    data.sale !== undefined
+    data.sale !== undefined ||
+    data.quantity !== undefined
   ) {
     // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
     // Send Код (internal code) + article (current catalog number) on every request.
@@ -114,6 +119,7 @@ export async function saveProductAdminFields(
     if (data.category !== undefined) productUpdateBody.category = data.category;
     if (data.receipt !== undefined) productUpdateBody["Поступлення"] = data.receipt;
     if (data.sale !== undefined) productUpdateBody["Реалізація"] = data.sale;
+    if (data.quantity !== undefined) productUpdateBody["Кількість"] = data.quantity;
     tasks.push(
       fetch("/api/product-update", {
         method: "POST",

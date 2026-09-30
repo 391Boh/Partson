@@ -44,7 +44,8 @@ export const formatProductCaption = (
     product.producer && product.producer !== "-"
       ? `<i>${escapeTelegramHtml(product.producer)}</i>`
       : "",
-    `Артикул: ${article} · ${formatAvailability(product.quantity)}`,
+    `Артикул: ${article}`,
+    formatAvailability(product.quantity),
     `\nЦіна: <b>${price}</b>`,
   ]
     .filter(Boolean)
@@ -123,6 +124,7 @@ export const sendProductResults = async (
     const keyboard = buildProductKeyboard(siteUrl, product, priceUah);
     const isLast = index === priced.length - 1;
     if (isLast && pagerRow) keyboard.inline_keyboard.push(pagerRow);
+    if (isLast) keyboard.inline_keyboard.push([{ text: "⌂ Головне меню", callback_data: "home:menu" }, { text: "🛒 Кошик", callback_data: "cart" }]);
 
     const photoResult = await sendTelegramPhoto(
       chatId,

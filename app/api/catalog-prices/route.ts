@@ -4,6 +4,7 @@ import {
   fetchCatalogPriceDetailsByLookupKeys,
   fetchPriceEuroMapByLookupKeys,
   fetchPromoAvailabilityByLookupKeys,
+  getSnapshotPriceLookup,
   type PromoAvailability,
 } from "app/lib/catalog-server";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
@@ -278,6 +279,26 @@ export async function POST(request: NextRequest) {
       const isFullMode = mode === "full";
       const isPartnerMode = mode === "partner";
       const needsProtectedDetails = isFullMode || isPartnerMode;
+
+      // Resolve as much as the warm full-catalog snapshot already knows,
+      // entirely in memory — see getSnapshotPriceLookup's own comment. This
+      // is the fix for the promo price/badge lagging behind for every
+      // visitor, not just partners: fetchPriceEuroMapByLookupKeys below
+      // never had a snapshot shortcut, so nearly every card on a page
+      // waited on a live per-key 1C lookup just for its *regular* price —
+      // and since that ran in the same Promise.all as the promo signal
+      // (already snapshot-fast), the promo badge waited on it too. Only the
+      // keys the snapshot can't answer (cold start, or a genuinely new
+      // product not in the last scan) still go through the live lookup.
+      const snapshotPriceByKey = getSnapshotPriceLookup(allLookupKeys);
+      const snapshotPrices: Record<string, number> = {};
+      for (const [key, entry] of Object.entries(snapshotPriceByKey)) {
+        if (entry.priceEuro != null) snapshotPrices[key] = entry.priceEuro;
+      }
+      const unresolvedPriceLookupKeys = allLookupKeys.filter(
+        (key) => snapshotPrices[key.trim().toLowerCase()] == null
+      );
+
       const lookupDetailsPromise = needsProtectedDetails
         ? fetchCatalogPriceDetailsByLookupKeys(detailLookupKeys, {
             timeoutMs: 3000,
@@ -295,7 +316,7 @@ export async function POST(request: NextRequest) {
             promoPrices: {} as Record<string, number>,
           });
 
-      const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(allLookupKeys, {
+      const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(unresolvedPriceLookupKeys, {
         sourceTimeoutMs: needsProtectedDetails ? 2000 : 1800,
         sourceCacheTtlMs: 1000 * 20,
         timeoutMs: needsProtectedDetails ? 2000 : 1800,
@@ -326,6 +347,7 @@ export async function POST(request: NextRequest) {
         hasPromoPromise,
       ]);
       const lookupPrices = {
+        ...snapshotPrices,
         ...fallbackLookupPrices,
         ...lookupDetails.prices,
       };

@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { Layers3, PackageSearch, Search } from "lucide-react";
+import { CheckCircle2, Info, Layers3, PackageSearch, Search, ShoppingBag, Tag, Truck } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
@@ -68,7 +68,7 @@ import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturerGroupSampleImage from "app/manufacturers/[slug]/ManufacturerGroupSampleImage";
 import { getCategoryIconPath } from "app/lib/category-icons";
-import { pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
+import { pluralizeUk } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 export const dynamicParams = true;
@@ -360,9 +360,6 @@ const buildManufacturerKeywords = (label: string) => {
     )
   );
 };
-
-const buildManufacturerHeroSupportLabel = (label: string) =>
-  `Каталог бренду ${normalizeValue(label)} з переходом до груп і категорій`;
 
 const buildProductDedupeKey = (item: {
   code?: string;
@@ -1568,45 +1565,40 @@ export default async function ManufacturerDetailPage({
     <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
       <div className="page-shell-inline">
       <div key={producer.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
-        <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="manufacturer-hero-section card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <div className="manufacturer-hero-aurora" aria-hidden="true" />
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-          <div className="relative z-[1] mb-4 flex flex-wrap items-center justify-between gap-3">
-            <nav aria-label="Навігаційні хлібні крихти">
-              <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-                <li className="inline-flex items-center gap-2">
-                  <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-                </li>
-                <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true">/</span>
-                  <Link href="/manufacturers" className="transition hover:text-slate-800">Виробники</Link>
-                </li>
-                <li className="inline-flex items-center gap-2">
-                  <span aria-hidden="true">/</span>
-                  <span className="text-slate-700">{producer.label}</span>
-                </li>
-              </ol>
-            </nav>
-
-            <Link
-              href="/manufacturers"
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-white hover:text-sky-800"
-            >
-              &larr; Усі виробники
-            </Link>
-          </div>
+          {/* Breadcrumb only — the "&larr; Усі виробники" pill that used to
+              sit next to it went to the exact same /manufacturers URL as
+              the "Виробники" crumb one word to its left. */}
+          <nav aria-label="Навігаційні хлібні крихти" className="relative z-[1] mb-4">
+            <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+              <li className="inline-flex items-center gap-2">
+                <Link href="/" className="transition hover:text-slate-800">Головна</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <Link href="/manufacturers" className="transition hover:text-slate-800">Виробники</Link>
+              </li>
+              <li className="inline-flex items-center gap-2">
+                <span aria-hidden="true">/</span>
+                <span className="text-slate-700">{producer.label}</span>
+              </li>
+            </ol>
+          </nav>
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
+              <div className="manufacturer-logo-frame flex h-28 w-28 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-32 sm:w-32 lg:h-36 lg:w-36">
                 {producer.logoPath ? (
                   <Image
                     src={producer.logoPath}
                     alt={`Логотип виробника автозапчастин ${producer.label}`}
-                    width={96}
-                    height={96}
-                    sizes="96px"
+                    width={128}
+                    height={128}
+                    sizes="(max-width: 640px) 112px, (max-width: 1024px) 128px, 144px"
                     className="max-h-full max-w-full object-contain"
                     priority
                   />
@@ -1618,15 +1610,12 @@ export default async function ManufacturerDetailPage({
               </div>
 
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={directoryBadgeClass}>Сторінка виробника</span>
-                  <span className={directoryCompactMetricClass}>
-                    {buildManufacturerHeroSupportLabel(producer.label)}
-                  </span>
-                  <span className={directoryCompactMetricAccentClass}>
-                    Групи, підгрупи і товари
-                  </span>
-                </div>
+                {/* One identity badge instead of three — the other two
+                    ("Каталог бренду {label} з переходом до груп і
+                    категорій", "Групи, підгрупи і товари") only restated
+                    the H1 right below them and the stat tiles to the
+                    right. */}
+                <span className={directoryBadgeClass}>Сторінка виробника</span>
 
                 <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                   {h1Title}
@@ -1635,31 +1624,70 @@ export default async function ManufacturerDetailPage({
                   {pageDescription}
                 </p>
 
-                <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    <span className={directoryCompactMetricClass}>
-                      Фільтр виробника вже готовий
-                    </span>
-                    <span className={directoryCompactMetricAccentClass}>
-                      Сторінка з товарами і групами
-                    </span>
-                  </div>
+                {/* Same four selling points the SEO sentence above already
+                    makes ("цінами, наявністю, підбором за артикулом, VIN і
+                    доставкою") repeated as scannable icon chips — a visitor
+                    skimming the hero catches them in half a second instead
+                    of having to read the full sentence. */}
+                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                  {[
+                    { icon: Tag, label: "Актуальні ціни" },
+                    { icon: CheckCircle2, label: "Наявність на складі" },
+                    { icon: Search, label: "Підбір за артикулом і VIN" },
+                    { icon: Truck, label: "Доставка по Україні" },
+                  ].map(({ icon: FeatureIcon, label }) => (
+                    <li
+                      key={label}
+                      className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-slate-500"
+                    >
+                      <FeatureIcon size={14} strokeWidth={2.2} className="shrink-0 text-teal-600" aria-hidden />
+                      {label}
+                    </li>
+                  ))}
+                </ul>
 
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <CatalogPrefetchLink
-                      href={catalogPath}
-                      prefetchCatalogOnViewport
-                      className={directoryPrimaryButtonClass}
-                    >
-                      Товари бренду
-                    </CatalogPrefetchLink>
-                    <a
-                      href="#manufacturer-groups"
-                      className={directorySecondaryButtonClass}
-                    >
-                      Групи товарів
+                {/* In-page quick nav — replaces two purely decorative
+                    badges ("Фільтр виробника вже готовий" restated nothing
+                    a first-time visitor needed) with an actual map of the
+                    page: about → structure → popular products, so a long
+                    brand page reads as a structured document instead of
+                    one undifferentiated scroll. */}
+                <nav
+                  aria-label="Швидкий перехід по сторінці"
+                  className="mt-4 flex flex-wrap gap-2"
+                >
+                  <a href="#manufacturer-about" className="manufacturer-quicknav-pill">
+                    <Info size={13} strokeWidth={2.4} aria-hidden />
+                    Про бренд
+                  </a>
+                  <a href="#manufacturer-groups" className="manufacturer-quicknav-pill">
+                    <Layers3 size={13} strokeWidth={2.4} aria-hidden />
+                    Структура каталогу
+                  </a>
+                  {visibleProducts.length > 0 ? (
+                    <a href="#manufacturer-products" className="manufacturer-quicknav-pill">
+                      <PackageSearch size={13} strokeWidth={2.4} aria-hidden />
+                      Популярні товари
                     </a>
-                  </div>
+                  ) : null}
+                </nav>
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <CatalogPrefetchLink
+                    href={catalogPath}
+                    prefetchCatalogOnViewport
+                    className={directoryPrimaryButtonClass}
+                  >
+                    <ShoppingBag size={16} strokeWidth={2.3} aria-hidden />
+                    Товари бренду
+                  </CatalogPrefetchLink>
+                  <a
+                    href="#manufacturer-groups"
+                    className={`${directorySecondaryButtonClass} gap-1.5`}
+                  >
+                    <Layers3 size={16} strokeWidth={2.3} aria-hidden />
+                    Групи товарів
+                  </a>
                 </div>
               </div>
             </div>
@@ -1687,6 +1715,7 @@ export default async function ManufacturerDetailPage({
           </div>
         </section>
 
+        <div id="manufacturer-about" className="scroll-mt-24">
         <CatalogSeoTextSection
           contained={false}
           badge="Про виробника"
@@ -1694,33 +1723,35 @@ export default async function ManufacturerDetailPage({
           lead={seoCopy.intro}
           topics={[
             {
+              // Fallback text intentionally names no counts — the exact
+              // numbers already live in the hero's stat tiles two sections
+              // up; repeating them here read as the same fact stated a
+              // second time instead of new information.
               title: "Асортимент бренду",
-              text: seoHighlights[0] || `Переглядайте ${formatCount(producer.productCount)} ${pluralizeProducts(producer.productCount)} ${producer.label} у каталозі.`,
+              text: seoHighlights[0] || `Оригінальні запчастини та перевірені аналоги ${producer.label} — обирайте за ціною, характеристиками й наявністю на складі.`,
               icon: PackageSearch,
             },
             {
               title: "Групи й підгрупи",
-              text: seoHighlights[1] || `Асортимент розподілено на ${formatCount(producer.groupsCount)} ${pluralizeUk(producer.groupsCount, "групу", "групи", "груп")} для зручної навігації.`,
+              text: seoHighlights[1] || "Каталог розбитий за типом деталі, щоб знайти потрібний розділ без ручного перегляду всього асортименту.",
               icon: Layers3,
             },
             {
               title: "Пошук і порівняння",
-              text: seoHighlights[2] || "Використовуйте готовий фільтр виробника, а потім уточнюйте групу, артикул і параметри деталі.",
+              text: seoHighlights[2] || "Скористайтеся готовим фільтром виробника, а далі уточнюйте за групою, артикулом чи кодом деталі.",
               icon: Search,
             },
           ]}
           paragraphs={seoTextBlocks}
-          links={[
-            { href: catalogPath, label: `Товари ${producer.label}` },
-            {
-              href: "#manufacturer-groups",
-              label: hasAnySubgroups ? "Групи й підгрупи" : "Групи товарів",
-            },
-            { href: "/manufacturers", label: "Усі виробники" },
-          ]}
+          // No links row here — every destination it could offer (товари
+          // бренду, групи товарів, усі виробники) is already one of the
+          // hero's own CTA buttons, quick-nav pills or breadcrumb, a few
+          // hundred pixels above this section.
+          links={[]}
         />
+        </div>
 
-        <section id="manufacturer-groups" className={directoryPanelClass}>
+        <section id="manufacturer-groups" className={`${directoryPanelClass} scroll-mt-24`}>
           <div className={directoryHeaderClass}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -1788,12 +1819,16 @@ export default async function ManufacturerDetailPage({
               {producer.topCategories.map((category, categoryIndex) => (
                 <article
                   key={`${category.slug}:${categoryIndex}`}
-                  className="overflow-hidden rounded-[24px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.19),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_54%,rgba(243,250,248,0.94)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/85"
+                  className="group/category relative overflow-hidden rounded-[24px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.19),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_54%,rgba(243,250,248,0.94)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/85 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_26px_54px_rgba(15,23,42,0.10)]"
                 >
+                  <span
+                    className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 opacity-80 transition-opacity duration-300 group-hover/category:opacity-100"
+                    aria-hidden
+                  />
                   <div className="border-b border-sky-100/80 px-4 py-4 sm:px-5">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                       <div className="flex min-w-0 gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
+                        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
                           <Image
                             src={getCategoryIconPath(category.label)}
                             alt=""
@@ -1803,6 +1838,9 @@ export default async function ManufacturerDetailPage({
                             sizes="28px"
                             className="h-7 w-7 object-contain"
                           />
+                          <span className="absolute -left-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-sky-500 to-teal-500 text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(14,165,233,0.35)]">
+                            {categoryIndex + 1}
+                          </span>
                         </span>
                         <div className="min-w-0">
                           <p className="directory-kicker text-[10px] uppercase text-sky-800">
@@ -1833,7 +1871,7 @@ export default async function ManufacturerDetailPage({
                         group,
                         groupIndex,
                         `${category.slug}:${categoryIndex}`,
-                        false,
+                        true,
                         category.label
                       )
                     )}
@@ -1861,7 +1899,7 @@ export default async function ManufacturerDetailPage({
         </section>
 
         {visibleProducts.length > 0 && (
-          <section className={directoryPanelClass}>
+          <section id="manufacturer-products" className={`${directoryPanelClass} scroll-mt-24`}>
             <div className={directoryHeaderClass}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>

@@ -2941,6 +2941,71 @@ export const searchCatalogIndex = async (
   return { items: [], totalCount: 0 };
 };
 
+// key -> product index over the warm full-catalog snapshot, rebuilt only
+// when the snapshot object itself changes (a real rescan, not the fetchedAt
+// rewind invalidateFullCatalogSnapshot does) — cheap to keep around since a
+// price/promo batch for one visible page can call getSnapshotPriceLookup
+// several times.
+let snapshotProductIndex: { snapshot: FullCatalogSnapshot; byKey: Map<string, CatalogProduct> } | null = null;
+
+const getSnapshotProductIndex = (): Map<string, CatalogProduct> | null => {
+  if (!fullCatalogCache) return null;
+  if (snapshotProductIndex && snapshotProductIndex.snapshot === fullCatalogCache) {
+    return snapshotProductIndex.byKey;
+  }
+  const byKey = new Map<string, CatalogProduct>();
+  for (const product of fullCatalogCache.products) {
+    const key = catalogItemKey(product);
+    if (key && !byKey.has(key)) byKey.set(key, product);
+  }
+  snapshotProductIndex = { snapshot: fullCatalogCache, byKey };
+  return byKey;
+};
+
+export type SnapshotPriceEntry = {
+  priceEuro: number | null;
+  promoPriceEuro: number | null;
+  promoPercent: number | null;
+};
+
+// Answers regular price (and, as a byproduct, promo price/percent) for any
+// key the last full-catalog scan covered, entirely from memory — no live 1C
+// round trip. This is the fix for "долго завантажується акційна ціна і
+// бейдж акції" for every visitor, registered or not: fetchPriceEuroMapByLookupKeys
+// never had a snapshot shortcut at all, so a catalog page's price batch
+// always waited on a live per-key /allgoods lookup for nearly every visible
+// card — and because that ran inside the same Promise.all as the promo
+// signal (see fetchPromoAvailabilityByLookupKeys, which already was
+// snapshot-fast), the promo badge sat blocked behind the slow price lookup
+// too, for both anonymous and partner/admin requests.
+export const getSnapshotPriceLookup = (
+  lookupKeys: string[]
+): Record<string, SnapshotPriceEntry> => {
+  const byKey = getSnapshotProductIndex();
+  if (!byKey) return {};
+  const cache = fullCatalogCache as FullCatalogSnapshot & { fetchedAt: number };
+  void getFullCatalogSnapshot().catch(() => undefined);
+
+  const result: Record<string, SnapshotPriceEntry> = {};
+  for (const rawKey of lookupKeys) {
+    const key = normalizeFacetValue(rawKey);
+    if (!key || result[key]) continue;
+    const product = byKey.get(key);
+    if (!product) continue;
+    const priceEuro =
+      typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0
+        ? product.priceEuro
+        : null;
+    const hasPromo = cache.promoKeys.has(key);
+    result[key] = {
+      priceEuro,
+      promoPriceEuro: hasPromo ? cache.promoPrices.get(key) ?? null : null,
+      promoPercent: hasPromo ? cache.promoPercents.get(key) ?? null : null,
+    };
+  }
+  return result;
+};
+
 export const fetchCatalogPriceDetailsByLookupKeys = async (
   lookupKeys: string[],
   options?: {
@@ -3007,19 +3072,27 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   // reason the promo price visibly lagged behind the rest of a /katalog
   // card. Cost price isn't captured in the snapshot, so a key still needs
   // the live lookup below whenever includeCostPrices is true.
+  //
+  // Marking a key "matched" here whether or not it turned out to have a
+  // promo — not only the ones that did — matters just as much as the promo
+  // price itself: the snapshot's last full scan is a definitive answer for
+  // every key it covers, so a non-promo item (the overwhelming majority on
+  // any given page) shouldn't still cost a live "confirm no promo" round
+  // trip below. Before this, only promo hits were marked matched, so
+  // liveLookupKeys below still ended up as ~every key on the page.
   if (fullCatalogCache) {
-    void getFullCatalogSnapshot().catch(() => undefined);
+    const snapshotAnswers = getSnapshotPriceLookup(normalizedKeys);
     for (const key of normalizedKeys) {
-      const snapshotPromoPrice = fullCatalogCache.promoPrices.get(key);
-      if (typeof snapshotPromoPrice === "number") {
-        resolvedPromoPrices.set(key, snapshotPromoPrice);
-        matchedKeys.add(key);
-      }
+      const answer = snapshotAnswers[key];
+      if (!answer) continue;
+      if (answer.priceEuro != null) resolvedPrices.set(key, answer.priceEuro);
+      if (answer.promoPriceEuro != null) resolvedPromoPrices.set(key, answer.promoPriceEuro);
+      matchedKeys.add(key);
     }
   }
   const liveLookupKeys = includeCostPrices
     ? normalizedKeys
-    : normalizedKeys.filter((key) => !resolvedPromoPrices.has(key));
+    : normalizedKeys.filter((key) => !matchedKeys.has(key));
 
   if (liveLookupKeys.length === 0) {
     return {

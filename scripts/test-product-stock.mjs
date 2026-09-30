@@ -24,6 +24,8 @@ const mocks = {
   "app/lib/product-image": { clearProductImageCacheForProduct: noop },
   "app/lib/product-image-route-cache": { clearRouteImageCacheForProduct: noop },
   "app/lib/catalog-page-route-cache": { clearCatalogPageRouteCache: noop },
+  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop },
+  "app/lib/product-edit-overrides": { setProductEditOverride: noop },
 };
 const exports = {};
 const source = readFileSync(new URL("../app/api/product-update/route.ts", import.meta.url), "utf8");

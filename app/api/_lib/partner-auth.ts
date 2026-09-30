@@ -25,24 +25,30 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
   const normalizedUid = uid.trim();
   if (!normalizedUid) return { isPartner: false, totalSpent: 0 };
 
-  const grant = await getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get();
-  const manuallyGranted = grant.data()?.active === true;
+  // Both signals (manual grant + spend threshold) must come from this one
+  // cache check, not just the spend half of it — the manual-grant Firestore
+  // read used to run unconditionally, every single call, regardless of the
+  // cache below. Every partner-mode price batch on /katalog calls this (via
+  // verifyPartnerRequest), so that unconditional read was a genuine Firestore
+  // round trip on every one of them — the actual reason the promo price kept
+  // lagging behind everything else even after the 1C-side fix.
   const now = Date.now();
   const cached = partnerStatusCache.get(normalizedUid);
   if (cached && cached.expiresAt > now) {
-    return { isPartner: manuallyGranted || cached.isPartner, totalSpent: cached.totalSpent };
+    return { isPartner: cached.isPartner, totalSpent: cached.totalSpent };
   }
 
-  const snapshot = await getFirebaseAdminDb()
-    .collection("orders")
-    .where("uid", "==", normalizedUid)
-    .get();
+  const [grant, snapshot] = await Promise.all([
+    getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get(),
+    getFirebaseAdminDb().collection("orders").where("uid", "==", normalizedUid).get(),
+  ]);
+  const manuallyGranted = grant.data()?.active === true;
   const totalSpent = snapshot.docs.reduce((sum, document) => {
     const data = document.data() as { totalAmount?: unknown; total?: unknown };
     return sum + readOrderAmount(data.totalAmount ?? data.total);
   }, 0);
   const status = {
-    isPartner: totalSpent >= PARTNER_THRESHOLD_UAH,
+    isPartner: manuallyGranted || totalSpent >= PARTNER_THRESHOLD_UAH,
     totalSpent,
   };
 
@@ -55,7 +61,7 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
     expiresAt: now + PARTNER_STATUS_CACHE_TTL_MS,
   });
 
-  return { ...status, isPartner: manuallyGranted || status.isPartner };
+  return status;
 };
 
 export const verifyPartnerRequest = async (

@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { readJsonObject } from "../../_lib/requestValidation";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
+  getTelegramBotName,
   ensureBotCommandsRegistered,
   ensureBotMenuButtonConfigured,
   ensureBotProfileConfigured,
@@ -67,6 +68,8 @@ import {
   type DeliveryMethod,
 } from "app/lib/telegram-checkout";
 import { recordTelegramBotEvent } from "app/lib/telegram-analytics";
+
+import { BOT_HOME_TEXT, buildBotHomeKeyboard, parseBotCommand } from "app/lib/telegram-menu";
 
 export const runtime = "nodejs";
 
@@ -156,19 +159,7 @@ const removeKeyboard = () => ({
 const buildSiteButton = (text: string, url: string) =>
   url.startsWith("https://") ? { text, web_app: { url } } : { text, url };
 
-const buildCatalogKeyboard = (siteUrl: string) => ({
-  inline_keyboard: [
-    [
-      { text: "📂 Каталог", callback_data: "m" },
-      { text: "🛒 Кошик", callback_data: "cart" },
-    ],
-    [
-      { text: "💬 Підтримка", callback_data: "support:start" },
-      { text: "📍 Контакти", callback_data: "contacts" },
-    ],
-    [buildSiteButton("🌐 Перейти на сайт", `${siteUrl}/katalog`)],
-  ],
-});
+const buildCatalogKeyboard = buildBotHomeKeyboard;
 
 const getDisplayName = (user?: TelegramUser) =>
   [user?.first_name, user?.last_name]
@@ -726,9 +717,14 @@ const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
       retries: 1,
       retryDelayMs: 200,
       cacheTtlMs: 1000 * 60 * 5,
-    }).catch(() => ({ items: [], hasMore: false, nextCursor: "", cursorField: null })),
+    }).catch(() => null),
     fetchEuroRate().catch(() => null),
   ]);
+
+  if (!result) {
+    await sendTelegramMessage(chatId, "⚠️ Пошук тимчасово недоступний. Спробуйте ще раз або зверніться до менеджера.", { replyMarkup: buildCatalogKeyboard(siteUrl) });
+    return;
+  }
 
   if (result.items.length === 0) {
     await sendTelegramMessage(
@@ -768,6 +764,8 @@ const handleHelp = (chatId: string) =>
       "<code>/support</code> — написати менеджеру",
       "<code>/contacts</code> — контакти й адреса магазину",
     "<code>/cart</code> — кошик і оформлення замовлення",
+      "<code>/menu</code> — головне меню",
+      "<code>/cancel</code> — завершити поточний діалог, зберігши кошик",
       "<code>/help</code> — ця довідка",
       "",
       "Або просто напишіть назву чи артикул деталі — знайду без команди.",
@@ -1666,6 +1664,16 @@ const handleCheckoutCancel = async (chatId: string, from?: TelegramUser) => {
   });
 };
 
+// Persist the exit before accepting another search/checkout answer.
+const leaveBotDialog = async (from: TelegramUser) => {
+  const ref = await findUserByTelegramId(normalizeId(from.id));
+  if (ref) await ref.set({ ...CHECKOUT_SCRATCH_FIELDS, supportMode: false }, { merge: true });
+};
+
+const sendHomeMenu = (chatId: string) => sendTelegramMessage(chatId, BOT_HOME_TEXT, {
+  parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()),
+});
+
 const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
   const data = (callback.data || "").trim();
   const message = callback.message;
@@ -1674,6 +1682,18 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
 
   if (!data || !chatId) {
     await answerTelegramCallback(callback.id).catch(() => undefined);
+    return;
+  }
+
+  if (["home:menu", "home:find", "home:orders", "home:profile", "home:help"].includes(data)) {
+    await answerTelegramCallback(callback.id);
+    if (!callback.from) return;
+    await leaveBotDialog(callback.from);
+    if (data === "home:find") await handleFind(chatId, "");
+    else if (data === "home:orders") await handleOrders(callback.from, chatId);
+    else if (data === "home:profile") await handleProfile(callback.from, chatId);
+    else if (data === "home:help") await handleHelp(chatId);
+    else await sendHomeMenu(chatId);
     return;
   }
 
@@ -1755,9 +1775,10 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
   }
 
   if (data.startsWith("cadd:")) {
-    await answerTelegramCallback(callback.id, "Додано в кошик").catch(() => undefined);
+    await answerTelegramCallback(callback.id, "Перевіряємо товар…").catch(() => undefined);
     await handleAddToCart(chatId, data.slice("cadd:".length), callback.from).catch((error) => {
       console.error("Add to cart failed:", error);
+      return sendTelegramMessage(chatId, "Не вдалося додати товар. Перевірте кошик перед повторною спробою.", { replyMarkup: buildCatalogKeyboard(getSiteUrl()) });
     });
     return;
   }
@@ -2266,60 +2287,66 @@ const processUpdate = async (update: TelegramUpdate) => {
 
   // Any recognized command exits support mode and mid-checkout state, so a
   // fresh /find or /catalog isn't accidentally swallowed as a message to
-  // the manager or a checkout answer. Best-effort, never blocks the
-  // command itself.
-  if (text.startsWith("/") && !text.startsWith("/support")) {
-    void findUserByTelegramId(fromId)
-      .then((ref) => {
-        if (!ref) return;
-        void ref.set({ supportMode: false }, { merge: true });
-        void clearCheckoutState(ref.id);
-      })
-      .catch(() => undefined);
+  // the manager or a checkout answer. Await persistence so a quick follow-up
+  // message cannot race against the old dialog state.
+  const command = parseBotCommand(text);
+  if (command?.bot && command.bot.toLowerCase() !== getTelegramBotName().toLowerCase()) return;
+  if (command && ["start", "catalog", "orders", "profile", "find", "help", "contacts", "cart", "menu", "cancel"].includes(command.name)) {
+    await leaveBotDialog(from);
+  }
+  if (command?.name === "menu" || command?.name === "cancel") {
+    if (command.name === "cancel") await sendTelegramMessage(chatId, "Поточний діалог завершено. Кошик збережено.", { replyMarkup: removeKeyboard() });
+    await sendHomeMenu(chatId);
+    return;
   }
 
-  if (text.startsWith("/start")) {
+  if (command?.name === "start") {
     await handleStart(message, from, chatId, text);
     return;
   }
 
-  if (text.startsWith("/catalog")) {
+  if (command?.name === "catalog") {
     await handleCatalog(chatId);
     return;
   }
 
-  if (text.startsWith("/orders")) {
+  if (command?.name === "orders") {
     await handleOrders(from, chatId);
     return;
   }
 
-  if (text.startsWith("/profile")) {
+  if (command?.name === "profile") {
     await handleProfile(from, chatId);
     return;
   }
 
-  if (text.startsWith("/find")) {
-    await handleFind(chatId, text.slice("/find".length).trim());
+  if (command?.name === "find") {
+    await handleFind(chatId, command.args);
     return;
   }
 
-  if (text.startsWith("/help")) {
+  if (command?.name === "help") {
     await handleHelp(chatId);
     return;
   }
 
-  if (text.startsWith("/support")) {
+  if (command?.name === "support") {
     await handleSupport(from, chatId);
     return;
   }
 
-  if (text.startsWith("/contacts")) {
+  if (command?.name === "contacts") {
     await handleContacts(chatId);
     return;
   }
 
-  if (text.startsWith("/cart")) {
+  if (command?.name === "cart") {
     await handleCartView(chatId, undefined, from);
+    return;
+  }
+
+  if (text.startsWith("/")) {
+    await handleHelp(chatId);
     return;
   }
 

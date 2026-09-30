@@ -1533,7 +1533,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       the panel as a whole, so it reads better as a caption
                       to them than as an intro before them. */}
                   {!selectedBrand && (
-                    <p className="mt-3.5 text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
+                    <p className="home-description mt-3.5 text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
                       Оберіть{" "}
                       <span className="font-semibold text-slate-800">марку та модель</span>{" "}
                       — покажемо лише ті запчастини, що точно підходять

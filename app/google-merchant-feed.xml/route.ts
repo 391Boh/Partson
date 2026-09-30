@@ -17,7 +17,12 @@ const buildXmlResponse = (xml: string) =>
   });
 
 export async function GET() {
-  const generatedFeedPath = join(process.cwd(), "public", "google-merchant-feed.xml");
+  // .cache/, not public/ — see scripts/generate-merchant-feed.ts's own
+  // comment: a file in public/ is auto-served at its matching URL by
+  // Next.js, which collided with this very route (both claiming
+  // /google-merchant-feed.xml) and made Next.js refuse to resolve either,
+  // 500ing the exact URL Google Merchant Center fetches.
+  const generatedFeedPath = join(process.cwd(), ".cache", "google-merchant-feed.xml");
   const generatedXml = await readFile(generatedFeedPath, "utf-8").catch(() => "");
   if (generatedXml.trim()) {
     return buildXmlResponse(generatedXml);

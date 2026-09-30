@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ImagePlus, Minus, Package, Pencil, Plus, Settings2, X } from "lucide-react";
+import { Check, ChevronDown, Minus, Package, PenSquare, Pencil, Plus, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,11 +9,9 @@ import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/pro
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
-import {
-  formatProductImageSize,
-  prepareProductImage,
-  PRODUCT_IMAGE_ACCEPT,
-} from "app/lib/product-image-upload-client";
+import { prepareProductImage } from "app/lib/product-image-upload-client";
+import type { ProductFullEditTarget } from "app/components/ProductFullEditModal";
+import ProductImageUploadFields from "app/components/ProductImageUploadFields";
 
 type FieldKey =
   | "name"
@@ -321,6 +319,43 @@ export default function ProductPageAdminEditPanel({
       cancelled = true;
     };
   }, [isAdmin, code, values.article]);
+
+  // ProductDescriptionClientCard (the read-only description shown to every
+  // visitor) fetches its own live copy from this same endpoint because the
+  // SSR `description` prop can be up to an hour stale under this page's ISR
+  // cache — see that component's own comment. This panel's descVal was only
+  // ever seeded from that same stale prop, so the full-edit modal (and the
+  // inline description editor) could show/save over a description that was
+  // already out of date, undoing whatever a more recent edit — including
+  // one made through 1C directly — had set. Public endpoint, no admin
+  // token needed, same as ProductDescriptionClientCard's own call.
+  useEffect(() => {
+    if (!isAdmin || descEditing) return;
+    let cancelled = false;
+
+    (async () => {
+      const params = new URLSearchParams();
+      if (values.article) params.append("lookup", values.article);
+      if (code) params.append("lookup", code);
+      if (!params.has("lookup")) return;
+
+      try {
+        const res = await fetch(`/api/product-description?${params.toString()}`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { description?: string | null };
+        if (cancelled) return;
+        if (typeof data.description === "string" && data.description.trim()) {
+          setDescVal(data.description.trim());
+        }
+      } catch {
+        // Leave descVal at its SSR-seeded value — admin can still edit it.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, code, values.article, descEditing]);
 
   useEffect(() => {
     if (editing) setTimeout(() => inputRef.current?.focus(), 0);
@@ -890,21 +925,52 @@ export default function ProductPageAdminEditPanel({
 
   return (
     <div className="border-b border-slate-100 px-3 py-3 sm:px-4">
-      {/* Collapse toggle */}
-      <button
-        type="button"
-        onClick={() => setExpanded((p) => !p)}
-        className="flex w-full items-center gap-2.5 rounded-[14px] border border-violet-200/60 bg-gradient-to-br from-violet-50/70 via-white to-white px-3.5 py-2.5 text-left shadow-[0_1px_4px_rgba(109,40,217,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all hover:border-violet-300/80 hover:shadow-[0_2px_10px_rgba(109,40,217,0.12)]"
-      >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-violet-100 text-violet-600">
-          <Settings2 size={12} />
-        </span>
-        <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-500">Адмін-панель</span>
-        <ChevronDown
-          size={14}
-          className={`ml-auto text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
-        />
-      </button>
+      {/* Collapse toggle + full-edit shortcut */}
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setExpanded((p) => !p)}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-violet-200/60 bg-gradient-to-br from-violet-50/70 via-white to-white px-3.5 py-2.5 text-left shadow-[0_1px_4px_rgba(109,40,217,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all hover:border-violet-300/80 hover:shadow-[0_2px_10px_rgba(109,40,217,0.12)]"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-violet-100 text-violet-600">
+            <Settings2 size={12} />
+          </span>
+          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-500">Адмін-панель</span>
+          <ChevronDown
+            size={14}
+            className={`ml-auto text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
+        {/* One form with every field pre-filled, same idea as the "new
+            product" panel — an alternative to clicking each field below one
+            at a time when several things need to change at once. */}
+        <button
+          type="button"
+          onClick={() => {
+            // Handled by LayoutHost, mounted at the root the same way
+            // ProductCreateModal is — so the edit form stays open across
+            // client-side navigation instead of unmounting with this page.
+            const detail: ProductFullEditTarget = {
+              code,
+              article: values.article,
+              name: values.name,
+              producer: values.producer,
+              category: values.category,
+              group: values.group,
+              subGroup: values.subGroup,
+              priceEuro: values.priceEuro,
+              costPriceEuro: values.costPriceEuro,
+              quantity,
+              description: descVal,
+            };
+            window.dispatchEvent(new CustomEvent("partson:open-product-edit", { detail }));
+          }}
+          title="Редагувати всі поля одразу"
+          className="flex h-[42px] shrink-0 items-center justify-center rounded-[14px] border border-violet-200/60 bg-white px-3 text-violet-600 shadow-[0_1px_4px_rgba(109,40,217,0.06)] transition-all hover:border-violet-300/80 hover:bg-violet-50"
+        >
+          <PenSquare size={14} />
+        </button>
+      </div>
 
       {expanded && (
         <div className="mt-2 overflow-hidden rounded-[18px] border border-violet-100 bg-white shadow-[0_4px_20px_rgba(109,40,217,0.1),inset_0_1px_0_rgba(255,255,255,1)]">
@@ -983,145 +1049,30 @@ export default function ProductPageAdminEditPanel({
           {/* Image upload */}
           <div className="border-t border-slate-100 px-3.5 py-3">
             <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={PRODUCT_IMAGE_ACCEPT}
-              className="hidden"
-              onChange={handleFileChange}
+            <ProductImageUploadFields
+              fileInputRef={fileInputRef}
+              galleryFileInputRef={galleryFileInputRef}
+              onFileChange={handleFileChange}
+              onGalleryFileChange={handleGalleryFileChange}
+              imagePreview={imagePreview}
+              imageProcessing={imageProcessing}
+              imageUploading={imageUploading}
+              imageUploaded={imageUploaded}
+              imageError={imageError}
+              imageFileName={imageFile?.name}
+              imageUploadSize={imageUploadSize}
+              onUploadImage={() => void uploadImage()}
+              onCancelImage={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
+              galleryPreview={galleryPreview}
+              galleryProcessing={galleryProcessing}
+              galleryUploading={galleryUploading}
+              galleryUploaded={galleryUploaded}
+              galleryError={galleryError}
+              galleryFileName={galleryFile?.name}
+              galleryUploadSize={galleryUploadSize}
+              onUploadGallery={() => void uploadGalleryImage()}
+              onCancelGallery={() => { setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); }}
             />
-            <input
-              ref={galleryFileInputRef}
-              type="file"
-              accept={PRODUCT_IMAGE_ACCEPT}
-              className="hidden"
-              onChange={handleGalleryFileChange}
-            />
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="flex-1">
-                {!imagePreview ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={imageProcessing}
-                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-dashed border-violet-200 bg-violet-50/30 px-3.5 py-2.5 text-[12px] font-semibold text-violet-500 transition hover:border-violet-300 hover:bg-violet-50/60"
-                  >
-                    {imageProcessing
-                      ? <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
-                      : <ImagePlus size={15} className="shrink-0" />}
-                    <span>{imageProcessing ? "Обробка фото..." : "Замінити фото товару"}</span>
-                    {imageUploaded && (
-                      <span className="ml-auto inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                        <Check size={9} /> Завантажено
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={imagePreview}
-                        alt="Попередній перегляд"
-                        className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
-                          {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void uploadImage()}
-                            disabled={imageUploading}
-                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                          >
-                            {imageUploading
-                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                              : <Check size={12} />}
-                            {imageUploading ? "Завантаження..." : "Зберегти"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
-                            disabled={imageUploading}
-                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            <X size={12} /> Скасувати
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {imageError && <p className="text-[11px] font-semibold text-red-500">{imageError}</p>}
-                  </div>
-                )}
-                {imageError && !imagePreview && (
-                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{imageError}</p>
-                )}
-              </div>
-
-              <div className="flex-1">
-                {!galleryPreview ? (
-                  <button
-                    type="button"
-                    onClick={() => galleryFileInputRef.current?.click()}
-                    disabled={galleryProcessing}
-                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-dashed border-sky-200 bg-sky-50/30 px-3.5 py-2.5 text-[12px] font-semibold text-sky-600 transition hover:border-sky-300 hover:bg-sky-50/60"
-                  >
-                    {galleryProcessing
-                      ? <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" />
-                      : <ImagePlus size={15} className="shrink-0" />}
-                    <span>{galleryProcessing ? "Обробка фото..." : "Додати фото в галерею"}</span>
-                    {galleryUploaded && (
-                      <span className="ml-auto inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
-                        <Check size={9} /> Додано
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={galleryPreview}
-                        alt="Попередній перегляд"
-                        className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
-                          {galleryFile?.name}{galleryUploadSize ? ` · ${formatProductImageSize(galleryUploadSize)}` : ""}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void uploadGalleryImage()}
-                            disabled={galleryUploading}
-                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                          >
-                            {galleryUploading
-                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                              : <Check size={12} />}
-                            {galleryUploading ? "Завантаження..." : "Додати"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); }}
-                            disabled={galleryUploading}
-                            className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
-                          >
-                            <X size={12} /> Скасувати
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {galleryError && <p className="text-[11px] font-semibold text-red-500">{galleryError}</p>}
-                  </div>
-                )}
-                {galleryError && !galleryPreview && (
-                  <p className="mt-1.5 text-[11px] font-semibold text-red-500">{galleryError}</p>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Description edit */}
@@ -1185,6 +1136,7 @@ export default function ProductPageAdminEditPanel({
           </div>
         </div>
       )}
+
     </div>
   );
 }

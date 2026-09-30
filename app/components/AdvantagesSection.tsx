@@ -133,7 +133,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 instead of repeating that claim, and sets up the category
                 breakdown below with matching keywords (двигун, ходова,
                 електрика й кузов). */}
-            <p className="ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
+            <p className="home-description ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
               Понад 10&nbsp;000 запчастин у каталозі — від двигуна й ходової до електрики та кузовних деталей — для десятків марок легкових авто. Знайдіть потрібну позицію за VIN-кодом, номером кузова, артикулом чи моделлю.
             </p>
 
@@ -203,7 +203,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                   </span>
                 </div>
                 <h3 className="relative z-10 mt-4 text-[19px] font-bold leading-snug text-slate-900 sm:text-[20px]">{item.title}</h3>
-                <p className="relative z-10 mt-2 text-[14px] leading-relaxed text-slate-600 sm:text-[14.5px]">{item.text}</p>
+                <p className="home-description relative z-10 mt-2 text-[14px] leading-relaxed text-slate-600 sm:text-[14.5px]">{item.text}</p>
               </article>
             );
           })}

@@ -810,11 +810,25 @@ export default function TelegramChat({
   if (!isOpen) return null;
 
   return (
+    // Grows out of the chat toggle button in the bottom-right corner (its
+    // fixed anchor point on desktop) instead of just fading up in place — a
+    // rounder, smaller starting radius/scale reads as "this panel came from
+    // that round button" the same way a Fab-to-dialog transform does on
+    // native apps. Mobile keeps the origin centred: the panel there spans
+    // almost the full viewport, so a corner origin would read as a stretch
+    // rather than a growth. The header content (icon + title) staggers in
+    // ~90ms after the shell starts, giving the reveal a second, deliberate
+    // beat instead of everything arriving in one flat motion.
     <motion.div
       ref={chatRef}
-      initial={{ opacity: 0, y: 24, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 320, damping: 26, mass: 0.9 }}
+      initial={{ opacity: 0, y: 28, scale: 0.82, borderRadius: 34 }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        borderRadius: isDesktop ? 26 : 18,
+      }}
+      transition={{ type: "spring", stiffness: 300, damping: 28, mass: 0.85 }}
       className="fixed z-50 flex flex-col overflow-hidden border border-sky-200/50 bg-[image:linear-gradient(160deg,#eef6ff_0%,#dcedfd_46%,#c9e2fa_100%)] shadow-[0_36px_88px_rgba(2,6,23,0.32)] backdrop-blur-2xl"
       style={
         isDesktop
@@ -823,14 +837,14 @@ export default function TelegramChat({
               bottom: 112,
               width: 408,
               height: 580,
-              borderRadius: 26,
+              transformOrigin: "bottom right",
             }
           : {
               left: 'max(0.35rem, env(safe-area-inset-left))',
               right: 'max(0.35rem, env(safe-area-inset-right))',
               top: 'calc(var(--header-height, 3.5rem) + 0.45rem)',
               bottom: 'max(0.5rem, env(safe-area-inset-bottom))',
-              borderRadius: 18,
+              transformOrigin: "center",
             }
       }
     >
@@ -840,7 +854,12 @@ export default function TelegramChat({
       <div className="relative overflow-hidden border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.98)_0%,rgba(30,41,59,0.96)_42%,rgba(14,165,233,0.84)_100%)] px-4 py-3 text-white">
         <span className="pointer-events-none absolute inset-0 bg-[image:radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.12),transparent_34%),radial-gradient(circle_at_84%_14%,rgba(125,211,252,0.2),transparent_28%)]" />
         <div className="relative flex items-start justify-between gap-2.5">
-          <div className="min-w-0 flex flex-1 items-start gap-2.5 pr-2 sm:pr-3">
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.09, duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            className="min-w-0 flex flex-1 items-start gap-2.5 pr-2 sm:pr-3"
+          >
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[15px] border border-white/14 bg-white/10 text-sky-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(2,6,23,0.16)] backdrop-blur sm:h-10 sm:w-10 sm:rounded-[16px]">
               <MessageCircle size={17} strokeWidth={2.1} />
             </span>
@@ -860,7 +879,7 @@ export default function TelegramChat({
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
           <button
             onClick={onClose}
             aria-label="Закрити"

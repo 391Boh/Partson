@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { BadgeCheck, ChevronRight, ScanLine, Store } from 'lucide-react';
+import { ChevronRight, Store } from 'lucide-react';
 import HeroBlogCard from './HeroBlogCard';
 
 export default function HeroIntroCard() {
@@ -9,29 +9,18 @@ export default function HeroIntroCard() {
     <div className="home-intro home-intro-refined">
       <div className="home-intro-copy">
         <div className="home-intro-identity">
-          <span className="home-intro-icon" aria-hidden="true"><Store size={21} strokeWidth={1.8} /></span>
-          <p className="home-intro-kicker">Інтернет-каталог автозапчастин</p>
+          <span className="home-intro-icon" aria-hidden="true"><Store size={17} strokeWidth={1.8} /></span>
+          <p className="home-intro-kicker">Онлайн магазин автозапчастин</p>
         </div>
         <h1 className="font-display font-display-readable">
           Автозапчастини <span>у Львові</span>
         </h1>
         <p className="home-intro-subtitle">
-          Оригінальні деталі та перевірені аналоги для десятків марок легкових авто — з власного складу у Львові.
+          <strong>Оригінальні запчастини та перевірені аналоги</strong> для
+          ремонту й обслуговування вашого авто. Обирайте деталі в каталозі
+          PartsON, порівнюйте ціни та перевіряйте наявність.{" "}
+          <strong>Самовивіз у Львові або доставка по Україні.</strong>
         </p>
-        <ul className="home-intro-facts">
-          <li>
-            <span className="home-intro-facts-icon home-intro-facts-icon-cyan" aria-hidden="true">
-              <ScanLine size={13} strokeWidth={2.3} />
-            </span>
-            <span>Підбір за VIN-кодом, кузовом або артикулом</span>
-          </li>
-          <li>
-            <span className="home-intro-facts-icon home-intro-facts-icon-emerald" aria-hidden="true">
-              <BadgeCheck size={13} strokeWidth={2.3} />
-            </span>
-            <span>Наявність і ціна — одразу, без зайвих дзвінків</span>
-          </li>
-        </ul>
       </div>
 
       <div className="home-intro-links home-feature-links">
@@ -41,7 +30,7 @@ export default function HeroIntroCard() {
               src="/Katlogo/datchyky_ta_elektronika.png"
               alt=""
               fill
-              sizes="(max-width: 479px) 80px, 96px"
+              sizes="(max-width: 479px) 88px, 108px"
               className="object-contain"
             />
           </div>

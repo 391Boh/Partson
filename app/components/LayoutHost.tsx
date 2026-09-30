@@ -16,8 +16,13 @@ import {
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import type { ProductFullEditTarget } from "./ProductFullEditModal";
 
 const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
+  ssr: false,
+});
+
+const ProductFullEditModal = dynamic(() => import("./ProductFullEditModal"), {
   ssr: false,
 });
 
@@ -150,6 +155,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [productEditTarget, setProductEditTarget] = useState<ProductFullEditTarget | null>(null);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
     isEmbeddedProductView: false,
@@ -977,6 +983,27 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
   }, [openChat]);
 
+  // ProductPageAdminEditPanel's "full edit" trigger dispatches this instead
+  // of holding the modal itself — mounted here (like ProductCreateModal
+  // above), it survives client-side navigation away from the product page
+  // the edit was opened from, instead of unmounting with it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOpenProductEdit = (event: Event) => {
+      const detail = (event as CustomEvent<ProductFullEditTarget>).detail;
+      if (detail && typeof detail.code === "string") {
+        setProductEditTarget(detail);
+      }
+    };
+
+    window.addEventListener("partson:open-product-edit", handleOpenProductEdit as EventListener);
+
+    return () => {
+      window.removeEventListener("partson:open-product-edit", handleOpenProductEdit as EventListener);
+    };
+  }, []);
+
   const renderBadge = (count: number) => {
     if (count <= 0) return null;
     const displayCount = count > 99 ? "99+" : count;
@@ -1126,6 +1153,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         <ProductCreateModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
+        />
+      )}
+
+      {isAdmin && productEditTarget && (
+        <ProductFullEditModal
+          isOpen
+          onClose={() => setProductEditTarget(null)}
+          {...productEditTarget}
         />
       )}
 

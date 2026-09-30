@@ -1515,7 +1515,7 @@ const ProductFetcher: React.FC<Props> = ({
                   points at the cards below by content ("оберіть категорію"),
                   not by screen position ("поруч" — meaningless once this
                   card and the grid stack on mobile). */}
-              <p className="mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
+              <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
                 Деталі згруповано за{" "}
                 <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова, кожна з підкатегоріями для точного пошуку. Оберіть категорію нижче або скористайтеся{" "}
                 <span className="font-semibold text-sky-700">пошуком</span>, якщо вже знаєте назву чи артикул.

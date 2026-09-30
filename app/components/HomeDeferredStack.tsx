@@ -72,6 +72,7 @@ function DeferredHomeSection({
     let cancelBackgroundTask: (() => void) | null = null;
     let nearObserver: IntersectionObserver | null = null;
     let visibleObserver: IntersectionObserver | null = null;
+    let onScroll: (() => void) | null = null;
     const mountWhenScrollSettles = () => {
       if (cancelled) return;
       const isScrolling = document.documentElement.classList.contains("is-scrolling");
@@ -105,6 +106,7 @@ function DeferredHomeSection({
     const requestMount = () => {
       if (cancelled || mountRequested) return;
       mountRequested = true;
+      if (onScroll) window.removeEventListener("scroll", onScroll);
       cancelBackgroundTask?.();
       nearObserver?.disconnect();
       visibleObserver?.disconnect();
@@ -127,6 +129,7 @@ function DeferredHomeSection({
       nearObserver?.disconnect();
       visibleObserver?.disconnect();
       if (mountTimer !== null) window.clearTimeout(mountTimer);
+      if (onScroll) window.removeEventListener("scroll", onScroll);
     };
 
     if (typeof IntersectionObserver === "undefined") {
@@ -139,6 +142,18 @@ function DeferredHomeSection({
     }).connection;
     const conserveData = connection?.saveData ||
       connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+
+    // A slot can already intersect the prefetch margin on first paint. In
+    // that case IntersectionObserver won't notify us again as scrolling
+    // brings it into view. Start promptly on that first real scroll, even
+    // while an unrelated slow resource is holding window.load open.
+    onScroll = () => {
+      const rect = section.getBoundingClientRect();
+      if (rect.bottom >= 0 && rect.top <= window.innerHeight + (conserveData ? 0 : 800)) {
+        requestMount();
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     nearObserver = new IntersectionObserver(
       ([entry]) => {
@@ -156,6 +171,10 @@ function DeferredHomeSection({
           requestMount();
           return;
         }
+        // At rest, load only sections actually visible below the hero.
+        // Offscreen modules in the generous prefetch margin wait for scroll
+        // intent instead of competing with visible content and auth setup.
+        if (section.getBoundingClientRect().top >= window.innerHeight) return;
         // At the top of the page the 800px margin can include multiple
         // sections. Their speculative work must wait for the hero resources,
         // then start in separate idle slots instead of racing the LCP image.
@@ -206,6 +225,7 @@ function DeferredHomeSection({
       aria-busy={!ready}
       aria-label={label}
     >
+      <span className="home-scroll-seam" aria-hidden="true" />
       {shouldMount ? (
         <div className={`home-deferred-content ${ready ? "is-ready" : ""}`}>
           {children(markReady)}

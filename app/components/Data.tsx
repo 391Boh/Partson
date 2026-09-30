@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { useLiveCatalogRefresh, type LiveCatalogProduct } from 'app/lib/use-live-catalog-refresh';
 import React, {
   useState,
   useEffect,
@@ -1385,6 +1386,7 @@ function useCatalogData(params: {
   const initialItems = initialPagePayload?.items ?? [];
   const hasInitialPage = initialItems.length > 0 && Boolean(initialQuerySignature);
   const [data, setData] = useState<Product[]>(initialItems);
+  const livePricesRef = useRef<Record<string, number | null>>({});
   const [prices, setPrices] = useState<Record<string, number | null>>(
     initialPagePayload?.prices ?? {}
   );
@@ -1748,6 +1750,7 @@ function useCatalogData(params: {
         let didChange = false;
         const next = { ...prev };
         for (const [key, value] of Object.entries(nextUpdates)) {
+          if (Object.prototype.hasOwnProperty.call(livePricesRef.current, key)) continue;
           if (next[key] !== value) {
             next[key] = value;
             didChange = true;
@@ -1932,6 +1935,7 @@ function useCatalogData(params: {
           let didChange = false;
           const next = { ...prev };
           for (const [key, value] of Object.entries(immediateUpdates)) {
+          if (Object.prototype.hasOwnProperty.call(livePricesRef.current, key)) continue;
             if (next[key] !== value) {
               next[key] = value;
               didChange = true;
@@ -2000,6 +2004,7 @@ function useCatalogData(params: {
             let didChange = false;
             const next = { ...prev };
             for (const [key, value] of Object.entries(nextUpdates)) {
+          if (Object.prototype.hasOwnProperty.call(livePricesRef.current, key)) continue;
               if (next[key] !== value) {
                 next[key] = value;
                 didChange = true;
@@ -2111,7 +2116,17 @@ function useCatalogData(params: {
           if (mode === "full" || mode === "partner") {
             // Both protected modes require a Firebase ID token. The server
             // independently verifies either admin or partner access.
+            const tokenStart = performance.now();
+            console.log(`[promo-timing] postBatch(${mode}) awaiting token`, Math.round(tokenStart));
             const adminToken = await getAdminAuthToken?.().catch(() => null);
+            console.log(
+              `[promo-timing] postBatch(${mode}) got token`,
+              Math.round(performance.now()),
+              "took",
+              Math.round(performance.now() - tokenStart),
+              "ms, token present:",
+              Boolean(adminToken)
+            );
             if (adminToken) {
               headers.Authorization = `Bearer ${adminToken}`;
               tokenAttached = true;
@@ -3448,6 +3463,7 @@ function useCatalogData(params: {
           let didChange = false;
           const next = { ...prev };
           for (const [key, value] of Object.entries(payload.prices ?? {})) {
+          if (Object.prototype.hasOwnProperty.call(livePricesRef.current, key)) continue;
             if (next[key] !== value) {
               next[key] = value;
               didChange = true;
@@ -3997,7 +4013,7 @@ function useCatalogData(params: {
           continue;
         }
 
-        if (next[stateKey] !== inlinePrice) {
+        if (!Object.prototype.hasOwnProperty.call(livePricesRef.current, stateKey) && next[stateKey] !== inlinePrice) {
           next[stateKey] = inlinePrice;
           didChange = true;
         }
@@ -4307,6 +4323,7 @@ function useCatalogData(params: {
       );
 
       if (nextPrice !== undefined && Number.isFinite(nextPrice)) {
+        livePricesRef.current[payloadCode] = nextPrice > 0 ? nextPrice : null;
         setPrices((prev) => {
           const next = { ...prev, [payloadCode]: nextPrice > 0 ? nextPrice : null };
           pricesRef.current = next;
@@ -4324,6 +4341,53 @@ function useCatalogData(params: {
     },
     []
   );
+
+  const applyLiveCatalogProducts = useCallback((products: LiveCatalogProduct[], partner: boolean) => {
+    setIsPartner(partner);
+    const promoUpdates: Record<string, number | null> = {};
+    const costUpdates: Record<string, number | null> = {};
+    for (const product of products) {
+      for (const key of getProductPriceLookupKeys(product)) {
+        if (product.promoPriceEuro !== undefined) promoUpdates[key] = product.promoPriceEuro;
+        if (product.costPriceEuro !== undefined) costUpdates[key] = product.costPriceEuro;
+      }
+    }
+    if (!partner) { promoPricesRef.current = {}; setPromoPrices({}); }
+    else if (Object.keys(promoUpdates).length) setPromoPrices(previous => {
+      const next = { ...previous, ...promoUpdates }; promoPricesRef.current = next; return next;
+    });
+    if (Object.keys(costUpdates).length) setCostPrices(previous => {
+      const next = { ...previous, ...costUpdates }; costPricesRef.current = next; return next;
+    });
+    const byCode = new Map(products.map(product => [product.code.trim().toLowerCase(), product]));
+    const updates: Record<string, number | null> = {};
+    for (const product of products) {
+      if (typeof product.priceEuro !== 'number' || !Number.isFinite(product.priceEuro)) continue;
+      const price = product.priceEuro > 0 ? product.priceEuro : null;
+      for (const key of getProductPriceLookupKeys(product)) {
+        updates[key] = price;
+        livePricesRef.current[key] = price;
+        writeCachedPriceEntry(key, price);
+      }
+    }
+    setData(previous => {
+      let changed = false;
+      const next = previous.map(item => {
+        const fresh = byCode.get(item.code.trim().toLowerCase());
+        if (!fresh) return item;
+        const patch = Object.fromEntries(Object.entries(fresh).filter(([key, value]) => key !== 'code' && key !== 'promoPriceEuro' && key !== 'costPriceEuro' && value !== undefined));
+        if (!Object.entries(patch).some(([key, value]) => item[key as keyof Product] !== value)) return item;
+        changed = true;
+        return { ...item, ...patch, inStock: fresh.quantity > 0, ...(fresh.priceEuro !== undefined ? { hasPrice: fresh.priceEuro > 0 } : {}) };
+      });
+      return changed ? next : previous;
+    });
+    if (Object.keys(updates).length) setPrices(previous => {
+      const next = { ...previous, ...updates };
+      pricesRef.current = next;
+      return next;
+    });
+  }, []);
 
   const updateCatalogItemFields = useCallback(
     (code: string, fields: { name?: string; article?: string; group?: string; subGroup?: string; category?: string; producer?: string; quantity?: number }) => {
@@ -4414,6 +4478,7 @@ function useCatalogData(params: {
     setFilterLoading,
     updateCatalogItemPrice,
     updateCatalogItemFields,
+    applyLiveCatalogProducts,
     catalogTotalCount,
     correctedQuery,
     catalogQuerySignature: querySignature,
@@ -4498,6 +4563,37 @@ const Data: React.FC<DataProps> = ({
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
   useEffect(() => {
+    // Kick off the Firebase ID token fetch as soon as we know there's a
+    // logged-in user — in parallel with the catalog data still loading —
+    // rather than letting fetchCatalogPagePrices's first partner-mode batch
+    // be the thing that first calls getAdminAuthToken. That batch only fires
+    // once catalog data has *already* arrived, so without this the token
+    // fetch (Firebase auth restore + getIdToken) started only after the
+    // catalog fetch finished instead of alongside it — a fully serial chain
+    // that's the actual reason the exact promo price kept visibly lagging
+    // behind the rest of the card for a freshly loaded page, even with the
+    // server-side lookups now fast. getAdminIdToken() is cheap to call
+    // again here; the real fetch just reuses whatever this already warmed.
+    const prewarmAuthToken = () => {
+      try {
+        if (localStorage.getItem("user_id")) {
+          const t0 = performance.now();
+          console.log("[promo-timing] token prewarm started", Math.round(t0));
+          void getAdminIdToken()
+            .then((token) =>
+              console.log(
+                "[promo-timing] token prewarm resolved",
+                Math.round(performance.now()),
+                "took",
+                Math.round(performance.now() - t0),
+                "ms, got token:",
+                Boolean(token)
+              )
+            )
+            .catch(() => undefined);
+        }
+      } catch {}
+    };
     const syncStoredAuth = () => {
       try {
         setHasAuthenticatedUser(Boolean(localStorage.getItem("user_id")));
@@ -4508,8 +4604,10 @@ const Data: React.FC<DataProps> = ({
     const handleAuthChange = (event: Event) => {
       const detail = (event as CustomEvent<{ uid?: string | null }>).detail;
       setHasAuthenticatedUser(Boolean(detail?.uid));
+      if (detail?.uid) void getAdminIdToken().catch(() => undefined);
     };
 
+    prewarmAuthToken();
     syncStoredAuth();
     window.addEventListener("partson:authStateChange", handleAuthChange);
     return () => window.removeEventListener("partson:authStateChange", handleAuthChange);
@@ -4591,6 +4689,7 @@ const Data: React.FC<DataProps> = ({
     setFilterLoading,
     updateCatalogItemPrice,
     updateCatalogItemFields,
+    applyLiveCatalogProducts,
     catalogTotalCount,
     correctedQuery,
     catalogQuerySignature,
@@ -4984,6 +5083,13 @@ const Data: React.FC<DataProps> = ({
   const visibleSortedData = useMemo(
     () => accumulatedSortedData.slice(Math.max(0, displayedPageBounds.start - dataStartIndex), Math.max(0, displayedPageBounds.end - dataStartIndex)),
     [accumulatedSortedData, displayedPageBounds, dataStartIndex]
+  );
+
+  const liveCatalogSyncFailed = useLiveCatalogRefresh(
+    visibleSortedData.map(item => item.code),
+    !loading && !filterLoading && !isLoadingNextPage && catalogReadyQuerySignature === catalogQuerySignature,
+    applyLiveCatalogProducts,
+    isAdmin ? 'full' : hasAuthenticatedUser ? 'partner' : 'fast'
   );
 
   // Continue the cursor chain before paint. Keep the target operation active
@@ -5940,6 +6046,11 @@ const Data: React.FC<DataProps> = ({
         className="relative w-full px-3 pb-0 pt-0 sm:px-3.5 sm:pb-0 lg:px-4"
         aria-busy={loading || filterLoading || isLoadingNextPage}
       >
+        {liveCatalogSyncFailed && !loading && (
+          <p role="status" className="mb-2 text-xs text-amber-800">
+            Не всі дані вдалося оновити. Показуємо останні отримані значення; перевірка повториться автоматично.
+          </p>
+        )}
         {!loading && correctedQuery && (
           <p role="status" className="mb-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-slate-700">
             За запитом «{rawSearchQuery}» збігів немає. Показуємо результати для «{correctedQuery}».

@@ -4,6 +4,8 @@ import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import CatalogLoaderCard from 'app/components/CatalogLoaderCard';
+import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
 import {
   Car,
   BadgeDollarSign,
@@ -84,21 +86,18 @@ interface CategoryProps {
   resetViewSignal?: number;
 }
 
+// Same image-cycling loader card the catalog grid itself uses on first load
+// (Data.tsx via CatalogLoaderCard) — was a bare, unlabeled spinner here, so
+// the filter's own "still loading" moment looked like a different, less-
+// finished product than the grid it filters. One spinner design for the
+// whole filter, not several competing ones.
 const Auto = dynamic<AutoProps>(() => import('app/components/AutoFilterCompact'), {
   ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center py-8">
-      <div className="loader" />
-    </div>
-  ),
+  loading: () => <CatalogLoaderCard label="Завантаження підбору за авто" />,
 });
 const Category = dynamic<CategoryProps>(() => import('app/components/katkomp'), {
   ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center py-8">
-      <div className="loader" />
-    </div>
-  ),
+  loading: () => <CatalogLoaderCard label="Завантаження категорій" />,
 });
 
 const stripParentheticalMeta = (value: string) => {
@@ -186,6 +185,27 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [localPriceTo, setLocalPriceTo] = useState(priceTo);
   const priceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCommittedPriceRef = useRef({ from: priceFrom, to: priceTo });
+
+  // Auto/Category only start their dynamic import once their tab is first
+  // opened (see renderActivePanel below) — whichever one a visitor clicks
+  // first always paid a real "click and wait for the chunk" delay, however
+  // briefly, even though the filter sidebar itself was already mounted and
+  // idle. Warm both chunks in the background as soon as this sidebar
+  // mounts, same pattern as HomeDeferredStack's section preloading, so by
+  // the time a tab is actually opened the module is already resolved and
+  // the loader card rarely has time to even appear.
+  useEffect(() => {
+    const cancelAuto = scheduleBackgroundTask(() => {
+      void import('app/components/AutoFilterCompact');
+    });
+    const cancelCategory = scheduleBackgroundTask(() => {
+      void import('app/components/katkomp');
+    });
+    return () => {
+      cancelAuto();
+      cancelCategory();
+    };
+  }, []);
 
   useEffect(() => {
     // Re-sync from the outside (e.g. "clear filters", browser back/forward)
@@ -769,7 +789,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               <HorizontalDirectoryRail
                 ariaLabel="Виробники автозапчастин"
                 rows={2}
-                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_0.5rem)/2)]"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
               >
                 {visibleProducerBrands.map((b, index) => (
                     <button
@@ -876,7 +896,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         );
       case 'price':
         return (
-          <div className="catalog-filter-panel-view catalog-filter-price-panel mx-auto w-full max-w-4xl gap-2">
+          <div className="catalog-filter-panel-view catalog-filter-price-panel w-full gap-3">
             <div className="catalog-price-panel-header">
               <span className="catalog-price-panel-icon" aria-hidden="true">
                 <BadgeDollarSign size={18} />
@@ -898,6 +918,23 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               )}
             </div>
 
+            {/* Was one narrow, centered column (max-w-4xl) regardless of how
+                wide the filter panel actually was — every other tab
+                (categories, producers) already fills the panel's real width,
+                so this one alone left a band of empty space around it on a
+                normal desktop window. A two-column split fixed the width but
+                left the two columns mismatched in height (sort+range+presets
+                stacked three deep on one side, just promo+toggles on the
+                other), so the panel's own background kept going well past
+                where the shorter column ran out — still a big empty patch,
+                just moved to the bottom-right instead of the sides. Three
+                even columns, each wrapped in its own light card
+                (catalog-price-block) so they read as one balanced row: sort
+                + price range / quick presets / promo + availability toggles.
+                Narrower than lg: still stacks as a single column, unchanged
+                from before. */}
+            <div className="grid gap-3 lg:grid-cols-3 lg:items-stretch">
+            <div className="catalog-price-block">
             {/* Sort order */}
             <div className="catalog-price-control-card flex rounded-[15px] border border-slate-200/60 bg-white/72 p-1 gap-1 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
               {(['none', 'asc', 'desc'] as const).map((order) => {
@@ -975,31 +1012,36 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 </div>
               </div>
             )}
+            </div>
 
             {onPriceRangeChange && (
-              <div className="catalog-price-presets" aria-label="Швидкий вибір діапазону ціни">
-                {([
-                  { label: 'до 500 ₴', from: null, to: 500 },
-                  { label: '500–1500 ₴', from: 500, to: 1500 },
-                  { label: '1500–5000 ₴', from: 1500, to: 5000 },
-                  { label: 'від 5000 ₴', from: 5000, to: null },
-                ] as const).map((preset) => {
-                  const isActive = localPriceFrom === preset.from && localPriceTo === preset.to;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => applyPricePreset(preset.from, preset.to)}
-                      aria-pressed={isActive}
-                      className={`catalog-price-preset ${isActive ? 'is-active' : ''}`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
+              <div className="catalog-price-block">
+                <span className="catalog-price-block-label">Швидкий вибір</span>
+                <div className="catalog-price-presets" aria-label="Швидкий вибір діапазону ціни">
+                  {([
+                    { label: 'до 500 ₴', from: null, to: 500 },
+                    { label: '500–1500 ₴', from: 500, to: 1500 },
+                    { label: '1500–5000 ₴', from: 1500, to: 5000 },
+                    { label: 'від 5000 ₴', from: 5000, to: null },
+                  ] as const).map((preset) => {
+                    const isActive = localPriceFrom === preset.from && localPriceTo === preset.to;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => applyPricePreset(preset.from, preset.to)}
+                        aria-pressed={isActive}
+                        className={`catalog-price-preset ${isActive ? 'is-active' : ''}`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
+            <div className="catalog-price-block justify-center">
             {/* Акційні товари — the catalog fetch/API already support
                 ?promo=1 (see Data.tsx's promoOnlyFromURL and
                 app/api/catalog-page/route.ts), this button was the only
@@ -1054,6 +1096,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 )}
               </div>
             )}
+            </div>
+            </div>
           </div>
         );
       default:

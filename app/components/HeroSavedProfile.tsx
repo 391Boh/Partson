@@ -36,8 +36,15 @@ export default function HeroSavedProfile({
                 from Firestore + localStorage in one go. The whole row (and
                 each chip inside it) animates in/out instead of popping —
                 the live profile subscription can add/remove a chip at any
-                moment now, not just once on first load. */}
-            <AnimatePresence initial={false}>
+                moment, including the very first time this data arrives.
+                This whole component only mounts once Firestore's profile
+                fetch resolves (see its dynamic import in
+                HeroAccountClient.tsx), so "first render" here always means
+                "content just became available" — no `initial={false}`, or
+                that arrival pops in instantly with zero transition instead
+                of the smooth reveal the rest of this component already
+                gives every later add/remove. */}
+            <AnimatePresence>
               {profile && profile.cars.length > 0 && (
                 <motion.div
                   key="cars-row"
@@ -94,8 +101,10 @@ export default function HeroSavedProfile({
                 here. No IdCard icon here (the button right above already
                 carries one) — same sky-gradient family as vinButton
                 instead, just scaled down, plus a trash icon to delete each
-                one inline. */}
-            <AnimatePresence initial={false}>
+                one inline. No `initial={false}` — see the cars-row comment
+                above for why this component's first mount should still
+                animate in. */}
+            <AnimatePresence>
               {profile && profile.vins.length > 0 && (
                 <motion.div
                   key="vins-row"
@@ -134,8 +143,9 @@ export default function HeroSavedProfile({
             </AnimatePresence>
             {/* Saved delivery address — read from the same users/{uid} fields
                 the partnership page writes and the checkout auto-fills. One
-                chip, tap opens the delivery editor on /partnership. */}
-            <AnimatePresence initial={false}>
+                chip, tap opens the delivery editor on /partnership. No
+                `initial={false}` — see the cars-row comment above. */}
+            <AnimatePresence>
               {profile?.delivery && (
                 <motion.div
                   key="delivery-row"
@@ -150,7 +160,7 @@ export default function HeroSavedProfile({
                     type="button"
                     onClick={onOpenDeliverySettings}
                     aria-label="Змінити спосіб доставки"
-                    className="group/delivery inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.94)_0%,rgba(14,165,233,0.78)_100%)] py-1.5 pl-3 pr-3 text-[11px] font-bold tracking-[0.01em] text-white shadow-[0_2px_8px_rgba(2,132,199,0.3)] transition-transform duration-200 [text-shadow:0_1px_2px_rgba(2,6,23,0.7)] hover:scale-[1.02]"
+                    className="group/delivery flex w-full items-center justify-center gap-1.5 rounded-full border border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.94)_0%,rgba(14,165,233,0.78)_100%)] py-1.5 pl-3 pr-3 text-[11px] font-bold tracking-[0.01em] text-white shadow-[0_2px_8px_rgba(2,132,199,0.3)] transition-transform duration-200 [text-shadow:0_1px_2px_rgba(2,6,23,0.7)] hover:scale-[1.02]"
                   >
                     <Truck className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
                     <span className="truncate">

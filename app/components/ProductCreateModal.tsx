@@ -390,9 +390,14 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     // span the full viewport height, opaque, sitting on top of both. Also
     // inset from the right edge now (not just top/bottom) so it reads as a
     // floating card rather than a strip glued to the screen edge — rounded
-    // on every corner and given an ambient shadow to match.
+    // on every corner and given an ambient shadow to match. z-49, one below
+    // the header/floating-actions' z-50 (both in LayoutHost.tsx) — this
+    // panel is meant to coexist with browsing, not sit on top of the site's
+    // own navigation, so the header should always win if the two ever
+    // overlap (e.g. a taller header state) instead of this panel painting
+    // over it.
     <div
-      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-[12rem] z-[200] flex w-full max-w-[344px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-4 sm:bottom-[14rem]"
+      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-[12rem] z-[49] flex w-full max-w-[344px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-4 sm:bottom-[14rem]"
       role="dialog"
       aria-label="Створити товар"
     >
@@ -459,7 +464,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </div>
         ) : (
           <>
-          <div className="flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5">
+          <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
             <div className="space-y-2">
 
               {/* Назва — обов'язково */}
@@ -505,7 +510,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       className={fieldClass}
                     />
                     {producerSugg.length > 0 && (
-                      <div className="absolute left-0 top-full z-50 mt-1 max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
+                      <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
                         {producerSugg.map((s, i) => (
                           <button key={s} type="button"
                             onMouseDown={(e) => { e.preventDefault(); set("producer", s); setProducerSugg([]); setProducerActive(-1); }}
@@ -548,7 +553,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       className={`${fieldClass} border-teal-200 focus:border-teal-400 focus:ring-teal-200/50`}
                     />
                     {catSugg.length > 0 && (
-                      <div className="absolute left-0 top-full z-50 mt-1 max-h-36 w-full overflow-y-auto rounded-[8px] border border-teal-200 bg-white shadow-lg">
+                      <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-teal-200 bg-white shadow-lg">
                         {catSugg.map((s, i) => (
                           <button key={s} type="button"
                             onMouseDown={(e) => {
@@ -590,7 +595,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       className={`${fieldClass} border-violet-200 focus:border-violet-400 focus:ring-violet-200/50`}
                     />
                     {grpSugg.length > 0 && (
-                      <div className="absolute left-0 top-full z-50 mt-1 max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
+                      <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
                         {grpSugg.map((s, i) => (
                           <button key={s} type="button"
                             onMouseDown={(e) => {
@@ -627,7 +632,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       className={`${fieldClass} border-sky-200 focus:border-sky-400 focus:ring-sky-200/50`}
                     />
                     {subSugg.length > 0 && (
-                      <div className="absolute left-0 top-full z-50 mt-1 max-h-36 w-full overflow-y-auto rounded-[8px] border border-sky-200 bg-white shadow-lg">
+                      <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-sky-200 bg-white shadow-lg">
                         {subSugg.map((s, i) => (
                           <button key={s} type="button"
                             onMouseDown={(e) => { e.preventDefault(); set("subGroup", s); setSubSugg([]); setSubActive(-1); }}
