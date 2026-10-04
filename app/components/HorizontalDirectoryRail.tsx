@@ -19,6 +19,7 @@ type HorizontalDirectoryRailProps = {
   ariaLabel: string;
   className?: string;
   rows?: 1 | 2;
+  mobileList?: boolean;
 };
 
 export function DirectoryPagePagination({
@@ -63,6 +64,7 @@ export default function HorizontalDirectoryRail({
   ariaLabel,
   className = "",
   rows = 1,
+  mobileList = false,
 }: HorizontalDirectoryRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
@@ -214,14 +216,14 @@ export default function HorizontalDirectoryRail({
   });
 
   return (
-    <div className="relative">
-      <div className="relative px-10 sm:px-12">
+    <div className={`relative min-w-0 ${mobileList ? "directory-mobile-list" : ""}`}>
+      <div className="relative grid grid-cols-[auto_1fr_auto] items-center gap-y-2 sm:block sm:px-12">
         <button
           type="button"
           onClick={() => move(-1)}
           disabled={!canScrollBack}
           aria-label="Прокрутити список назад"
-          className={`${railArrowClass} left-0`}
+          className={`${railArrowClass} directory-rail-arrow left-0 col-start-1 row-start-2`}
         >
           <ChevronLeft size={20} strokeWidth={2.5} />
         </button>
@@ -237,7 +239,7 @@ export default function HorizontalDirectoryRail({
             event.preventDefault();
             move(event.key === "ArrowLeft" ? -1 : 1);
           }}
-          className={`directory-horizontal-rail snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-0.5 pb-3 pt-1 outline-none [scrollbar-color:rgba(14,165,233,0.45)_transparent] [scrollbar-width:thin] focus-visible:ring-2 focus-visible:ring-sky-400/60 ${rows === 2 ? "grid grid-flow-col grid-rows-2" : "flex"} ${className}`}
+          className={`directory-horizontal-rail col-span-3 row-start-1 min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-0.5 pb-3 pt-1 outline-none [scrollbar-color:rgba(14,165,233,0.45)_transparent] [scrollbar-width:thin] focus-visible:ring-2 focus-visible:ring-sky-400/60 ${rows === 2 ? "grid grid-flow-col grid-rows-2" : "flex"} ${className}`}
         >
           {snapAwareChildren}
         </div>
@@ -247,7 +249,7 @@ export default function HorizontalDirectoryRail({
           onClick={() => move(1)}
           disabled={!canScrollForward}
           aria-label="Прокрутити список вперед"
-          className={`${railArrowClass} right-0`}
+          className={`${railArrowClass} directory-rail-arrow right-0 col-start-3 row-start-2`}
         >
           <ChevronRight size={20} strokeWidth={2.5} />
         </button>
@@ -258,7 +260,7 @@ export default function HorizontalDirectoryRail({
           currentPage={currentPage}
           pageCount={pageCount}
           onPageChange={goToPage}
-          className="mt-1.5"
+          className="directory-rail-pagination mt-1.5"
         />
       ) : null}
     </div>

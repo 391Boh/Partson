@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { awaitWithAbortSignal, createAbortError, handleCatalogBackgroundError, isAbortLikeError, observeCatalogRequest } from "app/lib/catalog-request-lifecycle";
 import { useLiveCatalogRefresh, type LiveCatalogProduct } from 'app/lib/use-live-catalog-refresh';
 import React, {
   useState,
@@ -338,7 +339,7 @@ const readFirstBoolean = (
 
 const sanitizeUiErrorMessage = (value: string | null | undefined) => {
   const raw = (value || "").trim();
-  if (!raw) return "";
+  if (!raw || isAbortLikeError(raw)) return "";
 
   const looksLikeHtml =
     /<\s*html|<\s*!doctype|<\s*script|<\s*meta|<\s*body/i.test(raw);
@@ -839,70 +840,12 @@ const abortControllerSafely = (controller: AbortController) => {
   }
 };
 
-const createAbortError = () => {
-  try {
-    return new DOMException("Fetch is aborted", "AbortError");
-  } catch {
-    const error = new Error("Fetch is aborted");
-    error.name = "AbortError";
-    return error;
-  }
-};
-
 // Plain useLayoutEffect makes React warn during SSR ("does nothing on the
 // server") even though nothing here needs to run before hydration — this
 // swaps to a harmless useEffect there and only uses the real layout effect
 // (needed to fold a same-tick hide+show into one paint, avoiding a visible
 // flash) once running in the browser.
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-const swallowAbortError = (error: unknown) => {
-  if (isAbortLikeError(error)) {
-    return;
-  }
-
-  throw error;
-};
-
-const isAbortLikeError = (error: unknown) => {
-  if (!(error instanceof Error)) return false;
-  if (error.name === "AbortError") return true;
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("signal is aborted") ||
-    message.includes("aborted without reason") ||
-    message.includes("fetch is aborted") ||
-    message.includes("operation was aborted")
-  );
-};
-
-const awaitWithAbortSignal = async <T,>(
-  promise: Promise<T>,
-  signal?: AbortSignal
-) => {
-  if (!signal) return promise;
-  if (signal.aborted) throw createAbortError();
-
-  return await new Promise<T>((resolve, reject) => {
-    const handleAbort = () => {
-      signal.removeEventListener("abort", handleAbort);
-      reject(createAbortError());
-    };
-
-    signal.addEventListener("abort", handleAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", handleAbort);
-        resolve(value);
-      },
-      (error) => {
-        signal.removeEventListener("abort", handleAbort);
-        reject(error);
-      }
-    );
-  });
-};
 
 const normalizeCacheString = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -2150,12 +2093,22 @@ function useCatalogData(params: {
             } satisfies PriceBatchResult;
           }
 
+          const fetchStart = performance.now();
+          console.log(`[promo-timing] postBatch(${mode}) sending fetch`, Math.round(fetchStart));
           const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
             method: "POST",
             headers,
             body: JSON.stringify({ items: batch }),
             cache: "no-store",
           });
+          console.log(
+            `[promo-timing] postBatch(${mode}) fetch resolved`,
+            Math.round(performance.now()),
+            "took",
+            Math.round(performance.now() - fetchStart),
+            "ms, status:",
+            response.status
+          );
 
           if (!response.ok) {
             throw new Error(`Price batch failed: ${response.status}`);
@@ -2199,8 +2152,60 @@ function useCatalogData(params: {
         // pop in several seconds later on slower mobile connections.
         const partnerLookupPromise =
           includePartnerPrices && allowFullLookup
-            ? postBatch(requestItems, "partner")
+            ? observeCatalogRequest(postBatch(requestItems, "partner"))
             : null;
+        const protectedLookupItems = includePartnerPrices ? requestItems : [];
+        if (allowFullLookup && protectedLookupItems.length > 0) {
+          void (partnerLookupPromise ?? postBatch(protectedLookupItems, "partner"))
+            .then((partnerResult) => {
+              // No token made it into this request (see postBatch) — nothing
+              // was actually verified, so isPartner:false here is not a real
+              // answer. Leave the existing isPartner/promoPrices state
+              // untouched instead of wiping already-resolved promo prices
+              // because of an unrelated, unlucky auth-timing race.
+              if (!partnerResult.verified) return;
+
+              const resolvedPartnerPrices: Record<string, number | null> = {};
+              const resolvedPromoPrices: Record<string, number | null> = {};
+
+              for (const item of protectedLookupItems) {
+                const resolvedPrice = partnerResult.prices[item.stateKey];
+                if (
+                  typeof resolvedPrice === "number" &&
+                  Number.isFinite(resolvedPrice) &&
+                  resolvedPrice > 0
+                ) {
+                  resolvedPartnerPrices[item.stateKey] = resolvedPrice;
+                }
+
+                const resolvedPromoPrice = partnerResult.promoPrices[item.stateKey];
+                resolvedPromoPrices[item.stateKey] =
+                  partnerResult.isPartner &&
+                  typeof resolvedPromoPrice === "number" &&
+                  Number.isFinite(resolvedPromoPrice) &&
+                  resolvedPromoPrice > 0
+                    ? resolvedPromoPrice
+                    : null;
+              }
+
+              commitResolvedPrices(
+                resolvedPartnerPrices,
+                undefined,
+                PRICE_REVALIDATE_AFTER_NULL_MS,
+                resolvedPromoPrices,
+                partnerResult.isPartner
+              );
+            })
+            .catch((error) => {
+              // A transient network error/timeout means the partner check
+              // didn't run this time — not that it came back negative. Leave
+              // isPartner/promoPrices as they were; the next successful
+              // batch (or scroll-triggered refetch) will reconcile them.
+              if (isAbortLikeError(error)) return;
+            });
+        }
+
+
         const fastResult = await postBatch(requestItems, "fast");
         const normalizedFastPrices: Record<string, number | null> = {};
         const normalizedFastCostPrices: Record<string, number | null> = {};
@@ -2277,7 +2282,6 @@ function useCatalogData(params: {
         });
 
         const fullLookupItems = includeCostPrices ? requestItems : unresolvedItems;
-        const protectedLookupItems = includePartnerPrices ? requestItems : [];
         if (fullLookupItems.length === 0 && protectedLookupItems.length === 0) return;
 
         if (!allowFullLookup) {
@@ -2286,56 +2290,6 @@ function useCatalogData(params: {
               Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           }
           return;
-        }
-
-        if (protectedLookupItems.length > 0) {
-          void (partnerLookupPromise ?? postBatch(protectedLookupItems, "partner"))
-            .then((partnerResult) => {
-              // No token made it into this request (see postBatch) — nothing
-              // was actually verified, so isPartner:false here is not a real
-              // answer. Leave the existing isPartner/promoPrices state
-              // untouched instead of wiping already-resolved promo prices
-              // because of an unrelated, unlucky auth-timing race.
-              if (!partnerResult.verified) return;
-
-              const resolvedPartnerPrices: Record<string, number | null> = {};
-              const resolvedPromoPrices: Record<string, number | null> = {};
-
-              for (const item of protectedLookupItems) {
-                const resolvedPrice = partnerResult.prices[item.stateKey];
-                if (
-                  typeof resolvedPrice === "number" &&
-                  Number.isFinite(resolvedPrice) &&
-                  resolvedPrice > 0
-                ) {
-                  resolvedPartnerPrices[item.stateKey] = resolvedPrice;
-                }
-
-                const resolvedPromoPrice = partnerResult.promoPrices[item.stateKey];
-                resolvedPromoPrices[item.stateKey] =
-                  partnerResult.isPartner &&
-                  typeof resolvedPromoPrice === "number" &&
-                  Number.isFinite(resolvedPromoPrice) &&
-                  resolvedPromoPrice > 0
-                    ? resolvedPromoPrice
-                    : null;
-              }
-
-              commitResolvedPrices(
-                resolvedPartnerPrices,
-                undefined,
-                PRICE_REVALIDATE_AFTER_NULL_MS,
-                resolvedPromoPrices,
-                partnerResult.isPartner
-              );
-            })
-            .catch((error) => {
-              // A transient network error/timeout means the partner check
-              // didn't run this time — not that it came back negative. Leave
-              // isPartner/promoPrices as they were; the next successful
-              // batch (or scroll-triggered refetch) will reconcile them.
-              if (isAbortLikeError(error)) return;
-            });
         }
 
         if (fullLookupItems.length > 0) void postBatch(fullLookupItems, "full")
@@ -3036,9 +2990,9 @@ function useCatalogData(params: {
             writePageToSession(cacheKey, payload, ttl);
           }
         })
-        .catch(swallowAbortError)
+        .catch(handleCatalogBackgroundError)
         .finally(() => {
-          inFlightPageRequests.delete(cacheKey);
+          if (inFlightPageRequests.get(cacheKey) === requestPromise) inFlightPageRequests.delete(cacheKey);
         });
       return await awaitWithAbortSignal(requestPromise, signal);
     },
@@ -3100,7 +3054,7 @@ function useCatalogData(params: {
             writePageToSession(options.cacheKey, mergedPayload, options.ttlMs);
             applyResolvedPagePrices(payload.items, payload.prices);
           })
-          .catch(swallowAbortError);
+          .catch(handleCatalogBackgroundError);
       });
 
       return () => {
@@ -3176,7 +3130,7 @@ function useCatalogData(params: {
         !isAbortLikeError(error) &&
         signature === activeQuerySignatureRef.current
       ) {
-        setError(error instanceof Error ? error.message : "Не вдалося відкрити сторінку");
+        setError("Не вдалося відкрити сторінку. Спробуйте ще раз.");
       }
       return "error" as const;
     } finally {
@@ -3254,7 +3208,7 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
+          }).catch(handleCatalogBackgroundError);
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -3301,7 +3255,7 @@ function useCatalogData(params: {
             ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
             querySignatureSnapshot: querySignature,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
+          }).catch(handleCatalogBackgroundError);
         });
         dataRef.current = nextItems;
         setData(nextItems);
@@ -3590,7 +3544,7 @@ function useCatalogData(params: {
           querySignatureSnapshot: currentQuerySignature,
           signal: controller.signal,
           allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-        }).catch(swallowAbortError);
+        }).catch(handleCatalogBackgroundError);
       }
       pagingRequestedRef.current = false;
       return true;
@@ -3879,7 +3833,7 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
+          }).catch(handleCatalogBackgroundError);
           fetchCatalogPageImages(memoryHit.items, {
             prefetchedImages: memoryHit.images,
             cacheKey: targetCacheKey,
@@ -3918,7 +3872,7 @@ function useCatalogData(params: {
             querySignatureSnapshot: querySignature,
             signal: controller.signal,
             allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-          }).catch(swallowAbortError);
+          }).catch(handleCatalogBackgroundError);
           fetchCatalogPageImages(payload.items, {
             prefetchedImages: payload.images,
             cacheKey: targetCacheKey,
@@ -3945,7 +3899,7 @@ function useCatalogData(params: {
     };
 
     prefetchNextPageTriggerRef.current = () =>
-      void prefetchUpcomingPages().catch(swallowAbortError);
+      void prefetchUpcomingPages().catch(handleCatalogBackgroundError);
 
     const timerId = window.setTimeout(() => {
       prefetchNextPageTriggerRef.current?.();
@@ -4182,7 +4136,7 @@ function useCatalogData(params: {
         prefetchedPrices: pricesRef.current,
         querySignatureSnapshot: activeQuerySignatureRef.current,
         allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-      }).catch(swallowAbortError);
+      }).catch(handleCatalogBackgroundError);
     },
     [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]
   );
@@ -4196,7 +4150,7 @@ function useCatalogData(params: {
       prefetchedPrices: {},
       querySignatureSnapshot: activeQuerySignatureRef.current,
       allowFullLookup: true,
-    }).catch(swallowAbortError);
+    }).catch(handleCatalogBackgroundError);
   }, [includeCostPrices, fetchCatalogPagePrices]);
 
   const prevIncludePartnerPricesRef = useRef(includePartnerPrices);
@@ -4217,7 +4171,7 @@ function useCatalogData(params: {
       prefetchedPrices: pricesRef.current,
       querySignatureSnapshot: activeQuerySignatureRef.current,
       allowFullLookup: true,
-    }).catch(swallowAbortError);
+    }).catch(handleCatalogBackgroundError);
   }, [includePartnerPrices, fetchCatalogPagePrices]);
 
   // When new items are appended while admin, retry cost prices after a delay in case the
@@ -4241,7 +4195,7 @@ function useCatalogData(params: {
         prefetchedPrices: {},
         querySignatureSnapshot: activeQuerySignatureRef.current,
         allowFullLookup: true,
-      }).catch(swallowAbortError);
+      }).catch(handleCatalogBackgroundError);
     }, 25000);
     return () => window.clearTimeout(timerId);
   }, [data.length, includeCostPrices, fetchCatalogPagePrices]);
@@ -4265,7 +4219,7 @@ function useCatalogData(params: {
         prefetchedPrices: {},
         querySignatureSnapshot: activeQuerySignatureRef.current,
         allowFullLookup: shouldAllowCatalogDirectPriceLookup,
-      }).catch(swallowAbortError);
+      }).catch(handleCatalogBackgroundError);
     }, retryIntervalMs);
     return () => window.clearInterval(timerId);
   }, [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]);
@@ -4394,7 +4348,7 @@ function useCatalogData(params: {
       if (!code || !Object.keys(fields).length) return;
       setData((prev) =>
         prev.map((item) =>
-          item.code === code ? { ...item, ...fields } : item
+          item.code === code ? { ...item, ...fields, ...(fields.quantity !== undefined ? { inStock: fields.quantity > 0 } : {}) } : item
         )
       );
     },
@@ -4516,25 +4470,6 @@ const Data: React.FC<DataProps> = ({
   const searchFilter =
     (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
     "all";
-
-  // Jumping several catalog pages at once (numbered pagination, "last page")
-  // chains many raw fetches back-to-back, each superseding — and aborting —
-  // the previous one. Every one of those aborts is already caught in-app
-  // (see isAbortLikeError/swallowAbortError throughout this file and in
-  // product-image-batch-client.ts's dedup layer); this only silences the dev
-  // overlay's own false-positive "Runtime AbortError" for that exact,
-  // already-handled case, which fires more often once a jump means dozens of
-  // fetches instead of one. Anything else still reaches the overlay normally.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (isAbortLikeError(event.reason)) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("unhandledrejection", handleUnhandledRejection);
-    return () => window.removeEventListener("unhandledrejection", handleUnhandledRejection);
-  }, []);
 
   const groupFromURL = currentSearchParams.get("group");
   const subcategoryFromURL = currentSearchParams.get("subcategory");
@@ -4841,7 +4776,7 @@ const Data: React.FC<DataProps> = ({
         // catalog re-fetch (empty cache → full 1C round-trip) and overwrite the
         // optimistic update that is already visible via updateCatalogItemFields above.
         clearBrowserCatalogCache();
-        invalidateCatalogClientCache();
+        invalidateCatalogClientCache({ code, ...(qtyResult?.quantity !== undefined ? { quantity: qtyResult.quantity } : {}) });
       }
 
       return failed ?? { ok: true, quantity: results.find((r) => r.ok && r.quantity !== undefined)?.quantity };

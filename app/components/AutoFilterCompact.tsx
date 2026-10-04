@@ -453,7 +453,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
   }, [selectedModDetails, selectedYear]);
 
   return (
-    <div className="w-full max-w-none select-none">
+    <div className="auto-filter-compact min-w-0 w-full max-w-none select-none">
       <div className="flex flex-col gap-4">
         {hasTableData && (
           <div className="flex flex-col gap-3">
@@ -674,12 +674,12 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
         {isPickerOpen && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:gap-6">
             <div className="md:border-r md:border-slate-200/80 md:pr-4">
-                  <div className="grid grid-cols-3 gap-1.5 md:grid-cols-1 md:gap-2">
+                  <div className="auto-filter-steps grid grid-cols-3 gap-1.5 md:grid-cols-1 md:gap-2">
             <button
               type="button"
               onClick={() => handleStepClick('brand')}
               title={selectedBrand?.name ?? ''}
-              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
+              className={`group min-w-0 flex flex-col items-center gap-1 rounded-[13px] border px-1 py-2 text-center md:flex-row md:gap-2 md:text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'brand'
                   ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
@@ -696,16 +696,16 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               >
                 {selectedBrand ? <Check size={13} strokeWidth={3} /> : '1'}
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 w-full flex-1">
                 <span
-                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                  className={`block text-[10px] font-bold leading-tight sm:text-[10px] sm:tracking-[0.14em] ${
                     activeStep === 'brand' ? 'text-white/75' : 'text-slate-400'
                   }`}
                 >
                   Марка
                 </span>
-                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
-                  {selectedBrand?.name ?? 'Марка'}
+                <span className="mt-1 block w-full truncate text-[12px] font-bold leading-tight md:text-[13px]">
+                  {selectedBrand?.name ?? 'Оберіть'}
                 </span>
               </span>
             </button>
@@ -714,7 +714,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               onClick={() => handleStepClick('model')}
               disabled={!canChooseModel}
               title={selectedModel ?? ''}
-              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
+              className={`group min-w-0 flex flex-col items-center gap-1 rounded-[13px] border px-1 py-2 text-center md:flex-row md:gap-2 md:text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'model'
                   ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
@@ -731,16 +731,16 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               >
                 {selectedModel ? <Check size={13} strokeWidth={3} /> : '2'}
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 w-full flex-1">
                 <span
-                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                  className={`block text-[10px] font-bold leading-tight sm:text-[10px] sm:tracking-[0.14em] ${
                     activeStep === 'model' ? 'text-white/75' : 'text-slate-400'
                   }`}
                 >
                   Модель
                 </span>
-                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
-                  {selectedModel ?? 'Модель'}
+                <span className="mt-1 block w-full truncate text-[12px] font-bold leading-tight md:text-[13px]">
+                  {selectedModel ?? 'Оберіть'}
                 </span>
               </span>
             </button>
@@ -755,7 +755,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                     : selectedCarLabel
                   : pickerParams
               }
-              className={`group flex items-center gap-2 rounded-[13px] border px-2.5 py-2 text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
+              className={`group min-w-0 flex flex-col items-center gap-1 rounded-[13px] border px-1 py-2 text-center md:flex-row md:gap-2 md:text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'engine'
                   ? 'border-sky-300/90 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:bg-sky-50/70'
@@ -772,20 +772,20 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
               >
                 {selectedCarLabel ? <Check size={13} strokeWidth={3} /> : '3'}
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 w-full flex-1">
                 <span
-                  className={`block text-[9px] font-bold uppercase leading-none tracking-[0.1em] sm:text-[10px] sm:tracking-[0.14em] ${
+                  className={`block text-[10px] font-bold leading-tight sm:text-[10px] sm:tracking-[0.14em] ${
                     activeStep === 'engine' ? 'text-white/75' : 'text-slate-400'
                   }`}
                 >
                   Модифікація
                 </span>
-                <span className="hidden w-full truncate text-[12px] font-bold leading-tight sm:block md:text-[13px]">
+                <span className="mt-1 block w-full truncate text-[12px] font-bold leading-tight md:text-[13px]">
                   {selectedCarLabel
                     ? pickerParams
                       ? `${selectedCarLabel} • ${pickerParams}`
                       : selectedCarLabel
-                    : pickerParams || 'Модифікація'}
+                    : pickerParams || 'Оберіть'}
                 </span>
               </span>
             </button>

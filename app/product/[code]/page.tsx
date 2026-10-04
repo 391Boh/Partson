@@ -1,3 +1,4 @@
+import ProductStockBadge from "app/components/ProductStockBadge";
 import { cache, Suspense, type CSSProperties } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
@@ -8,7 +9,6 @@ import { notFound, permanentRedirect } from "next/navigation";
 import {
   BadgeCheck,
   ChevronRight,
-  CircleCheck,
   MapPin,
   PackageSearch,
   ShieldCheck,
@@ -60,7 +60,7 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 import { buildProductFaqJsonLd } from "app/lib/product-faq";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
-import { SEO_TITLE_MAX_LENGTH } from "app/lib/seo-metadata";
+import { buildProductMetaDescription, buildProductSeoTitle, buildProductImageAlt } from "app/lib/product-seo-copy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProductEditOverride } from "app/lib/product-edit-overrides";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
@@ -144,7 +144,6 @@ const loadProductPageGallery = (code: string) =>
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
-const PRODUCT_META_DESCRIPTION_MAX_LENGTH = 160;
 const shouldPreferSitemapProductLookup = true;
 
 const parseProductStaticParamsLimit = (value: string | undefined) => {
@@ -419,19 +418,6 @@ const buildPureProductName = (
   return cleaned || baseName;
 };
 
-const makeSeoTextTrim = (value: string) =>
-  value
-    .replace(/\s+/g, " ")
-    .replace(/\s+([.,;:!?])/g, "$1")
-    .trim();
-
-const stripTrailingSeoPunctuation = (value: string) =>
-  value
-    // Keep a dash after two digits: "98-" means "from 1998 onward" in fitment text.
-    .replace(/(?<!\b\d{2})[—–-]\s*$/u, "")
-    .replace(/[.,;:\s]+$/u, "")
-    .trim();
-
 const buildReadableNameFromSlugSource = (value: string) => {
   const normalized = safeDecodeURIComponent(value || "").trim();
   if (!normalized) return "";
@@ -589,9 +575,6 @@ const buildProductJsonLd = (options: {
               addressCountry: "UA",
             },
           },
-          priceValidUntil: new Date(
-            Date.now() + 1000 * 60 * 60 * 24 * 30
-          ).toISOString().slice(0, 10),
           url: canonicalUrl,
           // Google's Product rich-result guidelines recommend a return policy
           // on the offer; without one, some Search surfaces suppress the
@@ -620,7 +603,7 @@ const buildProductJsonLd = (options: {
     "@type": "Product",
     "@id": `${canonicalUrl}#product`,
     name: visibleName || name,
-    alternateName: visibleName !== name ? visibleName : undefined,
+    alternateName: visibleName && visibleName !== name ? name : undefined,
     description,
     url: canonicalUrl,
     mainEntityOfPage: canonicalUrl,
@@ -632,7 +615,7 @@ const buildProductJsonLd = (options: {
       caption: `${visibleName || name}${article ? ` — артикул ${article}` : ""}`,
     })),
     sku: code || article || undefined,
-    mpn: article || code || undefined,
+    mpn: article || undefined,
     brand: producer ? { "@type": "Brand", name: producer } : undefined,
     manufacturer: producer ? { "@type": "Organization", name: producer } : undefined,
     identifier: [
@@ -714,6 +697,7 @@ const buildProductItemPageJsonLd = (options: {
   return {
     "@context": "https://schema.org",
     "@type": "ItemPage",
+    inLanguage: "uk-UA",
     "@id": `${canonicalUrl}#page`,
     url: canonicalUrl,
     name,
@@ -727,7 +711,11 @@ const buildProductItemPageJsonLd = (options: {
       ? {
           primaryImageOfPage: {
             "@type": "ImageObject",
+            "@id": `${canonicalUrl}#primary-image`,
             url: imageUrl,
+            contentUrl: imageUrl,
+            caption: name,
+            representativeOfPage: true,
           },
         }
       : {}),
@@ -883,118 +871,6 @@ const getCatalogProductUncached = async (code: string) => {
 // because revalidateTag has a race condition with router.refresh() in Next.js 16.
 // After clearOneCCacheForProduct() + revalidatePath(), the next RSC render fetches fresh.
 const getCatalogProduct = cache(getCatalogProductUncached);
-
-const buildProductMetaDescription = (options: {
-  category?: string;
-  group?: string;
-  subGroup?: string;
-}) => {
-  const { category, group, subGroup } = options;
-  const cleanLabel = (value?: string) => {
-    const label = buildVisibleCategoryLabel(value || "");
-    return label === "Товар" ? "" : label;
-  };
-  const lowerFirst = (value: string) =>
-    value ? `${value.charAt(0).toLocaleLowerCase("uk-UA")}${value.slice(1)}` : value;
-
-  const categoryLabel = cleanLabel(category);
-  const productGroupLabel = cleanLabel(subGroup) || cleanLabel(group) || categoryLabel;
-  const hasDistinctCategory =
-    Boolean(categoryLabel) &&
-    categoryLabel.toLocaleLowerCase("uk-UA") !==
-      productGroupLabel.toLocaleLowerCase("uk-UA");
-  const subject = lowerFirst(productGroupLabel || "автозапчастини");
-
-  // Deliberately no product name/producer/article/price here — the name
-  // already leads the <title> tag right above this in a SERP snippet (and
-  // the H1 on-page), so repeating it just burns the ~150-char budget on a
-  // duplicate; price/availability belong in the Offer's own JSON-LD fields
-  // (see `offers` below) which search engines read as a separate indicator,
-  // not as prose duplicated into the description.
-  return trimSeoDescription(
-    [
-      `Купити ${subject}${
-        hasDistinctCategory ? ` із категорії «${categoryLabel}»` : ""
-      } у Львові.`,
-      "Перевірений асортимент товарів.",
-      "вул. Перфецького, 8.",
-      "Онлайн замовлення!",
-    ].join(" "),
-    150
-  );
-};
-
-const trimSeoPhrase = (value: string, maxLength: number) => {
-  const normalized = makeSeoTextTrim(value);
-  if (normalized.length <= maxLength) return normalized;
-
-  const contentMaxLength = Math.max(1, maxLength - 1);
-  const slice = normalized.slice(0, contentMaxLength + 1);
-  const boundary = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf(","));
-  return `${stripTrailingSeoPunctuation(
-    slice.slice(0, boundary > Math.floor(contentMaxLength * 0.65) ? boundary : contentMaxLength)
-  )}…`;
-};
-
-const trimSeoDescription = (
-  value: string,
-  maxLength = PRODUCT_META_DESCRIPTION_MAX_LENGTH
-) => {
-  const normalized = makeSeoTextTrim(value);
-  if (normalized.length <= maxLength) return normalized;
-
-  const slice = normalized.slice(0, maxLength + 1);
-  const boundary = Math.max(
-    slice.lastIndexOf("."),
-    slice.lastIndexOf(";"),
-    slice.lastIndexOf(","),
-    slice.lastIndexOf(" ")
-  );
-  const trimmed = slice
-    .slice(0, boundary > 120 ? boundary : maxLength)
-    .replace(/\s+([.,;:!?])/g, "$1");
-
-  return `${stripTrailingSeoPunctuation(trimmed)}...`;
-};
-
-const buildProductSeoTitle = (options: {
-  name: string;
-  producer?: string;
-  article?: string;
-}) => {
-  const { name, producer, article } = options;
-  const baseName = buildVisibleProductName(name);
-  const normalizedProducer = (producer || "").trim();
-  const nameAlreadyHasProducer =
-    normalizedProducer.length > 0 &&
-    baseName.toLowerCase().includes(normalizedProducer.toLowerCase());
-  const withProducer =
-    normalizedProducer && !nameAlreadyHasProducer
-      ? `${baseName} ${normalizedProducer}`
-      : baseName;
-
-  // Two different catalog lines can share the exact same name+producer text
-  // (the same part sold under a shorter marketing name across several
-  // internal 1C codes) — without the article, their <title> tags collide,
-  // which Google treats as a duplicate-content signal. Reserve room for the
-  // article first so it always survives the trim, instead of appending it
-  // after truncation where it could get pushed out on longer names.
-  const normalizedArticle = (article || "").trim();
-  const brandSuffix = " | PartsON";
-  // Keep pathological multi-code supplier values from pushing the useful
-  // product name (and the site brand) out of Google's visible title.
-  const titleArticle = normalizedArticle
-    ? trimSeoPhrase(normalizedArticle, 20)
-    : "";
-  const articleSuffix = titleArticle ? ` — ${titleArticle}` : "";
-  const descriptiveBudget = Math.max(
-    24,
-    SEO_TITLE_MAX_LENGTH - brandSuffix.length - articleSuffix.length
-  );
-  const descriptive = trimSeoPhrase(withProducer, descriptiveBudget) || "Автозапчастина";
-
-  return `${descriptive}${articleSuffix}${brandSuffix}`;
-};
 
 // Cross-reference/OEM codes live in parentheses in the raw 1C name (e.g. "(LIN030104/AD030213)")
 // and get stripped everywhere else — pull them out so they're still searchable as keywords.
@@ -1415,13 +1291,40 @@ const findCatalogProductByLookupToken = async (token: string) => {
 };
 
 const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
+  const primaryToken = extractPrimaryLookupTokenFromSeoNameSlug(rawNameSlug);
+  const primaryTokenCompact = primaryToken ? compactProductLookupToken(primaryToken) : "";
   const lookupTokens = buildUniqueLookupTokens(rawNameSlug);
 
   for (const token of lookupTokens) {
     const matchedProduct = await findCatalogProductByLookupToken(token);
     const matchedCode = (matchedProduct?.code || matchedProduct?.article || "").trim();
     if (!matchedProduct || !matchedCode) continue;
-    if (!doesProductMatchSeoNameSlug(matchedProduct, rawNameSlug)) continue;
+
+    // The primary token is this slug's own trailing article/code segment —
+    // buildProductPath always appends article||code last, so when a
+    // candidate's own article or internal code equals it exactly, this IS
+    // the product the slug was generated for, whatever the rest of the
+    // descriptive text says. That text doesn't always agree: 1C's bulk
+    // "allgoods" listing (what the catalog card's link was built from) and
+    // its single-item exact lookup (what this resolves against) sometimes
+    // return very slightly different name text for the same product — a
+    // trailing word truncated by one character, doubled vs. single
+    // whitespace — even though every other field matches. Requiring the
+    // full name-slug to match exactly rejected the product's own canonical
+    // URL as a false negative purely over that drift. This check is
+    // deliberately scoped to the PRIMARY token only (never any of the other
+    // multi-word/compact variants tried above) — trusting a match on an
+    // arbitrary token, rather than specifically the slug's own article
+    // segment, is exactly what let an unrelated analog code embedded
+    // elsewhere in a product's name resolve to the wrong product.
+    const matchesPrimaryToken =
+      Boolean(primaryTokenCompact) &&
+      (compactProductLookupToken(matchedProduct.article || "") === primaryTokenCompact ||
+        compactProductLookupToken(matchedProduct.code || "") === primaryTokenCompact);
+
+    if (!matchesPrimaryToken && !doesProductMatchSeoNameSlug(matchedProduct, rawNameSlug)) {
+      continue;
+    }
 
     return {
       code: matchedCode,
@@ -1769,6 +1672,9 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
+    productName: seoVisibleProductName,
+    producer: productProducer,
+    article: productArticle,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
@@ -1810,7 +1716,7 @@ export async function generateMetadata({
       description,
       images: [{
         url: productImageUrl,
-        alt: `${seoVisibleProductName}${productArticle ? ` арт. ${productArticle}` : ""} — автозапчастина PartsON`,
+        alt: buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle }),
       }],
       siteName: "PartsON",
       locale: "uk_UA",
@@ -1819,7 +1725,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: seoTitle,
       description,
-      images: [{ url: productImageUrl, alt: `${seoVisibleProductName}${productArticle ? ` арт. ${productArticle}` : ""} — автозапчастина PartsON` }],
+      images: [{ url: productImageUrl, alt: buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle }) }],
     },
     robots: {
       index: shouldIndexProduct,
@@ -2113,6 +2019,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? toPriceUah(product.costPriceEuro, pagePrice.euroRate)
       : null;
   const schemaDescription = buildProductMetaDescription({
+    productName: visibleProductName,
+    producer: product.producer,
+    article: product.article,
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
@@ -2365,7 +2274,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <span className="pointer-events-none absolute -left-1/2 top-0 z-10 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent transition-transform duration-1000 ease-out group-hover/photo:translate-x-[520%] motion-reduce:hidden" />
                     <div className="relative flex min-h-[270px] flex-1 items-center justify-center p-3 sm:min-h-[350px] sm:p-6 lg:min-h-[430px]">
                       <ProductImageWithFallback
-                        alt={`Фото товару ${product.name}`}
+                        alt={buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article })}
                         width={720}
                         height={720}
                         loading="eager"
@@ -2395,16 +2304,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       {productEyebrowLabel}
                     </span>
                     <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${
-                        isInStock
-                          ? "bg-emerald-50 text-emerald-800"
-                          : "bg-amber-50 text-amber-800"
-                      }`}
-                    >
-                      <CircleCheck size={13} aria-hidden="true" />
-                      {isInStock ? `В наявності${product.quantity > 0 ? ` · ${product.quantity} шт.` : ""}` : "Під замовлення"}
-                    </span>
+                    <ProductStockBadge code={product.code || resolvedCode} quantity={product.quantity} />
                   </div>
 
                   <div className="relative mt-3 border-l-[3px] border-sky-500 pl-3.5 sm:mt-4 sm:pl-4">

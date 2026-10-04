@@ -64,7 +64,7 @@ export default async function sitemap(props: {
         category: entry.category ?? undefined,
       });
       const productImages =
-        entry.hasPhoto === false
+        entry.hasPhoto !== true
           ? undefined
           : [
               escapeXmlUrl(

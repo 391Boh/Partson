@@ -29,14 +29,35 @@ export type SearchPage<T> = {
   items: T[]; hasMore: boolean; nextCursor: string; totalCount?: number | null;
 };
 
-// All sources use the same 1C code / price+code order. Continue after the last
-// emitted product, never after the end of a source batch: that would skip hits.
+// Sorted key shared by ordering and cursors: price (unpriced items last in
+// both directions), then code.
+type SortKey = { price: number; code: string };
+const sortKey = (item: SearchItem, sort: "asc" | "desc"): SortKey => ({
+  price: typeof item.priceEuro === "number" && item.priceEuro > 0
+    ? item.priceEuro : sort === "asc" ? 999999999999 : -1,
+  code: item.code,
+});
+const compareSortKeys = (a: SortKey, b: SortKey, sort: "asc" | "desc") => {
+  if (a.price !== b.price) return sort === "asc" ? a.price - b.price : b.price - a.price;
+  return a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
+};
+const parseSortCursor = (cursor: string): SortKey | null => {
+  try {
+    const parsed = JSON.parse(cursor) as Partial<SortKey>;
+    return typeof parsed.price === "number" && typeof parsed.code === "string"
+      ? { price: parsed.price, code: parsed.code } : null;
+  } catch { return null; }
+};
+
+// Unsorted: continue after the last emitted 1C code. Sorted: continue after
+// the last emitted (price, code). Never after the end of a source batch —
+// that would skip hits.
 export function searchItemCursor(item: SearchItem, sort: "none" | "asc" | "desc"): string {
-  if (sort === "none") return item.code;
-  const price = typeof item.priceEuro === "number" && item.priceEuro > 0
-    ? item.priceEuro : sort === "asc" ? 999999999999 : -1;
-  return JSON.stringify({ price, code: item.code });
+  return sort === "none" ? item.code : JSON.stringify(sortKey(item, sort));
 }
+
+// Upper bound for one sorted search: 1C returns at most 500 rows per call.
+const MAX_SORTED_SCAN_BATCHES = 12;
 
 export async function searchProductFields<T extends SearchItem>(options: {
   query: string;
@@ -46,16 +67,25 @@ export async function searchProductFields<T extends SearchItem>(options: {
   sort: "none" | "asc" | "desc";
   fetchPage: (field: SearchField, cursor: string, limit: number) => Promise<SearchPage<T>>;
 }): Promise<SearchPage<T>> {
+  const sort = options.sort;
+  // 1C's price-sorted mode can't be paged: it ignores the cursor and returns
+  // no next_cursor (the source of "non-advancing cursor" errors). Sorted
+  // searches therefore scan the unsorted, cursor-paged matches in full
+  // (fetchPage must not request price sorting) and sort/page them here.
+  const scanAll = sort !== "none";
   const pages = await Promise.all(options.fields.map(async (field) => {
     const matches: T[] = [];
-    let cursor = options.cursor;
+    let cursor = scanAll ? "" : options.cursor;
     let more = true;
+    let batches = 0;
     const seenCursors = new Set([cursor]);
-    let batchSize = Math.min(500, Math.max(32, Math.ceil((options.limit + 1) / 32) * 32));
-    // Scan upstream fuzzy matches until the visible page is full or the source
-    // ends. Filtering just one batch would hide later matching products.
-    while (more && matches.length <= options.limit) {
+    let batchSize = scanAll ? 500 : Math.min(500, Math.max(32, Math.ceil((options.limit + 1) / 32) * 32));
+    // Scan upstream fuzzy matches until the visible page is full (or, when
+    // sorting, until the source ends). Filtering just one batch would hide
+    // later matching products.
+    while (more && (scanAll ? batches < MAX_SORTED_SCAN_BATCHES : matches.length <= options.limit)) {
       const page = await options.fetchPage(field, cursor, batchSize);
+      batches += 1;
       matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field)));
       more = page.hasMore;
       if (more && (!page.items.length || !page.nextCursor || seenCursors.has(page.nextCursor))) {
@@ -70,24 +100,24 @@ export async function searchProductFields<T extends SearchItem>(options: {
   }));
   const unique = new Map<string, T>();
   for (const page of pages) for (const item of page.items) unique.set(item.code, item);
-  const all = [...unique.values()].sort((a, b) => {
-    if (options.sort !== "none") {
-      const aPrice = typeof a.priceEuro === "number" && a.priceEuro > 0 ? a.priceEuro : null;
-      const bPrice = typeof b.priceEuro === "number" && b.priceEuro > 0 ? b.priceEuro : null;
-      if (aPrice === null && bPrice !== null) return 1;
-      if (bPrice === null && aPrice !== null) return -1;
-      if (aPrice !== null && bPrice !== null && aPrice !== bPrice) {
-        return options.sort === "asc" ? aPrice - bPrice : bPrice - aPrice;
-      }
-    }
-    return a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
-  });
-  const items = all.slice(0, options.limit);
-  const hasMore = all.length > options.limit || pages.some((page) => page.hasMore);
+  const all = [...unique.values()].sort((a, b) =>
+    sort !== "none"
+      ? compareSortKeys(sortKey(a, sort), sortKey(b, sort), sort)
+      : a.code < b.code ? -1 : a.code > b.code ? 1 : 0
+  );
+  const after = scanAll && options.cursor ? parseSortCursor(options.cursor) : null;
+  const visible = after && sort !== "none"
+    ? all.filter((item) => compareSortKeys(sortKey(item, sort), after, sort) > 0)
+    : all;
+  const items = visible.slice(0, options.limit);
+  const sourceExhausted = pages.every((page) => !page.hasMore);
+  // A sorted scan that hit MAX_SORTED_SCAN_BATCHES pages through what it has;
+  // it can't promise more without the unscanned tail.
+  const hasMore = visible.length > options.limit || (!scanAll && !sourceExhausted);
   return {
     items, hasMore,
-    nextCursor: hasMore && items.length ? searchItemCursor(items[items.length - 1], options.sort) : "",
-    totalCount: !options.cursor && pages.every((page) => !page.hasMore) ? all.length : null,
+    nextCursor: hasMore && items.length ? searchItemCursor(items[items.length - 1], sort) : "",
+    totalCount: sourceExhausted && (scanAll || !options.cursor) ? all.length : null,
   };
 }
 

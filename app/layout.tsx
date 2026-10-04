@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Metadata } from "next";
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Script from "next/script";
 import ClientWrapper from "./client-wrapper";
 import LayoutHost from "./components/LayoutHost";
@@ -10,7 +10,6 @@ import AnalyticsRuntime from "./components/AnalyticsRuntime";
 import DeferredFooter from "./components/DeferredFooter";
 import { trimSeoDescription } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
-import { getGoogleRatingForRender } from "./lib/google-rating";
 import { safeJsonLd } from "./lib/safe-json-ld";
 
 // The global stylesheet is intentionally NOT `import`-ed here. A plain
@@ -19,8 +18,8 @@ import { safeJsonLd } from "./lib/safe-json-ld";
 // tag — and App Router has no supported way to defer or critical-inline
 // that (experimental.optimizeCss only ever wired into the legacy Pages
 // Router). Instead scripts/build-static-css.mjs compiles it standalone into
-// a plain static file, loaded below via preload + async-apply so first
-// paint isn't gated on the whole ~550KB bundle.
+// a plain static file with an immutable production URL. Keep it synchronous
+// so layout and typography are stable on the first paint.
 const resolveGlobalStylesheetHref = (): string => {
   if (process.env.NODE_ENV === "production") {
     try {
@@ -59,6 +58,11 @@ const siteUrlObject = (() => {
 const organizationId = `${siteUrl}#organization`;
 const localBusinessId = `${siteUrl}#local-business`;
 const organizationLogoUrl = `${siteUrl}/google-logo-partson-v3.png`;
+// Real photos of the Lviv store (facade first): Google recommends actual
+// business photos rather than a logo for LocalBusiness `image`.
+const storePhotoUrls = [1, 4, 6, 2, 3, 5, 7].map(
+  (index) => `${siteUrl}/storefront/photos/partson-store-${index}.jpg`
+);
 
 const parseNumericEnv = (value: string | undefined) => {
   if (!value) return null;
@@ -179,9 +183,9 @@ export const metadata: Metadata = {
     "виробники автозапчастин",
     "PartsON",
   ],
-  alternates: {
-    canonical: "/",
-  },
+  // No site-wide canonical: every segment inherits it, so a page without its
+  // own canonical (404s, new routes) would declare itself a copy of "/".
+  // Pages set their canonical through buildPageMetadata.
   robots: {
     index: true,
     follow: true,
@@ -378,7 +382,7 @@ const localBusinessJsonLd = {
   "@id": localBusinessId,
   name: "PartsON",
   url: siteUrl,
-  image: [`${organizationLogoUrl}`],
+  image: storePhotoUrls,
   logo: `${organizationLogoUrl}`,
   description:
     "Магазин автозапчастин PartsON: підбір деталей, консультація та доставка по Україні.",
@@ -423,26 +427,6 @@ const localBusinessJsonLd = {
   ],
 };
 
-async function LocalBusinessJsonLdWithRating() {
-  const googleRating = await getGoogleRatingForRender();
-  const localBusinessWithRating = {
-    ...localBusinessJsonLd,
-    ...(googleRating ? { aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(googleRating.ratingValue),
-      reviewCount: String(googleRating.reviewCount),
-      bestRating: "5",
-      worstRating: "1",
-    } } : {}),
-  };
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessWithRating) }}
-    />
-  );
-}
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -464,7 +448,7 @@ export default function RootLayout({
         <link rel="stylesheet" href={globalStylesheetHref} />
         <link
           rel="preload"
-          href="/fonts/exo2-variable.woff2"
+          href="/fonts/exo2-latin-cyrillic.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
@@ -505,9 +489,10 @@ export default function RootLayout({
           </ClientWrapper>
           <DeferredFooter />
         </div>
-        <Suspense>
-          <LocalBusinessJsonLdWithRating />
-        </Suspense>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessJsonLd) }}
+        />
       </body>
     </html>
   );

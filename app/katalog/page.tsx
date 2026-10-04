@@ -37,6 +37,7 @@ import {
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { carBrands } from "app/components/carBrands";
+import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildProductImagePath, buildProductSeoImagePath } from "app/lib/product-image-path";
@@ -1361,6 +1362,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null),
     manufacturersDirectoryPromise,
   ]);
+  // Start the first page's 1C photo lookup now, while this HTML streams to the
+  // browser, so its image requests find the thumbnails ready or in flight.
+  if (rawInitialPagePayload?.items?.length) warmCatalogImages(rawInitialPagePayload.items);
   const initialPagePayload = rawInitialPagePayload
     ? {
       ...rawInitialPagePayload,

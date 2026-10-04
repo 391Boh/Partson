@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
+const validation = {};
+vm.runInNewContext(ts.transpileModule(readFileSync('app/lib/product-admin-validation.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText, { exports: validation });
+
 async function checkFlow(updateOk) {
   const requests = [];
   const navigations = [];
@@ -12,6 +17,7 @@ async function checkFlow(updateOk) {
   const jsx = (type, props) => ({ type, props });
   const noop = () => {};
   const mocks = {
+    'app/lib/product-admin-validation': validation,
     'react': { useEffect: noop, useRef: () => ({ current: null }), useState: initial => {
       const index = state.length;
       state.push(initial && typeof initial === 'object' && 'priceEuro' in initial

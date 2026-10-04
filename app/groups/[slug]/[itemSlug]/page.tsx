@@ -776,12 +776,6 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
   }
 
   const title = buildGroupItemTitle(item);
-  const categoryIconPath = getCategoryIconPath(item.groupLabel);
-  const productPreview = getGroupProductPreview({
-    categoryLabel: item.groupLabel,
-    parentLabel: item.parentSubgroupLabel || item.groupLabel,
-    itemLabel: item.label,
-  });
 
   return buildPageMetadata({
     title,
@@ -799,14 +793,9 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
       `виробники ${item.label}`,
     ],
     openGraphTitle: `${title} | PartsON`,
-    image: {
-      url: productPreview?.url || categoryIconPath,
-      width: productPreview?.width ?? 512,
-      height: productPreview?.height ?? 512,
-      alt:
-        productPreview?.alt ||
-        `Категорія автозапчастин «${buildVisibleProductName(item.label)}»`,
-    },
+    // The segment's opengraph-image/twitter-image card (1200×630) supplies
+    // og/twitter images; explicit ones here would override it.
+    image: null,
     // Use the parent category icon when this group has no product preview and
     // keep the landing page available for search and navigation.
     index: true,

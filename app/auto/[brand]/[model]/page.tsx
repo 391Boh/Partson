@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -30,7 +29,6 @@ import {
   getVerifiedAutoModelKeys,
   type AutoModelGroupSummary,
 } from "app/lib/auto-directory-data";
-import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
 import {
   buildAutoBrandPath,
   buildAutoModelPath,
@@ -142,7 +140,7 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
     };
   }
 
-  const { brand, brandEntry, model } = resolved;
+  const { brand, model } = resolved;
   // getModelGroupBreakdown is React cache()-wrapped, so calling it here and
   // again in the page body for the same (brand, model) is deduped within the
   // same request — no extra 1C round-trip, just a richer, accurate description.
@@ -151,10 +149,6 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
   const modelLower = model.toLowerCase();
   const title = buildModelTitle(brand, model, groups.length);
   const description = appendSeoContact(buildModelGroupsDescription(brand, model, groups.length));
-  // Same brand logo used on /auto/[brand] — a model page still belongs to its
-  // brand, so link previews should show the same recognizable logo rather
-  // than the generic banner (see car-brand-social-image.ts for the lookup).
-  const brandImage = await resolveCarBrandSocialImage(brandEntry);
 
   return buildPageMetadata({
     title,
@@ -172,9 +166,9 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
       "підбір автозапчастин",
     ],
     openGraphTitle: `${title} | PartsON`,
-    image: brandImage
-      ? { url: brandImage.url, alt: brandImage.alt }
-      : { url: "/opengraph-partson-v3.png", alt: `${brand} ${model} — запчастини | PartsON` },
+    // The segment's opengraph-image/twitter-image card (1200×630) supplies
+    // og/twitter images; explicit ones here would override it.
+    image: null,
   });
 }
 
@@ -334,7 +328,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   if (groups.length === 0) {
     return (
       <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
-        <Script
+        <script
           id="auto-model-page-breadcrumb-jsonld"
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
@@ -471,12 +465,12 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
   return (
     <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
-      <Script
+      <script
         id="auto-model-page-breadcrumb-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
-      <Script
+      <script
         id="auto-model-page-collection-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionJsonLd) }}

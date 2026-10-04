@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || process.argv[2] || "playwright");
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const pageErrors = [];
+page.on("pageerror", error => pageErrors.push(error.message));
 const total = 10107;
 const requests = [];
 let failDirect = false;
@@ -62,6 +64,7 @@ try {
   await page.getByText("Пряма сторінка 10107", { exact: true }).first().waitFor();
   assert.equal(requests.at(-1).offset, 10080);
   assert.equal(await page.locator('[data-catalog-card="1"]').count(), 27);
+  assert.deepEqual(pageErrors.filter(message => /abort/i.test(message)), [], "No unhandled cancellation errors during page changes");
   console.log("Direct pagination passed: page 632 in one request, only 11 items, previous/first page, failure retry and 48-item pages.");
 } finally {
   await browser.close();

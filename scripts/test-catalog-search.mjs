@@ -34,19 +34,15 @@ const transport = async (_endpoint, options) => {
   items.sort((a, b) => (direction ? (price(a) - price(b)) * (direction === "ASC" ? 1 : -1) : 0) || a.Код.localeCompare(b.Код));
   const total = items.length;
   const cursor = body.ПослеКода;
-  if (cursor) {
-    if (direction) {
-      const after = JSON.parse(cursor);
-      items = items.filter((p) => (direction === "ASC" ? price(p) > after.price : price(p) < after.price)
-        || (price(p) === after.price && p.Код > after.code));
-    } else items = items.filter((p) => p.Код > cursor);
-  }
+  // Like the real 1C: price-sorted results ignore the cursor and never return
+  // a next_cursor, so a sorted listing can't be paged at the source.
+  if (cursor && !direction) items = items.filter((p) => p.Код > cursor);
   const hasMore = items.length > body.Лимит;
   items = items.slice(0, body.Лимит);
   const last = items.at(-1);
   return { status: 200, text: JSON.stringify({
     success: true, items, total_count: cursor ? -1 : total, has_more: hasMore,
-    next_cursor: hasMore && last ? direction ? JSON.stringify({ price: price(last), code: last.Код }) : last.Код : "",
+    next_cursor: hasMore && last && !direction ? last.Код : "",
   }) };
 };
 const api = loadCatalogSearch(transport);
@@ -96,6 +92,29 @@ products = Array.from({ length: 125 }, (_, i) => product(String(i).padStart(4, "
 products.push(product("0200", "Фільтр OC90", "REAL"), product("0201", "Фільтр OC90", "REAL2"));
 assert.deepEqual(await collect("OC90"), ["0200", "0201"]);
 assert.equal((await search("OC90")).totalCount, 2);
+// Sorted search across many source pages: 1C can't page sorted results, so
+// the search must page unsorted matches and sort them itself — globally, with
+// unpriced items last and no "non-advancing cursor" failure.
+products = Array.from({ length: 700 }, (_, i) => product(
+  String(i).padStart(4, "0"), "Фільтр OC90", "S" + i, "BRAND", i % 7 === 0 ? 0 : 1000 - i
+));
+calls = [];
+const sortedFirst = await search("фільтр", { sortOrder: "asc", limit: 5 });
+assert.ok(calls.every((body) => !("СортировкаПоЦене" in body)), "Search fetches must not ask 1C to sort");
+assert.deepEqual(Array.from(sortedFirst.items, (item) => item.priceEuro), [301, 302, 303, 304, 305]);
+const sortedDesc = await collect("фільтр", { sortOrder: "desc", limit: 50 });
+assert.equal(sortedDesc.length, 700);
+assert.equal(sortedDesc[0], "0001");
+const unpricedTail = products.filter((p) => p.ЦінаПрод === 0).map((p) => p.Код);
+assert.deepEqual(sortedDesc.slice(-unpricedTail.length), unpricedTail);
+products = [
+  product("001", "Фільтр OC90", "OC90", "KNECHT", 20),
+  product("002", "Фільтр аналог (OC90)", "AB2", "BOSCH", 10),
+  product("003", "Масляний фільтр", "OC90OF", "KNECHT", 30),
+  product("004", "Інший товар", "XX", "OC90", 0),
+  product("005", "Фільтр Golf 4", "G4", "BOSCH", 15),
+];
+
 console.log("Catalog search regression checks passed: fields, duplicates, pagination, sorting, layout, transliteration, failures and fuzzy matches.");
 
 const helpers = loadCatalogSearch(transport);

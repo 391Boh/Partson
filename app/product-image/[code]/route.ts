@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { NextResponse } from "next/server";
 import sharp from "sharp";
+import { awaitInFlightCatalogImage } from "app/lib/catalog-image-batch-server";
 import { CATALOG_IMAGE_VARIANT, optimizeCatalogImage } from "app/lib/catalog-image-optimize";
 
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
@@ -135,13 +136,9 @@ const ensureDiskCacheDir = () => {
   }
   return diskCacheDirReady;
 };
-// 480px keeps catalog thumbnails crisp on 2x/3x phone screens while the WebP
-// payload remains far smaller than the original 1C image. The cache version
-// ensures previously generated 320px/quality-64 files are not reused. Bumped
-// again for the "full" variant now upscaling small sources (see its
-// withoutEnlargement comment below) — old sub-696px cached files must not
-// keep being served under the same key.
-const IMAGE_OPTIMIZATION_VERSION = "v4-catalog-unified";
+// Keep thumbnails small and full images at their natural resolution, capped
+// at 1400px. Version transformed caches whenever the resize policy changes.
+const IMAGE_OPTIMIZATION_VERSION = "v5-natural-resolution";
 const FULL_IMAGE_MAX_WIDTH = 1400;
 const FULL_IMAGE_MAX_HEIGHT = 1400;
 const FULL_IMAGE_QUALITY = 82;
@@ -331,15 +328,9 @@ const optimizeImageBuffer = async (
           width: resizeOptions.width,
           height: resizeOptions.height,
           fit: "inside",
-          // Catalog thumbnails should never enlarge — a small source photo
-          // stays small and fast in the grid. The "full" variant is the one
-          // JSON-LD/OG/the image sitemap all point at, and 1C's source
-          // photos are frequently well under Google's documented ~696px
-          // width floor for image thumbnails in search results (measured
-          // live: 310x310, 600x400, 200x150). Below that floor the image is
-          // simply not eligible, so upscale it up toward the 1400px box
-          // instead of leaving it disqualified by size.
-          withoutEnlargement: false,
+          // Preserve genuine detail. Enlarging a small supplier image does
+          // not create a high-resolution original or guarantee a Google preview.
+          withoutEnlargement: true,
         });
 
       const transformed = await (options.acceptsAvif
@@ -515,8 +506,13 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const catalogMissCacheControl =
     "public, max-age=300, s-maxage=300, stale-while-revalidate=7200";
   const articleHint = safeDecode(requestUrl.searchParams.get("article") || "").trim();
+  // Google-facing URLs (`fallback=404`: JSON-LD, og:image, image sitemap,
+  // Merchant feed) always answer WebP: Merchant Center rejects AVIF, and one
+  // public image URL should not change format depending on who fetches it.
   const acceptsAvif =
-    !catalogMode && (request.headers.get("accept") || "").includes("image/avif");
+    !catalogMode &&
+    !noRedirectFallback &&
+    (request.headers.get("accept") || "").includes("image/avif");
   const lookupOptions = strictMode
     ? STRICT_IMAGE_LOOKUP_OPTIONS
     : catalogMode
@@ -591,6 +587,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       ? 0
       : FULL_ROUTE_MISS_CACHE_TTL_MS;
   const routeLookupStartedAt = Date.now();
+  // Set when 1C didn't answer within the budget, so a miss is "unknown", not
+  // "no photo" — see the 503 response at the end.
+  let lookupTimedOut = false;
+  const LOOKUP_TIMED_OUT = Symbol("lookup-timed-out");
   const runLookupWithinBudget = async <T,>(promiseFactory: () => Promise<T>, fallback: T) => {
     if (catalogMode || strictMode) {
       return await promiseFactory();
@@ -598,10 +598,29 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
 
     const elapsedMs = Date.now() - routeLookupStartedAt;
     const remainingMs = FULL_ROUTE_LOOKUP_BUDGET_MS - elapsedMs;
-    if (remainingMs <= 0) return fallback;
+    if (remainingMs <= 0) {
+      lookupTimedOut = true;
+      return fallback;
+    }
 
-    return await withTimeoutFallback(promiseFactory(), remainingMs, fallback);
+    const result = await withTimeoutFallback<T | typeof LOOKUP_TIMED_OUT>(
+      promiseFactory(),
+      remainingMs,
+      LOOKUP_TIMED_OUT
+    );
+    if (result === LOOKUP_TIMED_OUT) {
+      lookupTimedOut = true;
+      return fallback;
+    }
+    return result;
   };
+
+  // A catalog page's server-side warm-up may already be fetching this photo
+  // in its batch; wait for it (it fills routeImageHitCache) rather than
+  // starting a parallel 1C lookup for the same thumbnail.
+  if (catalogMode && !hasCacheBust && !routeImageHitCache.get(routeHitCacheKey)) {
+    await awaitInFlightCatalogImage(normalizedCode, articleHint || undefined, 3000);
+  }
 
   const cachedHit = routeImageHitCache.get(routeHitCacheKey);
   if (!hasCacheBust && cachedHit && cachedHit.expiresAt > Date.now()) {
@@ -790,6 +809,16 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
 
   if (optimizedImage) {
     return respondWithImage(optimizedImage, { cacheBust: hasCacheBust });
+  }
+
+  // Google-facing URLs: a 1C timeout is a temporary failure, not a missing
+  // photo. 404 tells Google the image is gone (it drops it from the index and
+  // from Product results); 503 + Retry-After tells it to come back later.
+  if (noRedirectFallback && lookupTimedOut && !strictMode && !catalogMode) {
+    return new NextResponse(null, {
+      status: 503,
+      headers: { "cache-control": "no-store", "retry-after": "120" },
+    });
   }
 
   if (strictMode || catalogMode || noRedirectFallback) {

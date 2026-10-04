@@ -127,6 +127,18 @@ const getPublishedBlogPostsCached = unstable_cache(
   }
 );
 
+// Per-post twin of the list cache: the article page, its metadata and the
+// blog image route each used to hit Firestore on every request. Same tag, so
+// admin edits (revalidateTag("blog-posts")) refresh it; throws aren't cached.
+const getPublishedBlogPostBySlugCached = unstable_cache(
+  fetchPublishedBlogPostBySlug,
+  ["blog-post-by-slug-v1"],
+  {
+    revalidate: BLOG_REVALIDATE_SECONDS,
+    tags: ["blog-posts"],
+  }
+);
+
 export const getPublishedBlogPosts = cache(async () => {
   try {
     return await getPublishedBlogPostsCached();
@@ -136,11 +148,15 @@ export const getPublishedBlogPosts = cache(async () => {
   }
 });
 
+// Unlike the list above, a failed lookup is rethrown rather than mapped to
+// null: callers treat null as "no such post" and answer 404, so a Firestore
+// timeout used to turn a live article into a 404 (and, under ISR, replace the
+// cached page with it). Throwing lets ISR keep serving the last good render.
 export const getPublishedBlogPostBySlug = cache(async (slug: string) => {
   try {
-    return await fetchPublishedBlogPostBySlug(slug);
+    return await getPublishedBlogPostBySlugCached(slug);
   } catch (error) {
     console.error(`Failed to load blog post "${slug}"`, error);
-    return null;
+    throw error;
   }
 });

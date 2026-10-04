@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Script from "next/script";
 import { notFound } from "next/navigation";
 import { ArrowRight, CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
 
@@ -11,7 +10,6 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import { carBrands } from "app/components/carBrands";
 import { findCarBrandBySlug, getModelsForBrand } from "app/lib/auto-directory-data";
 import { buildCarBrandInfoParagraph } from "app/lib/car-brand-info";
-import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
 import { buildAutoBrandPath, buildAutoModelPath } from "app/lib/catalog-links";
 import { pluralizeModels } from "app/lib/pluralize-uk";
 import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
@@ -58,7 +56,7 @@ interface AutoBrandPageProps {
 // generateMetadata below) already owns that claim — so the two read as
 // distinct sentences instead of echoing each other.
 const buildBrandModelsDescription = (brandName: string) =>
-  `Оберіть модель ${brandName} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON.`;
+  `Оберіть модель ${brandName} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні.`;
 
 export async function generateMetadata({ params }: AutoBrandPageProps): Promise<Metadata> {
   const { brand: brandSlug } = await params;
@@ -83,16 +81,11 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
   const title =
     modelsCount > 0
       ? buildAdaptiveSeoTitle(
-          `${brand.name}: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`,
+          `Запчастини ${brand.name}: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`,
           ", перевірена наявність"
         )
-      : buildAdaptiveSeoTitle(`${brand.name}: моделі`, ", перевірена наявність");
+      : buildAdaptiveSeoTitle(`Запчастини ${brand.name} за моделлю`, ", перевірена наявність");
   const description = appendSeoContact(buildBrandModelsDescription(brand.name));
-  // Google/Facebook/Twitter link-preview crawlers don't reliably render SVG —
-  // most car logos in /public/Carlogo are .svg, so this resolves a raster
-  // (.png/.webp) version where one exists and falls back to the generic
-  // banner otherwise (see car-brand-social-image.ts for the lookup rules).
-  const brandImage = await resolveCarBrandSocialImage(brand);
 
   return buildPageMetadata({
     title,
@@ -111,9 +104,9 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
       "підбір автозапчастин за моделлю",
     ],
     openGraphTitle: `${title} | PartsON`,
-    image: brandImage
-      ? { url: brandImage.url, alt: brandImage.alt }
-      : { url: "/opengraph-partson-v3.png", alt: `${brand.name} — моделі авто | PartsON` },
+    // The segment's opengraph-image/twitter-image card (1200×630) supplies
+    // og/twitter images; explicit ones here would override it.
+    image: null,
   });
 }
 
@@ -168,12 +161,12 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
 
   return (
     <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 sm:pb-8 lg:pb-10`}>
-      <Script
+      <script
         id="auto-brand-page-breadcrumb-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
-      <Script
+      <script
         id="auto-brand-page-collection-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionJsonLd) }}

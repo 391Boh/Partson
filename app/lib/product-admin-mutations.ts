@@ -79,10 +79,20 @@ export async function saveProductAdminFields(
         headers,
         body: JSON.stringify({ article, description: data.description }),
       })
-        .then((r) => r.json() as Promise<ProductAdminMutationResult>)
+        .then(async (r) => {
+          const payload = await r.json() as ProductAdminMutationResult;
+          return { ...payload, ok: r.ok && payload.ok === true };
+        })
         .then(normalizeAdminResult)
         .catch(() => ({ ok: false, error: "Помилка мережі (опис)" }))
     );
+  }
+
+  // Save the description using the original article before any rename.
+  // Stop on failure so a retry cannot look up an already-renamed article.
+  if (tasks.length) {
+    const descriptionResult = await tasks[0];
+    if (!descriptionResult.ok) return { ok: false, error: descriptionResult.error, results: [descriptionResult] };
   }
 
   if (
@@ -102,7 +112,7 @@ export async function saveProductAdminFields(
   ) {
     // article (НомерПоКаталогу) is required by ОбновитьТовар for product lookup.
     // Send Код (internal code) + article (current catalog number) on every request.
-    const productUpdateBody: Record<string, unknown> = { Код: code };
+    const productUpdateBody: Record<string, unknown> = { Код: code, requirePriceConfirmation: true };
     if (article) productUpdateBody.article = article;
     if (data.priceEuro !== undefined) productUpdateBody["ЦінаПрод"] = data.priceEuro;
     if (data.costPriceEuro !== undefined) productUpdateBody["ЦінаЗакуп"] = data.costPriceEuro;
@@ -126,7 +136,10 @@ export async function saveProductAdminFields(
         headers,
         body: JSON.stringify(productUpdateBody),
       })
-        .then((r) => r.json() as Promise<ProductAdminMutationResult>)
+        .then(async (r) => {
+          const payload = await r.json() as ProductAdminMutationResult;
+          return { ...payload, ok: r.ok && payload.ok === true };
+        })
         .then(normalizeAdminResult)
         .catch(() => ({ ok: false, error: "Помилка мережі (товар)" }))
     );

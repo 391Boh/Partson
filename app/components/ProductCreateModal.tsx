@@ -3,6 +3,7 @@
 import { Check, ExternalLink, ImagePlus, PackagePlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import { clearBrowserCatalogCache } from "app/components/Data";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
@@ -205,13 +206,14 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (submitLock.current) return;
+    if (submitLock.current || createdCode !== null || imageProcessing || extraPhotoProcessing) return;
     submitLock.current = true;
-    try { await submitProduct(); } finally { submitLock.current = false; }
+    setSaving(true);
+    try { await submitProduct(); } catch { setError("Не вдалося створити товар. Перевірте з’єднання та авторизацію."); } finally { submitLock.current = false; setSaving(false); }
   };
 
   const submitProduct = async () => {
-    if (saving || createdCode) return;
+    if (createdCode !== null) return;
     if (!fields.name.trim()) { setError("Введіть назву товару"); return; }
 
     const snapshot = await waitForFirebaseAuthReady();
@@ -220,11 +222,6 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     let token: string;
     try { token = await user.getIdToken(); } catch { setError("Помилка авторизації"); return; }
 
-    const toNum = (s: string) => {
-      if (!s.trim()) return undefined;
-      const n = Number(s.trim().replace(",", "."));
-      return Number.isFinite(n) && n >= 0 ? n : undefined;
-    };
 
     const body: Record<string, unknown> = {
       Наименование: fields.name.trim(),
@@ -234,13 +231,13 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     if (fields.category.trim()) body["Категория"] = fields.category.trim();
     if (fields.group.trim()) body["Группа"] = fields.group.trim();
     if (fields.subGroup.trim()) body["Подгруппа"] = fields.subGroup.trim();
-    const price = toNum(fields.priceEuro);
-    const cost = toNum(fields.costPriceEuro);
-    if ((fields.priceEuro.trim() && price === undefined) || (fields.costPriceEuro.trim() && cost === undefined)) {
-      setError("Введіть коректну невід’ємну ціну"); return;
+    const price = parseProductFormPrice(fields.priceEuro);
+    const cost = parseProductFormPrice(fields.costPriceEuro);
+    if (price === null || cost === null) {
+      setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return;
     }
-    const quantity = toNum(fields.quantity);
-    if (quantity === undefined || !Number.isSafeInteger(quantity)) {
+    const quantity = parseProductFormQuantity(fields.quantity);
+    if (quantity === null) {
       setError("Введіть цілу кількість від 0"); return;
     }
     if (price !== undefined) body["ЦінаПрод"] = price;
@@ -397,7 +394,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     // overlap (e.g. a taller header state) instead of this panel painting
     // over it.
     <div
-      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-[12rem] z-[49] flex w-full max-w-[344px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-4 sm:bottom-[14rem]"
+      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
       aria-label="Створити товар"
     >
@@ -465,10 +462,10 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         ) : (
           <>
           <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
-            <div className="space-y-2">
+            <fieldset disabled={saving} className="space-y-3 disabled:opacity-70">
 
               {/* Назва — обов'язково */}
-              <Field label="Назва *" required>
+              <Field label="Назва" required>
                 <input
                   ref={firstInputRef}
                   type="text"
@@ -659,8 +656,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 </Field>
               </div>
 
+              <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Кількість — ціле число; 0 означає відсутність товару.</p>
               <Field label="Початкова кількість, шт.">
-                <input type="number" min="0" step="1" value={fields.quantity}
+                <input type="text" inputMode="numeric" value={fields.quantity}
                   onChange={(e) => set("quantity", e.target.value)}
                   className={fieldClass} />
               </Field>
@@ -739,7 +737,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 )}
                 {extraPhotoError && <p className="mt-1 text-[10px] font-semibold text-red-500">{extraPhotoError}</p>}
               </Field>
-            </div>
+            </fieldset>
 
             {error && (
               <div className="mt-3 rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
@@ -756,7 +754,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
               Скасувати
             </button>
-            <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || !fields.name.trim()}
+            <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || extraPhotoProcessing || !fields.name.trim()}
               className="inline-flex items-center gap-1.5 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-3.5 py-1.5 text-[11.5px] font-black text-white shadow-[0_4px_14px_rgba(124,58,237,0.35)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60">
               {saving ? (
                 <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-300 border-t-white" />
@@ -774,7 +772,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 }
 
 const fieldClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
+  "w-full rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-[16px] sm:text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
 
 function Field({
   label,
@@ -787,11 +785,11 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-0.5 block text-[9.5px] font-semibold text-slate-500">
+      <label className="mb-1 block text-xs font-semibold text-slate-500">
         {label}
         {required && <span className="ml-0.5 text-red-400">*</span>}
+        {children}
       </label>
-      {children}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   isBlogImageValue,
   isBlogVideoValue,
   MAX_BLOG_MEDIA_URL_LENGTH,
+  parseLegacyBlogImagePath,
 } from "app/lib/blog-media";
 
 export const runtime = "nodejs";
@@ -33,7 +34,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   const db = getFirebaseAdminDb();
   await db.collection("blogPosts").doc(slug).delete();
 
-  revalidateTag("blog-posts", "max");
+  // Expire immediately (not "max" stale-while-revalidate): the editor reloads
+  // right after saving and must see its change, and a deleted post must 404.
+  revalidateTag("blog-posts", { expire: 0 });
   revalidatePath("/blog");
   revalidatePath(`/blog/${slug}`);
   revalidatePath("/blog-sitemap.xml");
@@ -75,7 +78,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (content) updates.content = content;
   if (imageAlt) updates.imageAlt = imageAlt;
 
-  if (typeof body.imageDataUrl === "string") {
+  if (typeof body.imageDataUrl === "string" && !parseLegacyBlogImagePath(body.imageDataUrl.trim(), slug)) {
     const img = body.imageDataUrl.trim();
     if (img === "") {
       updates.imageDataUrl = null;
@@ -86,10 +89,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
   }
 
+  const db = getFirebaseAdminDb();
+
   if (Array.isArray(body.extraImages)) {
-    updates.extraImages = (body.extraImages as unknown[])
+    const submitted = (body.extraImages as unknown[])
       .filter((v): v is string => typeof v === "string")
-      .map((v) => v.trim())
+      .map((v) => v.trim());
+    // The public page shows legacy inline images through short proxy paths
+    // (see toPublicBlogImageSrc), and the editor sends unchanged slots back
+    // as those paths — resolve them to the stored originals, otherwise the
+    // validation below would silently drop every untouched legacy image.
+    const hasProxyPaths = submitted.some((v) => parseLegacyBlogImagePath(v, slug));
+    const stored = hasProxyPaths
+      ? ((await db.collection("blogPosts").doc(slug).get()).data() ?? {})
+      : {};
+    const storedExtra = Array.isArray(stored.extraImages) ? (stored.extraImages as unknown[]) : [];
+    updates.extraImages = submitted
+      .map((v) => {
+        const proxy = parseLegacyBlogImagePath(v, slug);
+        if (!proxy) return v;
+        const original = proxy.index === null ? stored.imageDataUrl : storedExtra[proxy.index];
+        return typeof original === "string" ? original : "";
+      })
       .filter((v) => v.length > 0 && v.length <= MAX_LEGACY_IMAGE_DATA_URL_LENGTH && isBlogImageValue(v))
       .slice(0, 6);
   }
@@ -105,10 +126,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
   }
 
-  const db = getFirebaseAdminDb();
   await db.collection("blogPosts").doc(slug).update(updates);
 
-  revalidateTag("blog-posts", "max");
+  // Expire immediately (not "max" stale-while-revalidate): the editor reloads
+  // right after saving and must see its change, and a deleted post must 404.
+  revalidateTag("blog-posts", { expire: 0 });
   revalidatePath("/blog");
   revalidatePath(`/blog/${slug}`);
 

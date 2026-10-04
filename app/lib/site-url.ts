@@ -17,8 +17,6 @@ const ENV_CANDIDATES = [
   process.env.RAILWAY_STATIC_URL,
 ];
 
-const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
-
 const normalizeCandidate = (raw: string | null | undefined) => {
   const trimmed = (raw || "").trim();
   if (!trimmed) return null;
@@ -27,7 +25,8 @@ const normalizeCandidate = (raw: string | null | undefined) => {
 
   try {
     const parsed = new URL(withProtocol);
-    return trimTrailingSlash(parsed.toString());
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    return parsed.origin;
   } catch {
     return null;
   }
@@ -63,5 +62,5 @@ export const getSiteUrl = (options?: GetSiteUrlOptions) => {
   const headerUrl = options?.headers ? getSiteUrlFromHeaders(options.headers) : null;
   if (headerUrl) return headerUrl;
 
-  return "http://localhost:3000";
+  return process.env.NODE_ENV === "production" ? "https://partson.shop" : "http://localhost:3000";
 };

@@ -7,7 +7,7 @@ const infoDescription = appendSeoContact(
   "Інформація PartsON: доставка, оплата, контакти, повернення, гарантія, локація магазину та комп'ютерна діагностика авто у Львові."
 );
 
-export const metadata: Metadata = buildPageMetadata({
+const baseMetadata = buildPageMetadata({
   title: "Інформація для клієнтів",
   description: infoDescription,
   canonicalPath: "/inform",
@@ -30,6 +30,13 @@ export const metadata: Metadata = buildPageMetadata({
     alt: "Інформація PartsON",
   },
 });
+
+// A plain-string title here would replace the root "%s | PartsON" template
+// for every /inform/* page, leaving their titles without the brand.
+export const metadata: Metadata = {
+  ...baseMetadata,
+  title: { default: "Інформація для клієнтів", template: "%s | PartsON" },
+};
 
 export default function InformLayout({ children }: { children: ReactNode }) {
   return children;

@@ -5,7 +5,9 @@ import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
 
-const homeTitle = "Інтернет-магазин автозапчастин у Львові";
+// The root page shares the root layout's segment, so the layout's
+// "%s | PartsON" title template doesn't apply here — name the brand directly.
+const homeTitle = "Інтернет-магазин автозапчастин у Львові | PartsON";
 const homeDescription = "PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні.";
 
 export const revalidate = 86400;
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
     "автозапчастини з доставкою",
     "автозапчастини україна",
   ],
-  openGraphTitle: `${homeTitle} | PartsON`,
+  openGraphTitle: homeTitle,
   image: {
     url: "/opengraph-partson-v3.png",
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",

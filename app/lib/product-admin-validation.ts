@@ -14,3 +14,19 @@ export function parseAdminQtyInput(raw: string): { value: number } | { error: st
   if (!Number.isSafeInteger(value) || value <= 0) return { error: "Введіть цілу кількість > 0" };
   return { value };
 }
+
+// Empty optional prices stay unset; malformed values must never become zero.
+export function parseProductFormPrice(raw: string): number | undefined | null {
+  const value = raw.trim().replace(/\s/g, "").replace(",", ".");
+  if (!value) return undefined;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number <= Number.MAX_SAFE_INTEGER / 100 ? number : null;
+}
+
+export function parseProductFormQuantity(raw: string): number | null {
+  const value = raw.trim();
+  if (!/^\d+$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) ? number : null;
+}

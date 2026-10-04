@@ -6,6 +6,8 @@ import ts from "typescript";
 
 let response;
 let sent;
+let freshStock = null;
+let readCount = 0;
 const noop = () => {};
 const mocks = {
   "next/server": { NextResponse: Response },
@@ -24,7 +26,12 @@ const mocks = {
   "app/lib/product-image": { clearProductImageCacheForProduct: noop },
   "app/lib/product-image-route-cache": { clearRouteImageCacheForProduct: noop },
   "app/lib/catalog-page-route-cache": { clearCatalogPageRouteCache: noop },
-  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop },
+  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop, fetchExactCatalogProductByLookup: async (_code, options) => {
+    readCount++;
+    assert.equal(options.cacheTtlMs, 0);
+    assert.equal(options.retries, 0);
+    return freshStock;
+  } },
   "app/lib/product-edit-overrides": { setProductEditOverride: noop },
 };
 const exports = {};
@@ -46,7 +53,7 @@ async function update(body, oneCResponse) {
 }
 
 for (const raw of [7, "7", "7,0", 0, "0"]) {
-  const result = await update({ receipt: 2 }, { success: true, quantity_result: { success: true, Кількість: raw } });
+  const result = await update({ receipt: 2 }, { success: true, quantity_result: { success: true, КількістьДо: raw } });
   assert.equal(result.body.quantity, Number(String(raw).replace(",", ".")));
   assert.equal(sent.retries, 0, "Stock movements must never be retried automatically");
   assert.equal(sent.body.Поступлення, 2);
@@ -88,3 +95,18 @@ for (const price_result of [undefined, { success: true }, { success: true, Ці�
 }
 assert.equal((await update({ ЦінаПрод: 0, requirePriceConfirmation: true }, { success: true, price_result: { ЦінаПрод: 0 } })).status, 200);
 console.log('New product price confirmation checks passed.');
+
+// A movement amount must never be displayed as the total remaining stock.
+freshStock = { code: "123", quantity: 52 };
+readCount = 0;
+const verified = await update({ receipt: 2 }, { success: true, quantity_result: { success: true, Кількість: 2 } });
+assert.equal(verified.body.quantity, 52);
+assert.equal(readCount, 1);
+assert.equal(sent.retries, 0);
+freshStock = { code: "123", quantity: 0 };
+assert.equal((await update({ quantity: 0 }, { success: true })).body.quantity, 0);
+freshStock = { code: "123", quantity: 7 };
+assert.equal((await update({ quantity: 9 }, { success: true, quantity_result: { Кількість: 7 } })).status, 409);
+freshStock = { code: "different", quantity: 9 };
+assert.equal((await update({ quantity: 9 }, { success: true })).status, 502);
+console.log("Stock verification passed: uncached read, movement echo, zero and mismatched balance.");

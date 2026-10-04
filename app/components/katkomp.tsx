@@ -866,9 +866,10 @@ const Category: React.FC<CategoryProps> = ({
           <div className="p-2">
             {isSearchMode && (
               <HorizontalDirectoryRail
+                mobileList
                 ariaLabel="Результати пошуку категорій"
                 rows={2}
-                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1rem)/3)]"
               >
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
@@ -903,9 +904,10 @@ const Category: React.FC<CategoryProps> = ({
               <div className="relative py-2">
                 {filteredCategoryItems.length > 0 ? (
                   <HorizontalDirectoryRail
+                mobileList
                     ariaLabel="Категорії автозапчастин"
                     rows={2}
-                    className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
+                    className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1rem)/3)]"
                   >
                     {filteredCategoryItems.map((item, itemIndex) => {
                     const isSelected = selectedCategories.includes(item.name);
@@ -953,9 +955,10 @@ const Category: React.FC<CategoryProps> = ({
 
             {!isSearchMode && step === "group" && (
               <HorizontalDirectoryRail
+                mobileList
                 ariaLabel="Групи автозапчастин"
                 rows={2}
-                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1rem)/3)]"
               >
                 {filteredGroupItems.length > 0 ? (
                   filteredGroupItems.map((group) => {
@@ -993,9 +996,10 @@ const Category: React.FC<CategoryProps> = ({
 
             {!isSearchMode && step === "subgroup" && (
               <HorizontalDirectoryRail
+                mobileList
                 ariaLabel="Підгрупи автозапчастин"
                 rows={2}
-                className="auto-cols-[calc((100%_-_1rem)/3)] gap-2"
+                className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1rem)/3)]"
               >
                 {filteredSubgroupItems.length > 0 ? (
                   filteredSubgroupItems.map((item) => {

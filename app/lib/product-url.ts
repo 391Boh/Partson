@@ -38,7 +38,23 @@ export const buildVisibleProductName = (value: string) => {
   const source = (value || "").trim();
   if (!source) return "Товар";
 
-  const cleaned = source.replace(/\s*\([^)]*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  // Some 1C listings have a truncated cross-reference group — an opening
+  // "(" with dozens of analog codes (other manufacturers' own article
+  // numbers) but no closing ")" at all. The well-formed-group strip below
+  // only matches a *closed* "(...)" pair, so a dangling one like this used
+  // to survive untouched: the entire analog-code dump ended up baked into
+  // this product's own SEO slug. Since those codes are frequently other
+  // real products' actual articles, the slug-token lookup used to resolve
+  // product pages (resolveProductFromSeoNameSlug) could match one of THEM
+  // instead of this product — clicking this card landed on a different
+  // product's page entirely. Stripping a trailing unclosed "(" group here
+  // (in addition to well-formed ones) keeps those foreign codes out of the
+  // slug in the first place.
+  const cleaned = source
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*\([^)]*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   return cleaned || source;
 };
 

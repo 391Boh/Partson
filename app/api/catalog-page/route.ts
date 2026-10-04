@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
   fetchCatalogProductsByQuery,
   fetchPromoCatalogProducts,
@@ -605,6 +606,9 @@ export async function POST(request: Request) {
       inFlight = runQuery({ timeoutMs, retries, retryDelayMs, cacheTtlMs })
         .then((result) => toApiPayload(result))
         .then((payload) => {
+          // Start this page's 1C photo lookup now instead of after the browser
+          // has received, rendered and idle-scheduled its own batch request.
+          warmCatalogImages(payload.items ?? []);
           if (routeCacheKey) {
             routeSuccessCache.set(routeCacheKey, {
               freshUntil: Date.now() + freshTtlMs,

@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock, ShieldCheck } from "lucide-react";
 
 import { getPublishedBlogPostBySlug, getPublishedBlogPosts } from "app/lib/blog";
-import { isStorageMediaUrl } from "app/lib/blog-media";
+import { buildBlogCoverCropPath, toPublicBlogImageSrc } from "app/lib/blog-media";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -138,6 +138,10 @@ const parseContent = (content: string): BlockNode[] => {
   return blocks;
 };
 
+// Changes on every edit, so versioned image URLs can be cached for good.
+const buildBlogImageVersion = (post: { updatedAt?: string; publishedAt?: string; createdAt?: string }) =>
+  String(new Date(post.updatedAt || post.publishedAt || post.createdAt || 0).getTime());
+
 export async function generateStaticParams() {
   const posts = await getPublishedBlogPosts();
   return posts.map((p) => ({ slug: p.slug }));
@@ -160,14 +164,11 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     .map((w) => w.trim())
     .filter((w) => w.length >= 5 && !/^\d+$/.test(w))
     .slice(0, 6);
-  const socialImage = !post.imageDataUrl
-    ? "/opengraph-partson-v3.png"
-    : isStorageMediaUrl(post.imageDataUrl)
-      ? post.imageDataUrl
-      // Legacy posts store the cover image as an inline data: URI, which
-      // social crawlers can't fetch directly — proxy it through a real URL
-      // instead of falling back to the generic branded card.
-      : `/api/blog/og-image/${post.slug}`;
+  // A 16:9 crop of the cover (≤1200px wide) — the shape Google and social
+  // networks use for large previews — instead of the raw upload.
+  const socialImage = post.imageDataUrl
+    ? buildBlogCoverCropPath(post.slug, "16x9", buildBlogImageVersion(post))
+    : "/opengraph-partson-v3.png";
   return buildPageMetadata({
     title: post.title,
     description: appendSeoContact(post.excerpt),
@@ -188,14 +189,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const canonicalUrl = `${siteUrl.replace(/\/$/, "")}/blog/${post.slug}`;
   const published = post.publishedAt || post.createdAt;
   const updated = post.updatedAt || published;
-  const seoImage = !post.imageDataUrl
-    ? `${siteUrl.replace(/\/$/, "")}/opengraph-partson-v3.png`
-    : isStorageMediaUrl(post.imageDataUrl)
-      ? post.imageDataUrl
-      : `${siteUrl.replace(/\/$/, "")}/api/blog/og-image/${post.slug}`;
+  const siteOrigin = siteUrl.replace(/\/$/, "");
+  // Google recommends article images in 16:9, 4:3 and 1:1.
+  const seoImage = post.imageDataUrl
+    ? (["16x9", "4x3", "1x1"] as const).map(
+        (ratio) => `${siteOrigin}${buildBlogCoverCropPath(post.slug, ratio, buildBlogImageVersion(post))}`
+      )
+    : [`${siteOrigin}/opengraph-partson-v3.png`];
 
   const contentBlocks = parseContent(post.content);
-  const extraImages = post.extraImages ?? [];
+  // Legacy posts keep images as inline base64 — swap them for short proxy
+  // URLs so the HTML doesn't carry megabytes of image data.
+  const imageVersion = buildBlogImageVersion(post);
+  const coverImageSrc = toPublicBlogImageSrc(post.imageDataUrl, post.slug, null, imageVersion);
+  const extraImages = (post.extraImages ?? []).map(
+    (src, index) => toPublicBlogImageSrc(src, post.slug, index, imageVersion) ?? ""
+  );
   const videoEmbedUrl = post.videoUrl ? getVideoEmbedUrl(post.videoUrl) : null;
   // Not a recognized YouTube/Vimeo link but still a video URL — an uploaded
   // file (see /api/blog/upload), play it natively instead of iframe-embedding.
@@ -248,9 +257,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         initialTitle={post.title}
         initialExcerpt={post.excerpt}
         initialContent={post.content}
-        initialImageDataUrl={post.imageDataUrl}
+        initialImageDataUrl={coverImageSrc}
         initialImageAlt={post.imageAlt}
-        initialExtraImages={post.extraImages}
+        initialExtraImages={post.extraImages ? extraImages : undefined}
         initialVideoUrl={post.videoUrl}
       />
 
@@ -313,11 +322,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 </p>
               </div>
 
-              {post.imageDataUrl && (
+              {coverImageSrc && (
                 <div className="hidden lg:block">
                   <div className="overflow-hidden rounded-[8px] border border-white/18 shadow-[0_16px_44px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)]">
                     <Image
-                      src={post.imageDataUrl}
+                      src={coverImageSrc}
                       alt={post.imageAlt || post.title}
                       width={960}
                       height={560}
@@ -330,11 +339,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               )}
             </div>
 
-            {post.imageDataUrl && (
+            {coverImageSrc && (
               <div className="mt-2.5 lg:hidden">
                 <div className="overflow-hidden rounded-[7px] border border-white/16 shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
                   <Image
-                    src={post.imageDataUrl}
+                    src={coverImageSrc}
                     alt={post.imageAlt || post.title}
                     width={720}
                     height={380}

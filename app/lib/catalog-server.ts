@@ -718,7 +718,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     return parseAllgoodsPayload(response.text);
   };
 
-  if (options.directOffset !== undefined) {
+  if (options.directOffset !== undefined && !isPriceSorted) {
     const parsed = await requestAllgoodsPage({
       ...requestBodyBase,
       ПрямаяСтраница: true,
@@ -734,53 +734,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   }
 
   if (isPriceSorted) {
-    // The optimized 1C function returns a stable price+code keyset cursor.
-    // Use it directly: the old fixed 240-item window capped the sorted catalog,
-    // transferred far too much data for page one and made continuation pages
-    // rebuild/slice the same large response.
-    if (page === 1 || requestedCursor) {
-      const parsed = await requestAllgoodsPage({
-        ...requestBodyBase,
-        [ALLGOODS_LIMIT_FIELD]: limit,
-        ...(requestedCursor
-          ? { [ALLGOODS_CURSOR_FIELD]: requestedCursor }
-          : {}),
-      });
-      const items = sortPricedWindow(filterPricedItems(parsed.items)).slice(0, limit);
-      const hasMore = items.length === limit && parsed.hasMore;
-
-      return {
-        items,
-        hasMore,
-        nextCursor: hasMore ? parsed.nextCursor : "",
-        cursorField: null,
-        totalCount: parsed.totalCount,
-      };
-    }
-
-    // Backward-compatible continuation for an older 1C installation that can
-    // sort but does not return price_code_v1. It is only reached on page 2+;
-    // current installations stay on the lightweight cursor path above.
-    const LEGACY_PRICE_SORT_BATCH = 240;
-    const start = (page - 1) * limit;
-    const parsed = await requestAllgoodsPage({
-      ...requestBodyBase,
-      [ALLGOODS_LIMIT_FIELD]: LEGACY_PRICE_SORT_BATCH,
-    });
-    const sourceItems = sortPricedWindow(filterPricedItems(parsed.items));
-    const pageSlice = sourceItems.slice(start, start + limit);
-    const hasMore =
-      pageSlice.length === limit &&
-      (sourceItems.length > start + limit ||
-        (parsed.hasMore && parsed.items.length >= LEGACY_PRICE_SORT_BATCH));
-
-    return {
-      items: pageSlice,
-      hasMore,
-      nextCursor: "",
-      cursorField: null,
-      totalCount: parsed.totalCount,
-    };
+    return fetchPriceSortedPage();
   }
 
   if (requestedCursor) {
@@ -838,6 +792,174 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   }
 
   return fetchAllgoodsPageByNumber();
+
+  // Price-sorted listing. 1C sorts by price itself but can't page that
+  // order: in sorted mode it ignores both ПослеКода and Смещение and returns
+  // no next_cursor, and ASC puts price-less items first. So:
+  // - priced items: 1C-sorted windows bounded by ЦенаОт/ЦенаДо (inclusive)
+  //   from the last emitted (price, code) — a keyset cursor built on price;
+  // - then price-less items (unless the listing is priced-only or
+  //   price-filtered), via the ordinary code-keyset scan.
+  // Page N without a cursor walks forward in 500-row windows, not page by page.
+  async function fetchPriceSortedPage(): Promise<CatalogQueryPageResult> {
+    type SortState = { u: boolean; p: number | null; c: string };
+    const CURSOR_PREFIX = "ps1:";
+    const WINDOW = 500;
+    const DIRECT_JUMP_MAX_REQUESTS = 8;
+    const direction = requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] === "DESC" ? "DESC" : "ASC";
+    const userFrom = typeof requestBodyBase["ЦенаОт"] === "number" ? (requestBodyBase["ЦенаОт"] as number) : null;
+    const userTo = typeof requestBodyBase["ЦенаДо"] === "number" ? (requestBodyBase["ЦенаДо"] as number) : null;
+    const includeUnpriced = !options.pricedItemsOnly && userFrom === null && userTo === null;
+    const priceOf = (item: CatalogProduct) =>
+      typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0
+        ? item.priceEuro
+        : null;
+    const compareCodes = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+    const isAfter = (item: CatalogProduct, state: SortState) => {
+      if (state.p === null) return true;
+      const price = priceOf(item) as number;
+      if (price !== state.p) return direction === "ASC" ? price > state.p : price < state.p;
+      return compareCodes(item.code || "", state.c) > 0;
+    };
+    const decode = (value: string): SortState | null => {
+      if (!value.startsWith(CURSOR_PREFIX)) return null;
+      try {
+        const parsed = JSON.parse(value.slice(CURSOR_PREFIX.length)) as Partial<SortState>;
+        return typeof parsed.u === "boolean" && typeof parsed.c === "string" &&
+          (parsed.p === null || typeof parsed.p === "number")
+          ? { u: parsed.u, p: parsed.p ?? null, c: parsed.c }
+          : null;
+      } catch {
+        return null;
+      }
+    };
+    const encode = (state: SortState) => CURSOR_PREFIX + JSON.stringify(state);
+
+    const unsortedBody = () => {
+      const body: Record<string, unknown> = { ...requestBodyBase };
+      delete body[ALLGOODS_SORT_PRICE_FIELD];
+      delete body[ALLGOODS_CURSOR_FIELD];
+      return body;
+    };
+    // Counts come from cheap 1-row requests, cached like every other call.
+    const [pricedTotal, allTotal] = await Promise.all([
+      requestAllgoodsPage({ ...unsortedBody(), [ALLGOODS_ONLY_WITH_PRICE_FIELD]: true, [ALLGOODS_LIMIT_FIELD]: 1 })
+        .then((parsed) => parsed.totalCount)
+        .catch(() => null),
+      includeUnpriced
+        ? requestAllgoodsPage({ ...unsortedBody(), [ALLGOODS_LIMIT_FIELD]: 1 })
+            .then((parsed) => parsed.totalCount)
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    const unpricedRemainExpected =
+      includeUnpriced && (pricedTotal === null || allTotal === null || allTotal > pricedTotal);
+
+    // Advances `count` items from `start`, keeping them only when `keep`.
+    const advance = async (start: SortState, count: number, keep: boolean, maxRequests: number) => {
+      const items: CatalogProduct[] = [];
+      let state = start;
+      let remaining = count;
+      let requests = 0;
+      let hasMore = true;
+
+      while (remaining > 0 && !state.u && requests < maxRequests) {
+        const body: Record<string, unknown> = {
+          ...requestBodyBase,
+          [ALLGOODS_ONLY_WITH_PRICE_FIELD]: true,
+          [ALLGOODS_LIMIT_FIELD]: WINDOW,
+        };
+        delete body[ALLGOODS_CURSOR_FIELD];
+        if (state.p !== null) {
+          if (direction === "ASC") body["ЦенаОт"] = userFrom === null ? state.p : Math.max(userFrom, state.p);
+          else body["ЦенаДо"] = userTo === null ? state.p : Math.min(userTo, state.p);
+        }
+        const parsed = await requestAllgoodsPage(body);
+        requests += 1;
+        const windowComplete = !parsed.hasMore;
+        let ordered = sortPricedWindow(parsed.items.filter((item) => priceOf(item) !== null))
+          .filter((item) => isAfter(item, state));
+        if (!windowComplete && ordered.length) {
+          // The window's last price level may continue past it; keep only
+          // fully fetched levels (unless the window is a single level).
+          const boundary = priceOf(ordered[ordered.length - 1]);
+          const complete = ordered.filter((item) => priceOf(item) !== boundary);
+          if (complete.length) ordered = complete;
+        }
+        if (!ordered.length) {
+          if (!windowComplete) break;
+          state = { u: true, p: null, c: "" };
+          hasMore = unpricedRemainExpected;
+          break;
+        }
+        const taken = ordered.slice(0, remaining);
+        if (keep) items.push(...taken);
+        remaining -= taken.length;
+        const last = taken[taken.length - 1];
+        state = { u: false, p: priceOf(last), c: last.code || "" };
+        if (taken.length === ordered.length && windowComplete) {
+          state = { u: true, p: null, c: "" };
+          hasMore = unpricedRemainExpected;
+        }
+      }
+
+      while (remaining > 0 && state.u && includeUnpriced && requests < maxRequests) {
+        const body: Record<string, unknown> = { ...unsortedBody(), [ALLGOODS_LIMIT_FIELD]: WINDOW };
+        delete body[ALLGOODS_ONLY_WITH_PRICE_FIELD];
+        if (state.c) body[ALLGOODS_CURSOR_FIELD] = state.c;
+        const parsed = await requestAllgoodsPage(body);
+        requests += 1;
+        const unpriced = parsed.items.filter((item) => priceOf(item) === null);
+        const taken = unpriced.slice(0, remaining);
+        if (keep) items.push(...taken);
+        remaining -= taken.length;
+        if (taken.length < unpriced.length) {
+          // Continue right after the last emitted code: later hits in this
+          // batch must not be skipped.
+          state = { u: true, p: null, c: taken[taken.length - 1].code || state.c };
+          hasMore = true;
+          break;
+        }
+        const batchEnd = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+        hasMore = parsed.hasMore && Boolean(batchEnd);
+        if (!hasMore) break;
+        state = { u: true, p: null, c: batchEnd };
+      }
+
+      if (state.u && !includeUnpriced) hasMore = false;
+      return { items, state, remaining, hasMore: hasMore && (remaining === 0 || requests >= maxRequests) };
+    };
+
+    const totalCount = includeUnpriced ? allTotal : pricedTotal;
+    const startState: SortState = { u: false, p: null, c: "" };
+    let state = decode(requestedCursor) ?? startState;
+    const targetPage =
+      options.directOffset !== undefined ? Math.floor(options.directOffset / limit) + 1 : page;
+    if (!decode(requestedCursor) && targetPage > 1) {
+      // Skipping costs one 1C request per ~500 rows (this 1C has no working
+      // offset paging). Past that budget a direct jump is reported as
+      // unsupported, and the client falls back to cursor paging — the same
+      // path every unsorted listing already uses.
+      const skipped = await advance(startState, (targetPage - 1) * limit, false, DIRECT_JUMP_MAX_REQUESTS);
+      if (skipped.remaining > 0 && skipped.hasMore) {
+        throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+      }
+      if (!skipped.hasMore) {
+        return { items: [], hasMore: false, nextCursor: "", cursorField: null, totalCount };
+      }
+      state = skipped.state;
+    }
+
+    const result = await advance(state, limit, true, 12);
+    return {
+      items: result.items,
+      hasMore: result.hasMore,
+      nextCursor: result.hasMore ? encode(result.state) : "",
+      cursorField: null,
+      totalCount,
+      ...(options.directOffset !== undefined ? { directOffset: options.directOffset } : {}),
+    };
+  }
 
   async function fetchAllgoodsPageByNumber(): Promise<CatalogQueryPageResult> {
     let cursor = "";
@@ -1642,6 +1764,12 @@ const fetchCatalogProductsByQueryInner = async (options: {
     };
 
     if (options.directOffset !== undefined) {
+      // 1C ignores Смещение for Поиск requests, and a price-sorted search is
+      // ordered by searchProductFields — a direct page here could not match
+      // the cursor-paged listing. The client falls back to cursor paging.
+      if (searchQuery && sortOrder !== "none") {
+        throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+      }
       const body = { ...allgoodsBaseBody };
       if (searchQuery) {
         body.Поиск = searchQuery;
@@ -1834,6 +1962,9 @@ const fetchCatalogProductsByQueryInner = async (options: {
           fetchPage: (field, sourceCursor, batchLimit) => {
             const body = { ...allgoodsBaseBody, [fieldKeys[field]]:
               field === "article" || field === "code" ? compactSearchQuery : searchQuery };
+            // 1C can't page a price-sorted search (no next_cursor, cursor
+            // ignored); searchProductFields sorts the unsorted matches itself.
+            delete body[ALLGOODS_SORT_PRICE_FIELD];
             if (field === "producer") {
               if (producer) {
                 if (!producer.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -3110,7 +3241,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
       ? Math.floor(options?.cacheTtlMs as number)
       : 1000 * 12;
-  const lookupTimeoutMs = Math.min(1500, Math.max(300, Math.floor(timeoutMs * 0.5)));
+  const lookupTimeoutMs = Math.min(3000, Math.max(300, timeoutMs));
   const fetchTargetedDetails = async (keys: string[], lookupFields: string[]) => {
     await Promise.allSettled(
       keys.map(async (key) => {
@@ -3136,51 +3267,9 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
     );
   };
 
-  // The broad, unfiltered sweep and the targeted per-key lookup (by Код —
-  // resolves almost every card, since catalog state keys are codes whenever
-  // 1C provides one) used to run strictly in sequence: wait out the full
-  // sweep, THEN start the targeted fallback for whatever it missed. For a
-  // typical visible page (a dozen-odd items), the parallel per-key lookups
-  // routinely finish before the 500-item sweep even returns, so that
-  // ordering added a second lookup's worth of pure, avoidable latency to
-  // every partner/full price batch — exactly the delay before the promo
-  // price/badge appears. Firing both at once lets whichever resolves each
-  // key first win; mergeFromResponse only ever writes a key once, so running
-  // them concurrently changes nothing about the result, only how long it
-  // takes to get there.
-  const broadSweepPromise = oneCRequest("allgoods", {
-    method: "POST",
-    body: {
-      [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(liveLookupKeys.length * 6, 120)),
-      ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
-    },
-    timeoutMs,
-    retries: 0,
-    cacheTtlMs,
-    cacheKey: JSON.stringify({
-      endpoint: "allgoods:price-details",
-      body: {
-        [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(liveLookupKeys.length * 6, 120)),
-        ...(includeCostPrices ? { [ALLGOODS_INCLUDE_COST_PRICE_FIELD]: true } : {}),
-      },
-    }),
-  })
-    .then((response) => {
-      if (response.status < 200 || response.status >= 300) return;
-      mergeFromResponse(
-        response.text,
-        resolvedPrices,
-        resolvedCostPrices,
-        resolvedPromoPrices,
-        matchedKeys
-      );
-    })
-    .catch(() => {});
-
-  await Promise.all([
-    broadSweepPromise,
-    fetchTargetedDetails(liveLookupKeys, [ALLGOODS_CODE_FIELD]),
-  ]);
+  // Query the requested products only. An unrelated unfiltered catalog sweep
+  // made every protected batch wait even after all exact codes had resolved.
+  await fetchTargetedDetails(liveLookupKeys, [ALLGOODS_CODE_FIELD]);
 
   // Only genuine article-only keys (no match under Код from either source
   // above) fall through to this last-resort tier, kept sequential since it's

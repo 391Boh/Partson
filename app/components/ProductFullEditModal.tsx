@@ -2,6 +2,7 @@
 
 import { Check, PenSquare, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
@@ -226,7 +227,7 @@ export default function ProductFullEditModal({
       const res = await fetch("/api/product-upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ code, article: articleVal, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}_${imageUploadName || "product.jpg"}` }),
+        body: JSON.stringify({ code, article: initialArticle, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}_${imageUploadName || "product.jpg"}` }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
       if (!data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
@@ -239,7 +240,7 @@ export default function ProductFullEditModal({
       clearProductImageMissing(code, articleVal || undefined);
       writeProductImageBustToken(code, articleVal || undefined);
       invalidateCatalogClientCache({ code });
-      window.location.reload();
+      // Keep unsaved form fields when a photo finishes uploading.
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
   };
 
@@ -288,27 +289,20 @@ export default function ProductFullEditModal({
   };
 
   const handleSubmit = async () => {
-    if (submitLock.current) return;
+    if (submitLock.current || saved || imageProcessing || galleryProcessing || imageUploading || galleryUploading) return;
     submitLock.current = true;
-    try { await submitEdit(); } finally { submitLock.current = false; }
+    setSaving(true);
+    try { await submitEdit(); } catch { setError("Не вдалося зберегти товар. Перевірте з’єднання та авторизацію."); } finally { submitLock.current = false; setSaving(false); }
   };
 
   const submitEdit = async () => {
-    if (saving) return;
     if (!name.trim()) { setError("Введіть назву товару"); return; }
 
-    const toNum = (s: string) => {
-      if (!s.trim()) return undefined;
-      const n = Number(s.trim().replace(",", "."));
-      return Number.isFinite(n) && n >= 0 ? n : null;
-    };
-    const price = toNum(priceEuro);
-    const cost = toNum(costPriceEuro);
-    if (price === null || cost === null) { setError("Введіть коректну невід’ємну ціну"); return; }
-    const qty = quantity.trim() === "" ? undefined : Number(quantity.trim());
-    if (qty !== undefined && (!Number.isSafeInteger(qty) || qty < 0)) {
-      setError("Введіть цілу кількість від 0"); return;
-    }
+    const price = parseProductFormPrice(priceEuro);
+    const cost = parseProductFormPrice(costPriceEuro);
+    if (price === null || cost === null) { setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return; }
+    const qty = parseProductFormQuantity(quantity);
+    if (qty === null) { setError("Введіть цілу кількість від 0"); return; }
 
     // Only send what actually changed — a no-op save shouldn't write to 1C
     // (and a blank price/cost here means "leave as is", not "clear it").
@@ -345,6 +339,12 @@ export default function ProductFullEditModal({
       const result = await saveProductAdminFields(code, initialArticle, fields, token);
       if (!result.ok) { setError(result.error || "Помилка збереження"); return; }
 
+      const confirmed = result.results.find((item) => item.code === code || item.Код === code);
+      if (confirmed) {
+        if (confirmed.priceEuro !== undefined) fields.priceEuro = confirmed.priceEuro;
+        if (confirmed.costPriceEuro !== undefined) fields.costPriceEuro = confirmed.costPriceEuro;
+        if (confirmed.quantity !== undefined) fields.quantity = confirmed.quantity;
+      }
       setSaved(true);
       invalidateCatalogClientCache({
         code,
@@ -365,7 +365,11 @@ export default function ProductFullEditModal({
       // whichever product page it was opened from (see the file comment
       // above). A reload of wherever the admin currently is picks up the
       // edit correctly regardless, via product-edit-overrides.ts.
-      setTimeout(() => window.location.reload(), 300);
+      if (Object.keys(fields).every((key) => key === "quantity")) {
+        onClose();
+      } else {
+        setTimeout(() => window.location.reload(), 300);
+      }
     } catch {
       setError("Помилка мережі");
     } finally {
@@ -387,7 +391,7 @@ export default function ProductFullEditModal({
     // ever overlap (e.g. a taller header state) instead of this panel
     // painting over it.
     <div
-      className="product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-[12rem] z-[49] flex w-full max-w-[344px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-4 sm:bottom-[14rem]"
+      className="product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
       aria-label="Редагувати товар"
     >
@@ -411,8 +415,8 @@ export default function ProductFullEditModal({
         </div>
 
         <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
-          <div className="space-y-2">
-            <Field label="Назва *" required>
+          <fieldset disabled={saving} className="space-y-3 disabled:opacity-70">
+            <Field label="Назва" required>
               <input
                 ref={firstInputRef}
                 type="text"
@@ -602,8 +606,9 @@ export default function ProductFullEditModal({
               </Field>
             </div>
 
-            <Field label="Кількість, шт.">
-              <input type="number" min="0" step="1" value={quantity}
+            <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Порожня ціна — без змін. Кількість — повний залишок; 0 означає відсутність товару.</p>
+            <Field label="Поточний залишок, шт.">
+              <input type="text" inputMode="numeric" value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 className={fieldClass} />
             </Field>
@@ -647,7 +652,7 @@ export default function ProductFullEditModal({
                 onCancelGallery={() => { setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); }}
               />
             </Field>
-          </div>
+          </fieldset>
 
           {error && (
             <div role="alert" className="mt-3 rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
@@ -666,7 +671,7 @@ export default function ProductFullEditModal({
             className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
             Скасувати
           </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={saving || !name.trim()}
+          <button type="button" onClick={() => void handleSubmit()} disabled={saving || saved || imageProcessing || galleryProcessing || imageUploading || galleryUploading || !name.trim()}
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-3.5 py-1.5 text-[11.5px] font-black text-white shadow-[0_4px_14px_rgba(124,58,237,0.35)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60">
             {saving ? (
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-300 border-t-white" />
@@ -682,7 +687,7 @@ export default function ProductFullEditModal({
 }
 
 const fieldClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
+  "w-full rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-[16px] sm:text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
 
 function Field({
   label,
@@ -695,11 +700,11 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-0.5 block text-[9.5px] font-semibold text-slate-500">
+      <label className="mb-1 block text-xs font-semibold text-slate-500">
         {label}
         {required && <span className="ml-0.5 text-red-400">*</span>}
+        {children}
       </label>
-      {children}
     </div>
   );
 }

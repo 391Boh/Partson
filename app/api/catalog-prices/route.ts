@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
-        expiresAt: now + CATALOG_PRICES_ROUTE_CACHE_TTL_MS,
+        expiresAt: now + CATALOG_PRICES_ROUTE_SHORT_CACHE_TTL_MS,
       });
       return NextResponse.json(payload, {
         headers: {
@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
-        expiresAt: Date.now() + CATALOG_PRICES_ROUTE_CACHE_TTL_MS,
+        expiresAt: Date.now() + CATALOG_PRICES_ROUTE_SHORT_CACHE_TTL_MS,
       });
       return NextResponse.json(payload, {
         headers: {
@@ -316,7 +316,9 @@ export async function POST(request: NextRequest) {
             promoPrices: {} as Record<string, number>,
           });
 
-      const lookupPricesPromise = fetchPriceEuroMapByLookupKeys(unresolvedPriceLookupKeys, {
+      const lookupPricesPromise = needsProtectedDetails
+        ? Promise.resolve({} as Record<string, number>)
+        : fetchPriceEuroMapByLookupKeys(unresolvedPriceLookupKeys, {
         sourceTimeoutMs: needsProtectedDetails ? 2000 : 1800,
         sourceCacheTtlMs: 1000 * 20,
         timeoutMs: needsProtectedDetails ? 2000 : 1800,
@@ -335,7 +337,9 @@ export async function POST(request: NextRequest) {
       // allgoods fallback (same endpoint/body/cache key), so this rarely
       // costs a second real 1C round trip. Never exposes the discounted
       // amount itself — only whether one exists.
-      const hasPromoPromise = fetchPromoAvailabilityByLookupKeys(allLookupKeys, {
+      const hasPromoPromise = needsProtectedDetails
+        ? Promise.resolve({} as Record<string, PromoAvailability>)
+        : fetchPromoAvailabilityByLookupKeys(allLookupKeys, {
         timeoutMs: needsProtectedDetails ? 2000 : 1800,
         cacheTtlMs: 1000 * 60 * 5,
         concurrency: needsProtectedDetails ? 4 : 6,
@@ -400,9 +404,12 @@ export async function POST(request: NextRequest) {
         // fall back to the dedicated public availability check (the only
         // source at all in "fast" mode, where promoPrices above is never
         // populated).
-        hasPromo[item.stateKey] = promoPrices[item.stateKey] !== null || Boolean(matchedAvailability);
-        promoPercent[item.stateKey] =
-          typeof matchedAvailability?.promoPercent === "number" ? matchedAvailability.promoPercent : null;
+        const detailHasPromo = typeof matchedPromo === "number" && matchedPromo > 0 &&
+          (regularPrice === null || matchedPromo < regularPrice);
+        hasPromo[item.stateKey] = detailHasPromo || Boolean(matchedAvailability);
+        promoPercent[item.stateKey] = detailHasPromo && regularPrice !== null && regularPrice > 0
+          ? Math.round((1 - matchedPromo! / regularPrice) * 100)
+          : typeof matchedAvailability?.promoPercent === "number" ? matchedAvailability.promoPercent : null;
       }
 
       return {
@@ -416,9 +423,10 @@ export async function POST(request: NextRequest) {
     })();
 
     catalogPricesRouteInFlight.set(missingCacheKey, resolvePayloadPromise);
-    resolvePayloadPromise.finally(() => {
-      catalogPricesRouteInFlight.delete(missingCacheKey);
-    });
+    void resolvePayloadPromise.then(
+      () => catalogPricesRouteInFlight.delete(missingCacheKey),
+      () => catalogPricesRouteInFlight.delete(missingCacheKey),
+    );
 
     const missingPayload = await resolvePayloadPromise;
     // Use a short TTL when full-mode returns no cost prices — likely a timeout, not
@@ -428,7 +436,7 @@ export async function POST(request: NextRequest) {
       mode === "full" &&
       Object.keys(missingPayload.costPrices).length > 0 &&
       Object.values(missingPayload.costPrices).every((v) => v === null);
-    const itemCacheTtlMs = allCostPricesNull
+    const itemCacheTtlMs = allCostPricesNull || (mode === "partner" && Object.values(missingPayload.promoPrices).some(value => value === null))
       ? CATALOG_PRICES_ROUTE_SHORT_CACHE_TTL_MS
       : CATALOG_PRICES_ROUTE_CACHE_TTL_MS;
 

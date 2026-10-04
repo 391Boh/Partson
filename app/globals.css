@@ -14,6 +14,17 @@
   font-display: optional;
 }
 
+/* The homepage only needs Latin/Cyrillic and punctuation. Other scripts
+   remain available from the complete face above, fetched only when used. */
+@font-face {
+  font-family: "Exo 2";
+  src: url("/fonts/exo2-latin-cyrillic.woff2") format("woff2-variations");
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: optional;
+  unicode-range: U+0000-052F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2116, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
 /* This CTA bar's own soft aurora glow (reusing the drift keyframes already
    established for the catalog loader / footer, for one consistent "slow
    glow" motion language) plus a glass-edge border/shadow, replacing the
@@ -7605,4 +7616,239 @@ html[data-admin-copy="true"] body * {
   background-color: #fff;
   border-color: rgba(14, 165, 233, 0.4);
   transform: translateY(-1px);
+}
+
+/* ─── Information pages (/inform/*) ──────────────────────────────────────────
+   Everything here is CSS-only on purpose: the pages stay static server
+   components with zero extra client JS. Section accents are registered custom
+   properties so switching sections tweens the hero colors instead of snapping. */
+@property --info-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0ea5e9;
+}
+
+@property --info-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #14b8a6;
+}
+
+.info-page {
+  interpolate-size: allow-keywords;
+  transition: --info-a 700ms ease, --info-b 700ms ease;
+}
+
+.info-hero-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Soft radial blobs instead of filter: blur() — a blurred, moving layer is
+   re-rasterized every frame, a gradient that only translates is not. */
+.info-hero-aurora > span {
+  position: absolute;
+  width: min(62%, 640px);
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--info-a) 30%, transparent) 0%, transparent 66%);
+  will-change: transform;
+  animation: infoAurora 19s ease-in-out infinite alternate;
+}
+
+.info-hero-aurora > span:nth-child(1) {
+  top: -46%;
+  left: -12%;
+}
+
+.info-hero-aurora > span:nth-child(2) {
+  top: -30%;
+  right: -16%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--info-b) 28%, transparent) 0%, transparent 66%);
+  animation-duration: 23s;
+  animation-direction: alternate-reverse;
+}
+
+.info-hero-aurora > span:nth-child(3) {
+  bottom: -62%;
+  left: 34%;
+  width: min(48%, 520px);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.13) 0%, transparent 66%);
+  animation-duration: 27s;
+}
+
+@keyframes infoAurora {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(7%, 9%, 0) scale(1.12); }
+  100% { transform: translate3d(-6%, 4%, 0) scale(0.94); }
+}
+
+.info-hero-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(ellipse 72% 90% at 78% 0%, #000 10%, transparent 72%);
+}
+
+.info-hero-sheen {
+  background: linear-gradient(90deg, transparent, var(--info-a) 30%, var(--info-b) 70%, transparent);
+}
+
+.info-accent-text {
+  background: linear-gradient(118deg, color-mix(in srgb, var(--info-a) 78%, #0f172a) 0%, var(--info-b) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Headings carry a depth text-shadow that would bleed through clipped text. */
+  text-shadow: none;
+}
+
+.info-accent-bg {
+  background: linear-gradient(135deg, var(--info-a), var(--info-b));
+}
+
+.info-accent-dot {
+  background: var(--info-a);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--info-a) 18%, transparent);
+}
+
+/* FAQ accordion: animate height natively where ::details-content exists. */
+.info-faq::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition: block-size 320ms cubic-bezier(0.22, 1, 0.36, 1), content-visibility 320ms allow-discrete;
+}
+
+.info-faq[open]::details-content {
+  block-size: auto;
+}
+
+@keyframes infoReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .info-reveal {
+      animation: infoReveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 16%;
+    }
+  }
+}
+
+@keyframes infoVtOut {
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.99);
+    filter: blur(4px);
+  }
+}
+
+@keyframes infoVtIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.99);
+    filter: blur(6px);
+  }
+}
+
+/* Within the info section the page frame stays put: only the named regions
+   below animate, so the header/sidebar never flash. */
+html:active-view-transition-type(info-nav)::view-transition-old(root),
+html:active-view-transition-type(info-nav)::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-group(.info-content),
+::view-transition-group(.info-hero) {
+  animation-duration: 440ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(.info-content),
+::view-transition-old(.info-hero) {
+  animation: infoVtOut 170ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(.info-content),
+::view-transition-new(.info-hero) {
+  animation: infoVtIn 480ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+::view-transition-group(.info-pill) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.34, 1.32, 0.5, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-page {
+    transition: none;
+  }
+
+  .info-hero-aurora > span {
+    animation: none;
+  }
+
+  ::view-transition-group(.info-content),
+  ::view-transition-group(.info-hero),
+  ::view-transition-group(.info-pill),
+  ::view-transition-old(.info-content),
+  ::view-transition-old(.info-hero),
+  ::view-transition-new(.info-content),
+  ::view-transition-new(.info-hero) {
+    animation: none;
+  }
+}
+
+/* Keep navigation outside phone cards; category choices use readable rows. */
+@media (max-width: 639px) {
+  .directory-rail-arrow {
+    position: static;
+    transform: none;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .directory-mobile-list .directory-horizontal-rail {
+    display: flex;
+    flex-direction: column;
+    max-height: 360px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: none;
+    touch-action: pan-y;
+  }
+  .directory-mobile-list .directory-rail-arrow,
+  .directory-mobile-list .directory-rail-pagination { display: none; }
+  .directory-mobile-list .catalog-filter-choice-card {
+    min-height: 64px;
+    height: auto;
+    flex-shrink: 0;
+    width: 100%;
+  }
+  .directory-mobile-list .catalog-filter-choice-card span.line-clamp-2 {
+    display: block;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .auto-filter-steps > button { min-height: 56px; }
+  .auto-filter-compact .catalog-filter-search-input { font-size: 16px; }
 }

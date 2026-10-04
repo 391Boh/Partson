@@ -335,8 +335,6 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
     group.subgroupsCount
   );
   const canonicalPath = buildGroupPagePath(group.slug);
-  const categoryIconPath = getCategoryIconPath(group.label);
-  const productPreview = getGroupProductPreview({ categoryLabel: group.label });
 
   return buildPageMetadata({
     title: buildGroupTitle(group.label),
@@ -354,14 +352,9 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       "групи автозапчастин",
     ],
     openGraphTitle: `${buildVisibleProductName(group.label)} — каталог автозапчастин | PartsON`,
-    image: {
-      url: productPreview?.url || categoryIconPath,
-      width: productPreview?.width ?? 512,
-      height: productPreview?.height ?? 512,
-      alt:
-        productPreview?.alt ||
-        `Каталог автозапчастин «${buildVisibleProductName(group.label)}»`,
-    },
+    // The segment's opengraph-image/twitter-image card (1200×630) supplies
+    // og/twitter images; explicit ones here would override it.
+    image: null,
     // A group may legitimately have no generated product preview. Its
     // category icon is still a valid representative image, so keep the
     // landing page indexable instead of hiding it behind noindex.

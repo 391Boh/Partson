@@ -499,6 +499,20 @@ export const getManufacturersSitemapEntries = cache(
 
 export const getAutoSitemapEntries = cache(async () => getAutoSitemapEntriesCached());
 
+const STORE_PHOTO_CAPTION = "Магазин автозапчастин PartsON у Львові, вул. Перфецького, 8";
+const INFORMATION_SECTION_STORE_PHOTOS: Partial<
+  Record<(typeof informationSections)[number]["key"], NonNullable<SitemapPathEntry["images"]>>
+> = {
+  location: [
+    { loc: "/storefront/photos/partson-store-1.jpg", title: "Вхід у магазин PartsON", caption: STORE_PHOTO_CAPTION },
+  ],
+  about: [1, 4, 6, 2].map((index) => ({
+    loc: `/storefront/photos/partson-store-${index}.jpg`,
+    title: "Магазин автозапчастин PartsON",
+    caption: STORE_PHOTO_CAPTION,
+  })),
+};
+
 export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathEntry[]> => {
   const contentLastModified = getConfiguredSitemapLastModified();
 
@@ -507,6 +521,9 @@ export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathE
     lastModified: contentLastModified,
     changeFrequency: "monthly",
     priority: section.key === "delivery" ? 0.74 : 0.64,
+    // Real photos of the Lviv store for the store-facing sections — the same
+    // ones shown on those pages and in the AutoPartsStore JSON-LD.
+    images: INFORMATION_SECTION_STORE_PHOTOS[section.key],
   }));
 });
 

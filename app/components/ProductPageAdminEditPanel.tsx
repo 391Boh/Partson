@@ -4,6 +4,7 @@ import { Check, ChevronDown, Minus, Package, PenSquare, Pencil, Plus, Settings2,
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { useProductQuantity } from "app/lib/use-product-quantity";
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
@@ -212,13 +213,13 @@ export default function ProductPageAdminEditPanel({
   const metaSubGroupAbort = useRef<AbortController | null>(null);
   const metaSubGroupInputRef = useRef<HTMLInputElement>(null);
 
-  const [quantity, setQuantity] = useState(initialQuantity);
+  const [quantity, setQuantity] = useProductQuantity(code, initialQuantity);
   const [qtyInput, setQtyInput] = useState("");
   const [qtySaving, setQtySaving] = useState(false);
   const [qtyError, setQtyError] = useState<string | null>(null);
   const [qtySavedType, setQtySavedType] = useState<"receipt" | "sale" | null>(null);
 
-  useEffect(() => { setQuantity(initialQuantity); }, [initialQuantity]);
+  const qtySubmitLock = useRef(false);
 
   const [descVal, setDescVal] = useState(initialDescription);
   const [descEditing, setDescEditing] = useState(false);
@@ -706,15 +707,16 @@ export default function ProductPageAdminEditPanel({
   };
 
   const changeQuantity = async (type: "receipt" | "sale") => {
-    if (qtySaving) return;
+    if (qtySubmitLock.current) return;
     const n = Number(qtyInput.replace(",", "."));
     if (!Number.isSafeInteger(n) || n <= 0) { setQtyError("Введіть число > 0"); return; }
+    qtySubmitLock.current = true;
     setQtySaving(true);
-    const token = await getToken();
-    if (!token) { setQtyError("Не авторизовано"); setQtySaving(false); return; }
     setQtyError(null);
     setQtySavedType(null);
     try {
+      const token = await getToken();
+      if (!token) { setQtyError("Не авторизовано"); return; }
       const result = await saveProductAdminFields(
         code,
         values.article || "",
@@ -730,9 +732,9 @@ export default function ProductPageAdminEditPanel({
       setQtyInput("");
       setQtySavedType(type);
       setTimeout(() => setQtySavedType(null), 3000);
-      invalidateCatalogClientCache();
-      refreshPage();
-    } catch { setQtyError("Помилка мережі"); } finally { setQtySaving(false); }
+      invalidateCatalogClientCache({ code, quantity: confirmedQuantity });
+    } catch { setQtyError("Не вдалося підтвердити зміну. Перевірте поточний залишок перед повторним поступленням або продажем."); }
+    finally { qtySubmitLock.current = false; setQtySaving(false); }
   };
 
   if (!isAdmin) return null;

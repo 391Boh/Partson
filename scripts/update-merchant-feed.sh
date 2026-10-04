@@ -21,6 +21,18 @@ mkdir -p "$LOG_DIR"
   fi
 
   cd "$ROOT_DIR"
+  # cron starts with a bare PATH (/usr/bin:/bin), so npm was never found and
+  # every scheduled run failed. Add the usual Homebrew/node locations, then
+  # fall back to nvm if npm is still missing.
+  export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+  if ! command -v npm >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.nvm/nvm.sh"
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "npm not found (PATH=$PATH)"
+    exit 1
+  fi
   npm run generate:feed
 
   echo "Merchant feed update finished: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -413,9 +413,17 @@ export default function ProductImageWithFallback({
             // minimumCacheTTL) — a one-time re-encode cost per size, well
             // worth it for this page's single largest, most-requested image.
             unoptimized={unoptimizedProp || requestSrc.startsWith("data:image/")}
-            className={`h-full w-full object-contain transition-[opacity,transform] ${
-              preferImmediateDecode ? "duration-100" : "duration-180"
-            } ${isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"}`}
+            // The page's primary (eager, high-priority) photo is never hidden
+            // behind the hydration-driven fade: server HTML shows it as soon
+            // as it decodes (blur placeholder until then), so it doesn't
+            // depend on JS for users or for crawlers judging what's visible.
+            className={`h-full w-full object-contain ${
+              preferImmediateDecode
+                ? ""
+                : `transition-[opacity,transform] duration-180 ${
+                    isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.01]"
+                  }`
+            }`}
           />
         ) : null}
 

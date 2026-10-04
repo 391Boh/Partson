@@ -5,7 +5,7 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
-import { invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
+import { fetchExactCatalogProductByLookup, invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
 import { setProductEditOverride } from "app/lib/product-edit-overrides";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     photo_result?: { success?: boolean; message?: string; error_message?: string; file_name?: string };
     Кількість?: number | string;
     quantity?: number | string;
-    quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number | string; КількістьДо?: number };
+    quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number | string; КількістьДо?: number | string };
   } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
@@ -365,15 +365,29 @@ export async function POST(request: NextRequest) {
   // request value already equals the result) when it's absent.
   const rawQuantity =
     parsed.quantity_result?.КількістьДо ??
-    parsed.quantity_result?.Кількість ??
     parsed.Кількість ??
-    parsed.quantity;
-  const confirmedQuantity = typeof rawQuantity === "number"
+    parsed.quantity ??
+    (quantity !== undefined ? parsed.quantity_result?.Кількість : undefined);
+  let confirmedQuantity = typeof rawQuantity === "number"
     ? rawQuantity
     : typeof rawQuantity === "string" && rawQuantity.trim()
       ? Number(rawQuantity.replace(",", ".")) : undefined;
-  if (stockValues.length && (confirmedQuantity === undefined || !Number.isFinite(confirmedQuantity))) {
-    return json({ ok: false, error: "1С не підтвердила поточний залишок. Оновіть товар перед повторною зміною кількості." }, 502);
+  const validStock = (stock: unknown): stock is number =>
+    typeof stock === "number" && Number.isSafeInteger(stock) && stock >= 0;
+  if (stockValues.length && (!validStock(confirmedQuantity) || (quantity !== undefined && confirmedQuantity !== quantity))) {
+    // A movement echo is not the remaining balance. Read the committed stock
+    // without cache rather than repeating a write that may already have succeeded.
+    const fresh = await fetchExactCatalogProductByLookup(code, {
+      cacheTtlMs: 0, retries: 0, timeoutMs: 8_000,
+    }).catch(() => null);
+    confirmedQuantity = fresh?.code.trim().toLowerCase() === code.trim().toLowerCase() && validStock(fresh.quantity)
+      ? fresh.quantity : undefined;
+  }
+  if (stockValues.length && !validStock(confirmedQuantity)) {
+    return json({ ok: false, error: "Не вдалося підтвердити залишок після запиту до 1С. Перевірте товар перед повторним поступленням або продажем." }, 502);
+  }
+  if (quantity !== undefined && confirmedQuantity !== quantity) {
+    return json({ ok: false, error: `1С повернула залишок ${confirmedQuantity} замість ${quantity}. Перевірте поточний залишок товару.` }, 409);
   }
 
   // 1C's price_result echoes back its whole price row, not just the field(s)

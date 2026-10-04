@@ -27,16 +27,23 @@ assert.equal(result.totalCount, 10107);
 requests.length = 0;
 await api.fetchCatalogProductsByQuery({
   page: 5, limit: 48, directOffset: 192, searchQuery: "OC90", searchFilter: "all",
-  producer: "BOSCH", group: "Фільтри", sortOrder: "desc", onlyInStock: true, priceFrom: 10, priceTo: 20,
+  producer: "BOSCH", group: "Фільтри", sortOrder: "none", onlyInStock: true, priceFrom: 10, priceTo: 20,
 });
 assert.equal(requests.length, 1);
 assert.equal(requests[0].body.Поиск, "oc90");
 assert.equal(requests[0].body.ПолеПоиска, "all");
 assert.equal(requests[0].body.ПроизводительНаименование, "BOSCH");
 assert.equal(requests[0].body.Группа, "Фільтри");
-assert.equal(requests[0].body.СортировкаПоЦене, "DESC");
 assert.equal(requests[0].body.ЦенаОт, 10);
 assert.equal(requests[0].body.ЦенаДо, 20);
+
+// The real 1C can't offset-page a price-sorted search; the client must fall
+// back to cursor paging instead of receiving page one under a later number.
+requests.length = 0;
+await assert.rejects(api.fetchCatalogProductsByQuery({
+  page: 5, limit: 48, directOffset: 192, searchQuery: "OC90", searchFilter: "all", sortOrder: "desc",
+}), /DIRECT_PAGINATION_UNSUPPORTED/);
+assert.equal(requests.length, 0);
 
 supported = false;
 requests.length = 0;

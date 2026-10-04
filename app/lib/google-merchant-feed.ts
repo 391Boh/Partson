@@ -5,7 +5,7 @@ import {
   fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
-import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import {
   getAllProductSitemapEntries,
   type ProductSitemapEntry,
@@ -145,15 +145,28 @@ const getMerchantGalleryImages = async () => {
   const imagesByCode = new Map<string, string[]>();
   try {
     const snapshot = await getFirebaseAdminDb().collectionGroup("images").get();
+    const collected = new Map<string, Array<{ url: string; uploadedAt: number }>>();
     for (const document of snapshot.docs) {
       if (document.ref.parent.parent?.parent?.id !== "productGallery") continue;
       const code = document.ref.parent.parent?.id?.trim() || "";
-      const url = document.data().url;
-      if (!code || typeof url !== "string" || !url.trim()) continue;
-      const current = imagesByCode.get(code) ?? [];
-      if (current.length >= 10 || current.includes(url.trim())) continue;
-      current.push(url.trim());
-      imagesByCode.set(code, current);
+      const data = document.data();
+      const url = typeof data.url === "string" ? data.url.trim() : "";
+      if (!code || !url) continue;
+      const uploadedAt =
+        typeof data.uploadedAt?.toMillis === "function"
+          ? data.uploadedAt.toMillis()
+          : Number(new Date(data.uploadedAt ?? 0)) || 0;
+      collected.set(code, [...(collected.get(code) ?? []), { url, uploadedAt }]);
+    }
+    // Same order as the product page gallery (uploadedAt asc); Merchant
+    // Center accepts up to 10 additional images.
+    for (const [code, images] of collected) {
+      const urls = images
+        .sort((a, b) => a.uploadedAt - b.uploadedAt)
+        .map((image) => image.url)
+        .filter((url, index, list) => list.indexOf(url) === index)
+        .slice(0, 10);
+      imagesByCode.set(code, urls);
     }
   } catch {
     // The primary feed remains valid when Firestore is temporarily unavailable.
@@ -337,10 +350,10 @@ const toGoogleMerchantFeedItem = (
   if (entry.hasPhoto !== true) return null;
 
   const article = (entry.article || "").trim() || undefined;
-  const imagePath = buildProductImagePath(code, article, {
-    noFallback: true,
-    retryToken: 1,
-  });
+  // Same stable URL as the product's JSON-LD, og:image and image sitemap, so
+  // Merchant Center and Search see one URL per photo (a `retry` variant only
+  // bypassed the route's disk cache and split the image into two URLs).
+  const imagePath = buildProductSeoImagePath(code, article);
 
   // Brand + article first: buyers on Shopping search by exactly that
   // ("bosch 0986424815"), and Google's own matching against its GTIN/MPN

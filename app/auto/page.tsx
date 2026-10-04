@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { ArrowRight, CarFront, Factory, Layers3, ShieldCheck, Truck } from "lucide-react";
 
 import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
@@ -104,12 +103,12 @@ export default function AutoPage() {
 
   return (
     <main className={`${catalogPageBackgroundClass} overflow-hidden pb-6 sm:pb-8 lg:pb-10`}>
-      <Script
+      <script
         id="auto-page-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
-      <Script
+      <script
         id="auto-page-breadcrumb-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}

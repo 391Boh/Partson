@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BadgePercent, CreditCard, Headphones, Truck } from "lucide-react";
 
+import { useProductQuantity } from "app/lib/use-product-quantity";
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
@@ -60,12 +61,14 @@ export default function ProductPurchasePanelClient(
     initialHasPromo = false,
     initialPromoPercent = null,
     hasKnownNoPrice,
-    isInStock,
     isModalView,
     lookupKeys,
     product,
     resolvedCode,
   } = props;
+
+  const [quantity] = useProductQuantity(product.code || resolvedCode, product.quantity);
+  const isInStock = quantity > 0;
 
   const isMountedRef = useRef(true);
   useEffect(() => () => { isMountedRef.current = false; }, []);
@@ -706,7 +709,7 @@ export default function ProductPurchasePanelClient(
             priceUah={effectivePriceUah ?? null}
             originalPriceUah={hasPromoPrice ? priceUah ?? null : null}
             isPromoPrice={hasPromoPrice}
-            quantity={product.quantity}
+            quantity={quantity}
             compact
             prominent
           />

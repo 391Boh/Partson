@@ -6,7 +6,9 @@ export default function robots(): MetadataRoute.Robots {
   const siteUrl = getSiteUrl();
   const siteHost = new URL(siteUrl).host;
   const publicContentRules = {
-    allow: "/",
+    // Blog images (og:image, JSON-LD image, inline article photos) are
+    // served from /api/blog/og-image — the longer Allow wins over /api/.
+    allow: ["/", "/api/blog/og-image/"],
     disallow: ["/api/", "/__health"],
   };
 

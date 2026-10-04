@@ -20,25 +20,7 @@ export const SEO_DESCRIPTION_MAX_LENGTH = 160;
 export const SEO_TITLE_MAX_LENGTH = 60;
 const TITLE_TEMPLATE_SUFFIX_LENGTH = " | PartsON".length;
 
-const BASE_KEYWORDS = [
-  "PartsON",
-  "автозапчастини",
-  "автозапчастини львів",
-  "автозапчастини україна",
-  "каталог автозапчастин",
-  "онлайн каталог автозапчастин",
-  "купити автозапчастини",
-  "підбір автозапчастин",
-  "підбір автозапчастин за vin",
-  "пошук запчастин за артикулом",
-  "пошук запчастин за кодом",
-  "магазин запчастин",
-  "магазин автозапчастин",
-  "магазин автозапчастин львів",
-  "магазин автозапчастин перфецького",
-  "доставка автозапчастин львів",
-  "доставка автозапчастин україна",
-];
+const BASE_KEYWORDS = ["PartsON", "автозапчастини"];
 
 const mergeKeywords = (...groups: Array<Array<string | null | undefined> | undefined>) => {
   const seen = new Set<string>();
@@ -133,12 +115,14 @@ type BuildPageMetadataOptions = {
   description: string;
   canonicalPath: string;
   keywords?: string[];
+  // `null` leaves og/twitter images to the segment's opengraph-image /
+  // twitter-image file (explicit images here would override those cards).
   image?: {
     url: string;
     width?: number;
     height?: number;
     alt?: string;
-  };
+  } | null;
   openGraphTitle?: string;
   openGraphDescription?: string;
   twitterTitle?: string;
@@ -189,7 +173,7 @@ export const buildPageMetadata = ({
         "x-default": canonicalPath,
       },
     },
-    keywords: mergeKeywords(BASE_KEYWORDS, keywords),
+    keywords: mergeKeywords(keywords, BASE_KEYWORDS),
     openGraph: {
       type,
       locale: "uk_UA",
@@ -197,20 +181,24 @@ export const buildPageMetadata = ({
       siteName: "PartsON",
       title: openGraphTitle ?? buildSocialTitle(title),
       description: normalizedOpenGraphDescription,
-      images: [
-        {
-          url: image.url,
-          width: image.width ?? DEFAULT_IMAGE.width,
-          height: image.height ?? DEFAULT_IMAGE.height,
-          alt: image.alt ?? DEFAULT_IMAGE.alt,
-        },
-      ],
+      ...(image
+        ? {
+            images: [
+              {
+                url: image.url,
+                ...(image.width ? { width: image.width } : {}),
+                ...(image.height ? { height: image.height } : {}),
+                alt: image.alt ?? DEFAULT_IMAGE.alt,
+              },
+            ],
+          }
+        : {}),
     },
     twitter: {
       card: "summary_large_image",
       title: twitterTitle ?? openGraphTitle ?? buildSocialTitle(title),
       description: normalizedTwitterDescription,
-      images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }],
+      ...(image ? { images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }] } : {}),
     },
     ...(icons ? { icons } : {}),
     other: {
@@ -222,6 +210,7 @@ export const buildPageMetadata = ({
     robots: {
       index,
       follow,
+      "max-image-preview": "large",
       googleBot: {
         index,
         follow,
