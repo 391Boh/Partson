@@ -11,6 +11,7 @@ import DeferredFooter from "./components/DeferredFooter";
 import { trimSeoDescription } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
 import { safeJsonLd } from "./lib/safe-json-ld";
+import { CRITICAL_CSS_PRECEDENCE } from "./lib/critical-css";
 
 // The global stylesheet is intentionally NOT `import`-ed here. A plain
 // `import "./globals.css"` gets turned by Next.js/React 19 into an
@@ -44,6 +45,17 @@ const resolveGlobalStylesheetHref = (): string => {
   } catch {
     return "/styles/dev.css";
   }
+};
+
+// Inline, so it runs while <head> is parsed. window.__partsonCssReady lets
+// client code that would otherwise mount unstyled (HomeDeferredStack) wait
+// for the full stylesheet — see app/lib/full-stylesheet.ts.
+const buildStylesheetLoaderScript = (href: string) => {
+  const hrefJson = JSON.stringify(href);
+  const criticalSelector = JSON.stringify(
+    `link[rel="stylesheet"][data-precedence="${CRITICAL_CSS_PRECEDENCE}"]`
+  );
+  return `(function(){var h=${hrefJson},d=document,w=window;if(d.querySelector(${criticalSelector})){var p=new Promise(function(r){var l=d.createElement("link");l.rel="stylesheet";l.href=h;l.media="print";l.onload=l.onerror=function(){l.media="all";r()};d.head.appendChild(l)});w.__partsonCssReady=p}else{d.write('<link rel="stylesheet" href="'+h+'">')}})();`;
 };
 
 const siteUrl = getSiteUrl();
@@ -437,15 +449,24 @@ export default function RootLayout({
   return (
     <html lang="uk" suppressHydrationWarning>
       <head>
-        {/* Plain, synchronous, render-blocking stylesheet — deliberately NOT
-            preload+async-apply. That was tried and reverted: a <link> created
-            via script during initial parsing still gets treated as render
-            blocking by the browser in practice (it exists before first
-            paint), so it bought no real non-blocking benefit while adding a
-            real risk of a flash-of-unstyled-content race on cold loads/
-            refreshes. See resolveGlobalStylesheetHref above for why this is
-            a plain static file instead of a Next.js-managed import. */}
-        <link rel="stylesheet" href={globalStylesheetHref} />
+        {/* Global stylesheet loader. Pages that load their own critical
+            CSS (the homepage — see app/lib/critical-css.ts; React hoists that
+            <link> above this script) get the full stylesheet without
+            blocking first paint: media="print" keeps it out of the render-
+            blocking set, onload switches it on. Every other page gets the
+            same plain parser-inserted, render-blocking <link> as before
+            (document.write keeps it parser-inserted — a DOM-appended
+            media="all" link would block anyway but racily, the FOUC risk the
+            earlier async attempt ran into). The full stylesheet is ~730 KB
+            (~90 KB gzip) and was the homepage's whole FCP delay. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: buildStylesheetLoaderScript(globalStylesheetHref),
+          }}
+        />
+        <noscript>
+          <link rel="stylesheet" href={globalStylesheetHref} />
+        </noscript>
         <link
           rel="preload"
           href="/fonts/exo2-latin-cyrillic.woff2"

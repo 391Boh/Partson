@@ -17,6 +17,7 @@ import {
   Handshake,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getNovaPoshtaTrackingUrl, isNovaPoshtaDelivery } from 'app/lib/order-tracking';
 import { useCart } from 'app/context/CartContext';
 import { pushEcommerceEvent } from 'app/lib/gtm';
 import {
@@ -41,6 +42,7 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
@@ -66,6 +68,7 @@ interface PastOrder {
   totalAmount?: number;
   total?: number;
   deliveryMethod?: string;
+  trackingNumber?: string | null;
   warehouse?: string;
   paymentMethod?: string;
   discountAmount?: number;
@@ -322,32 +325,22 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   }, [onClose]);
 
   useEffect(() => {
-    const fetchPastOrders = async () => {
-      if (!user) return;
-      setLoadingOrders(true);
-      try {
-        const q = query(
-          collection(db, 'orders'),
-          where('uid', '==', user.uid),
-          orderBy('createdAt', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        const orders: PastOrder[] = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<PastOrder, 'id'>),
-        }));
-        setPastOrders(orders);
-      } catch (error) {
-        console.error('Помилка при отриманні даних замовлення:', error);
-      } finally {
-        setLoadingOrders(false);
-      }
-    };
-
-    if (showPastOrders) {
-      fetchPastOrders();
-      setExpandedOrderId(null);
-    }
+    setExpandedOrderId(null);
+    setPastOrders([]);
+    if (!showPastOrders || !user) { setLoadingOrders(false); return; }
+    setLoadingOrders(true);
+    const ordersQuery = query(
+      collection(db, 'orders'), where('uid', '==', user.uid), orderBy('createdAt', 'desc')
+    );
+    return onSnapshot(ordersQuery, (snapshot) => {
+      setPastOrders(snapshot.docs.map((document) => ({
+        id: document.id, ...(document.data() as Omit<PastOrder, 'id'>),
+      })));
+      setLoadingOrders(false);
+    }, (error) => {
+      console.error('Order history subscription failed:', error);
+      setLoadingOrders(false);
+    });
   }, [showPastOrders, user]);
 
   const toggleExpandOrder = (orderId: string) => {
@@ -428,7 +421,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="past-orders-modal-title"
-        className="customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+        className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 rounded-full" />
@@ -444,7 +437,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 Перегляд попередніх оформлень, сум, способу доставки та оплати.
               </p>
             </div>
-            <button onClick={onClose} className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
               <X size={22} strokeWidth={2.5} />
             </button>
           </div>
@@ -672,6 +665,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                           )}
                         </ul>
 
+                        {isNovaPoshtaDelivery(order.deliveryMethod) && order.trackingNumber && getNovaPoshtaTrackingUrl(order.trackingNumber) && (
+                          <a href={getNovaPoshtaTrackingUrl(order.trackingNumber)!} target="_blank" rel="noopener noreferrer"
+                            className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-100">
+                            <Truck size={18} aria-hidden="true" />
+                            <span>ТТН: <span className="font-mono">{order.trackingNumber}</span></span>
+                            <span className="ml-auto inline-flex items-center gap-1 text-xs">Відстежити <ArrowRight size={14} aria-hidden="true" /></span>
+                          </a>
+                        )}
                         {(hasOrderDiscount || order.warehouse) && (
                           <div className="mt-2 grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs">
                             {hasOrderDiscount && (
@@ -717,7 +718,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby="my-order-modal-title"
-      className="customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+      className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />
@@ -733,7 +734,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               Перевірте товари, суму та перейдіть до оформлення без зайвих кроків.
             </p>
           </div>
-          <button onClick={onClose} className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+          <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
             <X size={22} strokeWidth={2.5} />
           </button>
         </div>
@@ -767,9 +768,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
           <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
               <div className="max-w-2xl">
-                <h4 className="soft-panel-section-heading">Кошик у фокусі</h4>
+                <h4 className="soft-panel-section-heading">Підсумок замовлення</h4>
                 <p className="soft-panel-section-text">
-                  Перевірте позиції, суму й переходьте до оформлення без зайвих кроків.
+                  Ваші товари, кількість і сума до оплати.
                 </p>
               </div>
             </div>

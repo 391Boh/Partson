@@ -75,7 +75,7 @@ const buildRecommendationImageKey = (
     buildRecommendationImageArticle(item, sourceArticle)
   );
 
-const RELATED_ITEMS_CACHE_PREFIX = "partson:v2:product-analogs:";
+const RELATED_ITEMS_CACHE_PREFIX = "partson:v3:product-analogs:";
 const SIMILAR_ITEMS_CACHE_PREFIX = "partson:v2:product-similar:";
 const RELATED_ITEMS_CACHE_TTL_MS = 1000 * 60 * 10;
 const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 5600;
@@ -336,8 +336,11 @@ export default function ProductRelatedItemsClientSection({
     const params = new URLSearchParams();
     if (productCode) params.set("code", productCode);
     if (articleLabel) params.set("article", articleLabel);
-    if (productDisplayName || product.name) {
-      params.set("name", productDisplayName || product.name || "");
+    // Full 1C name, not the display one: the "(LIN473008/AD551514)" suffix
+    // that buildVisibleProductName strips holds the cross-reference numbers
+    // the analog search runs on.
+    if (product.name || productDisplayName) {
+      params.set("name", product.name || productDisplayName);
     }
     if (product.producer) params.set("producer", product.producer);
     if (product.group) params.set("group", product.group);

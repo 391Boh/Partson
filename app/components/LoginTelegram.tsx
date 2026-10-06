@@ -52,6 +52,8 @@ declare global {
 type TelegramLoginProps = {
   onSuccess?: () => void;
   className?: string;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 const TELEGRAM_LOGIN_STORAGE_KEY = "partson:telegram-login";
@@ -92,12 +94,17 @@ const socialButtonClass =
 const socialIconShellClass =
   "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-100 bg-[#229ED9] text-white shadow-[0_10px_20px_rgba(34,158,217,0.24)] transition-[transform,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:shadow-[0_12px_24px_rgba(34,158,217,0.3)]";
 
-const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
+const TelegramLogin = ({ onSuccess, className = "", disabled = false, onBusyChange }: TelegramLoginProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const oidcPopupCleanupRef = useRef<(() => void) | null>(null);
   const oidcResultHandledRef = useRef(false);
+  const popupRequestLock = useRef(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  useEffect(() => {
+    if (status !== "loading") popupRequestLock.current = false;
+    onBusyChange?.(status === "loading");
+  }, [status, onBusyChange]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileUserId, setProfileUserId] = useState("");
   const [profileUserName, setProfileUserName] = useState("");
@@ -353,6 +360,8 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
   }, [completeTelegramAuth, useOidcLogin]);
 
   const handleOidcLogin = () => {
+    if (disabled || status === "loading" || popupRequestLock.current) return;
+    popupRequestLock.current = true;
     oidcPopupCleanupRef.current?.();
     oidcPopupCleanupRef.current = null;
     oidcResultHandledRef.current = false;
@@ -371,6 +380,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
     );
 
     if (!popup) {
+      popupRequestLock.current = false;
       setStatus("error");
       setErrorMessage("Браузер заблокував Telegram-вікно.");
       return;
@@ -482,7 +492,7 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
 
   return (
     <>
-      <div className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
+      <div inert={disabled} aria-busy={status === "loading"} className={`flex min-w-0 flex-col items-center gap-2 ${className}`}>
         <div
           ref={containerRef}
           className={
@@ -495,7 +505,8 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
             <button
               type="button"
               onClick={handleOidcLogin}
-              disabled={status === "loading"}
+              disabled={disabled || status === "loading"}
+              aria-busy={status === "loading"}
               className={socialButtonClass}
             >
               <span className={socialIconShellClass}>
@@ -507,17 +518,17 @@ const TelegramLogin = ({ onSuccess, className = "" }: TelegramLoginProps) => {
                   <path d="M9.04 15.65 8.7 20.4c.49 0 .7-.21.96-.46l2.3-2.2 4.77 3.49c.87.48 1.49.23 1.72-.8l3.12-14.62c.28-1.29-.46-1.8-1.31-1.48L1.9 11.41c-1.25.49-1.23 1.19-.21 1.5l4.7 1.46L17.3 7.54c.51-.34.98-.15.6.19l-8.86 7.92Z" />
                 </svg>
               </span>
-              <span className="relative z-[2] truncate tracking-normal">Telegram</span>
+              <span className="auth-social-label relative z-[2] tracking-normal">{status === "loading" ? "Підключення Telegram…" : "Продовжити з Telegram"}</span>
             </button>
           ) : null}
         </div>
-        {status === "loading" ? (
-          <p className="text-center text-xs font-semibold text-sky-700">
+        {status === "loading" && !useOidcLogin ? (
+          <p className="text-center text-xs font-semibold text-sky-300">
             Підключення Telegram...
           </p>
         ) : null}
         {status === "error" ? (
-          <p className="text-center text-xs font-semibold text-red-400">
+          <p role="alert" className="text-center text-xs font-semibold text-red-400">
             {errorMessage}
           </p>
         ) : null}

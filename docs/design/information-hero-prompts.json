@@ -1,0 +1,45 @@
+{
+  "tool": "Built-in image_gen",
+  "assets": [
+    {
+      "key": "delivery",
+      "path": "public/images/information/delivery-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A compact delivery van beside a carefully packed cardboard parcel containing an automotive brake disc, subtle curved route trail. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "payment",
+      "path": "public/images/information/payment-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A bank card, a small contactless payment terminal and an automotive spare part, secure simple payment scene. Card is blank, no digits. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "about",
+      "path": "public/images/information/about-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A considered collection of automotive parts: brake disc, oil filter, spark plug and toothed belt, arranged like a premium specialist's curated workshop display. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "location",
+      "path": "public/images/information/location-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: An abstract folded street map, a sculptural turquoise location pin and a tiny generic auto-parts shop silhouette. Clearly an illustration, not a real place or accurate map. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "privacy",
+      "path": "public/images/information/privacy-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A glass and brushed-metal shield with a padlock, subtly surrounded by small abstract data tiles, calm privacy and protection. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "warranty",
+      "path": "public/images/information/warranty-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A pristine automotive brake disc beside a sculptural shield containing a checkmark, expressing quality assurance and care. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "returns",
+      "path": "public/images/information/returns-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: An open cardboard package holding an automotive filter, two elegant curved arrows forming an exchange loop around it. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    },
+    {
+      "key": "diagnostics",
+      "path": "public/images/information/diagnostics-hero-v1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: individual informational page hero illustration for PartsON automotive parts website. Subject: A handheld automotive diagnostic scanner with abstract unreadable interface and OBD cable, beside a subtle engine component. Style: refined contemporary 3D editorial product illustration, realistic material detail, softly beveled objects, premium restrained art direction. Composition: landscape 3:2, single coherent scene centered with generous margins, all main objects fully visible. Backdrop: seamless pale icy blue studio with subtle floor shadow. Palette: deep navy, cyan, teal, cool white, brushed silver, natural cardboard where applicable. Lighting: soft studio daylight with subtle cyan edge highlights, calm confident modern mood. No words, logos, watermarks, letters, numbers or UI copy. Not an infographic, no borders, no collage. Save generated output as a project asset."
+    }
+  ]
+}

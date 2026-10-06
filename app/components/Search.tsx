@@ -43,10 +43,11 @@ type SuggestionResult = {
   items: SuggestionProduct[];
   totalCount: number | null;
   correctedQuery?: string;
+  hasMore: boolean;
+  nextCursor: string;
 };
 
 const MAX_HISTORY          = 8;
-const SUGGESTION_COUNT     = 8;
 // Warm the same first page the catalog will request after Enter.
 const SEARCH_PAGE_SIZE = 16;
 const SUGGESTION_MIN_CHARS = 2;
@@ -112,24 +113,27 @@ const formatUAH = (eur: number | null | undefined, rate: number): string | null 
 };
 
 const fetchSuggestions = async (
-  query: string, filter: SearchFilter, signal: AbortSignal
+  query: string, filter: SearchFilter, signal: AbortSignal, cursor = ""
 ): Promise<SuggestionResult> => {
   const request = fetch("/api/catalog-page", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SEARCH_PAGE_SIZE }),
+    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SEARCH_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
     signal,
     cache: "no-store",
   }).then(async (res) => {
     const data = await res.json() as {
       items?: SuggestionProduct[]; totalCount?: number | null; correctedQuery?: string;
+      hasMore?: boolean; nextCursor?: string;
       serviceUnavailable?: boolean; message?: string;
     };
     if (!res.ok || data.serviceUnavailable || !Array.isArray(data.items)) {
       throw new Error("Пошук тимчасово недоступний. Спробуйте ще раз.");
     }
     return {
-      items: data.items.slice(0, SUGGESTION_COUNT),
+      items: data.items,
+      hasMore: data.hasMore === true && typeof data.nextCursor === "string" && !!data.nextCursor,
+      nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : "",
       correctedQuery: data.correctedQuery,
       totalCount:
         typeof data.totalCount === "number" && Number.isFinite(data.totalCount)
@@ -172,6 +176,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [suggestions, setSuggestions] = useState<SuggestionProduct[]>([]);
   const [totalCount,  setTotalCount]  = useState<number | null>(null);
   const [loading,     setLoading]     = useState(false);
+  const [nextCursor, setNextCursor] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const moreRequestRef = useRef<AbortController | null>(null);
   const [fallback,    setFallback]    = useState<string | null>(null);
   const [euroRate,    setEuroRate]    = useState(DEFAULT_EURO_RATE);
 
@@ -224,6 +232,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   // Each input owns its request, so obsolete queries can be cancelled safely.
   useEffect(() => {
     let current = true;
+    moreRequestRef.current?.abort();
+    moreRequestRef.current = null;
+    setLoadingMore(false);
+    setMoreError(null);
+    setNextCursor("");
     const trimmed = normalizeSearchQuery(query);
     setActiveIndex(-1);
     setSearchError(null);
@@ -237,6 +250,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const key = ck(trimmed, filter);
     const apply = (result: SuggestionResult) => {
       setSuggestions(result.items);
+      setNextCursor(result.hasMore ? result.nextCursor : "");
       setTotalCount(result.totalCount);
       setFallback(result.correctedQuery || null);
       setLoading(false);
@@ -257,8 +271,40 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         }
       }).finally(() => clearTimeout(timeout));
     }, DEBOUNCE_MS);
-    return () => { current = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
+    return () => { current = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); moreRequestRef.current?.abort(); };
   }, [query, filter, dropdown, retry, isComposing]);
+
+  const loadMoreSuggestions = async () => {
+    if (!nextCursor || loading || moreRequestRef.current) return;
+    const controller = new AbortController();
+    moreRequestRef.current = controller;
+    setLoadingMore(true);
+    setMoreError(null);
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const result = await fetchSuggestions(normalizeSearchQuery(query), filter, controller.signal, nextCursor);
+      if (moreRequestRef.current !== controller) return;
+      if (result.hasMore && result.nextCursor === nextCursor) throw new Error("Search cursor did not advance");
+      setSuggestions((current) => {
+        const seen = new Set(current.map((item) => item.code));
+        const additions = result.items.filter((item) => {
+          if (seen.has(item.code)) return false;
+          seen.add(item.code);
+          return true;
+        });
+        return [...current, ...additions];
+      });
+      setNextCursor(result.hasMore ? result.nextCursor : "");
+    } catch {
+      if (moreRequestRef.current === controller) setMoreError("Не вдалося завантажити наступні товари. Спробуйте ще раз.");
+    } finally {
+      clearTimeout(timeout);
+      if (moreRequestRef.current === controller) {
+        moreRequestRef.current = null;
+        setLoadingMore(false);
+      }
+    }
+  };
 
   const saveHistory = (q: string) => {
     const next = [q, ...history.filter(h => h !== q)].slice(0, MAX_HISTORY);
@@ -486,7 +532,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           )}
 
           {/* items */}
-          <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading} className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
+          <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading || loadingMore} className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
           {suggestions.map((p, i) => {
             const displayName = suggestionDisplayName(p.name) || p.article || p.code;
             const priceStr = formatUAH(p.priceEuro, euroRate);
@@ -570,6 +616,15 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             );
           })}
           </div>
+
+          {moreError ? <p role="alert" className="px-4 py-2 text-xs text-rose-300">{moreError}</p> : null}
+          {nextCursor ? (
+            <button type="button" onClick={() => void loadMoreSuggestions()} disabled={loadingMore || loading}
+              aria-busy={loadingMore}
+              className="flex min-h-11 w-full items-center justify-center border-t border-white/10 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-white/5 disabled:opacity-60">
+              {loadingMore ? "Завантаження…" : moreError ? "Повторити завантаження" : "Показати ще товари"}
+            </button>
+          ) : null}
 
           {/* show all */}
           {suggestions.length > 0 ? <button

@@ -416,7 +416,10 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   return (
     <div
       ref={modalRef}
-      className="customer-overlay-panel customer-overlay-panel--profile soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Профіль клієнта"
+      className="customer-window customer-overlay-panel customer-overlay-panel--profile soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">
         <div className="soft-panel-accent h-1 rounded-full" />
@@ -436,7 +439,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         )}
 
         <div className="soft-panel-header">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="customer-profile-identity flex min-w-0 items-center gap-3">
             <div className="relative shrink-0">
               <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-[1.05rem] font-black uppercase tracking-[-0.04em] text-white shadow-[0_16px_32px_rgba(14,165,233,0.38),0_4px_10px_rgba(14,165,233,0.24)] sm:h-12 sm:w-12 sm:rounded-[18px] sm:text-[1.2rem]">
                 {profileInitial}
@@ -466,6 +469,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
         <div className="soft-panel-tabs grid grid-cols-3">
           <button
+            aria-pressed={activeTab === "profile"}
             onClick={() => setActiveTab("profile")}
             className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "profile"
@@ -477,6 +481,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             Профіль
           </button>
           <button
+            aria-pressed={activeTab === "vins"}
             onClick={() => setActiveTab("vins")}
             className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "vins"
@@ -488,6 +493,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             VIN
           </button>
           <button
+            aria-pressed={activeTab === "security"}
             onClick={() => setActiveTab("security")}
             className={`min-w-0 flex flex-1 items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 text-[12px] font-semibold leading-tight transition sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm ${
               activeTab === "security"
@@ -555,7 +561,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             })()}
           </section>
 
-          <div className="mt-2 grid grid-cols-1 gap-2 pb-1 md:col-span-full md:grid-cols-2 md:gap-2.5">
+          <div className="customer-profile-fields mt-2 grid grid-cols-1 gap-2 pb-1 md:col-span-full md:grid-cols-2 md:gap-2.5">
         <section
           className={`soft-surface-card flex min-h-[74px] min-w-0 flex-col gap-2.5 rounded-[18px] p-3 sm:min-h-[82px] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:rounded-[20px] sm:p-3.5 ${
             activeTab !== "profile" ? "hidden" : ""
@@ -764,7 +770,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setActiveTab("vins")}
+              aria-pressed={activeTab === "vins"}
+            onClick={() => setActiveTab("vins")}
               className="inline-flex items-center gap-1.5 self-end rounded-[11px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:self-auto"
             >
               Керувати

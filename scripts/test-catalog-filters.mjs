@@ -21,11 +21,14 @@ try {
   console.log('Testing stock race');
   await stock.click();
   await sent;
+  const priceTab = page.getByRole('button', { name: 'Фільтр та сортування за ціною', exact: true });
+  if (await priceTab.getAttribute('aria-pressed') !== 'true') await priceTab.click();
   await stock.click();
   await page.waitForTimeout(1500);
   assert.equal(await page.getByText('ЗАСТАРІЛА ВИБІРКА', { exact: true }).count(), 0);
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   console.log('Testing price range');
+  if (await priceTab.getAttribute('aria-pressed') !== 'true') await priceTab.click();
   const from = page.getByLabel('Ціна від (грн)');
   const before = requests.length;
   await from.fill('1');
@@ -38,4 +41,5 @@ try {
   assert.equal(await from.inputValue(), '');
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   console.log('Catalog filters passed: rapid stock toggles ignore stale responses, prices debounce, reset clears prices.');
-} catch (error) { console.error(error); throw error; } finally { await browser.close(); }
+} catch (error) { console.error(error); throw error; } finally { await Promise.all(browser.contexts().flatMap(context => context.pages()).map(page => page.close()));
+  await browser.close(); }

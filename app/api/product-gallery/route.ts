@@ -6,6 +6,7 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminBucket, getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { markProductFirestorePresence } from "app/lib/product-firestore-presence";
 
 export const runtime = "nodejs";
 
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
       uploadedBy: admin.email,
     });
 
+    markProductFirestorePresence("gallery", code);
     return json({ ok: true, id: docRef.id, url: publicUrl });
   } catch (error) {
     console.error("Product gallery upload failed:", error);

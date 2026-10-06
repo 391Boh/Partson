@@ -276,10 +276,10 @@ export default function AutoLogosBackdrop() {
     };
 
     const apply = (progress: number) => {
-      const step = Math.round(progress * 320);
+      const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
-      const p = step / 320;
+      const p = step / 1024;
       for (const plane of planes) {
         const y = Math.round(p * plane.driftM * 100) / 100;
         const r =

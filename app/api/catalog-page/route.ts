@@ -7,7 +7,7 @@ import {
   searchCatalogIndex,
 } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
-import { normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
+import { encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import {
   routeSuccessCache,
   type CatalogPageApiPayload,
@@ -54,7 +54,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v36-fresh-search",
+    source: "catalog-page:v37-description-search",
     directOffset: body.directPage === true ? toNonNegativeNumber(body.offset) : null,
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
@@ -328,10 +328,10 @@ export async function POST(request: Request) {
     // fresh /katalog search loads before the user touches any other filter —
     // can be answered straight from the in-memory catalog snapshot instead of
     // a live 1C round trip (see searchCatalogIndex's own comment). Anything
-    // with a facet filter, sort, price range, car binding, description
-    // search, or pagination past page 1 falls straight through untouched.
+    // with a facet filter, sort, price range, car binding,
+    // or pagination past page 1 falls straight through untouched.
     const searchIndexFilter: SearchField | "all" | null =
-      effectiveSearchFilter === "description" ? null : effectiveSearchFilter;
+      effectiveSearchFilter;
     const canUseSearchIndex =
       Boolean(normalizedSearchQuery) &&
       searchIndexFilter !== null &&
@@ -363,7 +363,9 @@ export async function POST(request: Request) {
           prices: buildInlinePrices(indexResult.items),
           images: {},
           hasMore: indexResult.items.length < indexResult.totalCount,
-          nextCursor: "",
+          nextCursor: indexResult.items.length < indexResult.totalCount && indexResult.items.length
+            ? encodeSearchCursor(indexResult.correctedQuery || normalizedSearchQuery, indexResult.items[indexResult.items.length - 1].code)
+            : "",
           cursorField: "search",
           totalCount: indexResult.totalCount,
           ...(indexResult.correctedQuery ? { correctedQuery: indexResult.correctedQuery } : {}),

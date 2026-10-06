@@ -109,7 +109,7 @@ export default function AboutSection() {
       </Block>
 
       <Block id="why" kicker="Переваги" title="Що ви отримуєте, звертаючись у PartsON">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Підбір і сумісність" icon={Users} tone="teal">
             <List>
               <Li tone="teal">Підбір за VIN-кодом, артикулом, кодом товару або параметрами авто.</Li>

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, Phone } from "lucide-react";
 
+import ProductDescriptionContent from "app/components/ProductDescriptionContent";
 import {
   getViewportParallaxProgress,
   registerParallax,
@@ -19,6 +20,8 @@ type ProductDescriptionClientCardProps = {
   fitmentText?: string;
   contactPhone?: string;
   contactAddress?: string;
+  // The server already looked the description up in 1C and found none.
+  serverChecked?: boolean;
 };
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
@@ -39,6 +42,7 @@ export default function ProductDescriptionClientCard({
   fitmentText = "",
   contactPhone = "",
   contactAddress = "",
+  serverChecked = false,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
     typeof initialText === "string" && initialText.trim() ? initialText.trim() : null;
@@ -46,14 +50,16 @@ export default function ProductDescriptionClientCard({
     normalizedInitialText
   );
   const [descriptionStatus, setDescriptionStatus] = useState<
-    "loading" | "ready" | "missing"
+    "loading" | "ready" | "missing" | "error"
   >(
     normalizedInitialText
       ? "ready"
-      : enableClientLookup
+      : enableClientLookup && !serverChecked
         ? "loading"
         : "missing"
   );
+
+  const [retryToken, setRetryToken] = useState(0);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -82,11 +88,11 @@ export default function ProductDescriptionClientCard({
     setDescriptionStatus(
       normalizedInitialText
         ? "ready"
-        : enableClientLookup && requestUrl
+        : enableClientLookup && requestUrl && !serverChecked
           ? "loading"
           : "missing"
     );
-  }, [enableClientLookup, normalizedInitialText, requestUrl]);
+  }, [enableClientLookup, normalizedInitialText, requestUrl, serverChecked]);
 
   useEffect(() => {
     if (!enableClientLookup || !requestUrl) return;
@@ -216,8 +222,11 @@ export default function ProductDescriptionClientCard({
         // hiccup here shouldn't blank out text we already know is real —
         // leave the server-rendered description showing.
       } catch {
+        // 1C unreachable (the route answers 503) — not the same as "this
+        // product has no description", so offer a retry instead of the
+        // "уточнюється" note.
         if (!cancelled && !normalizedInitialText) {
-          setDescriptionStatus("missing");
+          setDescriptionStatus("error");
         }
       }
     };
@@ -247,16 +256,7 @@ export default function ProductDescriptionClientCard({
         window.clearTimeout(loadTimerId);
       }
     };
-  }, [cacheKey, enableClientLookup, normalizedInitialText, requestUrl]);
-
-  const descriptionParagraphs = useMemo(
-    () =>
-      (descriptionText || "")
-        .split(/\n{2,}|\r?\n(?=[A-ZА-ЯІЇЄҐ0-9-])/)
-        .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
-        .filter(Boolean),
-    [descriptionText]
-  );
+  }, [cacheKey, enableClientLookup, normalizedInitialText, requestUrl, retryToken]);
 
   const sectionRef = useRef<HTMLElement>(null);
   const glowRef = useRef<HTMLSpanElement>(null);
@@ -306,21 +306,33 @@ export default function ProductDescriptionClientCard({
         </div>
       </div>
       <div className={descriptionTextClass}>
-        {descriptionParagraphs.length > 0 ? (
-          descriptionParagraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))
+        {descriptionText ? (
+          <ProductDescriptionContent text={descriptionText} />
         ) : descriptionStatus === "loading" ? (
           <div
             className="space-y-2.5 py-1"
             role="status"
-            aria-label="Завантаження опису товару"
+            aria-busy="true"
+            aria-label="Опис товару"
           >
-            <span className="sr-only">Завантажуємо опис товару…</span>
             <div className="h-3.5 w-full animate-pulse rounded-full bg-slate-200/80" />
             <div className="h-3.5 w-[92%] animate-pulse rounded-full bg-slate-200/70" />
             <div className="h-3.5 w-[68%] animate-pulse rounded-full bg-slate-200/60" />
           </div>
+        ) : descriptionStatus === "error" ? (
+          <p className="rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700">
+            Не вдалося завантажити опис.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setDescriptionStatus("loading");
+                setRetryToken((value) => value + 1);
+              }}
+              className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-900"
+            >
+              Спробувати ще раз
+            </button>
+          </p>
         ) : (
           <p className="rounded-[14px] border border-amber-200/80 bg-amber-50/70 px-3 py-2.5 text-slate-700">
             Детальний опис цього товару ще уточнюється. Напишіть нам у чат —

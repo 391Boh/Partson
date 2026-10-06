@@ -7,16 +7,19 @@ import type { CatalogProduct } from "app/lib/catalog-server";
 import {
   fetchAllgoodsProductsByNameQuery,
   fetchCatalogProductsByArticle,
+  fetchCatalogProductsByQuery,
   fetchCatalogProductsByHeaderSearchQuery,
   findAnalogProductsByArticleInName,
   findCatalogProductByCode,
   findSimilarProductsBySubgroup,
+  searchCatalogIndex,
 } from "app/lib/catalog-server";
+import { normalizeSearchQuery } from "app/lib/catalog-search";
 import {
   getAllProductSitemapSnapshotEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
-import { buildVisibleProductName } from "app/lib/product-url";
+import { buildVisibleProductName, parseAnalogCodesFromName } from "app/lib/product-url";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 
 export type RelatedProductCardItem = {
@@ -274,15 +277,17 @@ const scoreRecommendation = (item: CatalogProduct, targetProduct: RelatedLookupC
 
 const collectAndFilterUnique = (
   source: CatalogProduct[],
-  targetProduct: Pick<CatalogProduct, "article" | "code" | "producer">
+  targetProduct: Pick<CatalogProduct, "article" | "code" | "producer">,
+  options: { publicOnly?: boolean } = {}
 ) => {
+  const publicOnly = options.publicOnly ?? true;
   const seenProducts = new Set<string>();
   const targetCode = normalizeLookupValue(targetProduct.code);
   const targetArticle = normalizeLookupValue(targetProduct.article);
   const targetProducer = normalizeLookupValue(targetProduct.producer);
 
   return source.filter((item) => {
-    if (!isPublicCatalogProduct(item)) return false;
+    if (publicOnly && !isPublicCatalogProduct(item)) return false;
     const itemCode = normalizeLookupValue(item.code);
     const itemArticle = normalizeLookupValue(item.article);
     const itemProducer = normalizeLookupValue(item.producer);
@@ -851,9 +856,91 @@ export const getStaticProductRecommendations = cache(
     )
 );
 
-// Аналоги — products whose name in 1C contains the selected product's article number.
-// Uses findAnalogProductsByArticleInName exclusively (no broad text search).
+// Аналоги — found with the exact same search the header search box runs
+// (/api/catalog-page → searchCatalogIndex over name/article/code/producer,
+// live fetchCatalogProductsByQuery when the snapshot is cold), fired for the
+// product's own article AND every cross-reference number stored in its 1C
+// name ("...(LIN473008/AD551514)" — the "Аналогові номери" chips on the
+// product page). Each hit is then verified as a whole-code match (not just a
+// substring of some longer number) before it's shown as an analog.
 const MAX_ANALOG_ITEMS = 6;
+const MAX_ANALOG_QUERIES = 8;
+const ANALOG_SEARCH_RESULT_LIMIT = 60;
+const ANALOG_LIVE_SEARCH_TIMEOUT_MS = 3200;
+const MIN_CROSS_CODE_LENGTH = 4;
+
+const CODE_SEPARATOR_PATTERN = /[\s\-_.\\/]+/g;
+const compactLookupCode = (value: string | null | undefined) =>
+  normalizeLookupValue(value).replace(CODE_SEPARATOR_PATTERN, "");
+
+// Whole-code match inside free text: separators between characters are
+// optional ("AD 551514" == "AD551514" == "AD-551514"), but the code must not
+// be glued to further letters/digits, so "1234" never matches "A12345".
+const buildCodeTokenPattern = (code: string) => {
+  const chars = Array.from(compactLookupCode(code)).map(escapeRegExp);
+  if (chars.length === 0) return null;
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}])${chars.join("[\\s\\-_.\\\\/]*")}(?![\\p{L}\\p{N}])`,
+    "iu"
+  );
+};
+
+const searchCatalogLikeHeader = async (query: string): Promise<CatalogProduct[]> => {
+  const normalizedQuery = normalizeSearchQuery(query);
+  if (!normalizedQuery) return [];
+
+  const indexResult = await searchCatalogIndex(normalizedQuery, {
+    filter: "all",
+    limit: ANALOG_SEARCH_RESULT_LIMIT,
+  }).catch(() => null);
+  // A typo-corrected result is a different code — never an analog.
+  if (indexResult && !indexResult.correctedQuery) return indexResult.items;
+  if (indexResult) return [];
+
+  const liveResult = await resolveWithTimeout(
+    fetchCatalogProductsByQuery({
+      page: 1,
+      limit: ANALOG_SEARCH_RESULT_LIMIT,
+      searchQuery: normalizedQuery,
+      searchFilter: "all",
+      sortOrder: "none",
+      timeoutMs: ANALOG_LIVE_SEARCH_TIMEOUT_MS,
+      retries: 0,
+      retryDelayMs: 80,
+      cacheTtlMs: RELATED_CACHE_TTL_MS,
+      includePriceEnrichment: false,
+      preferLegacySource: false,
+      forceAllgoodsSource: true,
+    }).catch(() => null),
+    null,
+    ANALOG_LIVE_SEARCH_TIMEOUT_MS
+  );
+  if (!liveResult || liveResult.correctedQuery) return [];
+  return liveResult.items;
+};
+
+type AnalogQuery = { code: string; compact: string; pattern: RegExp; isOwnArticle: boolean };
+
+const buildAnalogQuery = (code: string, isOwnArticle: boolean): AnalogQuery | null => {
+  const compact = compactLookupCode(code);
+  const pattern = buildCodeTokenPattern(code);
+  if (!pattern || compact.length < (isOwnArticle ? 3 : MIN_CROSS_CODE_LENGTH)) return null;
+  return { code: code.trim(), compact, pattern, isOwnArticle };
+};
+
+// 0 = the hit only contained the query as a fragment of some other number.
+// Cross-reference lists are compared as parsed codes, not raw text: in
+// "(OP574/2/OC404)" the code is "OP574/2", which must not count as "OP574".
+const scoreAnalogQueryMatch = (item: CatalogProduct, query: AnalogQuery) => {
+  if (compactLookupCode(item.article) === query.compact) return 12;
+  if (compactLookupCode(item.code) === query.compact) return 10;
+  const itemName = item.name || "";
+  if (parseAnalogCodesFromName(itemName).some((code) => compactLookupCode(code) === query.compact)) {
+    return 8;
+  }
+  if (query.pattern.test(itemName.replace(/\([^)]*\)/g, " "))) return 7;
+  return 0;
+};
 
 const getAnalogProductsUncached = async (
   article: string,
@@ -873,23 +960,102 @@ const getAnalogProductsUncached = async (
     subGroup,
     category
   );
+  const targetCompactArticle = compactLookupCode(targetProduct.article);
+  const targetCompactCode = compactLookupCode(code);
 
-  if (!targetProduct.article) return [] as RelatedProductCardItem[];
+  const crossCodesFromName = (productName: string) =>
+    parseAnalogCodesFromName(productName).filter((crossCode) => {
+      const compact = compactLookupCode(crossCode);
+      return compact !== targetCompactArticle && compact !== targetCompactCode;
+    });
 
-  const items = await findAnalogProductsByArticleInName(targetProduct, {
-    limit: MAX_ANALOG_ITEMS,
-    maxPages: 2,
-    pageSize: 96,
-  }).catch(() => []);
+  const ownArticleQuery = targetProduct.article
+    ? buildAnalogQuery(targetProduct.article, true)
+    : null;
+  const queries: AnalogQuery[] = ownArticleQuery ? [ownArticleQuery] : [];
+  const addCrossCodeQueries = (crossCodes: string[]) => {
+    for (const crossCode of crossCodes) {
+      if (queries.length >= MAX_ANALOG_QUERIES) break;
+      const query = buildAnalogQuery(crossCode, false);
+      if (query && !queries.some((existing) => existing.compact === query.compact)) {
+        queries.push(query);
+      }
+    }
+  };
+  addCrossCodeQueries(crossCodesFromName(name));
+  if (queries.length === 0) return [] as RelatedProductCardItem[];
 
-  return collectAndFilterUnique(items, targetProduct)
+  const resultsByQuery = new Map<AnalogQuery, CatalogProduct[]>();
+  const runQueries = async (pending: AnalogQuery[]) => {
+    const groups = await Promise.all(pending.map((query) => searchCatalogLikeHeader(query.code)));
+    pending.forEach((query, index) => resultsByQuery.set(query, groups[index]));
+  };
+  await runQueries(queries);
+
+  // The client may only know the display name (cross codes stripped). The
+  // article search usually returns the product itself — read its full 1C name
+  // from there and run a second wave for its cross-reference numbers.
+  if (queries.length === 1 && ownArticleQuery) {
+    const self = (resultsByQuery.get(ownArticleQuery) || []).find(
+      (item) =>
+        (targetCompactCode && compactLookupCode(item.code) === targetCompactCode) ||
+        (compactLookupCode(item.article) === targetCompactArticle &&
+          normalizeLookupValue(item.producer) === normalizeLookupValue(targetProduct.producer))
+    );
+    if (self) {
+      addCrossCodeQueries(crossCodesFromName(self.name));
+      const pending = queries.filter((query) => !resultsByQuery.has(query));
+      if (pending.length > 0) await runQueries(pending);
+    }
+  }
+
+  const targetSubGroup = normalizeLookupValue(targetProduct.subGroup);
+  const targetGroup = normalizeLookupValue(targetProduct.group || targetProduct.category);
+  const scored = new Map<string, { item: CatalogProduct; score: number }>();
+
+  for (const [query, items] of resultsByQuery) {
+    for (const item of items) {
+      const matchScore = scoreAnalogQueryMatch(item, query) + (query.isOwnArticle ? 4 : 0);
+      if (matchScore === (query.isOwnArticle ? 4 : 0)) continue;
+      const identity = buildRecommendationIdentity(item);
+      const previous = scored.get(identity);
+      // Each additional cross-reference number the item matches is extra
+      // evidence it's the same part, so it adds on top of the best match.
+      scored.set(identity, {
+        item,
+        score: previous ? Math.max(previous.score, matchScore) + 3 : matchScore,
+      });
+    }
+  }
+
+  const scoreByItem = new Map(Array.from(scored.values(), (entry) => [entry.item, entry.score]));
+  // Same visibility as the header search: an in-catalog analog without a
+  // price/photo yet is still a real cross-reference the buyer can ask about.
+  const ranked = collectAndFilterUnique(Array.from(scoreByItem.keys()), targetProduct, {
+    publicOnly: false,
+  }).map((item) => {
+    let score = scoreByItem.get(item) || 0;
+    if (targetSubGroup && normalizeLookupValue(item.subGroup) === targetSubGroup) score += 3;
+    if (targetGroup && normalizeLookupValue(item.group || item.category) === targetGroup) score += 1;
+    if (item.quantity > 0) score += 2;
+    if (typeof item.priceEuro === "number" && item.priceEuro > 0) score += 1;
+    return { item, score };
+  });
+
+  return ranked
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        Number(right.item.quantity > 0) - Number(left.item.quantity > 0) ||
+        right.item.quantity - left.item.quantity
+    )
     .slice(0, MAX_ANALOG_ITEMS)
-    .map(toRelatedCardItem);
+    .map(({ item }) => toRelatedCardItem(item));
 };
 
 const getAnalogProductsCached = unstable_cache(
   getAnalogProductsUncached,
-  ["product-analogs:article-in-name-v1"],
+  ["product-analogs:header-search-v4"],
   { revalidate: 60 * 10 }
 );
 

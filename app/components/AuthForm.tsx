@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useRef, useState, useId } from "react";
 import {
   signInWithEmailAndPassword,
   setPersistence,
@@ -127,6 +127,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
   onRegisterSuccess,
 }) => {
   const [isClosing, setIsClosing] = useState(false);
+  const fieldId = useId();
+  const requestLock = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTelegramLoading, setIsTelegramLoading] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
@@ -217,6 +221,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const validatePhone = (phone: string) => /^\+380\d{9}$/.test(phone);
 
   const handleGoogleAuth = async () => {
+    if (requestLock.current || isTelegramLoading || isGoogleRedirectPending) return;
+    requestLock.current = true;
     setLoginError(null);
     setRegisterError(null);
     setSocialAuthError(null);
@@ -313,7 +319,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         }
       } else if (code === "auth/account-exists-with-different-credential") {
         setSocialAuthError(
-          "Для цього email вже є акаунт з паролем. Введіть email і пароль у поля вище, тоді натисніть Google ще раз, щоб прив'язати обидва способи входу."
+          "Для цього email вже є акаунт з паролем. Введіть email і пароль у поля нижче, тоді натисніть Google ще раз, щоб прив'язати обидва способи входу."
         );
       } else if (code === "auth/credential-already-in-use") {
         setSocialAuthError(
@@ -334,6 +340,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       }
     } finally {
       setIsGoogleLoading(false);
+      requestLock.current = false;
     }
   };
 
@@ -351,6 +358,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
   };
 
   const handleForgotPassword = async () => {
+    if (requestLock.current || isTelegramLoading || isGoogleRedirectPending) return;
     const email = loginData.email.trim();
     setLoginError(null);
     setRegisterError(null);
@@ -363,6 +371,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       return;
     }
 
+    requestLock.current = true;
     setIsResetPasswordLoading(true);
     try {
       const resetSettings =
@@ -392,11 +401,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
       }
     } finally {
       setIsResetPasswordLoading(false);
+      requestLock.current = false;
     }
   };
 
   const handleLoginSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (requestLock.current || isTelegramLoading || isGoogleRedirectPending) return;
+    requestLock.current = true; setIsSubmitting(true);
     setLoginError(null);
     setResetPasswordMessage(null);
     const email = loginData.email.trim();
@@ -439,7 +451,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       } else {
         setLoginError("Не вдалося увійти. Перевірте налаштування Firebase.");
       }
-    }
+    } finally { requestLock.current = false; setIsSubmitting(false); }
   };
 
   const validateField = (field: keyof typeof registerData, value: string) => {
@@ -473,6 +485,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
   const handleRegisterSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (requestLock.current || isTelegramLoading || isGoogleRedirectPending) return;
     setRegisterError(null);
 
     const errors = {
@@ -488,6 +501,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     };
     setFieldErrors(errors);
     if (Object.values(errors).some((error) => error)) return;
+    requestLock.current = true; setIsSubmitting(true);
 
     try {
       const phoneQuery = query(
@@ -524,7 +538,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       } else {
         setRegisterError("Не вдалося створити акаунт. Спробуйте ще раз.");
       }
-    }
+    } finally { requestLock.current = false; setIsSubmitting(false); }
   };
 
   const getBorderColor = (field: keyof typeof registerData) => {
@@ -552,7 +566,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-form-modal-title"
-        className={`customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu pointer-events-auto ${
+        className={`customer-window customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu pointer-events-auto ${
           isClosing
             ? "transition-all duration-300 ease-in translate-x-4 -translate-y-1 scale-[0.94] rotate-1 opacity-0 blur-[4px]"
             : "app-panel-enter"
@@ -588,6 +602,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
           <div className="soft-panel-tabs">
             <button
               type="button"
+              disabled={isSubmitting || isGoogleLoading || isTelegramLoading}
+              aria-pressed={mode === "login"}
               onClick={() => onModeChange("login")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 mode === "login"
@@ -600,6 +616,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
             </button>
             <button
               type="button"
+              disabled={isSubmitting || isGoogleLoading || isTelegramLoading}
+              aria-pressed={mode === "register"}
               onClick={() => onModeChange("register")}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 mode === "register"
@@ -612,9 +630,44 @@ const AuthForm: React.FC<AuthFormProps> = ({
             </button>
           </div>
 
+          <div className="flex flex-col gap-2">
+            <div className="auth-social-stack grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                onClick={handleGoogleAuth}
+                disabled={isSubmitting || isGoogleLoading || isGoogleRedirectPending || isResetPasswordLoading || isTelegramLoading}
+                aria-busy={isGoogleLoading}
+                className={socialButtonClass}
+              >
+                {/* Google's own 4-color accent, as a thin top strip instead of
+                    tinting the whole pill — the multi-color logo already
+                    carries the brand, this just echoes it on hover/focus. */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px] scale-x-0 bg-[linear-gradient(90deg,#4285f4_0%,#ea4335_34%,#fbbc05_67%,#34a853_100%)] transition-transform duration-300 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100"
+                />
+                <span className={socialIconShellClass}>
+                  <GoogleLogo className="h-5 w-5" />
+                </span>
+                <span className="auth-social-label relative z-[2] min-w-0 tracking-normal">
+                  {isGoogleLoading || isGoogleRedirectPending ? "Підключення Google…" : "Продовжити з Google"}
+                </span>
+              </button>
+              <LoginTelegram className="w-full" onSuccess={closeModal} onBusyChange={setIsTelegramLoading}
+                disabled={isSubmitting || isGoogleLoading || isGoogleRedirectPending || isResetPasswordLoading} />
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <span className="h-px flex-1 bg-slate-200/80" />
+              або email і пароль
+              <span className="h-px flex-1 bg-slate-200/80" />
+            </div>
+          </div>
+
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-2.5">
+              <label className="auth-field-label" htmlFor={`${fieldId}-email`}>Email</label>
               <input
+                id={`${fieldId}-email`}
                 type="email"
                 placeholder="Email"
                 value={loginData.email}
@@ -630,8 +683,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 required
               />
 
+              <label className="auth-field-label" htmlFor={`${fieldId}-password`}>Пароль</label>
               <div className="relative">
                 <input
+                  id={`${fieldId}-password`}
                   type={showPassword ? "text" : "password"}
                   placeholder="Пароль"
                   value={loginData.password}
@@ -670,7 +725,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 <button
                   type="button"
                   onClick={handleForgotPassword}
-                  disabled={isResetPasswordLoading}
+                  disabled={isSubmitting || isResetPasswordLoading || isGoogleLoading || isTelegramLoading}
                   className="shrink-0 font-bold text-sky-300 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
                 >
                   {isResetPasswordLoading ? "Надсилаємо..." : "Забули пароль?"}
@@ -678,27 +733,31 @@ const AuthForm: React.FC<AuthFormProps> = ({
               </div>
 
               {loginError && (
-                <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">{loginError}</p>
+                <p role="alert" className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">{loginError}</p>
               )}
               {resetPasswordMessage && (
-                <p className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 text-center text-xs text-emerald-200">
+                <p role="status" className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-2 text-center text-xs text-emerald-200">
                   {resetPasswordMessage}
                 </p>
               )}
 
               <button
                 type="submit"
+                disabled={isSubmitting || isResetPasswordLoading || isGoogleLoading || isGoogleRedirectPending || isTelegramLoading}
+                aria-busy={isSubmitting}
                 className="auth-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
               >
                 <LogIn size={18} className="relative z-[2]" />
-                <span className="relative z-[2]">Увійти</span>
+                <span className="relative z-[2]">{isSubmitting ? "Входимо…" : "Увійти"}</span>
               </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-2.5">
               <div className="grid grid-cols-1 gap-2">
                 <div className="min-w-0">
+                  <label className="auth-field-label" htmlFor={`${fieldId}-name`}> Ім’я</label>
                   <input
+                    id={`${fieldId}-name`}
                     type="text"
                     placeholder="Ваше ім'я"
                     value={registerData.name}
@@ -714,7 +773,9 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </div>
 
                 <div className="min-w-0">
+                  <label className="auth-field-label" htmlFor={`${fieldId}-email`}> Email</label>
                   <input
+                    id={`${fieldId}-email`}
                     type="email"
                     placeholder="Email"
                     value={registerData.email}
@@ -730,8 +791,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </div>
 
                 <div className="min-w-0">
+                  <label className="auth-field-label" htmlFor={`${fieldId}-password`}>Пароль · від 6 символів</label>
                   <div className="relative">
                     <input
+                      id={`${fieldId}-password`}
                       type={showPassword ? "text" : "password"}
                       placeholder="Пароль"
                       value={registerData.password}
@@ -762,7 +825,9 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 </div>
 
                 <div className="min-w-0">
+                  <label className="auth-field-label" htmlFor={`${fieldId}-phone`}> Телефон</label>
                   <input
+                    id={`${fieldId}-phone`}
                     type="tel"
                     inputMode="numeric"
                     maxLength={13}
@@ -782,52 +847,25 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
               <button
                 type="submit"
+                disabled={isSubmitting || isResetPasswordLoading || isGoogleLoading || isGoogleRedirectPending || isTelegramLoading}
+                aria-busy={isSubmitting}
                 className="auth-primary-button mt-0.5 w-full px-4 py-2.5 text-sm font-bold"
               >
                 <UserPlus size={18} className="relative z-[2]" />
-                <span className="relative z-[2]">Створити акаунт</span>
+                <span className="relative z-[2]">{isSubmitting ? "Створення…" : "Створити акаунт"}</span>
               </button>
             </form>
           )}
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-              <span className="h-px flex-1 bg-slate-200/80" />
-              або
-              <span className="h-px flex-1 bg-slate-200/80" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleGoogleAuth}
-                disabled={isGoogleLoading || isGoogleRedirectPending}
-                className={socialButtonClass}
-              >
-                {/* Google's own 4-color accent, as a thin top strip instead of
-                    tinting the whole pill — the multi-color logo already
-                    carries the brand, this just echoes it on hover/focus. */}
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px] scale-x-0 bg-[linear-gradient(90deg,#4285f4_0%,#ea4335_34%,#fbbc05_67%,#34a853_100%)] transition-transform duration-300 ease-out group-hover:scale-x-100 group-focus-visible:scale-x-100"
-                />
-                <span className={socialIconShellClass}>
-                  <GoogleLogo className="h-5 w-5" />
-                </span>
-                <span className="relative z-[2] min-w-0 truncate tracking-normal">
-                  {isGoogleLoading || isGoogleRedirectPending ? "Підключення..." : "Google"}
-                </span>
-              </button>
-              <LoginTelegram className="w-full" onSuccess={closeModal} />
-            </div>
-          </div>
+
 
           {registerError && mode === "register" && (
-            <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
+            <p role="alert" className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
               {registerError}
             </p>
           )}
           {socialAuthError && (
-            <p className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
+            <p role="alert" className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2.5 py-2 text-center text-xs text-rose-200">
               {socialAuthError}
             </p>
           )}

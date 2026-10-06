@@ -10,16 +10,16 @@ export default function HeroIntroCard() {
       <div className="home-intro-copy">
         <div className="home-intro-identity">
           <span className="home-intro-icon" aria-hidden="true"><Store size={17} strokeWidth={1.8} /></span>
-          <p className="home-intro-kicker">Онлайн магазин автозапчастин</p>
+          <p className="home-intro-kicker">PartsON · магазин автозапчастин</p>
         </div>
         <h1 className="font-display font-display-readable">
           Автозапчастини <span>у Львові</span>
         </h1>
         <p className="home-intro-subtitle">
-          <strong>Оригінальні запчастини та перевірені аналоги</strong> для
-          ремонту й обслуговування вашого авто. Обирайте деталі в каталозі
-          PartsON, порівнюйте ціни та перевіряйте наявність.{" "}
-          <strong>Самовивіз у Львові або доставка по Україні.</strong>
+          <strong>Запчастини для ТО та ремонту легкових авто.</strong>{" "}
+          Знаходьте деталі за артикулом, порівнюйте ціни й наявність у каталозі.
+          Потрібна перевірка сумісності? Допоможемо з підбором за VIN.{" "}
+          <strong>Самовивіз у Львові та доставка по Україні.</strong>
         </p>
       </div>
 

@@ -25,11 +25,11 @@ service cloud.firestore {
 
     // ── orders ────────────────────────────────────────────────────────────────
     // Guests and authenticated users may create orders.
-    // Only the authenticated owner can read their own orders (matched by uid field).
+    // Owners read their orders; role-based admins read orders for fulfillment.
     // Updates and deletes are blocked on the client; use Firebase Admin SDK server-side.
     match /orders/{orderId} {
       allow create: if true;
-      allow read:   if isOwner(resource.data.uid);
+      allow read:   if isOwner(resource.data.uid) || isAdmin();
       allow update, delete: if false;
     }
 

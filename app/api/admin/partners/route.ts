@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminRequest } from 'app/api/_lib/admin-auth';
+import { invalidatePartnerStatus } from 'app/api/_lib/partner-auth';
 import { getFirebaseAdminDb } from 'app/lib/firebase-admin';
 
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
     if (!(await db.collection('users').doc(body.uid).get()).exists) return json({ error: 'Користувача не знайдено' }, 404);
     // Private collection: user profile writes cannot grant partner access.
     await db.collection('partnerGrants').doc(body.uid).set({ active: body.active, updatedByUid: admin.uid, updatedAt: new Date() });
+    invalidatePartnerStatus(body.uid);
     return json({ ok: true, uid: body.uid, active: body.active });
   } catch { return json({ error: 'Не вдалося змінити партнерство' }, 503); }
 }

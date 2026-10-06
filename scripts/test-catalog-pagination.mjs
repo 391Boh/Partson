@@ -50,6 +50,7 @@ try {
   await pager.locator('button[data-page="10"][aria-current="page"]').waitFor({ timeout: 30_000 });
   await page.getByText("Тест пагінації 157", { exact: true }).first().waitFor();
   assert.equal(await page.evaluate(() => window.__pagerDisappeared), false, "Page numbers blinked away during loading");
+  await page.waitForURL(url => url.searchParams.get("page") === "10");
   assert.equal(new URL(page.url()).searchParams.get("page"), "10");
   const beforeBack = requests;
   await pager.getByRole("button", { name: "Попередня сторінка" }).click();
@@ -80,5 +81,6 @@ try {
   await page.getByText("Тест пагінації 157", { exact: true }).first().waitFor();
   console.log("Pagination browser checks passed: cached jump to last page, stable buttons, back navigation 48-item pages and recovery after a server error.");
 } finally {
+  await Promise.all(browser.contexts().flatMap(context => context.pages()).map(page => page.close()));
   await browser.close();
 }

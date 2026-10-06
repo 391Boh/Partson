@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
   // /product-image/[code] and considers every cached image for inclusion in
   // the server output (10k+ files on a warm development machine).
   outputFileTracingExcludes: {
-    "/product-image/[code]": [".cache/product-images/**/*"],
+    "/*": ["./.cache/product-images/**/*"],
   },
   experimental: {
     // Note: optimizeCss (critters-based critical CSS inlining) is intentionally

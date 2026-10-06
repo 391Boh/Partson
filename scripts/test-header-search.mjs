@@ -8,10 +8,22 @@ page.setDefaultTimeout(20_000);
 const base = process.env.SEARCH_TEST_URL || "http://localhost:3000";
 const requests = [];
 let unavailable = false;
+let failMore = false;
 const items = [{ code: "SEARCH-TEST-001", article: "OC90", name: "Фільтр OC90 (службове (вкладене)) тест пошуку", producer: "KNECHT", quantity: 5, priceEuro: 10 }];
+const pagedItems = Array.from({length:45}, (_,i)=>({...items[0],code:`PAGED-${String(i).padStart(3,"0")}`,article:`REF-${i}`,name:`Збіг товару ${i+1}`}));
 await page.route("**/api/catalog-page", async (route) => {
   const body = route.request().postDataJSON();
   requests.push(body);
+  if (body.searchQuery === "paged-matches") {
+    const offset = Number(body.cursor) || 0;
+    if (failMore && offset) {
+      await route.fulfill({status:503,contentType:"application/json",body:'{"serviceUnavailable":true}'});
+      return;
+    }
+    const end = offset + body.limit;
+    await route.fulfill({contentType:"application/json",body:JSON.stringify({items:pagedItems.slice(offset,end),totalCount:45,hasMore:end<45,nextCursor:end<45?String(end):""})});
+    return;
+  }
   if (body.searchQuery === "slow-query") await new Promise((resolve) => setTimeout(resolve, 900));
   await route.fulfill({ status: unavailable ? 503 : 200, contentType: "application/json", body: JSON.stringify(
     unavailable ? { serviceUnavailable: true } : {
@@ -52,6 +64,24 @@ try {
   await page.getByRole("option").waitFor();
   assert.equal(requests.at(-1).searchFilter, "article");
 
+  console.log("Testing all suggestion pages and retry");
+  await input.fill("paged-matches");
+  await page.getByRole("option").nth(15).waitFor();
+  assert.equal(await page.getByRole("option").count(),16);
+  failMore=true;
+  await page.getByRole("button",{name:"Показати ще товари",exact:true}).click();
+  await page.getByRole("button",{name:"Повторити завантаження",exact:true}).waitFor();
+  assert.equal(await page.getByRole("option").count(),16);
+  failMore=false;
+  await page.getByRole("button",{name:"Повторити завантаження",exact:true}).click();
+  await page.getByRole("option").nth(31).waitFor();
+  await page.getByRole("button",{name:"Показати ще товари",exact:true}).click();
+  await page.getByRole("option").nth(44).waitFor();
+  assert.equal(await page.getByRole("option").count(),45);
+  assert.equal(await page.getByRole("button",{name:"Показати ще товари",exact:true}).count(),0);
+  await input.fill("OC90");
+  await page.getByRole("option").waitFor();
+
   unavailable = true;
   await input.fill("temporary-failure");
   await page.getByRole("button", { name: "Повторити пошук" }).waitFor();
@@ -70,6 +100,10 @@ try {
   await page.screenshot({ path: "/tmp/partson-search-catalog.png", fullPage: false });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.waitForFunction(() => {
+    const button=document.querySelector('button[aria-label="Пошук"]');
+    return button && Object.keys(button).some(key=>key.startsWith('__reactProps$') && typeof button[key]?.onClick==='function');
+  });
   await page.getByRole("button", { name: "Пошук", exact: true }).click();
   const mobileInput = page.getByRole("combobox", { name: "Пошук товарів" });
   await mobileInput.fill("щс90");
@@ -77,7 +111,7 @@ try {
   const bounds = await page.getByRole("listbox").boundingBox();
   assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 390, "Mobile suggestions overflow the screen");
   await page.screenshot({ path: "/tmp/partson-search-mobile.png" });
-  console.log("Desktop and mobile header browser checks passed: stale responses, keyboard, article filter, service errors/retry, corrected query and catalog navigation.");
+  console.log("Desktop and mobile header browser checks passed: all 45 matches, pagination/retry, stale responses, keyboard, article filter, corrected query and catalog navigation.");
 } finally {
   await browser.close();
 }

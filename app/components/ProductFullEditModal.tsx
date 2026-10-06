@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, PenSquare, X } from "lucide-react";
+import { Check, PenSquare, X, FileText, ImageIcon, Package } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
+import { useRouter } from "next/navigation";
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
+import { QuantityStepper } from "app/components/QuantityStepper";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
@@ -58,8 +60,8 @@ const writeProductImageBustToken = (code: string, article?: string) => {
 // admin can keep editing while browsing elsewhere. That means it can't reach
 // into ProductPageAdminEditPanel's own state (that page may no longer be
 // mounted by the time a save completes), so it owns its own copy of the
-// photo/gallery upload flow and just reloads the current page on success
-// instead of patching a specific page's React state.
+// photo/gallery upload flow, broadcasts confirmed changes and refreshes
+// server data without discarding the open form.
 export default function ProductFullEditModal({
   isOpen,
   onClose,
@@ -75,6 +77,12 @@ export default function ProductFullEditModal({
   quantity: initialQuantity,
   description: initialDescription,
 }: Props) {
+  const router = useRouter();
+  const [tab, setTab] = useState<"main" | "description" | "photos">("main");
+  const baseline = useRef({ name: initialName, article: initialArticle, producer: initialProducer,
+    category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
+    priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro,
+    quantity: initialQuantity, description: initialDescription });
   const [name, setName] = useState(initialName);
   const [articleVal, setArticleVal] = useState(initialArticle);
   const [producer, setProducer] = useState(initialProducer);
@@ -128,6 +136,11 @@ export default function ProductFullEditModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    baseline.current = { name: initialName, article: initialArticle, producer: initialProducer,
+      category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
+      priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro,
+      quantity: initialQuantity, description: initialDescription };
+    setTab("main");
     setName(initialName);
     setArticleVal(initialArticle);
     setProducer(initialProducer);
@@ -144,18 +157,28 @@ export default function ProductFullEditModal({
     setCatSugg([]); setGrpSugg([]); setSubSugg([]);
     setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); setImageUploaded(false);
     setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); setGalleryUploaded(false);
-    setTimeout(() => firstInputRef.current?.focus(), 50);
+    const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 50);
     // Only re-seed when the modal is (re-)opened — not on every keystroke,
     // which would fight the admin's own typing.
+    return () => clearTimeout(focusTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, code]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !submitLock.current) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !submitLock.current && !imageUploading && !galleryUploading && !producerSugg.length && !catSugg.length && !grpSugg.length && !subSugg.length) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, imageUploading, galleryUploading, producerSugg.length, catSugg.length, grpSugg.length, subSugg.length]);
+
+  useEffect(() => () => {
+    producerAbort.current?.abort();
+    if (producerDebounce.current) clearTimeout(producerDebounce.current);
+    for (const type of ["category", "group", "subGroup"] as const) {
+      metaAbort.current[type]?.abort();
+      if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
+    }
+  }, [isOpen, code]);
 
   const fetchProducerSuggNow = (q: string) => {
     producerAbort.current?.abort();
@@ -163,10 +186,11 @@ export default function ProductFullEditModal({
     producerAbort.current = ctrl;
     fetch(`/api/producers-suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
       .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
-      .then((d) => { setProducerSugg(d.suggestions ?? []); setProducerActive(-1); })
+      .then((d) => { if (ctrl.signal.aborted) return; setProducerSugg(d.suggestions ?? []); setProducerActive(-1); })
       .catch(() => {});
   };
   const fetchProducerSugg = (q: string) => {
+    producerAbort.current?.abort();
     if (producerDebounce.current) clearTimeout(producerDebounce.current);
     producerDebounce.current = setTimeout(() => fetchProducerSuggNow(q), 200);
   };
@@ -181,6 +205,7 @@ export default function ProductFullEditModal({
     fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
       .then((d) => {
+        if (ctrl.signal.aborted) return;
         const s = d.suggestions ?? [];
         if (type === "category") { setCatSugg(s); setCatActive(-1); }
         else if (type === "group") { setGrpSugg(s); setGrpActive(-1); }
@@ -189,6 +214,7 @@ export default function ProductFullEditModal({
       .catch(() => {});
   };
   const fetchMetaSugg = (type: SuggestType, q: string, parent?: string) => {
+    metaAbort.current[type]?.abort();
     if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
     metaDebounce.current[type] = setTimeout(() => fetchMetaSuggNow(type, q, parent), 200);
   };
@@ -230,7 +256,7 @@ export default function ProductFullEditModal({
         body: JSON.stringify({ code, article: initialArticle, imageDataUrl: imagePreview, file_name: `${code}_${Date.now()}_${imageUploadName || "product.jpg"}` }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
-      if (!data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
+      if (!res.ok || !data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setImageUploaded(true);
       setImageFile(null);
       setImagePreview(null);
@@ -279,7 +305,7 @@ export default function ProductFullEditModal({
         body: JSON.stringify({ code, imageDataUrl: galleryPreview }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
-      if (!data.ok) { setGalleryError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
+      if (!res.ok || !data.ok) { setGalleryError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setGalleryUploaded(true);
       setGalleryFile(null);
       setGalleryPreview(null);
@@ -289,42 +315,42 @@ export default function ProductFullEditModal({
   };
 
   const handleSubmit = async () => {
-    if (submitLock.current || saved || imageProcessing || galleryProcessing || imageUploading || galleryUploading) return;
+    if (submitLock.current || imageProcessing || galleryProcessing || imageUploading || galleryUploading) return;
     submitLock.current = true;
     setSaving(true);
     try { await submitEdit(); } catch { setError("Не вдалося зберегти товар. Перевірте з’єднання та авторизацію."); } finally { submitLock.current = false; setSaving(false); }
   };
 
   const submitEdit = async () => {
-    if (!name.trim()) { setError("Введіть назву товару"); return; }
+    if (!name.trim()) { setTab("main"); setError("Введіть назву товару"); firstInputRef.current?.focus(); return; }
 
     const price = parseProductFormPrice(priceEuro);
     const cost = parseProductFormPrice(costPriceEuro);
-    if (price === null || cost === null) { setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return; }
+    if (price === null || cost === null) { setTab("main"); setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return; }
     const qty = parseProductFormQuantity(quantity);
-    if (qty === null) { setError("Введіть цілу кількість від 0"); return; }
+    if (qty === null) { setTab("main"); setError("Введіть цілу кількість від 0"); return; }
 
     // Only send what actually changed — a no-op save shouldn't write to 1C
     // (and a blank price/cost here means "leave as is", not "clear it").
     const fields: ProductAdminEditFields = {};
-    if (name.trim() !== initialName) fields.name = name.trim();
-    if (articleVal.trim() !== initialArticle) fields.catalogNumber = articleVal.trim();
-    if (producer.trim() !== initialProducer) fields.producer = producer.trim();
+    if (name.trim() !== baseline.current.name) fields.name = name.trim();
+    if (articleVal.trim() !== baseline.current.article) fields.catalogNumber = articleVal.trim();
+    if (producer.trim() !== baseline.current.producer) fields.producer = producer.trim();
     if (
-      category.trim() !== initialCategory ||
-      group.trim() !== initialGroup ||
-      subGroup.trim() !== initialSubGroup
+      category.trim() !== baseline.current.category ||
+      group.trim() !== baseline.current.group ||
+      subGroup.trim() !== baseline.current.subGroup
     ) {
       fields.category = category.trim();
       fields.group = group.trim();
       fields.subGroup = subGroup.trim();
     }
-    if (price !== undefined && price !== initialPriceEuro) fields.priceEuro = price;
-    if (cost !== undefined && cost !== initialCostPriceEuro) fields.costPriceEuro = cost;
-    if (qty !== undefined && qty !== initialQuantity) fields.quantity = qty;
-    if (description.trim() !== initialDescription) fields.description = description.trim();
+    if (price !== undefined && price !== baseline.current.priceEuro) fields.priceEuro = price;
+    if (cost !== undefined && cost !== baseline.current.costPriceEuro) fields.costPriceEuro = cost;
+    if (qty !== undefined && qty !== baseline.current.quantity) fields.quantity = qty;
+    if (description.trim() !== baseline.current.description) fields.description = description.trim();
 
-    if (Object.keys(fields).length === 0) { onClose(); return; }
+    if (Object.keys(fields).length === 0) { setSaved(true); setError(null); return; }
 
     const token = await getAdminIdToken();
     if (!token) { setError("Не авторизовано"); return; }
@@ -336,7 +362,15 @@ export default function ProductFullEditModal({
       // matches how the single-field "article" edit on ProductPageAdminEditPanel
       // always resolves the product by its pre-edit article, even when the
       // article itself is what's being changed.
-      const result = await saveProductAdminFields(code, initialArticle, fields, token);
+      const result = await saveProductAdminFields(code, baseline.current.article, fields, token);
+      // Description is a separate write and may succeed before another field
+      // fails. Remember that success so a retry does not resubmit it.
+      if (fields.description !== undefined && result.results[0]?.ok) {
+        baseline.current.description = fields.description;
+        window.dispatchEvent(new CustomEvent("partson:product-description-updated", {
+          detail: { code, article: baseline.current.article, description: fields.description },
+        }));
+      }
       if (!result.ok) { setError(result.error || "Помилка збереження"); return; }
 
       const confirmed = result.results.find((item) => item.code === code || item.Код === code);
@@ -361,15 +395,20 @@ export default function ProductFullEditModal({
       if (fields.priceEuro !== undefined || fields.costPriceEuro !== undefined) {
         window.dispatchEvent(new Event("partson:price-updated"));
       }
-      // No specific page's React state to patch — this modal outlives
-      // whichever product page it was opened from (see the file comment
-      // above). A reload of wherever the admin currently is picks up the
-      // edit correctly regardless, via product-edit-overrides.ts.
-      if (Object.keys(fields).every((key) => key === "quantity")) {
-        onClose();
-      } else {
-        setTimeout(() => window.location.reload(), 300);
-      }
+      baseline.current = { name: fields.name ?? baseline.current.name,
+        article: fields.catalogNumber ?? baseline.current.article,
+        producer: fields.producer ?? baseline.current.producer,
+        category: fields.category ?? baseline.current.category,
+        group: fields.group ?? baseline.current.group,
+        subGroup: fields.subGroup ?? baseline.current.subGroup,
+        priceEuro: fields.priceEuro ?? baseline.current.priceEuro,
+        costPriceEuro: fields.costPriceEuro ?? baseline.current.costPriceEuro,
+        quantity: fields.quantity ?? baseline.current.quantity,
+        description: fields.description ?? baseline.current.description };
+      setPriceEuro(numToStr(baseline.current.priceEuro));
+      setCostPriceEuro(numToStr(baseline.current.costPriceEuro));
+      setQuantity(String(baseline.current.quantity));
+      router.refresh();
     } catch {
       setError("Помилка мережі");
     } finally {
@@ -391,9 +430,11 @@ export default function ProductFullEditModal({
     // ever overlap (e.g. a taller header state) instead of this panel
     // painting over it.
     <div
-      className="product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
+      onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void handleSubmit(); } }}
+      className="product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[480px] max-h-[760px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
       aria-label="Редагувати товар"
+      aria-busy={saving}
     >
       <div className="flex h-full min-h-0 flex-col">
         <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
@@ -402,20 +443,32 @@ export default function ProductFullEditModal({
             <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
               <PenSquare size={14} />
             </span>
-            <h2 className="text-[13px] font-black text-slate-800">Редагувати товар</h2>
+            <div className="min-w-0"><h2 className="text-[13px] font-black text-slate-800">Редагувати товар</h2>
+            <p className="max-w-[300px] truncate text-[11px] text-slate-500">{articleVal || code} · {name}</p></div>
           </div>
           <button
             type="button"
-            onClick={() => { if (!submitLock.current) onClose(); }}
+            onClick={() => { if (!submitLock.current && !imageUploading && !galleryUploading && !imageProcessing && !galleryProcessing) onClose(); }}
             className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
             aria-label="Закрити"
+            disabled={saving || imageUploading || galleryUploading || imageProcessing || galleryProcessing}
           >
             <X size={14} />
           </button>
         </div>
 
+        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-100 bg-slate-50/80 p-2" role="tablist" aria-label="Розділи редагування">
+          {([{ id: "main", label: "Основне", icon: Package }, { id: "description", label: "Опис", icon: FileText }, { id: "photos", label: "Фото", icon: ImageIcon }] as const).map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" role="tab" id={`product-edit-tab-${id}`} aria-selected={tab === id} aria-controls={`product-edit-panel-${id}`} onClick={() => setTab(id)}
+              className={`flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${tab === id ? "bg-white text-violet-700 shadow-sm ring-1 ring-violet-100" : "text-slate-500 hover:bg-white/70"}`}>
+              <Icon size={14} />{label}
+            </button>
+          ))}
+        </div>
+
         <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
-          <fieldset disabled={saving} className="space-y-3 disabled:opacity-70">
+          <fieldset disabled={saving} className="space-y-3 disabled:opacity-70" onChange={() => { setSaved(false); setError(null); }}>
+            <div role="tabpanel" id="product-edit-panel-main" aria-labelledby="product-edit-tab-main" hidden={tab !== "main"} className="space-y-3">
             <Field label="Назва" required>
               <input
                 ref={firstInputRef}
@@ -472,7 +525,9 @@ export default function ProductFullEditModal({
               </Field>
             </div>
 
-            <div className="space-y-1.5">
+            <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <summary className="cursor-pointer text-xs font-bold text-slate-600">Класифікація товару</summary>
+              <div className="mt-3 space-y-2">
               <Field label="Категорія">
                 <div className="relative">
                   <input type="text" value={category}
@@ -593,7 +648,8 @@ export default function ProductFullEditModal({
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+              </details>
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
               <Field label="Ціна продажу €">
                 <input type="text" inputMode="decimal" value={priceEuro}
                   onChange={(e) => setPriceEuro(e.target.value)}
@@ -607,22 +663,29 @@ export default function ProductFullEditModal({
             </div>
 
             <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Порожня ціна — без змін. Кількість — повний залишок; 0 означає відсутність товару.</p>
-            <Field label="Поточний залишок, шт.">
-              <input type="text" inputMode="numeric" value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className={fieldClass} />
-            </Field>
+            {/* Not <Field>: that wraps its child in a <label>, and a click on
+                the label text would activate the first button inside — "−". */}
+            <div>
+              <p className="mb-1 block text-xs font-semibold text-slate-500">Поточний залишок, шт.</p>
+              <QuantityStepper value={quantity} onChange={setQuantity} ariaLabel="Поточний залишок, шт." />
+            </div>
 
-            <Field label="Опис">
+            </div>
+            <div role="tabpanel" id="product-edit-panel-description" aria-labelledby="product-edit-tab-description" hidden={tab !== "description"} className="space-y-2">
+            <Field label="Опис товару">
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Короткий опис товару для картки на сайті"
-                rows={3}
+                rows={9}
+                maxLength={10000}
                 className={`${fieldClass} resize-y`}
               />
             </Field>
 
+            <p className="text-[11px] text-slate-500">{description.length.toLocaleString("uk-UA")} / 10 000 символів · Зберігається кнопкою «Зберегти».</p>
+            </div>
+            <div role="tabpanel" id="product-edit-panel-photos" aria-labelledby="product-edit-tab-photos" hidden={tab !== "photos"}>
             {/* Uploads immediately (not deferred to "Зберегти" below) — the
                 product already exists, unlike ProductCreateModal's staged
                 photos which wait for a code to exist. */}
@@ -652,6 +715,8 @@ export default function ProductFullEditModal({
                 onCancelGallery={() => { setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); }}
               />
             </Field>
+            <p className="mt-2 text-[11px] text-slate-500">Фото завантажуються окремо. Введені дані залишаються у формі.</p>
+            </div>
           </fieldset>
 
           {error && (
@@ -661,17 +726,17 @@ export default function ProductFullEditModal({
           )}
           {saved && !error && (
             <div role="status" className="mt-3 flex items-center gap-1.5 rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">
-              <Check size={12} /> Збережено
+              <Check size={12} /> Зміни збережено. Можна продовжити редагування.
             </div>
           )}
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
-          <button type="button" onClick={() => { if (!submitLock.current) onClose(); }} disabled={saving}
+          <button type="button" onClick={() => { if (!submitLock.current && !imageUploading && !galleryUploading && !imageProcessing && !galleryProcessing) onClose(); }} disabled={saving || imageUploading || galleryUploading || imageProcessing || galleryProcessing}
             className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
-            Скасувати
+            Готово
           </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={saving || saved || imageProcessing || galleryProcessing || imageUploading || galleryUploading || !name.trim()}
+          <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || galleryProcessing || imageUploading || galleryUploading || !name.trim()}
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-3.5 py-1.5 text-[11.5px] font-black text-white shadow-[0_4px_14px_rgba(124,58,237,0.35)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60">
             {saving ? (
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-300 border-t-white" />

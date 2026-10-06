@@ -677,8 +677,8 @@ export default function HeroAccountClient({
                 <span
                   className={
                     tone === "success"
-                      ? "line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-emerald-100"
-                      : "line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-sky-100"
+                      ? "min-w-0 flex-1 h-[2.75em] line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-emerald-100"
+                      : "min-w-0 flex-1 h-[2.75em] line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-sky-100"
                   }
                 >
                   {label}

@@ -326,8 +326,15 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
   );
 
+  // Only brands whose page actually lists products: the manufacturer page
+  // marks a brand with no public (priced + photographed) products noindex,
+  // and a noindex URL must not be submitted here.
+  const hasPublicProducts = (producer: { productCount?: number }) =>
+    typeof producer.productCount !== "number" || producer.productCount > 0;
+
   if (facets?.producers?.length) {
     for (const producer of facets.producers) {
+      if (!hasPublicProducts(producer)) continue;
       pushUniqueEntry(
         buildManufacturerPath(producer.slug),
         contentLastModified,
@@ -339,14 +346,20 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     }
   }
 
-  const directoryData = await resolveWithTimeout(
-    () => getFullManufacturersDirectoryData(),
-    null,
-    SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
-  );
+  // The directory merges in static-list brands and unfiltered 1C totals
+  // (products without price/photo), so it no longer matches what the brand
+  // page shows — use it only when the catalog facets were unavailable.
+  const directoryData = facets?.producers?.length
+    ? null
+    : await resolveWithTimeout(
+        () => getFullManufacturersDirectoryData(),
+        null,
+        SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
+      );
 
   if (directoryData?.clientProducers?.length) {
     for (const producer of directoryData.clientProducers) {
+      if (directoryData.hasIndexedCounts && producer.publicProductCount <= 0) continue;
       pushUniqueEntry(
         buildManufacturerPath(producer.slug),
         contentLastModified,
@@ -364,8 +377,12 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     }
   }
 
-  // Fallback source: keep sitemap complete even if catalog facets are empty or timed out.
-  for (const brand of brands) {
+  // Fallback source only when both catalog sources were unavailable: added
+  // unconditionally, the static list also submitted brands with no products
+  // (thin, noindex pages) and spelling duplicates of real producers
+  // ("Lemförder" next to the catalog's "LEMFORDER").
+  const hasCatalogProducers = entries.length > 1;
+  for (const brand of hasCatalogProducers ? [] : brands) {
     pushUniqueEntry(
       buildManufacturerPath(buildSeoSlug(brand.name)),
       contentLastModified,
@@ -396,7 +413,7 @@ const getGroupsSitemapEntriesCached = unstable_cache(
 
 const getManufacturersSitemapEntriesCached = unstable_cache(
   buildManufacturersSitemapEntries,
-  ["manufacturers-sitemap-v2"],
+  ["manufacturers-sitemap-v5"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["manufacturers-sitemap"],

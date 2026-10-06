@@ -47,7 +47,7 @@ export default function ReturnsSection() {
       </Block>
 
       <Block id="requirements" kicker="Стан товару" title="Вимоги до товару для повернення">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Товар має бути" icon={Package} tone="cyan">
             <List>
               <Li tone="cyan">У <Strong>незміненому вигляді</Strong>: не встановлювався і не монтувався.</Li>

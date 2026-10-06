@@ -295,8 +295,21 @@ export async function POST(request: NextRequest) {
       for (const [key, entry] of Object.entries(snapshotPriceByKey)) {
         if (entry.priceEuro != null) snapshotPrices[key] = entry.priceEuro;
       }
-      const unresolvedPriceLookupKeys = allLookupKeys.filter(
-        (key) => snapshotPrices[key.trim().toLowerCase()] == null
+      // Per item, not per key: the snapshot is indexed by code, so an item's
+      // article key never matches even when its code already gave the price —
+      // filtering keys one by one sent every card's article to a live 1C
+      // lookup anyway (queued behind allgoods' concurrency limit, 4-5s).
+      const unresolvedPriceLookupKeys = Array.from(
+        new Set(
+          missingItems
+            .filter(
+              (item) =>
+                !item.lookupKeys.some(
+                  (key) => snapshotPrices[key.trim().toLowerCase()] != null
+                )
+            )
+            .flatMap((item) => item.lookupKeys)
+        )
       );
 
       const lookupDetailsPromise = needsProtectedDetails

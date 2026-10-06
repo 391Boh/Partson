@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, ChevronDown, Minus, Package, PenSquare, Pencil, Plus, Settings2, X } from "lucide-react";
+import { Check, ChevronDown, Package, PenSquare, Pencil, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { useProductQuantity } from "app/lib/use-product-quantity";
+import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
@@ -214,12 +215,12 @@ export default function ProductPageAdminEditPanel({
   const metaSubGroupInputRef = useRef<HTMLInputElement>(null);
 
   const [quantity, setQuantity] = useProductQuantity(code, initialQuantity);
-  const [qtyInput, setQtyInput] = useState("");
-  const [qtySaving, setQtySaving] = useState(false);
-  const [qtyError, setQtyError] = useState<string | null>(null);
   const [qtySavedType, setQtySavedType] = useState<"receipt" | "sale" | null>(null);
 
   const qtySubmitLock = useRef(false);
+  // The stock counter appears only after "Змінити залишок", so the page
+  // doesn't show it next to the purchase panel's own counter all the time.
+  const [stockEditing, setStockEditing] = useState(false);
 
   const [descVal, setDescVal] = useState(initialDescription);
   const [descEditing, setDescEditing] = useState(false);
@@ -293,8 +294,9 @@ export default function ProductPageAdminEditPanel({
       if (!token || cancelled) return;
 
       const params = new URLSearchParams({ mode: "partner" });
-      if (values.article) params.append("lookup", values.article);
+      // Code first, like every other description lookup (unique per product).
       if (code) params.append("lookup", code);
+      if (values.article) params.append("lookup", values.article);
       if (!params.has("lookup")) return;
 
       try {
@@ -336,8 +338,9 @@ export default function ProductPageAdminEditPanel({
 
     (async () => {
       const params = new URLSearchParams();
-      if (values.article) params.append("lookup", values.article);
+      // Code first, like every other description lookup (unique per product).
       if (code) params.append("lookup", code);
+      if (values.article) params.append("lookup", values.article);
       if (!params.has("lookup")) return;
 
       try {
@@ -706,35 +709,39 @@ export default function ProductPageAdminEditPanel({
     } catch { setDescError("Помилка мережі"); } finally { setDescSaving(false); }
   };
 
-  const changeQuantity = async (type: "receipt" | "sale") => {
-    if (qtySubmitLock.current) return;
-    const n = Number(qtyInput.replace(",", "."));
-    if (!Number.isSafeInteger(n) || n <= 0) { setQtyError("Введіть число > 0"); return; }
+  // One stock movement (Поступлення / Реалізація) for the difference the
+  // admin set in the stock stepper.
+  const commitStock = async (movement: StockMovement): Promise<{ ok: boolean; error?: string }> => {
+    if (qtySubmitLock.current) return { ok: false, error: "Зачекайте завершення попередньої операції" };
     qtySubmitLock.current = true;
-    setQtySaving(true);
-    setQtyError(null);
     setQtySavedType(null);
     try {
       const token = await getToken();
-      if (!token) { setQtyError("Не авторизовано"); return; }
+      if (!token) return { ok: false, error: "Не авторизовано" };
       const result = await saveProductAdminFields(
         code,
         values.article || "",
-        type === "receipt" ? { receipt: n } : { sale: n },
+        movement.type === "receipt" ? { receipt: movement.amount } : { sale: movement.amount },
         token
       );
-      if (!result.ok) { setQtyError(result.error || "Помилка"); return; }
+      if (!result.ok) return { ok: false, error: result.error || "Помилка" };
       const confirmedQuantity = result.results[0]?.quantity;
       if (typeof confirmedQuantity !== "number" || !Number.isFinite(confirmedQuantity)) {
-        setQtyError("Не вдалося підтвердити залишок. Оновіть сторінку."); return;
+        return { ok: false, error: "Не вдалося підтвердити залишок. Оновіть сторінку." };
       }
       setQuantity(confirmedQuantity);
-      setQtyInput("");
-      setQtySavedType(type);
+      setQtySavedType(movement.type);
       setTimeout(() => setQtySavedType(null), 3000);
       invalidateCatalogClientCache({ code, quantity: confirmedQuantity });
-    } catch { setQtyError("Не вдалося підтвердити зміну. Перевірте поточний залишок перед повторним поступленням або продажем."); }
-    finally { qtySubmitLock.current = false; setQtySaving(false); }
+      return { ok: true };
+    } catch {
+      return {
+        ok: false,
+        error: "Не вдалося підтвердити зміну. Перевірте поточний залишок перед повторним поступленням або продажем.",
+      };
+    } finally {
+      qtySubmitLock.current = false;
+    }
   };
 
   if (!isAdmin) return null;
@@ -1005,47 +1012,23 @@ export default function ProductPageAdminEditPanel({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={qtyInput}
-                onChange={(e) => { setQtyInput(e.target.value); setQtyError(null); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void changeQuantity("receipt");
-                  if (e.key === "Escape") setQtyInput("");
-                }}
-                disabled={qtySaving}
-                placeholder="Кількість"
-                className="w-32 rounded-[10px] border border-slate-200 px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-200/60 disabled:opacity-60"
+            {stockEditing ? (
+              <AdminStockStepper
+                stock={quantity}
+                onCommit={commitStock}
+                onClose={() => setStockEditing(false)}
+                autoFocus
               />
+            ) : (
               <button
                 type="button"
-                onClick={() => void changeQuantity("receipt")}
-                disabled={qtySaving || !qtyInput.trim()}
-                title="Поступлення (додати)"
-                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 text-[12px] font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95 disabled:opacity-40"
+                onClick={() => setStockEditing(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3 text-[12px] font-bold text-orange-700 transition hover:bg-orange-100"
               >
-                {qtySaving
-                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
-                  : <Plus size={13} />}
-                Прихід
+                <Pencil size={12} />
+                Змінити залишок
               </button>
-              <button
-                type="button"
-                onClick={() => void changeQuantity("sale")}
-                disabled={qtySaving || !qtyInput.trim()}
-                title="Продаж (відняти)"
-                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-red-200 bg-red-50 px-3 text-[12px] font-bold text-red-600 transition hover:bg-red-100 active:scale-95 disabled:opacity-40"
-              >
-                {qtySaving
-                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-300 border-t-red-500" />
-                  : <Minus size={13} />}
-                Продаж
-              </button>
-            </div>
-            {qtyError && <p className="mt-1.5 text-[11px] font-semibold text-red-500">{qtyError}</p>}
+            )}
           </div>
 
           {/* Image upload */}

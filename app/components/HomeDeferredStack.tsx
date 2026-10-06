@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
+
 import SectionBoundary from "./SectionBoundary";
 import { prefetchManufacturerCounts } from "app/lib/manufacturer-counts-client";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
@@ -116,7 +118,9 @@ function DeferredHomeSection({
       // Start the mount queue only when code is available. Otherwise several
       // suspended dynamic imports can resolve and commit together, bypassing
       // the spacing between setShouldMount calls entirely.
-      void preload().catch(() => undefined).then(() => {
+      // Also wait for the full stylesheet: this content is outside the
+      // homepage's inlined critical CSS (app/lib/full-stylesheet.ts).
+      void Promise.all([preload().catch(() => undefined), whenFullStylesheetReady()]).then(() => {
         if (cancelled) return;
         mountRequestedAt = performance.now();
         mountWhenScrollSettles();

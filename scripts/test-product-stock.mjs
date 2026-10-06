@@ -26,7 +26,7 @@ const mocks = {
   "app/lib/product-image": { clearProductImageCacheForProduct: noop },
   "app/lib/product-image-route-cache": { clearRouteImageCacheForProduct: noop },
   "app/lib/catalog-page-route-cache": { clearCatalogPageRouteCache: noop },
-  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop, fetchExactCatalogProductByLookup: async (_code, options) => {
+  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop, patchFullCatalogSnapshotProduct: noop, fetchExactCatalogProductByLookup: async (_code, options) => {
     readCount++;
     assert.equal(options.cacheTtlMs, 0);
     assert.equal(options.retries, 0);
@@ -39,7 +39,7 @@ const source = readFileSync(new URL("../app/api/product-update/route.ts", import
 vm.runInNewContext(ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, {
-  exports, process: { env: {} }, Headers,
+  exports, process: { env: {} }, Headers, setTimeout,
   require: (name) => {
     assert.ok(mocks[name], `Unexpected dependency: ${name}`);
     return mocks[name];
@@ -53,18 +53,19 @@ async function update(body, oneCResponse) {
 }
 
 for (const raw of [7, "7", "7,0", 0, "0"]) {
+  freshStock = { code: "123", quantity: Number(String(raw).replace(",", ".")) };
   const result = await update({ receipt: 2 }, { success: true, quantity_result: { success: true, КількістьДо: raw } });
   assert.equal(result.body.quantity, Number(String(raw).replace(",", ".")));
   assert.equal(sent.retries, 0, "Stock movements must never be retried automatically");
   assert.equal(sent.body.Поступлення, 2);
 }
-// quantity_result.Кількість echoes back the *movement* amount (e.g. the "2"
-// just received), not the resulting balance — quantity_result.КількістьДо is
-// 1C's actual post-movement stock level, and must win whenever present.
+// Movement response fields are ambiguous; only a fresh product read
+// confirms the resulting balance, including when an old balance is echoed.
 {
+  freshStock = { code: "123", quantity: 52 };
   const result = await update(
     { receipt: 2 },
-    { success: true, quantity_result: { success: true, Кількість: 2, КількістьДо: 52 } }
+    { success: true, quantity_result: { success: true, Кількість: 2, КількістьДо: 50 } }
   );
   assert.equal(result.body.quantity, 52);
 }
@@ -72,6 +73,7 @@ for (const body of [{ receipt: -1 }, { sale: 1.5 }, { quantity: 2, receipt: 1 }]
   assert.equal((await update(body, {})).status, 400);
   assert.equal(sent, undefined);
 }
+freshStock = null;
 assert.equal((await update({ sale: 1 }, { success: true })).status, 502);
 assert.equal((await update({ sale: 1 }, { success: true, quantity_result: { success: false } })).body.ok, false);
 assert.equal((await update({ receipt: 1 }, { success: true, count: 1, items: [{}] })).body.ok, false);
@@ -110,3 +112,19 @@ assert.equal((await update({ quantity: 9 }, { success: true, quantity_result: { 
 freshStock = { code: "different", quantity: 9 };
 assert.equal((await update({ quantity: 9 }, { success: true })).status, 502);
 console.log("Stock verification passed: uncached read, movement echo, zero and mismatched balance.");
+
+// A successful movement survives one failed confirmation read. Only reads
+// repeat, and a stale before-balance must never be published as the result.
+freshStock = { code: "123", quantity: 49 };
+const originalRead = mocks["app/lib/catalog-server"].fetchExactCatalogProductByLookup;
+let confirmationAttempts = 0;
+mocks["app/lib/catalog-server"].fetchExactCatalogProductByLookup = async (...args) => {
+  if (++confirmationAttempts === 1) return null;
+  return originalRead(...args);
+};
+const recovered = await update({ sale: 3 }, { success: true, quantity_result: { КількістьДо: 52, Кількість: 3 } });
+assert.equal(recovered.body.quantity, 49);
+assert.equal(confirmationAttempts, 2);
+assert.equal(sent.retries, 0);
+mocks["app/lib/catalog-server"].fetchExactCatalogProductByLookup = originalRead;
+console.log("Receipt/sale confirmation passed: old balance ignored, transient read failure recovered without another write.");

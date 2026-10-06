@@ -19,6 +19,11 @@ import { observeNearViewport } from "app/lib/shared-intersection-observer";
 
 
 const FINAL_RETRY_DELAY_MS = 60;
+// After the immediate retry chain fails, a card the catalog says has a photo
+// tries again later instead of settling on the placeholder for good — the
+// chain fires within a few seconds, often all inside one window where 1C is
+// busy with the page's price/stock/prefetch lookups.
+const LATE_RECOVERY_DELAYS_MS = [3000, 8000];
 const DEFERRED_DIRECT_LOAD_DELAY_MS = 90;
 // Native `loading="lazy"` picks its own lookahead distance (varies with the
 // browser's guess at connection speed) and can't be tuned — on a fast flick
@@ -126,6 +131,7 @@ const ProductCardImageContent: React.FC<Props> = ({
     [normalizedArticle, normalizedCode]
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
+  const [lateRecoveryAttempts, setLateRecoveryAttempts] = useState(0);
   const lastSuccessfulSrcRef = useRef("");
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(status);
@@ -278,11 +284,10 @@ const ProductCardImageContent: React.FC<Props> = ({
 
     // If the image is already showing from a previous successful load of the
     // same product, keep it visible instead of triggering a skeleton flash.
+    // Any src counts (primary, retry, late recovery): the component is keyed
+    // by product, so a loaded src always belongs to this product.
     const alreadyLoaded =
-      statusRef.current === "loaded" &&
-      (requestSrcRef.current === primarySrc ||
-        requestSrcRef.current === recoverySrc ||
-        requestSrcRef.current === finalRetrySrc);
+      statusRef.current === "loaded" && Boolean(requestSrcRef.current);
     if (alreadyLoaded) return () => {};
 
     setRequestSrc(primarySrc);
@@ -318,6 +323,39 @@ const ProductCardImageContent: React.FC<Props> = ({
 
     return () => window.clearTimeout(timeoutId);
   }, [disableDirectLoad, finalRetryQueued, finalRetrySrc, hasKnownPhoto, status]);
+
+  useEffect(() => {
+    if (!hasKnownPhoto || disableDirectLoad) return;
+    if (status !== "missing" || !finalRetryQueued) return;
+    if (!isNearViewport && loadingMode !== "eager") return;
+    const delay = LATE_RECOVERY_DELAYS_MS[lateRecoveryAttempts];
+    if (delay === undefined) return;
+    // retry=3, 4, … — a URL the browser hasn't tried yet (the <Image> is keyed
+    // by src); the server treats it as its final, longest-budget attempt.
+    const lateSrc = buildProductImagePath(normalizedCode, normalizedArticle, {
+      catalog: true,
+      retryToken: 3 + lateRecoveryAttempts,
+    });
+    if (!lateSrc) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setLateRecoveryAttempts((count) => count + 1);
+      setRequestSrc(lateSrc);
+      setStatus("retrying");
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    disableDirectLoad,
+    finalRetryQueued,
+    hasKnownPhoto,
+    isNearViewport,
+    lateRecoveryAttempts,
+    loadingMode,
+    normalizedArticle,
+    normalizedCode,
+    status,
+  ]);
 
   // Safety net: force this card off the shared batch and onto its own direct
   // request if disableDirectLoad has kept it waiting too long.

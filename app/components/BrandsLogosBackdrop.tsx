@@ -238,10 +238,10 @@ export default function BrandsLogosBackdrop() {
     };
 
     const apply = (progress: number) => {
-      const step = Math.round(progress * 320);
+      const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
-      const p = step / 320;
+      const p = step / 1024;
       const absP = p < 0 ? -p : p; // spread opens at both scroll extremes
       for (const plane of planes) {
         const x = Math.round(absP * plane.spreadM * 100) / 100;

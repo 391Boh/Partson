@@ -1035,55 +1035,6 @@ const safeDecode = (value: string) => {
 const normalizeFacetValue = (value: string | null | undefined) =>
   maybeFixMojibake((value || "").replace(/\s+/g, " ").trim()).toLowerCase();
 
-const buildDescriptionSearchTokens = (value: string) =>
-  Array.from(
-    new Set(
-      normalizeFacetValue(value)
-        .split(/[^0-9a-zа-яіїєґё]+/i)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 2)
-    )
-  ).slice(0, 16);
-
-const scoreDescriptionSearchItem = (
-  item: CatalogProduct,
-  query: string,
-  tokens: string[]
-) => {
-  const description = normalizeFacetValue(item.description);
-  if (!description) return 0;
-
-  const name = normalizeFacetValue(item.name);
-  const producer = normalizeFacetValue(item.producer);
-  const group = normalizeFacetValue(item.group || item.category);
-  const subGroup = normalizeFacetValue(item.subGroup);
-
-  let score = 0;
-  const phraseInDescription = Boolean(query && description.includes(query));
-
-  if (phraseInDescription) score += 140;
-
-  if (tokens.length > 0) {
-    const descMatches = tokens.filter((token) => description.includes(token)).length;
-    const allTokensInDescription = descMatches === tokens.length;
-
-    if (!allTokensInDescription && !phraseInDescription) return 0;
-
-    if (allTokensInDescription) {
-      score += descMatches * 22;
-      score += 55;
-    }
-  }
-
-  if (tokens.some((token) => name.includes(token))) score += 10;
-  if (tokens.some((token) => producer.includes(token))) score += 8;
-  if (tokens.some((token) => group.includes(token) || subGroup.includes(token))) score += 6;
-  if (Number.isFinite(item.quantity) && item.quantity > 0) score += 3;
-  if (typeof item.priceEuro === "number" && item.priceEuro > 0) score += 2;
-
-  return score;
-};
-
 type CatalogHierarchyBranch = {
   group: string;
   subcategory?: string;
@@ -1699,7 +1650,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
   if (canUseAllgoods) {
     const allgoodsBaseBody: Record<string, unknown> = {};
-    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = searchFilter === "description";
+    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = searchFilter === "description" || searchFilter === "all";
 
     if (producerName) {
       allgoodsBaseBody[ALLGOODS_PRODUCER_FIELD] = producerName;
@@ -1782,180 +1733,15 @@ const fetchCatalogProductsByQueryInner = async (options: {
       });
     }
 
-    // Enrich descriptions via getinfo for items that allgoods didn't populate.
-    const enrichDescriptions = async (items: CatalogProduct[]): Promise<CatalogProduct[]> => {
-      const needEnrichment = items.filter((item) => !item.description);
-      if (needEnrichment.length === 0) return items;
-
-      const descMap = new Map<string, string | null>();
-      const concurrency = 8;
-      let enrichIdx = 0;
-
-      const workers = Array.from(
-        { length: Math.min(concurrency, needEnrichment.length) },
-        async () => {
-          while (enrichIdx < needEnrichment.length) {
-            const i = enrichIdx++;
-            const item = needEnrichment[i];
-            const lookup = (item.article || item.code || "").trim();
-            if (!lookup) continue;
-            const desc = await fetchProductDescription(lookup, {
-              timeoutMs: 550,
-              retries: 0,
-              cacheTtlMs: 1000 * 60 * 30,
-            }).catch(() => null);
-            descMap.set(lookup, desc ?? null);
-          }
-        }
-      );
-
-      await Promise.allSettled(workers);
-
-      return items.map((item) => {
-        if (item.description) return item;
-        const lookup = (item.article || item.code || "").trim();
-        const desc = lookup ? (descMap.get(lookup) ?? null) : null;
-        return desc ? { ...item, description: desc } : item;
-      });
-    };
-
-    const runAllgoodsDescriptionSearch = async () => {
-      const descriptionQuery = normalizeFacetValue(searchQuery);
-      const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
-      const targetCount = limit;
-      // Smaller pages because each page triggers parallel getinfo enrichment calls.
-      // maxScannedItems was 40 — fine when 1C's own "Описание" filter actually
-      // narrows the source, but this path only runs when it doesn't (see
-      // resultLooksFiltered above), so 40 items out of a 10k+ catalog rarely
-      // contained a real match: a live catalog view could show nothing for a
-      // query the model/producer group-breakdown pages (which scan far more
-      // pages, cached for hours) had already confirmed has real hits.
-      const scanLimit = Math.min(40, Math.max(limit, 20));
-      const maxScannedItems = Math.min(400, Math.max(targetCount * 20, scanLimit * 10));
-      const matches: CatalogProduct[] = [];
-      const seen = new Set<string>();
-      let scanCursor = cursor;
-      let scannedItems = 0;
-      let hasMoreSource = false;
-
-      // Pass description field to 1C so it pre-filters — allgoods "Описание" key
-      // tells the server to search only items whose description contains the query.
-      const descSearchBody: Record<string, unknown> = {
-        ...allgoodsBaseBody,
-        [ALLGOODS_DESC_FIELDS[0]]: searchQuery,
-      };
-
-      while (scannedItems < maxScannedItems && matches.length < targetCount) {
-        const pageResult = await fetchAllgoodsProductsPageDetailed({
-          page: 1,
-          limit: scanLimit,
-          body: descSearchBody,
-          cursor: scanCursor,
-          timeoutMs: options.timeoutMs,
-          retries: options.retries,
-          retryDelayMs: options.retryDelayMs,
-          cacheTtlMs: options.cacheTtlMs ?? 1000 * 20,
-          pricedItemsOnly: options.pricedItemsOnly,
-          priceFrom: options.priceFrom,
-          priceTo: options.priceTo,
-        });
-
-        scannedItems += pageResult.items.length;
-        hasMoreSource = pageResult.hasMore;
-
-        // Enrich descriptions so scoreDescriptionSearchItem can check them.
-        const enrichedItems = await enrichDescriptions(pageResult.items);
-
-        for (const item of enrichedItems) {
-          const score = scoreDescriptionSearchItem(
-            item,
-            descriptionQuery,
-            descriptionTokens
-          );
-          if (score <= 0) {
-            continue;
-          }
-
-          const dedupeKey =
-            normalizeFacetValue(item.code) ||
-            normalizeFacetValue(item.article) ||
-            `${normalizeFacetValue(item.name)}:${normalizeFacetValue(item.producer)}`;
-          if (!dedupeKey) {
-            continue;
-          }
-          if (seen.has(dedupeKey)) {
-            continue;
-          }
-
-          seen.add(dedupeKey);
-          matches.push(item);
-        }
-
-        if (!pageResult.hasMore || !pageResult.nextCursor || pageResult.items.length === 0) {
-          break;
-        }
-
-        scanCursor = pageResult.nextCursor;
-        if (matches.length >= targetCount) {
-          break;
-        }
-      }
-
-      const hasMore = hasMoreSource && Boolean(scanCursor);
-
-      return {
-        items: matches,
-        hasMore,
-        nextCursor: hasMore ? scanCursor : "",
-      };
-    };
-
     try {
-      if (searchFilter === "description" && searchQuery) {
-        const descriptionQuery = normalizeFacetValue(searchQuery);
-        const descriptionTokens = buildDescriptionSearchTokens(searchQuery);
-
-        // 1C sometimes silently ignores an unsupported/wrong field key and just
-        // returns its unfiltered default page — `items.length > 0` alone can't
-        // tell a real filtered hit from that. Check that a real share of the
-        // sampled items actually mention the query before trusting the result.
-        const resultLooksFiltered = (result: { items: CatalogProduct[] }) => {
-          if (result.items.length === 0) return false;
-          const sample = result.items.slice(0, Math.min(10, result.items.length));
-          const matchedCount = sample.filter(
-            (item) => scoreDescriptionSearchItem(item, descriptionQuery, descriptionTokens) > 0
-          ).length;
-          return matchedCount / sample.length >= 0.5;
-        };
-
-        // Send "Описание": query directly to allgoods — 1C filters server-side.
-        // ВключатьОписание=true is already set in allgoodsBaseBody so the
-        // description text is included in the response.
-        const descResult = await runAllgoods(ALLGOODS_DESC_FIELDS[0]);
-        if (resultLooksFiltered(descResult)) {
-          return { ...descResult, cursorField: ALLGOODS_DESC_FIELDS[0] };
-        }
-
-        // Try alternate field names in case 1C uses a different key.
-        for (const searchKey of ALLGOODS_DESC_FIELDS.slice(1, 4)) {
-          const altResult = await runAllgoods(searchKey);
-          if (resultLooksFiltered(altResult)) {
-            return { ...altResult, cursorField: searchKey };
-          }
-        }
-
-        // No server-side hits — page-scan with local description enrichment.
-        const pageResult = await runAllgoodsDescriptionSearch();
-        return { ...pageResult, cursorField: null };
-      }
-
       if (searchQuery) {
         const fieldKeys: Record<SearchField, string> = {
           name: ALLGOODS_NAME_FIELD, article: ALLGOODS_ARTICLE_FIELD,
           code: ALLGOODS_CODE_FIELD, producer: ALLGOODS_PRODUCER_FIELD,
+          description: ALLGOODS_DESC_FIELDS[0],
         };
         const fields: SearchField[] = searchFilter === "all"
-          ? ["name", "article", "code", "producer"]
+          ? ["name", "article", "code", "producer", "description"]
           : [searchFilter as SearchField];
         const runSearchPage = (after: string) => searchProductFields({
           query: searchQuery, fields, limit, cursor: after, sort: sortOrder,
@@ -2862,10 +2648,68 @@ let fullCatalogRefreshPromise: Promise<FullCatalogSnapshot> | null = null;
 // nulling it out instead would force that next read to block on a full
 // ~20-sequential-1C-call scan.
 export function invalidateFullCatalogSnapshot() {
+  fullCatalogGeneration += 1;
   if (!fullCatalogCache) return;
   fullCatalogCache = {
     ...fullCatalogCache,
     fetchedAt: Date.now() - FULL_CATALOG_FRESH_TTL_MS - 1000,
+  };
+}
+
+// Bumped on every invalidation: a rescan that was already running when an
+// edit landed read pre-edit 1C data, so its result must not be stored as
+// fresh (see getFullCatalogSnapshot's refresh).
+let fullCatalogGeneration = 0;
+
+type SnapshotProductPatch = Partial<Omit<CatalogProduct, "code">>;
+
+// Edits confirmed by 1C, keyed by lowercased product code. Applied to the
+// live snapshot at once and re-applied to any rescan that started before the
+// edit, so readers of the snapshot — above all the header's quick search
+// (searchCatalogIndex) — show the edited product immediately instead of its
+// pre-edit copy until a background rescan finishes.
+const snapshotPatches = new Map<string, { patch: SnapshotProductPatch; at: number }>();
+
+const applySnapshotPatch = (product: CatalogProduct, patch: SnapshotProductPatch): CatalogProduct => {
+  const next: CatalogProduct = { ...product, ...patch };
+  if ("priceEuro" in patch) {
+    next.hasPrice = typeof next.priceEuro === "number" && next.priceEuro > 0;
+  }
+  if ("quantity" in patch) next.inStock = next.quantity > 0;
+  return next;
+};
+
+const applySnapshotPatches = <T extends FullCatalogSnapshot>(snapshot: T, scanStartedAt: number): T => {
+  for (const [code, { at }] of snapshotPatches) {
+    // A scan that started after the edit already read the new data from 1C.
+    if (at <= scanStartedAt) snapshotPatches.delete(code);
+  }
+  if (snapshotPatches.size === 0) return snapshot;
+  return {
+    ...snapshot,
+    products: snapshot.products.map((product) => {
+      const entry = snapshotPatches.get(normalizeFacetValue(product.code));
+      return entry ? applySnapshotPatch(product, entry.patch) : product;
+    }),
+  };
+};
+
+export function patchFullCatalogSnapshotProduct(code: string, patch: SnapshotProductPatch) {
+  const key = normalizeFacetValue(code);
+  const fields = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined)
+  ) as SnapshotProductPatch;
+  if (!key || Object.keys(fields).length === 0) return;
+
+  const previous = snapshotPatches.get(key)?.patch;
+  snapshotPatches.set(key, { patch: { ...previous, ...fields }, at: Date.now() });
+
+  if (!fullCatalogCache) return;
+  fullCatalogCache = {
+    ...fullCatalogCache,
+    products: fullCatalogCache.products.map((product) =>
+      normalizeFacetValue(product.code) === key ? applySnapshotPatch(product, fields) : product
+    ),
   };
 }
 
@@ -2876,11 +2720,12 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
   const promoPrices = new Map<string, number>();
   const seen = new Set<string>();
   let cursor = "";
+  const seenCursors = new Set([cursor]);
 
   for (let pageIndex = 0; pageIndex < FULL_CATALOG_MAX_PAGES; pageIndex += 1) {
     const body: Record<string, unknown> = {
       [ALLGOODS_LIMIT_FIELD]: FULL_CATALOG_PAGE_LIMIT,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
       [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
     };
     if (cursor) body[ALLGOODS_CURSOR_FIELD] = cursor;
@@ -2893,13 +2738,18 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
       cacheTtlMs: 1000 * 60 * 20,
     }).catch(() => null);
 
-    if (!response || response.status < 200 || response.status >= 300) break;
+    if (!response || response.status < 200 || response.status >= 300) {
+      throw new Error("Full catalog snapshot request failed");
+    }
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(response.text) as Record<string, unknown>;
     } catch {
-      break;
+      throw new Error("Full catalog snapshot returned invalid JSON");
+    }
+    if (parsed.success === false || !Array.isArray(parsed.items)) {
+      throw new Error("Full catalog snapshot returned no item list");
     }
 
     const records = Array.isArray(parsed?.items)
@@ -2942,11 +2792,15 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
         (nextCursor && records.length > 0)
     );
 
-    if (!hasMore || !nextCursor || records.length === 0) break;
+    if (!hasMore) return { products, promoKeys, promoPercents, promoPrices };
+    if (!nextCursor || records.length === 0 || seenCursors.has(nextCursor)) {
+      throw new Error("Full catalog snapshot returned a non-advancing cursor");
+    }
+    seenCursors.add(nextCursor);
     cursor = nextCursor;
   }
 
-  return { products, promoKeys, promoPercents, promoPrices };
+  throw new Error("Full catalog snapshot exceeded its page limit");
 };
 
 // Stale-while-revalidate: a full catalog walk costs ~20 sequential 1C calls
@@ -2968,9 +2822,18 @@ const getFullCatalogSnapshot = async (): Promise<{
 
   const refresh = () => {
     if (!fullCatalogRefreshPromise) {
+      const scanStartedAt = Date.now();
+      const scanGeneration = fullCatalogGeneration;
       fullCatalogRefreshPromise = scanFullCatalogSnapshot()
-        .then((snapshot) => {
-          fullCatalogCache = { ...snapshot, fetchedAt: Date.now() };
+        .then((scanned) => {
+          const snapshot = applySnapshotPatches(scanned, scanStartedAt);
+          // Invalidated mid-scan: keep it usable but stale, so the next read
+          // starts a rescan that sees the edit.
+          const fetchedAt =
+            scanGeneration === fullCatalogGeneration
+              ? Date.now()
+              : Date.now() - FULL_CATALOG_FRESH_TTL_MS - 1000;
+          fullCatalogCache = { ...snapshot, fetchedAt };
           return snapshot;
         })
         .finally(() => {
@@ -3035,7 +2898,7 @@ export const searchCatalogIndex = async (
   const { snapshot } = await getFullCatalogSnapshot();
 
   const fields: SearchField[] =
-    options.filter === "all" ? ["name", "article", "code", "producer"] : [options.filter];
+    options.filter === "all" ? ["name", "article", "code", "producer", "description"] : [options.filter];
 
   const matchAgainst = (searchQuery: string) => {
     const matches = snapshot.products.filter((product) =>
@@ -3344,20 +3207,34 @@ export const fetchEuroRate = async () => {
   return refreshEuroRate();
 };
 
-export const fetchProductDescription = async (
-  articleOrCode: string,
+// `answered` tells "1C responded, there is no description" (render the
+// "уточнюється" note, cache it) apart from "1C did not respond" (keep
+// loading/retry) — fetchProductDescription alone returns null for both.
+export type ProductDescriptionLookupResult = {
+  description: string | null;
+  answered: boolean;
+};
+
+// Each identifier is only queried where it can match: the 1C code against
+// allgoods' code field, the catalog number against allgoods' article field
+// and getinfo (which is keyed by catalog number).
+const lookupDescriptionByIdentifiers = async (
+  identifiers: { code?: string; article?: string },
   options?: OneCLookupOptions
-) => {
-  const normalized = (articleOrCode || "").trim();
-  if (!normalized) return null;
+): Promise<ProductDescriptionLookupResult> => {
+  const code = (identifiers.code || "").trim();
+  const article = (identifiers.article || "").trim();
+  if (!code && !article) return { description: null, answered: false };
 
   const timeoutMs = options?.timeoutMs;
   const retries = options?.retries ?? 1;
   const retryDelayMs = options?.retryDelayMs ?? 200;
   const cacheTtlMs = options?.cacheTtlMs ?? 1000 * 60 * 30;
-  const normalizedLookup = normalizeFacetValue(normalized);
-
-  const extractAllgoodsDescription = (responseText: string): string | null => {
+  const extractAllgoodsDescription = (
+    responseText: string,
+    lookupValue: string
+  ): string | null | undefined => {
+    const normalizedLookup = normalizeFacetValue(lookupValue);
     try {
       const parsed = JSON.parse(responseText) as { items?: unknown[] } | unknown[];
       const records = Array.isArray(parsed)
@@ -3384,11 +3261,11 @@ export const fetchProductDescription = async (
 
       return matchedRecord ? readDescriptionFromRecord(matchedRecord) : null;
     } catch {
-      return null;
+      return undefined;
     }
   };
 
-  const runAllgoodsLookup = async (body: Record<string, unknown>) => {
+  const runAllgoodsLookup = async (body: Record<string, unknown>, lookupValue: string) => {
     const response = await oneCRequest("allgoods", {
       method: "POST",
       body,
@@ -3405,21 +3282,21 @@ export const fetchProductDescription = async (
       }),
     }).catch(() => null);
 
-    if (!response || response.status < 200 || response.status >= 300) return null;
-    return extractAllgoodsDescription(response.text);
+    if (!response || response.status < 200 || response.status >= 300) return undefined;
+    return extractAllgoodsDescription(response.text, lookupValue);
   };
 
-  const runGetInfoLookup = async () => {
+  const runGetInfoLookup = async (): Promise<string | null | undefined> => {
     const response = await oneCRequest("getinfo", {
       method: "POST",
-      body: { [INFO_ARTICLE_FIELD]: normalized },
+      body: { [INFO_ARTICLE_FIELD]: article },
       timeoutMs,
       retries,
       retryDelayMs,
       cacheTtlMs,
     }).catch(() => null);
 
-    if (!response || response.status < 200 || response.status >= 300) return null;
+    if (!response || response.status < 200 || response.status >= 300) return undefined;
 
     try {
       const payload = JSON.parse(response.text) as Record<string, unknown>;
@@ -3430,7 +3307,7 @@ export const fetchProductDescription = async (
         if (normalizedDescription) return normalizedDescription;
       }
     } catch {
-      return null;
+      return undefined;
     }
     return null;
   };
@@ -3440,22 +3317,58 @@ export const fetchProductDescription = async (
   // waiting on each candidate one-at-a-time (up to 3 round-trips) routinely
   // blew past that timeout even when a later candidate would have answered
   // quickly on its own.
+  const skipped = Promise.resolve<string | null | undefined>(undefined);
   const [byCode, byArticle, byInfo] = await Promise.all([
-    runAllgoodsLookup({
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_CODE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
-    }),
-    runAllgoodsLookup({
-      [ALLGOODS_LIMIT_FIELD]: 1,
-      [ALLGOODS_ARTICLE_FIELD]: normalized,
-      [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
-    }),
-    runGetInfoLookup(),
+    code
+      ? runAllgoodsLookup(
+          {
+            [ALLGOODS_LIMIT_FIELD]: 1,
+            [ALLGOODS_CODE_FIELD]: code,
+            [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+          },
+          code
+        )
+      : skipped,
+    article
+      ? runAllgoodsLookup(
+          {
+            [ALLGOODS_LIMIT_FIELD]: 1,
+            [ALLGOODS_ARTICLE_FIELD]: article,
+            [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+          },
+          article
+        )
+      : skipped,
+    article ? runGetInfoLookup() : skipped,
   ]);
 
-  return byCode || byArticle || byInfo || null;
+  return {
+    description: byCode || byArticle || byInfo || null,
+    answered: [byCode, byArticle, byInfo].some((value) => value !== undefined),
+  };
 };
+
+// One value whose role isn't known (the /api/product-description `lookup`
+// keys): try it both as a code and as a catalog number, as before.
+export const lookupProductDescription = (articleOrCode: string, options?: OneCLookupOptions) => {
+  const value = (articleOrCode || "").trim();
+  return lookupDescriptionByIdentifiers({ code: value, article: value }, options);
+};
+
+// A known product: 3 targeted 1C calls (allgoods by code, allgoods by
+// catalog number, getinfo by catalog number) instead of 6 for two
+// role-agnostic keys — those all compete for allgoods' 4 concurrency slots
+// with the rest of the product page's 1C work.
+export const lookupProductDescriptionForProduct = (
+  code: string,
+  article: string,
+  options?: OneCLookupOptions
+) => lookupDescriptionByIdentifiers({ code, article }, options);
+
+export const fetchProductDescription = async (
+  articleOrCode: string,
+  options?: OneCLookupOptions
+) => (await lookupProductDescription(articleOrCode, options)).description;
 
 export const collectCatalogProductCodes = async (options?: {
   maxPages?: number;

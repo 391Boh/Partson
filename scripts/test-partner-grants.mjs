@@ -14,6 +14,7 @@ const load = path => {
     exports, require: name => ({
       'server-only': {}, 'next/server': { NextResponse: { json: (data, options = {}) => ({ data, status: options.status || 200 }) } },
       'app/api/_lib/admin-auth': { verifyAdminRequest: async req => req.admin ? { uid: 'admin-a' } : null },
+      'app/api/_lib/partner-auth': { invalidatePartnerStatus: uid => partner.invalidatePartnerStatus(uid) },
       'app/lib/firebase-admin': { getFirebaseAdminDb: () => db },
       'app/lib/partnership-discount': { PARTNER_THRESHOLD_UAH: 2000 },
     })[name],

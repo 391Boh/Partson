@@ -9,6 +9,7 @@ import {
   informationSections,
   type InformationSectionKey,
 } from "../section-config";
+import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critical-css";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
@@ -386,8 +387,17 @@ export default async function InformationSectionPage({
         }
       : null;
 
+  // Info pages' own critical CSS (see app/lib/critical-css.ts): React hoists
+  // this small render-blocking <link> into <head>, and the root layout's
+  // loader then fetches the full site stylesheet without blocking first
+  // paint. Without the file the full stylesheet stays render-blocking.
+  const criticalCssHref = resolveCriticalCssHref("inform");
+
   return (
     <>
+      {criticalCssHref ? (
+        <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
+      ) : null}
       {genericInformationSchema ? (
         <script
           type="application/ld+json"

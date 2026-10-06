@@ -5,7 +5,11 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
-import { fetchExactCatalogProductByLookup, invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
+import {
+  fetchExactCatalogProductByLookup,
+  invalidateFullCatalogSnapshot,
+  patchFullCatalogSnapshotProduct,
+} from "app/lib/catalog-server";
 import { setProductEditOverride } from "app/lib/product-edit-overrides";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct } from "app/lib/product-image";
@@ -354,17 +358,10 @@ export async function POST(request: NextRequest) {
     // can throw outside of a request context (e.g., tests/build)
   }
 
-  // Prefer confirmed values from 1C results, fall back to sent values.
-  // For a receipt/sale (a delta, not an absolute set), quantity_result's own
-  // "Кількість" echoes back the *movement* amount that was applied (the same
-  // number the admin typed in), not the resulting stock level — reading it
-  // as the new total showed e.g. "5" after adding 5 units to 50 in stock,
-  // instead of 55. "КількістьДо" is 1C's actual post-movement balance field;
-  // prefer it whenever 1C returns it, and only fall back to the old fields
-  // (still correct for a plain "set absolute quantity" edit, where the
-  // request value already equals the result) when it's absent.
+  // Movement responses can contain the submitted amount or the previous
+  // balance (КількістьДо). Read the committed product after a receipt/sale
+  // rather than displaying an ambiguous echo as its current stock.
   const rawQuantity =
-    parsed.quantity_result?.КількістьДо ??
     parsed.Кількість ??
     parsed.quantity ??
     (quantity !== undefined ? parsed.quantity_result?.Кількість : undefined);
@@ -374,14 +371,20 @@ export async function POST(request: NextRequest) {
       ? Number(rawQuantity.replace(",", ".")) : undefined;
   const validStock = (stock: unknown): stock is number =>
     typeof stock === "number" && Number.isSafeInteger(stock) && stock >= 0;
-  if (stockValues.length && (!validStock(confirmedQuantity) || (quantity !== undefined && confirmedQuantity !== quantity))) {
+  if (stockValues.length && (receipt !== undefined || sale !== undefined || !validStock(confirmedQuantity) || (quantity !== undefined && confirmedQuantity !== quantity))) {
     // A movement echo is not the remaining balance. Read the committed stock
     // without cache rather than repeating a write that may already have succeeded.
-    const fresh = await fetchExactCatalogProductByLookup(code, {
-      cacheTtlMs: 0, retries: 0, timeoutMs: 8_000,
-    }).catch(() => null);
-    confirmedQuantity = fresh?.code.trim().toLowerCase() === code.trim().toLowerCase() && validStock(fresh.quantity)
-      ? fresh.quantity : undefined;
+    confirmedQuantity = undefined;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt) await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+      const fresh = await fetchExactCatalogProductByLookup(code, {
+        cacheTtlMs: 0, retries: 0, timeoutMs: 3_500,
+      }).catch(() => null);
+      if (fresh?.code.trim().toLowerCase() === code.trim().toLowerCase() && validStock(fresh.quantity)) {
+        confirmedQuantity = fresh.quantity;
+        if (quantity === undefined || confirmedQuantity === quantity) break;
+      }
+    }
   }
   if (stockValues.length && !validStock(confirmedQuantity)) {
     return json({ ok: false, error: "Не вдалося підтвердити залишок після запиту до 1С. Перевірте товар перед повторним поступленням або продажем." }, 502);
@@ -453,6 +456,15 @@ export async function POST(request: NextRequest) {
     ...(typeof confirmedCostPriceEuro === "number" ? { costPriceEuro: confirmedCostPriceEuro } : {}),
   };
   setProductEditOverride(code, overridePatch);
+  // Same confirmed values into the in-memory catalog snapshot, which the
+  // header's quick search and other snapshot readers use — otherwise they
+  // kept showing the pre-edit product until a background rescan finished.
+  patchFullCatalogSnapshotProduct(code, {
+    ...overridePatch,
+    ...(group ? { group } : {}),
+    ...(subGroup ? { subGroup } : {}),
+    ...(category !== undefined ? { category } : {}),
+  });
 
   return json({
     ok: true,

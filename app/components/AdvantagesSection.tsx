@@ -6,6 +6,7 @@ import DeferredSeoPhotosBackdrop, { DeferredStoreMap } from "./DeferredHomeVisua
 import OpenChatButton from "./OpenChatButton";
 import SectionRevealAdvantages from "./SectionRevealAdvantages";
 import StoreOpenStatus from "./StoreOpenStatus";
+import Link from "next/link";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
 const STORE_MAP_EMBED_URL = "https://www.google.com/maps?q=PartsON,+вул.+Перфецького,+8,+Львів&output=embed";
@@ -15,19 +16,19 @@ const STORE_MAP_EMBED_URL = "https://www.google.com/maps?q=PartsON,+вул.+Пе
 // Each row also carries its own icon now for quicker scanning.
 const catalogScope = [
   {
-    label: "Двигун і ТО",
+    label: "Запчастини для двигуна та технічного обслуговування",
     icon: Settings,
-    items: "олива, фільтри, ремені та ролики ГРМ, помпи, термостати, свічки, радіатори, патрубки",
+    items: "Моторна олива, масляні, повітряні та салонні фільтри, ремені й ролики ГРМ, свічки запалювання. Для системи охолодження — помпи, термостати, радіатори та патрубки.",
   },
   {
-    label: "Ходова і гальма",
+    label: "Деталі підвіски та гальмівної системи",
     icon: Gauge,
-    items: "амортизатори, пружини, важелі, сайлентблоки, кульові опори, підшипники, диски, колодки, супорти",
+    items: "Амортизатори, пружини, важелі, сайлентблоки, кульові опори та підшипники маточини. Для ремонту гальм — гальмівні диски, колодки й супорти.",
   },
   {
-    label: "Електрика і кузов",
+    label: "Автоелектрика, освітлення та кузовні деталі",
     icon: Zap,
-    items: "датчики, котушки, стартери, генератори, фари, ліхтарі, дзеркала, склоочисники, автохімія",
+    items: "Датчики, котушки запалювання, стартери й генератори; фари, ліхтарі, дзеркала та склоочисники. Для догляду й обслуговування автомобіля — автохімія.",
   },
 ] as const;
 
@@ -38,24 +39,24 @@ const catalogScope = [
 // доставка/оплата/повернення), so the duplicate CTA row was dropped.
 const serviceCards = [
   {
-    title: "Підбір за авто чи артикулом",
+    title: "Підбір автозапчастин за VIN",
     eyebrow: "VIN · артикул · модель",
     icon: PackageSearch,
-    text: "Перевіримо, чи підходить деталь до вашої моделі, року й модифікації, та підкажемо різницю між оригіналом і аналогом. Достатньо VIN-коду, номера кузова або артикула — модель шукати не обов'язково.",
+    text: "Одна модель може мати різні двигуни, гальма й комплектації. Надішліть менеджеру VIN-код та назву потрібної деталі: перевіримо застосування для вашого авто. Якщо маєте артикул або номер зі старої запчастини, додайте його до запиту.",
     tone: "sky" as const,
   },
   {
-    title: "Наявність і аналоги",
+    title: "Оригінальні запчастини та аналоги",
     eyebrow: "Актуальні залишки складу",
     icon: Wrench,
-    text: "Уточнимо виробника, характеристики та залишок на складі. Якщо позиції немає — запропонуємо сумісний аналог у вашому бюджеті з тим самим терміном служби.",
+    text: "Порівнюйте виробника, характеристики й ціну, а не лише назву деталі. Допоможемо зіставити оригінальний номер із сумісними аналогами та уточнимо наявність перед замовленням. Вибір залежить від комплектації авто й вашого бюджету.",
     tone: "cyan" as const,
   },
   {
-    title: "Оплата та доставка",
+    title: "Самовивіз у Львові та доставка",
     eyebrow: "Львів і вся Україна",
     icon: Truck,
-    text: "Самовивіз із магазину на вул. Перфецького або доставка Новою поштою по Україні. Підкажемо щодо оплати, термінів і повернення ще до оформлення замовлення.",
+    text: "Забирайте підтверджене замовлення в PartsON на вул. Перфецького, 8 або отримуйте автозапчастини Новою Поштою по Україні. До відправлення узгодимо спосіб оплати й строк отримання; вартість перевезення залежить від тарифів перевізника.",
     tone: "blue" as const,
   },
 ] as const;
@@ -125,16 +126,14 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               </span>
             </div>
             <h2 className="ml-auto mt-4 max-w-[20ch] text-right font-display font-display-readable text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
-              Інтернет-магазин <span className="text-teal-600">автозапчастин у Львові</span>
+              Каталог запчастин <span className="text-teal-600">для ТО та ремонту</span>
             </h2>
-            {/* Distinct from the hero's own H1/lead ("Автозапчастини у Львові
-                з доставкою по Україні" + оригінальні деталі й аналоги) —
-                this paragraph covers catalog scale and search methods
-                instead of repeating that claim, and sets up the category
-                breakdown below with matching keywords (двигун, ходова,
-                електрика й кузов). */}
             <p className="home-description ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
-              Понад 10&nbsp;000 запчастин у каталозі — від двигуна й ходової до електрики та кузовних деталей — для десятків марок легкових авто. Знайдіть потрібну позицію за VIN-кодом, номером кузова, артикулом чи моделлю.
+              Плануєте заміну фільтрів, обслуговування гальм чи ремонт підвіски?
+              У PartsON можна купити автозапчастини для цих робіт і порівняти
+              доступні варіанти в одному каталозі. Шукайте за артикулом або
+              переходьте до потрібної групи деталей; підбір за VIN допоможе
+              уточнити сумісність перед покупкою.
             </p>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:mt-6 sm:p-5">
@@ -154,6 +153,13 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 })}
               </dl>
             </div>
+            <p className="home-description mt-5 text-[14px] leading-[1.7] text-slate-600">
+              Для планового ТО важливі специфікація оливи та застосування фільтра,
+              а для гальм і підвіски — розміри й виконання деталі. Звіряйте
+              характеристики в <Link href="/katalog" className="font-semibold text-teal-700 underline underline-offset-4">каталозі автозапчастин</Link>,
+              а умови отримання — у розділі <Link href="/inform/delivery" className="font-semibold text-teal-700 underline underline-offset-4">доставки та самовивозу</Link>.
+              Якщо даних недостатньо, зверніться до менеджера з VIN і номером деталі.
+            </p>
           </div>
 
           {/* store / map card — same flat card language as the rest of the section */}

@@ -15,12 +15,13 @@ export function searchAlternatives(query: string): string[] {
 }
 
 export type SearchItem = {
-  code: string; article: string; name: string; producer: string; priceEuro?: number | null;
+  code: string; article: string; name: string; producer: string; description?: string; priceEuro?: number | null;
 };
-export type SearchField = "name" | "article" | "code" | "producer";
+export type SearchField = "name" | "article" | "code" | "producer" | "description";
 export function matchesSearchField(item: SearchItem, query: string, field: SearchField): boolean {
   if (field === "code" || field === "article") return !!compact(query) && compact(item[field]).includes(compact(query));
-  const value = normalizeSearchQuery(item[field]).toLowerCase();
+  const text = item[field] || "";
+  const value = normalizeSearchQuery(field === "description" ? text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ") : text).toLowerCase();
   const tokens = normalizeSearchQuery(query).toLowerCase().split(" ");
   return tokens.every((token) => value.includes(token) || compact(value).includes(compact(token)));
 }

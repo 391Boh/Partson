@@ -78,17 +78,22 @@ export default function DeferredFooter() {
   }, [FooterComponent]);
 
   if (FooterComponent) {
-    return <FooterComponent />;
+    return (
+      <div data-deferred-footer className="min-h-[1200px] sm:min-h-[1160px] md:min-h-[700px] lg:min-h-[600px] xl:min-h-[560px]">
+        <FooterComponent />
+      </div>
+    );
   }
 
   return (
     <div
+      data-deferred-footer
       ref={anchorRef}
       // Reserves roughly the real footer's height so it doesn't pop in from
       // ~0px and jolt the page/scroll position the moment the lazy chunk
       // resolves — sized per breakpoint since the footer's columns stack on
       // narrow screens (measured against the real footer at each width).
-      className="h-[900px] overflow-hidden py-8 sm:h-[700px] sm:py-10 lg:h-[600px] xl:h-[560px]"
+      className="h-[1200px] overflow-hidden py-8 sm:h-[1160px] sm:py-10 md:h-[700px] lg:h-[600px] xl:h-[560px]"
       aria-hidden="true"
     >
       <div className="page-shell-inline">

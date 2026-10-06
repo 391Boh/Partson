@@ -11,10 +11,15 @@ export type PartnerIdentity = {
 
 const PARTNER_STATUS_CACHE_TTL_MS = 1000 * 60 * 2;
 const PARTNER_STATUS_CACHE_MAX_ENTRIES = 1000;
-const partnerStatusCache = new Map<
-  string,
-  { isPartner: boolean; totalSpent: number; expiresAt: number }
->();
+type PartnerStatusCacheEntry = { isPartner: boolean; totalSpent: number; expiresAt: number };
+declare global {
+  var __partsonPartnerStatusCache: Map<string, PartnerStatusCacheEntry> | undefined;
+}
+const partnerStatusCache = globalThis.__partsonPartnerStatusCache ??= new Map<string, PartnerStatusCacheEntry>();
+
+export const invalidatePartnerStatus = (uid: string) => {
+  partnerStatusCache.delete(uid.trim());
+};
 
 const readOrderAmount = (value: unknown) => {
   const amount = Number(value);

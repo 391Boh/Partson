@@ -64,7 +64,7 @@ export default function LocationSection() {
       </Block>
 
       <Block id="hours" kicker="Коли і як" title="Графік роботи та контакти">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Графік роботи" icon={Clock} tone="teal">
             <dl className="divide-y divide-slate-100">
               {HOURS.map((row) => (

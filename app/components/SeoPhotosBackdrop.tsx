@@ -172,10 +172,10 @@ export default function SeoPhotosBackdrop() {
     };
 
     const apply = (progress: number) => {
-      const step = Math.round(progress * 320);
+      const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
-      const p = step / 320;
+      const p = step / 1024;
       // centre-peak: 1 when the section is dead-centre, 0 at the scroll extremes
       const centreClose = 1 - Math.abs(p);
       for (const plane of planes) {

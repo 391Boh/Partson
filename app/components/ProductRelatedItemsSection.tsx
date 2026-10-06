@@ -10,6 +10,7 @@ import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getSiteUrl } from "app/lib/site-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
@@ -36,14 +37,17 @@ const buildRecommendationItemListJsonLd = (
   items: RelatedProductCardItem[],
   name: string
 ) => {
-  if (items.length === 0) return null;
+  // Analogs may include products without a price/photo (shown like in the
+  // header search), but structured data only lists publicly indexable ones.
+  const publicItems = items.filter(isPublicCatalogProduct);
+  if (publicItems.length === 0) return null;
 
   const siteUrl = getSiteUrl();
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name,
-    itemListElement: items.slice(0, 12).map((item, index) => ({
+    itemListElement: publicItems.slice(0, 12).map((item, index) => ({
       "@type": "ListItem",
       position: index + 1,
       url: `${siteUrl}${buildProductPath({

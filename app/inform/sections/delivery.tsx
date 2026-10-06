@@ -95,7 +95,7 @@ export default function DeliverySection() {
       </Block>
 
       <Block id="lviv" kicker="Львів" title="Самовивіз і оперативна доставка у Львові">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Самовивіз з магазину" icon={Store} tone="teal">
             <List>
               <Li icon={Building2} tone="teal">Адреса: <AddressMapLink /> — за попереднім підтвердженням.</Li>
@@ -122,26 +122,24 @@ export default function DeliverySection() {
         title="Доставка автозапчастин по містах України"
         lead="Відправляємо в кожне місто, де працює Нова Пошта. Ось як це виглядає для найбільших міст."
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="grid overflow-hidden rounded-[18px] border border-[#d9e3ec] bg-white/80 sm:grid-cols-2">
           {CITIES.map(({ name, city, preposition, text, icon: CityIcon }) => (
-            <div
+            <li
               key={name}
-              className="group rounded-[18px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)] transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_14px_30px_rgba(14,165,233,0.12)]"
+              className="-mb-px -mr-px flex gap-3.5 border-b border-r border-[#e6edf3] px-4 py-4 sm:px-5"
             >
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-sky-100 bg-sky-50 text-sky-600 transition group-hover:border-sky-200 group-hover:bg-sky-100">
-                  <CityIcon size={15} strokeWidth={2.1} aria-hidden="true" />
-                </span>
-                <h3 className="text-[15px] text-slate-900">
+              <CityIcon size={18} strokeWidth={1.9} className="mt-[3px] shrink-0 text-sky-600" aria-hidden="true" />
+              <div className="min-w-0">
+                <h3 className="text-[16px] leading-snug text-[#13202f]">
                   <span className="sr-only">Доставка автозапчастин {preposition} </span>
                   {name}
                   <span className="sr-only"> ({city})</span>
                 </h3>
+                <p className="info-read mt-1 text-[15px] leading-[1.6]">{text}</p>
               </div>
-              <p className="mt-2.5 text-[13px] font-medium leading-relaxed text-slate-600">{text}</p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </Block>
     </>
   );

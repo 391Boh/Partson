@@ -38,7 +38,12 @@ import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallb
 import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { carBrands } from "app/components/carBrands";
 import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
-import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
+import {
+  fetchCatalogProductsByQuery,
+  fetchEuroRate,
+  fetchPromoCatalogProducts,
+  toPriceUah,
+} from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildProductImagePath, buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
@@ -234,6 +239,25 @@ const fetchCatalogSeoSnapshotPayload = async (
   };
 };
 
+// "Акційні товари" (?promo=1): the same precomputed promo list the
+// catalog-page API answers promoOnly requests from, sliced the same way, so
+// the client can use this first page as-is instead of discarding the regular
+// first page (wrong signature) and refetching after hydration.
+const fetchPromoCatalogPayload = async (): Promise<InitialCatalogPagePayload | null> => {
+  const { products } = await fetchPromoCatalogProducts();
+  if (products.length === 0) return null;
+  const items = products.slice(0, INITIAL_CATALOG_PAGE_LIMIT);
+  return {
+    items,
+    prices: buildInlinePrices(items),
+    images: {},
+    hasMore: INITIAL_CATALOG_PAGE_LIMIT < products.length,
+    nextCursor: "",
+    cursorField: "",
+    totalCount: products.length,
+  };
+};
+
 const getCatalogSeoSnapshotPayloadCached = unstable_cache(
   fetchCatalogSeoSnapshotPayload,
   ["catalog-seo-snapshot-v6-unified-search"],
@@ -262,18 +286,6 @@ type CatalogSeoState = {
   description: string;
   indexable: boolean;
 };
-
-const ALLOWED_SEO_KEYS = new Set([
-  "tab",
-  "group",
-  "subcategory",
-  "producer",
-  "brand",
-  "search",
-  "filter",
-  "reset",
-  "scope",
-]);
 
 const pickFirstValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] || "" : value || "";
@@ -318,10 +330,6 @@ const resolveCatalogSeoState = (
   const usedKeys = Object.entries(searchParams)
     .filter(([, value]) => normalizeValue(value).length > 0)
     .map(([key]) => key);
-
-  const hasUnsupportedParams = usedKeys.some((key) => !ALLOWED_SEO_KEYS.has(key));
-  const hasEphemeralParams = Boolean(searchQuery || searchFilter || resetFlag);
-  const hasSupportedTab = !tab || tab === "category" || tab === "producer" || tab === "auto";
 
   let canonicalPath = "/katalog";
   let title = "Каталог автозапчастин у Львові";
@@ -402,21 +410,16 @@ const resolveCatalogSeoState = (
     );
   }
 
-  const isRootCatalogPage = !tab && !group && !subcategory && !producer && !brand;
-  const hasStableFacetPage = Boolean(
-    tab === "category" ||
-      tab === "producer" ||
-      tab === "auto" ||
-      group ||
-      subcategory ||
-      producer ||
-      brand
-  );
-  const indexable =
-    !hasUnsupportedParams &&
-    !hasEphemeralParams &&
-    hasSupportedTab &&
-    (isRootCatalogPage || hasStableFacetPage);
+  // Only the bare /katalog is indexable. Every query-string variant is either
+  // a duplicate of a clean landing page (?group= → /groups/…, ?producer= →
+  // /manufacturers/…, ?tab=auto&brand= → /auto/…, which canonicalPath above
+  // already points at) or a producer×group×subcategory combination — an
+  // open-ended space (and any arbitrary value like ?group=x still rendered
+  // 200) that previously got "index" + a self-referencing query canonical,
+  // inviting thousands of near-empty duplicates into the index. These stay
+  // crawlable (noindex,follow — not blocked in robots.txt) so Google can
+  // see the noindex and still follow the product links on them.
+  const indexable = usedKeys.length === 0;
 
   return {
     tab,
@@ -1310,6 +1313,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const siteUrl = getSiteUrl();
   const state = resolveCatalogSeoState(resolvedSearchParams);
+  const promoOnly = normalizeValue(resolvedSearchParams.promo) === "1";
   const initialQuerySignature = buildCatalogQuerySignature({
     normalizedSearch: state.searchQuery,
     searchFilter: state.searchFilter || "all",
@@ -1319,6 +1323,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     subcategory: state.subcategory || null,
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
+    promoOnly,
     sortOrder: "none",
   });
   const shouldUseTighterInitialTimeout = Boolean(
@@ -1347,7 +1352,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const [rawInitialPagePayload, seoFacets, productTreeDataset, euroRate, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
-      () => state.searchQuery
+      () => promoOnly
+        ? fetchPromoCatalogPayload()
+        : state.searchQuery
         ? fetchCatalogSeoSnapshotPayload(snapshotCacheKey)
         : getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),
       null,
@@ -1373,7 +1380,10 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         images: {},
       }
     : null;
-  const seoTotalCount = resolveCatalogSeoTotalCount(state, seoFacets);
+  // The facet totals describe the whole catalog, not the promo list.
+  const seoTotalCount = promoOnly
+    ? initialPagePayload?.totalCount ?? null
+    : resolveCatalogSeoTotalCount(state, seoFacets);
   const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);
   const catalogItemListJsonLd = buildCatalogItemListJsonLd(
@@ -1417,23 +1427,32 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       producerLogoByLabel.get(producer.label.trim().toLocaleLowerCase("uk-UA")) ?? null,
   }));
 
-  // The LCP candidate is the first card's image, but the initial payload's own
-  // `images` map is deliberately empty (see above — no per-card filesystem
-  // checks in SSR). The image URL itself needs no lookup though: it's a pure
-  // function of code+article, the same one ProductCardImage computes on mount.
-  // Preloading it here lets the browser's HTML scanner start the request
-  // while parsing, well before hydration runs that mount effect.
-  const lcpImageItem = initialPagePayload?.items?.[0];
-  const lcpImageHref =
-    lcpImageItem && lcpImageItem.hasPhoto !== false
-      ? buildProductImagePath(lcpImageItem.code, lcpImageItem.article, { catalog: true })
-      : null;
+  // The catalog grid only renders after hydration, so without hints the
+  // browser can't start any card image before the JS has run (~1.2 s after
+  // the first one on the live site). The image URL is a pure function of
+  // code+article — the same one ProductCardImage and the image batch use — so
+  // preloading the first screen's photos here lets the HTML scanner fetch them
+  // while JS loads; the cards then find them in the cache. The first one is
+  // the LCP candidate (high priority); the rest stay low so they don't
+  // compete with the page's CSS/JS. Matches Data.tsx's IMAGE_EAGER_ITEMS_COUNT.
+  const FIRST_SCREEN_IMAGE_PRELOADS = 8;
+  const firstScreenImageHrefs = (initialPagePayload?.items ?? [])
+    .filter((item) => item.hasPhoto !== false && (item.code || item.article))
+    .slice(0, FIRST_SCREEN_IMAGE_PRELOADS)
+    .map((item) => buildProductImagePath(item.code, item.article, { catalog: true }))
+    .filter(Boolean);
 
   return (
     <>
-      {lcpImageHref ? (
-        <link rel="preload" as="image" href={lcpImageHref} fetchPriority="high" />
-      ) : null}
+      {firstScreenImageHrefs.map((href, index) => (
+        <link
+          key={href}
+          rel="preload"
+          as="image"
+          href={href}
+          fetchPriority={index === 0 ? "high" : "low"}
+        />
+      ))}
       {/* The <title> tag (state.title) stays terser/keyword-first for search
           snippets — this sr-only h1 instead matches the sentence-style
           heading actually shown on the page (CatalogSeoSnapshot's visible

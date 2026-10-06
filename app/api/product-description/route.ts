@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchProductDescription } from "app/lib/catalog-server";
+import { lookupProductDescription } from "app/lib/catalog-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,15 +40,27 @@ export async function GET(request: Request) {
   // while staying fresh enough after an admin edits a description.
   const results = await Promise.all(
     lookupKeys.map((lookupKey) =>
-      fetchProductDescription(lookupKey, {
+      lookupProductDescription(lookupKey, {
         timeoutMs: 1800,
         retries: 0,
         retryDelayMs: 150,
         cacheTtlMs: 1000 * 60 * 5,
-      }).catch(() => null)
+      }).catch(() => ({ description: null, answered: false }))
     )
   );
-  const description = results.find((value) => Boolean(value)) ?? null;
+  // Keys are tried in the caller's order (code first) — the first one with a
+  // description wins, so the unique 1C code beats a possibly shared article.
+  const description = results.find((result) => Boolean(result.description))?.description ?? null;
+
+  // No lookup got an answer from 1C: this is an outage, not "no description".
+  // A 503 keeps clients from caching/showing "опис відсутній" for a product
+  // that has one, and lets them retry.
+  if (!description && !results.some((result) => result.answered)) {
+    return NextResponse.json(
+      { description: null, retryable: true },
+      { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "1" } }
+    );
+  }
 
   if (description) {
     return NextResponse.json(

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -22,23 +22,23 @@ export const VIBER_URL = 'https://connect.viber.com/business/36969536-f36d-11f0-
 export type TocItem = { id: string; label: string };
 
 // ─── Тони ──────────────────────────────────────────────────────────────────
-// Card chrome stays neutral (site-wide directory card language); only icon
-// tiles and markers pick up a tone so sections stay scannable.
+// A tone only tints a panel and its markers, so neighbouring panels read as
+// different kinds of information without each getting its own shadowed card.
 export type Tone = 'sky' | 'teal' | 'amber' | 'cyan' | 'rose' | 'indigo' | 'slate';
 
 const TONE = {
-  sky:    { tile: 'border-sky-200 bg-sky-50 text-sky-700',          mark: 'text-sky-500',    num: 'from-sky-500 to-cyan-500' },
-  teal:   { tile: 'border-teal-200 bg-teal-50 text-teal-700',       mark: 'text-teal-500',   num: 'from-teal-500 to-emerald-500' },
-  amber:  { tile: 'border-amber-200 bg-amber-50 text-amber-700',    mark: 'text-amber-500',  num: 'from-amber-500 to-orange-500' },
-  cyan:   { tile: 'border-cyan-200 bg-cyan-50 text-cyan-700',       mark: 'text-cyan-500',   num: 'from-cyan-500 to-sky-500' },
-  rose:   { tile: 'border-rose-200 bg-rose-50 text-rose-700',       mark: 'text-rose-500',   num: 'from-rose-500 to-pink-500' },
-  indigo: { tile: 'border-indigo-200 bg-indigo-50 text-indigo-700', mark: 'text-indigo-500', num: 'from-indigo-500 to-sky-500' },
-  slate:  { tile: 'border-slate-300 bg-slate-100 text-slate-600',   mark: 'text-slate-500',  num: 'from-slate-600 to-slate-400' },
+  sky:    { panel: 'border-sky-100 bg-sky-50/60',       mark: 'text-sky-600' },
+  teal:   { panel: 'border-teal-100 bg-teal-50/60',     mark: 'text-teal-600' },
+  amber:  { panel: 'border-amber-100 bg-amber-50/70',   mark: 'text-amber-600' },
+  cyan:   { panel: 'border-cyan-100 bg-cyan-50/60',     mark: 'text-cyan-700' },
+  rose:   { panel: 'border-rose-100 bg-rose-50/60',     mark: 'text-rose-600' },
+  indigo: { panel: 'border-indigo-100 bg-indigo-50/55', mark: 'text-indigo-600' },
+  slate:  { panel: 'border-slate-200 bg-slate-50/80',   mark: 'text-slate-500' },
 } as const;
 
 // ─── Інлайн-елементи ───────────────────────────────────────────────────────
 export const Strong = ({ children }: { children: ReactNode }) => (
-  <strong className="font-semibold text-slate-800">{children}</strong>
+  <strong className="font-semibold text-[#13202f]">{children}</strong>
 );
 
 export const AddressMapLink = ({ className = '' }: { className?: string }) => (
@@ -77,6 +77,7 @@ export const ViberIcon = () => (
 );
 
 // ─── Блок статті (H2 + якір для змісту) ────────────────────────────────────
+// A consistent heading and generous spacing group each section.
 export const Block = ({
   id,
   kicker,
@@ -90,33 +91,41 @@ export const Block = ({
   lead?: ReactNode;
   children: ReactNode;
 }) => (
-  <section id={id} aria-labelledby={`${id}-title`} className="info-reveal scroll-mt-28">
-    <header className="mb-5 max-w-3xl">
-      {kicker ? (
-        <p className="directory-kicker flex items-center gap-2 text-[10.5px] uppercase text-slate-500">
-          <span className="info-accent-dot h-1.5 w-1.5 rounded-full" aria-hidden="true" />
-          {kicker}
-        </p>
-      ) : null}
-      <h2 id={`${id}-title`} className="mt-2 text-[22px] text-slate-900 sm:text-[27px]">
-        {title}
-      </h2>
-      {lead ? (
-        <p className="mt-2.5 text-[15px] font-medium leading-7 text-slate-600">{lead}</p>
-      ) : null}
-    </header>
-    {children}
+  <section
+    id={id}
+    aria-labelledby={`${id}-title`}
+    className="info-text-section relative scroll-mt-28"
+  >
+    <div className="info-section-body min-w-0">
+      <header className="info-section-heading mb-8 max-w-[46rem]">
+        {kicker ? (
+          <p className="info-read info-section-kicker mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] info-read-accent">
+            {kicker}
+          </p>
+        ) : null}
+        <h2 id={`${id}-title`} className="text-[23px] leading-[1.2] text-[#13202f] sm:text-[28px]">
+          {title}
+        </h2>
+        {lead ? (
+          <p className="info-read mt-3 text-[16.5px] leading-[1.7]">{lead}</p>
+        ) : null}
+      </header>
+      <div className="info-section-content space-y-8">{children}</div>
+    </div>
   </section>
 );
 
 // ─── Абзаци ────────────────────────────────────────────────────────────────
 export const Prose = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
-  <div className={`max-w-3xl space-y-4 text-[15px] font-medium leading-[1.8] text-slate-600 ${className}`}>
+  <div
+    className={`info-read info-prose max-w-[42rem] space-y-4 text-[16px] leading-[1.8] [&>p:first-child]:text-[17px] [&>p:first-child]:leading-[1.75] ${className}`}
+  >
     {children}
   </div>
 );
 
-// ─── Картка ────────────────────────────────────────────────────────────────
+// ─── Панель ────────────────────────────────────────────────────────────────
+// Accent icons distinguish the types of information inside each section.
 export const Card = ({
   title,
   icon: Icon,
@@ -130,53 +139,54 @@ export const Card = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <article
-    className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-[linear-gradient(152deg,#ffffff_0%,rgba(248,250,252,0.96)_100%)] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06),inset_0_1px_0_#fff] transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_24px_52px_rgba(15,23,42,0.09),0_8px_22px_rgba(14,165,233,0.08)] sm:p-6 ${className}`}
-  >
-    <span className="info-hero-sheen pointer-events-none absolute inset-x-6 top-0 h-[2px] rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-90" aria-hidden="true" />
-    <div className="mb-4 flex items-center gap-3.5">
-      <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border shadow-[0_8px_18px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,0.9)] transition-transform duration-300 group-hover:scale-105 ${TONE[tone].tile}`}>
-        <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+  <article className={`info-content-card flex h-full flex-col rounded-[20px] border p-5 sm:p-6 ${TONE[tone].panel} ${className}`}>
+    <h3 className="flex items-center gap-3 text-[17px] leading-[1.3] text-[#13202f] sm:text-[18px]">
+      <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border border-white bg-white/90 shadow-sm ${TONE[tone].mark}`}>
+        <Icon size={21} strokeWidth={1.9} aria-hidden="true" />
       </span>
-      <h3 className="min-w-0 flex-1 text-[17px] leading-[1.25] text-slate-900 sm:text-[18px]">{title}</h3>
-    </div>
-    <div className="text-[14.5px] font-medium leading-7 text-slate-600">{children}</div>
+      <span className="min-w-0 break-words">{title}</span>
+    </h3>
+    <div className="info-read mt-5 text-[15.5px] leading-[1.8]">{children}</div>
   </article>
 );
 
 // ─── Списки ────────────────────────────────────────────────────────────────
 export const Li = ({ icon: Icon = CheckCircle, tone = 'sky', children }: { icon?: LucideIcon; tone?: Tone; children: ReactNode }) => (
-  <li className="flex items-start gap-2.5">
-    <span className={`mt-[5px] shrink-0 ${TONE[tone].mark}`}>
+  <li className="info-list-item flex items-start gap-3">
+    <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-white/90 ${TONE[tone].mark}`}>
       <Icon size={15} strokeWidth={2} aria-hidden="true" />
     </span>
-    <span className="min-w-0 text-[14.5px] font-medium leading-7 text-slate-600">{children}</span>
+    <span className="info-read min-w-0 text-[15.5px] leading-[1.7]">{children}</span>
   </li>
 );
 
 export const List = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
-  <ul className={`space-y-2.5 ${className}`}>{children}</ul>
+  <ul className={`space-y-4 ${className}`}>{children}</ul>
 );
 
 // ─── Кроки ─────────────────────────────────────────────────────────────────
+// A real sequence, so it gets numbers — on one connected track rather than a
+// row of identical cards: horizontal from md, a vertical line on phones.
 export type Step = { title: string; text: ReactNode };
 
-export const Steps = ({ steps, tone = 'sky' }: { steps: Step[]; tone?: Tone }) => (
-  <ol className={`relative grid gap-3 ${steps.length >= 4 ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3'}`}>
+export const Steps = ({ steps }: { steps: Step[]; tone?: Tone }) => (
+  <ol
+    className={`info-step-track relative grid gap-6 md:gap-5 ${
+      steps.length >= 4 ? 'md:grid-cols-4' : steps.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'
+    }`}
+    style={{ '--steps': Math.min(Math.max(steps.length, 2), 4) } as CSSProperties}
+  >
     {steps.map((step, index) => (
-      <li
-        key={step.title}
-        className="group relative flex gap-4 rounded-[20px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_18px_40px_rgba(14,165,233,0.1)] md:flex-col md:gap-3 md:p-5"
-      >
+      <li key={step.title} className="info-step-card relative flex gap-4 rounded-[18px] border border-slate-200/80 bg-white/90 p-5 md:flex-col md:gap-3.5">
         <span
-          className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-gradient-to-br text-[15px] font-black text-white shadow-[0_10px_22px_rgba(14,165,233,0.25)] ${TONE[tone].num}`}
+          className="info-accent-bg relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white ring-[5px] ring-[#f3f8fb]"
           aria-hidden="true"
         >
           {index + 1}
         </span>
-        <div className="min-w-0">
-          <h3 className="text-[16px] leading-snug text-slate-900">{step.title}</h3>
-          <p className="mt-1.5 text-[14px] font-medium leading-6 text-slate-600">{step.text}</p>
+        <div className="min-w-0 pt-1 md:pt-0">
+          <h3 className="text-[16.5px] leading-snug text-[#13202f]">{step.title}</h3>
+          <p className="info-read mt-1.5 text-[15px] leading-[1.65]">{step.text}</p>
         </div>
       </li>
     ))}
@@ -185,9 +195,9 @@ export const Steps = ({ steps, tone = 'sky' }: { steps: Step[]; tone?: Tone }) =
 
 // ─── Виноска ───────────────────────────────────────────────────────────────
 const CALLOUT = {
-  info: { icon: Info,          box: 'border-sky-200 bg-sky-50/80',     icon_: 'bg-white text-sky-600 border-sky-200',     title: 'text-sky-900' },
-  tip:  { icon: Lightbulb,     box: 'border-teal-200 bg-teal-50/80',   icon_: 'bg-white text-teal-600 border-teal-200',   title: 'text-teal-900' },
-  warn: { icon: AlertTriangle, box: 'border-amber-200 bg-amber-50/80', icon_: 'bg-white text-amber-600 border-amber-200', title: 'text-amber-900' },
+  info: { icon: Info,          box: 'border-sky-400 bg-sky-50/80',     icon_: 'text-sky-600',   title: 'text-sky-950' },
+  tip:  { icon: Lightbulb,     box: 'border-teal-400 bg-teal-50/80',   icon_: 'text-teal-600',  title: 'text-teal-950' },
+  warn: { icon: AlertTriangle, box: 'border-amber-400 bg-amber-50/90', icon_: 'text-amber-600', title: 'text-amber-950' },
 } as const;
 
 export const Callout = ({
@@ -204,19 +214,23 @@ export const Callout = ({
   const c = CALLOUT[tone];
   const Icon = c.icon;
   return (
-    <aside className={`flex gap-3.5 rounded-[18px] border p-4 sm:p-5 ${c.box} ${className}`}>
-      <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm ${c.icon_}`}>
-        <Icon size={17} strokeWidth={2} aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <p className={`text-[14.5px] font-extrabold ${c.title}`}>{title}</p>
-        <div className="mt-1 text-[14px] font-medium leading-6 text-slate-700">{children}</div>
-      </div>
+    <aside
+      className={`info-callout rounded-[18px] border-l-[3px] py-4 pl-4 pr-5 sm:pl-5 ${
+        /\bmax-w-/.test(className) ? '' : 'max-w-[46rem]'
+      } ${c.box} ${className}`}
+    >
+      <p className={`flex items-center gap-2 text-[15.5px] font-bold ${c.title}`}>
+        <Icon size={17} strokeWidth={2} className={`shrink-0 ${c.icon_}`} aria-hidden="true" />
+        {title}
+      </p>
+      <div className="info-read mt-1.5 text-[15px] leading-[1.7]">{children}</div>
     </aside>
   );
 };
 
 // ─── Таблиця порівняння ────────────────────────────────────────────────────
+// A table from sm up; on phones each row becomes a small stacked block with
+// the column name before every value, instead of a sideways-scrolling grid.
 export const DataTable = ({
   caption,
   head,
@@ -226,49 +240,47 @@ export const DataTable = ({
   head: string[];
   rows: ReactNode[][];
 }) => (
-  <div className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white/95 shadow-[0_14px_36px_rgba(15,23,42,0.055)]">
-    <div className="overflow-x-auto [scrollbar-width:thin]">
-      <table className="w-full min-w-[620px] border-collapse text-left">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="bg-[linear-gradient(135deg,#f0f9ff,#f0fdfa)]">
-            {head.map((cell) => (
-              <th
-                key={cell}
-                scope="col"
-                className="border-b border-slate-200/80 px-4 py-3 text-[11px] font-black uppercase tracking-[0.1em] text-slate-500"
-              >
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="transition-colors hover:bg-sky-50/50">
-              {row.map((cell, cellIndex) =>
-                cellIndex === 0 ? (
-                  <th
-                    key={cellIndex}
-                    scope="row"
-                    className="border-b border-slate-100 px-4 py-3.5 align-top text-[14px] font-bold text-slate-900"
-                  >
-                    {cell}
-                  </th>
-                ) : (
-                  <td
-                    key={cellIndex}
-                    className="border-b border-slate-100 px-4 py-3.5 align-top text-[14px] font-medium leading-6 text-slate-600"
-                  >
-                    {cell}
-                  </td>
-                )
-              )}
-            </tr>
+  <div className="overflow-hidden rounded-[18px] border border-[#d9e3ec] bg-white/90">
+    <table className="info-read w-full border-collapse text-left">
+      <caption className="sr-only">{caption}</caption>
+      <thead className="hidden sm:table-header-group">
+        <tr className="border-b border-[#d9e3ec] bg-[color:color-mix(in_srgb,var(--info-a)_7%,white)]">
+          {head.map((cell) => (
+            <th key={cell} scope="col" className="px-4 py-3 text-[13.5px] font-semibold text-[#13202f]">
+              {cell}
+            </th>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, rowIndex) => (
+          <tr
+            key={rowIndex}
+            className="block border-b border-[#e6edf3] px-4 py-3.5 last:border-b-0 sm:table-row sm:p-0 sm:even:bg-slate-50/60"
+          >
+            {row.map((cell, cellIndex) =>
+              cellIndex === 0 ? (
+                <th
+                  key={cellIndex}
+                  scope="row"
+                  className="block pb-1.5 text-[15.5px] font-semibold leading-6 text-[#13202f] sm:table-cell sm:px-4 sm:py-3.5 sm:align-top sm:text-[15px]"
+                >
+                  {cell}
+                </th>
+              ) : (
+                <td
+                  key={cellIndex}
+                  data-label={head[cellIndex]}
+                  className="grid grid-cols-[minmax(84px,38%)_minmax(0,1fr)] gap-3 py-0.5 text-[14.5px] leading-6 before:text-[13px] before:text-slate-500 before:content-[attr(data-label)] sm:table-cell sm:px-4 sm:py-3.5 sm:align-top sm:text-[15px] sm:before:content-none"
+                >
+                  <span className="min-w-0">{cell}</span>
+                </td>
+              )
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </div>
 );
 

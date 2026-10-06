@@ -54,6 +54,8 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import OrderTrackingEditor from './OrderTrackingEditor';
+import { isNovaPoshtaDelivery } from 'app/lib/order-tracking';
 import { MessageAdminActivity, saveAdminChatAction, useAdminChatActivity } from './admin-chat-activity';
 import { getAdminIdToken, getCurrentAdminUser } from 'app/lib/get-admin-token';
 
@@ -107,6 +109,7 @@ interface Order {
   name: string;
   phone: string;
   deliveryMethod?: string;
+  trackingNumber?: string | null;
   paymentMethod?: string;
   totalAmount: number;
   cartItems?: CartItem[];
@@ -1183,10 +1186,10 @@ export default function AdminChatPanel({
     const phoneDigits = normalizePhoneDigits(phone);
     const uid = o.uid;
     const matchesSearch = normalizedOrderSearch
-      ? `${o.name || ''} ${phone} ${o.city || ''} ${o.warehouse || ''} ${o.deliveryMethod || ''} ${o.paymentMethod || ''}`
+      ? `${o.name || ''} ${phone} ${o.city || ''} ${o.warehouse || ''} ${o.deliveryMethod || ''} ${o.paymentMethod || ''} ${o.trackingNumber || ''}`
           .toLowerCase()
           .includes(normalizedOrderSearch) ||
-        (normalizedOrderSearchDigits && phoneDigits.includes(normalizedOrderSearchDigits))
+        (normalizedOrderSearchDigits && (phoneDigits.includes(normalizedOrderSearchDigits) || (o.trackingNumber || "").includes(normalizedOrderSearchDigits)))
       : true;
 
     if (!matchesSearch) return false;
@@ -2468,6 +2471,12 @@ export default function AdminChatPanel({
                           )}
                         <p className="font-semibold">Сума: {o.totalAmount} грн</p>
                       </div>
+                      {isNovaPoshtaDelivery(o.deliveryMethod) && (
+                        <OrderTrackingEditor key={o.id} orderId={o.id} trackingNumber={o.trackingNumber}
+                          onSaved={(trackingNumber) => setOrders((previous) => previous.map((order) =>
+                            order.id === o.id ? { ...order, trackingNumber } : order
+                          ))} />
+                      )}
                       {o.cartItems?.map((i, idx) => (
                         <p key={idx} className="text-xs text-slate-300">
                           {i.name} x {i.quantity} — {i.price}

@@ -693,7 +693,9 @@ html.reduce-scroll-effects.is-scrolling
 }
 
 .home-section-stage-static {
-  content-visibility: auto;
+  /* This SSR section already exists at first paint. Keep its real geometry:
+     activating an estimated content-visibility size changed the scroll range. */
+  content-visibility: visible;
   margin-top: -1px;
 }
 
@@ -728,8 +730,8 @@ html.reduce-scroll-effects.is-scrolling
    below it. */
 .home-slot-auto {
   z-index: 4;
-  min-height: 776px;
-  contain-intrinsic-block-size: auto 776px;
+  min-height: 960px;
+  contain-intrinsic-block-size: auto 960px;
   --home-reveal-delay: 0ms;
   /* indigo — matches the car-picker's own hover accent so the junction below
      it glows in the same colour */
@@ -738,8 +740,8 @@ html.reduce-scroll-effects.is-scrolling
 
 .home-slot-product {
   z-index: 3;
-  min-height: 824px;
-  contain-intrinsic-block-size: auto 824px;
+  min-height: 970px;
+  contain-intrinsic-block-size: auto 970px;
   --home-reveal-delay: 30ms;
   /* blue — the categories section's accent; the page's junctions walk a cool
      spectrum as you scroll: indigo → blue → cyan → teal */
@@ -748,67 +750,33 @@ html.reduce-scroll-effects.is-scrolling
 
 .home-slot-brands {
   z-index: 2;
-  min-height: 504px;
-  contain-intrinsic-block-size: auto 504px;
+  min-height: 860px;
+  contain-intrinsic-block-size: auto 860px;
   --home-reveal-delay: 60ms;
   --home-depth-color: 34, 211, 238;
 }
 
-/* These reserved heights are a ~5% safety margin on top of the previous
-   measured-once figures, not exact remeasured values (a real relayout via
-   Chrome DevTools/Lighthouse would dial them in precisely) — a CLS audit
-   found 9 layout-shift events on the homepage, most attributable to these
-   three slots' real content landing slightly taller than the reserved
-   placeholder at first activation. Erring a little tall costs a few extra
-   pixels of skeleton before content mounts (invisible to CLS); erring short
-   costs a real, measured shift once real content lands. */
+/* Reserve the loaded first-page footprint, measured in Chrome at 360, 390,
+   640, 768, 1024 and 1440px. Brands switches to two panels at md (768px),
+   earlier than Auto/categories at lg. Matching those breakpoints prevents
+   lazy content from pushing the next section down during scrolling. */
 @media (min-width: 640px) {
-  .home-slot-product { min-height: 770px; contain-intrinsic-block-size: auto 770px; }
-  .home-slot-auto { min-height: 780px; contain-intrinsic-block-size: auto 780px; }
+  .home-slot-brands { min-height: 820px; contain-intrinsic-block-size: auto 820px; }
+}
+
+@media (min-width: 768px) {
   .home-slot-brands { min-height: 546px; contain-intrinsic-block-size: auto 546px; }
 }
 
 @media (min-width: 1024px) {
-  .home-slot-product { min-height: 476px; contain-intrinsic-block-size: auto 476px; }
-  .home-slot-auto { min-height: 494px; contain-intrinsic-block-size: auto 494px; }
-  .home-slot-brands { min-height: 410px; contain-intrinsic-block-size: auto 410px; }
+  .home-slot-product { min-height: 530px; contain-intrinsic-block-size: auto 530px; }
+  .home-slot-auto { min-height: 550px; contain-intrinsic-block-size: auto 550px; }
+  .home-slot-brands { min-height: 480px; contain-intrinsic-block-size: auto 480px; }
 }
 
-@media (min-width: 1280px) {
-  .home-slot-auto { min-height: 474px; contain-intrinsic-block-size: auto 474px; }
-}
-
-/* The responsive values above reserve space only during preparation. Real
-   content defines the exact final height, preventing artificial gaps between
-   adjacent homepage modules. */
-.home-slot-ready {
-  /* Keep the placeholder's reserved geometry after hydration. Removing it in
-     the same commit that revealed dynamic content caused one page-sized shift
-     per homepage section. Content may grow naturally, but never collapses the
-     slot that was already painted. */
-  /* Visibility is selected per slot above: the first slot stays eager while
-     product/brands can be skipped until approach. */
-}
-
-/* The final SEO/store section is the tallest part of the homepage. Reserve a
-   responsive footprint so skipping its off-screen paint never changes the
-   scroll range. The browser replaces this estimate with the remembered real
-   size after its first activation. */
-.home-section-stage-static {
-  contain-intrinsic-block-size: auto 2450px;
-}
-
-@media (min-width: 640px) {
-  .home-section-stage-static { contain-intrinsic-block-size: auto 1850px; }
-}
-
-@media (min-width: 1024px) {
-  .home-section-stage-static { contain-intrinsic-block-size: auto 1280px; }
-}
-
-@media (min-width: 1280px) {
-  .home-section-stage-static { contain-intrinsic-block-size: auto 1220px; }
-}
+/* Slots retain their responsive minimum height after readiness so async
+   loading cannot collapse space that has already been painted. The static
+   SSR section uses its actual height from the first layout. */
 
 .hero-account-placeholder,
 .hero-account-actions-placeholder {
@@ -7720,6 +7688,94 @@ html[data-admin-copy="true"] body * {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--info-a) 18%, transparent);
 }
 
+/* Long-form reading text on the info pages: Onest (app/inform/layout.tsx)
+   instead of the display face, regular weight, darker than the old
+   slate-600 for comfortable contrast. Headings keep Exo 2. Deliberately
+   unlayered (the site's own global type rules are too), so Tailwind
+   text-color/font-weight utilities can't adjust it — use the modifiers
+   below instead. */
+.info-read {
+  font-family: var(--font-reading), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  color: #3b4a5c;
+  letter-spacing: 0;
+  font-feature-settings: "kern", "liga";
+  text-wrap: pretty;
+}
+
+.info-read strong,
+.info-read b {
+  font-weight: 600;
+  color: #13202f;
+}
+
+.info-read td,
+.info-read li {
+  font-weight: 400;
+}
+
+.info-fact-value {
+  white-space: nowrap;
+}
+
+.info-read.info-read-muted {
+  color: #64748b;
+}
+
+.info-read.info-read-medium {
+  font-weight: 500;
+}
+
+/* Margin notes and other small labels in the section's accent. */
+.info-read.info-read-accent {
+  font-weight: 500;
+  color: color-mix(in srgb, var(--info-a) 70%, #13202f);
+}
+
+.info-read.info-read-on-dark {
+  color: #cbd5e1;
+}
+
+/* Section marginalia: the label sits beside the heading on wide screens,
+   with a hairline in the section accent running down the margin. */
+.info-margin-rule {
+  background: linear-gradient(
+    180deg,
+    var(--info-a) 0%,
+    color-mix(in srgb, var(--info-b) 55%, transparent) 40%,
+    transparent 100%
+  );
+}
+
+/* Step track: the connecting line between numbered stops. */
+.info-step-track::before {
+  content: "";
+  position: absolute;
+  background: linear-gradient(90deg, var(--info-a), var(--info-b));
+  opacity: 0.35;
+}
+
+@media (min-width: 768px) {
+  /* From the first circle's centre to the last one's: the last column
+     starts one column width (minus its share of the gaps) from the right. */
+  .info-step-track::before {
+    top: 1.125rem;
+    left: 1.125rem;
+    right: calc((100% - (var(--steps, 4) - 1) * 1.25rem) / var(--steps, 4) - 1.125rem);
+    height: 2px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .info-step-track::before {
+    top: 1.25rem;
+    bottom: 1.25rem;
+    left: 1.125rem;
+    width: 2px;
+    background: linear-gradient(180deg, var(--info-a), var(--info-b));
+  }
+}
+
 /* FAQ accordion: animate height natively where ::details-content exists. */
 .info-faq::details-content {
   block-size: 0;
@@ -7851,4 +7907,485 @@ html:active-view-transition-type(info-nav)::view-transition-new(root) {
   }
   .auto-filter-steps > button { min-height: 56px; }
   .auto-filter-compact .catalog-filter-search-input { font-size: 16px; }
+}
+
+/* Information illustrations share a restrained motion language. */
+.info-hero-art-frame { animation: infoArtFloat 9s ease-in-out infinite; }
+.info-hero-art-orbit {
+  position: absolute; inset: -6%; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--info-a) 22%, transparent);
+  transform: rotate(-12deg); pointer-events: none;
+}
+.info-hero-art-glint {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(120deg, rgba(255,255,255,.28), transparent 42%);
+}
+@keyframes infoArtFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-.5deg); }
+  50% { transform: translate3d(0, -7px, 0) rotate(.5deg); }
+}
+@media (max-width: 639px), (prefers-reduced-motion: reduce) {
+  .info-hero-art-frame { animation: none; }
+}
+
+/* Spacious reading layout; columns follow the article width, not the viewport. */
+.info-article { padding: 28px 22px; border-radius: 28px; background: rgba(255,255,255,.88); border: 1px solid rgba(255,255,255,.95); }
+.info-text-section + .info-text-section { padding-top: 40px; border-top: 1px solid #e2eaf0; }
+.info-section-body { container-type: inline-size; }
+.info-section-heading::after { content: ''; display: block; width: 44px; height: 3px; margin-top: 22px; border-radius: 999px; background: linear-gradient(90deg, var(--info-a), var(--info-b)); }
+.info-section-kicker { background: color-mix(in srgb, var(--info-a) 7%, white); }
+.info-section-kicker::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--info-a); }
+.info-prose { max-width: 65ch; overflow-wrap: anywhere; }
+.info-prose > p + p { margin-top: 24px; }
+.info-content-card { background-image: linear-gradient(145deg, rgba(255,255,255,.8), transparent); box-shadow: none; }
+.info-content-grid { grid-template-columns: minmax(0,1fr); align-items: start; }
+.info-list-item + .info-list-item { border-top: 1px solid rgba(148,163,184,.16); padding-top: 14px; }
+.info-step-track { grid-template-columns: minmax(0,1fr); gap: 18px; }
+.info-step-track::before { display: none; }
+.info-step-card { flex-direction: row; align-items: start; gap: 18px; border-top: 1px solid #e2eaf0; }
+.info-step-card h3 { line-height: 1.45; }
+.info-step-card p { margin-top: 10px; }
+.info-callout { padding-top: 22px; padding-bottom: 22px; box-shadow: none; }
+.info-callout > div { margin-top: 12px; }
+.info-faq[open] summary h3 { color: color-mix(in srgb, var(--info-a) 60%, #13202f); }
+@container (min-width: 620px) {
+  .info-content-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (min-width: 640px) { .info-article { padding: 40px 32px; } }
+@media (min-width: 1280px) { .info-article { padding: 48px 40px; } }
+
+/* A shared lighting direction ties the hero, reading paper and navigation together. */
+.info-page {
+  background-color: #f5f8fc;
+  background-image:
+    radial-gradient(ellipse 760px 560px at 95% 120px, color-mix(in srgb, var(--info-b) 13%, transparent), transparent 75%),
+    radial-gradient(ellipse 900px 620px at -12% 420px, color-mix(in srgb, var(--info-a) 11%, transparent), transparent 75%),
+    radial-gradient(ellipse 700px 800px at 100% 1900px, color-mix(in srgb, var(--info-b) 5%, transparent), transparent 80%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f8fb 55%, #f8fafc 100%);
+}
+.info-hero {
+  background-color: #fbfdff;
+  background-image:
+    radial-gradient(ellipse 66% 100% at 100% 20%, color-mix(in srgb, var(--info-b) 15%, transparent), transparent 75%),
+    radial-gradient(ellipse 48% 70% at 3% 0%, color-mix(in srgb, var(--info-a) 8%, transparent), transparent 80%),
+    linear-gradient(120deg, rgba(255,255,255,.98) 20%, rgba(249,252,255,.8) 75%, rgba(241,249,252,.7));
+  box-shadow: 0 20px 54px rgba(31,56,82,.055), inset 0 1px 0 rgba(255,255,255,.95);
+}
+.info-sidebar-panel {
+  background-color: #fbfdff;
+  background-image:
+    radial-gradient(ellipse 100% 180px at 0% 0%, color-mix(in srgb, var(--info-a) 6%, transparent), transparent 90%),
+    linear-gradient(160deg, rgba(255,255,255,.98), rgba(248,251,254,.96));
+  box-shadow: 0 12px 30px rgba(31,56,82,.045);
+}
+.info-article {
+  background-color: #fff;
+  background-image:
+    radial-gradient(ellipse 440px 300px at 100% 0%, color-mix(in srgb, var(--info-b) 4%, transparent), transparent 85%),
+    linear-gradient(180deg, #fff 0%, #fefeff 100%);
+  box-shadow: 0 16px 48px rgba(31,56,82,.035);
+}
+.info-hero-art-glint {
+  background: linear-gradient(135deg, rgba(255,255,255,.2), transparent 48%, rgba(15,23,42,.035));
+}
+.info-cta {
+  background-color: #101e30;
+  background-image:
+    radial-gradient(ellipse 75% 150% at 100% 0%, color-mix(in srgb, var(--info-b) 23%, transparent), transparent 75%),
+    radial-gradient(ellipse 60% 140% at 0% 100%, color-mix(in srgb, var(--info-a) 15%, transparent), transparent 80%),
+    linear-gradient(120deg, #111e30 10%, #142a3b 100%);
+  box-shadow: 0 20px 48px rgba(15,23,42,.18);
+}
+@media (max-width: 639px) {
+  .info-page {
+    background-image:
+      radial-gradient(ellipse 440px 650px at 100% 0%, color-mix(in srgb, var(--info-b) 10%, transparent), transparent 80%),
+      linear-gradient(180deg, #f5faff, #f7f9fc 1100px, #f8fafc);
+  }
+}
+
+/* ─── Info pages: entrance choreography ──────────────────────────────────
+   One page-load sequence in the hero (title pulled into focus, lead and
+   contacts after it, the illustration settling, the facts' rule drawn
+   left→right, facts one by one) and scroll-linked reveals in the article
+   (each section's accent rule drawn, its blocks, table rows, steps and FAQ
+   items rising into place as they enter the viewport). CSS only; transform /
+   opacity / clip-path, so it stays on the compositor. The title and the
+   hero image never start transparent — they are the LCP candidates, and an
+   opacity-0 start would push LCP back. Browsers without scroll-driven
+   animations (Firefox) simply show the article as is. */
+.info-facts::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--info-a), color-mix(in srgb, var(--info-b) 55%, #e2e8f0) 45%, #e2e8f0);
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .info-in {
+    animation: infoIn 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 60ms);
+  }
+
+  .info-hero-title {
+    animation: infoTitle 820ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
+  }
+
+  .info-hero-art {
+    animation: infoArtSettle 1100ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+  }
+
+  .info-hero-art img {
+    animation: infoArtZoom 1700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .info-facts::before {
+    animation: infoDraw 900ms cubic-bezier(0.65, 0, 0.35, 1) 300ms both;
+  }
+
+  .info-facts > * {
+    animation: infoIn 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .info-facts > :nth-child(1) { animation-delay: 420ms; }
+  .info-facts > :nth-child(2) { animation-delay: 510ms; }
+  .info-facts > :nth-child(3) { animation-delay: 600ms; }
+
+  .info-in-side {
+    animation: infoSide 820ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
+  }
+
+  @supports (animation-timeline: view()) {
+    .info-section-heading,
+    .info-section-content > :not(.info-content-grid, .info-step-track, :has(> table)),
+    .info-content-grid > *,
+    .info-step-card,
+    .info-faq,
+    [aria-labelledby="information-related-title"] li,
+    .info-cta {
+      animation: infoRise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 24%;
+    }
+
+    /* Rows of tables and the stacked mobile rows enter one by one. */
+    .info-read tbody tr {
+      animation: infoRowIn linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 18%;
+    }
+
+    .info-section-heading::after {
+      transform-origin: left center;
+      animation: infoDraw linear both;
+      animation-timeline: view();
+      animation-range: entry 30% cover 34%;
+    }
+
+    /* A step card's number pops slightly after the card itself. */
+    .info-step-card > :first-child {
+      animation: infoPop linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 30%;
+    }
+  }
+}
+
+@keyframes infoIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+}
+
+/* Focus-pull rather than a clip-path mask: LCP records the title's painted
+   size, so a mask that starts closed made Chrome re-report LCP only when it
+   finished opening (~1 s late). Blur and transform keep the full size from
+   the first frame. */
+@keyframes infoTitle {
+  from {
+    filter: blur(10px);
+    transform: translate3d(0, 0.3em, 0);
+  }
+}
+
+/* Translate only: the image can be the LCP element on phones, and a box
+   that grows (scale < 1 → 1) gets LCP re-reported at the end. */
+@keyframes infoArtSettle {
+  from {
+    transform: translate3d(0, 24px, 0);
+  }
+}
+
+@keyframes infoArtZoom {
+  from {
+    transform: scale(1.09);
+  }
+}
+
+@keyframes infoDraw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes infoSide {
+  from {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0);
+  }
+}
+
+@keyframes infoRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 30px, 0) scale(0.985);
+  }
+}
+
+@keyframes infoRowIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+}
+
+@keyframes infoPop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+}
+
+/* Profile, orders and contacts: a calm navy workspace with clear surfaces. */
+.customer-window.customer-overlay-panel.app-overlay-panel.soft-modal-shell {
+  background:
+    radial-gradient(ellipse 80% 55% at 100% 0%, rgba(14,165,233,.13), transparent 75%),
+    linear-gradient(155deg, #17283e, #111e31 68%, #122638);
+  border: 1px solid rgba(186,230,253,.22);
+  box-shadow: 0 28px 80px rgba(2,6,23,.4), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: none;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-content { padding: 20px !important; gap: 16px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-accent { height: 2px; box-shadow: none; opacity: .65; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-header {
+  padding: 4px 0 16px; border: 0; border-bottom: 1px solid rgba(148,163,184,.18);
+  border-radius: 0; background: transparent; box-shadow: none; gap: 16px;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-header > .customer-profile-identity {
+  display: flex; align-items: center; gap: 14px;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-title { font-size: 25px !important; line-height: 1.2; letter-spacing: -.025em; text-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-subtitle { font-size: 13px !important; line-height: 1.6 !important; color: #aebed1; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-eyebrow { width: fit-content; border: 0; background: transparent; padding: 0 0 5px; min-height: auto; color: #82d9ee; letter-spacing: .07em; }
+.customer-window.customer-overlay-panel.app-overlay-panel .app-panel-close-button {
+  width: 44px; height: 44px; border: 1px solid rgba(148,163,184,.22); border-radius: 14px;
+  background: rgba(255,255,255,.04); color: #b8c8dc; flex-shrink: 0;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .app-panel-close-button:hover { background: rgba(255,255,255,.09); color: white; box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-tabs { padding: 5px; border: 1px solid rgba(148,163,184,.16); background: rgba(2,6,23,.18); border-radius: 17px; gap: 5px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-segment { min-height: 44px; border: 0; box-shadow: none; background: transparent; border-radius: 12px; font-size: 13px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-segment--active { background: linear-gradient(135deg, rgba(56,189,248,.22), rgba(20,184,166,.13)); color: #e0f8ff; box-shadow: inset 0 0 0 1px rgba(125,211,252,.24); }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-surface-card { border-color: rgba(148,163,184,.18); background: rgba(255,255,255,.035); box-shadow: none; border-radius: 18px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-hero { padding: 18px; border-color: rgba(125,211,252,.2); background: linear-gradient(135deg, rgba(14,165,233,.1), rgba(20,184,166,.055)); box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-stat-card { padding: 12px 14px; background: rgba(2,6,23,.15); border-color: rgba(148,163,184,.12); box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-stat-label { font-size: 11px; letter-spacing: .03em; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-stat-value { font-size: 22px; line-height: 1.25; }
+.customer-window.customer-overlay-panel.app-overlay-panel .app-panel-scroll { padding-top: 2px; scrollbar-width: thin; }
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-field { min-height: 44px; border-radius: 12px; background: rgba(2,6,23,.22); box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel :is(.soft-primary-button,.soft-secondary-button) { min-height: 44px; border-radius: 13px; box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields { grid-template-columns: minmax(0,1fr); gap: 14px; margin-top: 18px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields > .soft-surface-card { padding: 18px; gap: 16px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields > .soft-surface-card button { min-height: 40px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-contact-card { padding: 18px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-contact-actions button { min-height: 44px; font-size: 13px; box-shadow: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel [data-contact-copy] { width: 32px; height: 32px; box-shadow: none; }
+@media (min-width: 640px) {
+  .customer-window.customer-overlay-panel.app-overlay-panel--wide { width: min(780px, calc(100vw - 48px)); }
+}
+@media (max-width: 639px) {
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-content { padding: 14px !important; gap: 14px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-header { position: relative; backdrop-filter: none; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-title { font-size: 21px !important; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-stat-card { padding: 10px 8px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-stat-value { font-size: 18px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields > .soft-surface-card { padding: 16px; }
+}
+.customer-window.customer-overlay-panel.app-overlay-panel :is(.text-slate-500,.text-slate-400) { color: #a8b8cb; }
+.customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields > * { grid-column: 1 / -1; }
+
+/* Provider buttons keep explicit brand contrast inside the navy auth shell. */
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel { width: min(470px, calc(100vw - 32px)); }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-stack .auth-social-button {
+  min-height: 54px; padding: 12px 18px; gap: 12px; justify-content: flex-start;
+  border-radius: 14px; font-size: 15px; font-weight: 650; background-size: 100% 100%;
+  box-shadow: none; transition: background-color .2s, border-color .2s, box-shadow .2s;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--google { background: #fff; border-color: #e2e8f0; color: #14243a; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--google .auth-social-label { color: #14243a; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--google:hover { background: #edf5ff; border-color: #93c5fd; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--telegram { background: #167daf; border-color: #45b6ec; color: #fff; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--telegram .auth-social-label { color: #fff; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button--telegram:hover { background: #126b99; border-color: #7dd3fc; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-label { white-space: normal; line-height: 1.35; text-align: left; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button::after { display: none; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-social-button:disabled { opacity: .7; }
+.customer-window.customer-overlay-panel.app-overlay-panel .auth-field-label { display: block; margin: 4px 0 6px; font-size: 13px; font-weight: 600; color: #c8d6e6; }
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel .soft-field { min-height: 48px; font-size: 16px; }
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel form { gap: 8px; }
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel .auth-primary-button { min-height: 48px; border-radius: 14px; margin-top: 10px; }
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel .auth-primary-button:disabled { cursor: wait; opacity: .65; }
+.customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel [role="alert"] { text-align: left; line-height: 1.6; padding: 12px; }
+@media (max-width: 639px) {
+  .customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel { width: auto; }
+}
+
+/* One compact surface for availability and the order quantity. */
+.catalog-product-card .catalog-stock-control {
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid #cce8dc;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #f1faf5, #ffffff);
+  box-shadow: 0 2px 6px rgb(15 23 42 / 3%);
+}
+.catalog-product-card .catalog-stock-control--backorder {
+  border-color: #f2dfb7;
+  background: linear-gradient(145deg, #fff8eb, #ffffff);
+}
+.catalog-product-card .catalog-stock-control-label {
+  width: 100%;
+  justify-content: space-between;
+}
+.catalog-product-card .catalog-stock-control-status {
+  color: #226347;
+  font-size: 10px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.catalog-product-card .catalog-stock-control--backorder .catalog-stock-control-status {
+  color: #875a13;
+}
+.catalog-product-card .catalog-stock-control-stepper {
+  width: 100%;
+  justify-content: space-between;
+  gap: 2px;
+  padding-top: 2px;
+  border-top: 1px solid rgb(34 99 71 / 12%);
+}
+.catalog-product-card .catalog-stock-control-stepper > span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Compact catalog cards: clear information hierarchy with quiet surfaces. */
+.catalog-product-card {
+  height: 320px !important;
+  border-radius: 18px;
+}
+.catalog-product-card .catalog-card-face {
+  padding: 10px;
+  border-radius: 18px;
+  border-color: #dce6ef;
+  background: linear-gradient(160deg, #fff 45%, #f5f9fd);
+  box-shadow: 0 2px 4px rgb(15 23 42 / 4%), 0 8px 20px rgb(15 23 42 / 6%);
+}
+.catalog-product-card .catalog-card-face:hover {
+  border-color: #a7cce5;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 9%);
+}
+.catalog-product-card--admin .catalog-card-face {
+  border-color: #ddd3f3;
+}
+.catalog-product-card .catalog-card-hero {
+  flex-shrink: 0;
+  height: 88px;
+  margin-bottom: 5px;
+  padding: 5px;
+  border-radius: 12px;
+  border-color: #e3edf5;
+  background: #f5f9fc;
+  box-shadow: none;
+  transition: border-color .2s;
+}
+.catalog-product-card .catalog-card-hero:has(input[type="text"]) {
+  height: auto;
+  min-height: 88px;
+}
+.catalog-product-card .catalog-card-image {
+  flex-shrink: 0;
+  width: 34%;
+  border-radius: 9px;
+  border: 1px solid #e7edf3;
+  box-shadow: none;
+}
+.catalog-product-card .catalog-card-title {
+  flex: 1;
+  width: auto;
+}
+.catalog-product-card .catalog-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+}
+.catalog-product-card .catalog-card-meta {
+  margin-top: 3px;
+  gap: 1px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.catalog-product-card .catalog-card-meta > div {
+  min-height: 22px;
+}
+.catalog-product-card .catalog-card-meta span,
+.catalog-product-card .catalog-card-meta button {
+  font-size: 11px;
+  font-weight: 600;
+}
+.catalog-product-card .catalog-card-meta > div > span:first-child {
+  color: #64748b;
+  font-weight: 500;
+}
+.catalog-product-card .catalog-card-price-row {
+  margin-top: 5px;
+  min-height: 36px;
+}
+.catalog-product-card .catalog-card-price-pill {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border-color: #dce7f3;
+  box-shadow: none;
+}
+.catalog-product-card .catalog-card-price-pill > span:last-child > span:first-child:not(.line-through) {
+  font-size: 16px;
+}
+/* Bottom-aligned (not centred): the front row's height depends on the stock
+   block, so centring moved the ⓘ button between cards and away from the
+   back face's turn-back button, which shares this row and must sit on the
+   exact same spot. */
+.catalog-product-card .catalog-card-actions {
+  align-items: flex-end;
+  padding-top: 7px;
+  padding-bottom: 0;
+  border-color: #e6edf4;
+}
+.catalog-product-card .catalog-card-cart-button,
+.catalog-product-card .catalog-card-details-button {
+  min-width: 44px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.catalog-product-card .catalog-card-details-button {
+  background: #f0f6fc;
+  border-color: #dce9f5;
+}
+.catalog-product-card button:focus-visible,
+.catalog-product-card a:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
 }

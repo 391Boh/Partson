@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { addDoc, collection, doc, getDoc, Timestamp } from "firebase/firestore";
-import { CheckCircle, MessageSquareText, Send, Wrench } from "lucide-react";
+import { CheckCircle, Send } from "lucide-react";
 
-import { auth, db } from "../../firebase";
+import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 
+// Firebase (app + Firestore) is loaded only when it is actually needed — to
+// prefill a signed-in visitor's profile, or on submit — instead of shipping
+// with the page: guests reading the diagnostics page never download it.
+// Auth goes through the shared, already-deferred useFirebaseAuthState.
+const loadFirestore = () =>
+  Promise.all([import("../../firebase"), import("firebase/firestore")]).then(
+    ([firebaseModule, firestoreModule]) => ({ db: firebaseModule.db, ...firestoreModule })
+  );
+
+// 16px text: anything smaller makes iOS Safari zoom the page on focus.
 const fieldClass =
-  "h-9 w-full rounded-lg border border-sky-100/90 bg-white px-3 text-[12.5px] font-semibold leading-none text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_16px_rgba(2,6,23,0.06)] outline-none transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:shadow-[0_0_0_3px_rgba(125,211,252,0.24),0_10px_20px_rgba(2,6,23,0.08)] disabled:cursor-wait disabled:bg-slate-50";
+  "info-read h-11 w-full rounded-xl border border-[#d9e3ec] bg-white px-3.5 text-[16px] leading-none text-[#13202f] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:shadow-[0_0_0_3px_rgba(125,211,252,0.3)] disabled:cursor-wait disabled:bg-slate-50";
 
 const readString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -36,20 +44,22 @@ export default function DiagnosticsConsultationForm() {
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
 
+  const { ready: authReady, user } = useFirebaseAuthState();
+
   useEffect(() => {
+    if (!authReady) return;
+    if (!user) {
+      setIsProfileLoading(false);
+      setProfileLoaded(false);
+      return;
+    }
+
     let isMounted = true;
+    setIsProfileLoading(true);
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!isMounted) return;
-      setIsProfileLoading(true);
-
-      if (!user) {
-        setIsProfileLoading(false);
-        setProfileLoaded(false);
-        return;
-      }
-
+    void (async () => {
       try {
+        const { db, doc, getDoc } = await loadFirestore();
         const userSnapshot = await getDoc(doc(db, "users", user.uid));
         const data = userSnapshot.exists()
           ? (userSnapshot.data() as Record<string, unknown>)
@@ -71,13 +81,12 @@ export default function DiagnosticsConsultationForm() {
       } finally {
         if (isMounted) setIsProfileLoading(false);
       }
-    });
+    })();
 
     return () => {
       isMounted = false;
-      unsubscribe();
     };
-  }, []);
+  }, [authReady, user]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -86,6 +95,7 @@ export default function DiagnosticsConsultationForm() {
     setStatus("loading");
 
     try {
+      const { db, addDoc, collection, Timestamp } = await loadFirestore();
       await addDoc(collection(db, "zvyaz"), {
         name: name.trim(),
         phone: phone.trim(),
@@ -118,23 +128,9 @@ export default function DiagnosticsConsultationForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative grid h-full content-start gap-2.5 overflow-hidden rounded-2xl border border-sky-100/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.99)_0%,rgba(248,250,252,0.97)_46%,rgba(224,242,254,0.9)_100%)] p-3 shadow-[0_16px_30px_rgba(15,23,42,0.12)] ring-1 ring-white/80 transition-[border-color,box-shadow,background-image,transform] duration-300 focus-within:-translate-y-0.5 focus-within:border-sky-300/90 focus-within:bg-[linear-gradient(145deg,rgba(255,255,255,1)_0%,rgba(241,245,249,0.98)_48%,rgba(224,242,254,0.95)_100%)] focus-within:shadow-[0_20px_38px_rgba(14,116,144,0.16),0_0_0_3px_rgba(125,211,252,0.2)] sm:p-3.5" aria-label="Форма замовлення комп'ютерної діагностики авто">
-      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100/90 bg-white px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(14,165,233,0.06)]">
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-sky-200/80 bg-sky-50 text-sky-700 shadow-[0_8px_18px_rgba(14,165,233,0.12)]">
-          <Wrench size={17} strokeWidth={2} aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[11.5px] font-black uppercase tracking-[0.12em] text-sky-800">
-            Подати заявку
-          </p>
-          <p className="mt-0.5 text-[11.5px] font-semibold leading-snug text-slate-500">
-            Запис на комп&apos;ютерну діагностику.
-          </p>
-        </div>
-        <MessageSquareText size={17} strokeWidth={1.9} className="hidden shrink-0 text-sky-500 sm:block" aria-hidden="true" />
-      </div>
+    <form onSubmit={handleSubmit} className="grid content-start gap-2.5" aria-label="Форма замовлення комп'ютерної діагностики авто">
       {profileLoaded && (
-        <p className="inline-flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-1.5 text-[11.5px] font-semibold text-sky-800">
+        <p className="info-read inline-flex items-center gap-2 text-[14px] !text-sky-800">
           <CheckCircle size={14} strokeWidth={2} className="shrink-0" aria-hidden="true" />
           Дані з профілю підставлено автоматично.
         </p>
@@ -186,13 +182,13 @@ export default function DiagnosticsConsultationForm() {
         aria-label="Опис симптомів автомобіля"
         rows={2}
         disabled={isProfileLoading}
-        className={`${fieldClass} h-16 resize-none py-2 leading-snug`}
+        className={`${fieldClass} h-24 resize-none py-3 leading-snug`}
       />
 
       <button
         type="submit"
         disabled={status === "loading" || isProfileLoading}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-[linear-gradient(135deg,#0f172a_0%,#0369a1_54%,#0284c7_100%)] px-4 text-[11.5px] font-extrabold uppercase tracking-[0.1em] text-white shadow-[0_14px_26px_rgba(14,165,233,0.24)] transition-[transform,box-shadow,filter] duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_18px_34px_rgba(14,116,144,0.28)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 disabled:cursor-not-allowed disabled:opacity-65 disabled:hover:translate-y-0"
+        className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_55%,#0d9488_100%)] px-4 text-[15px] font-bold text-white shadow-[0_12px_24px_rgba(14,165,233,0.22)] transition-[filter,box-shadow] duration-200 hover:brightness-110 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80 disabled:cursor-not-allowed disabled:opacity-65"
       >
         <Send size={15} strokeWidth={2} aria-hidden="true" />
         {isProfileLoading
@@ -203,12 +199,12 @@ export default function DiagnosticsConsultationForm() {
       </button>
 
       {status === "success" && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-semibold text-emerald-800">
+        <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[14px] font-semibold text-emerald-800">
           Заявку на консультацію прийнято. Ми зв&apos;яжемось з вами найближчим часом.
         </p>
       )}
       {status === "error" && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] font-semibold text-rose-800">
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[14px] font-semibold text-rose-800">
           Не вдалося надіслати заявку. Спробуйте ще раз або зателефонуйте напряму.
         </p>
       )}

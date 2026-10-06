@@ -247,6 +247,7 @@ export function getOneCConfigError() {
 
 const responseCache = new Map();
 const inFlightRequests = new Map();
+let cacheGeneration = 0;
 const RESPONSE_CACHE_MAX_ENTRIES = parsePositiveIntEnv("ONEC_CACHE_MAX_ENTRIES", 2048);
 const RESPONSE_CACHE_MAX_BYTES = parsePositiveIntEnv("ONEC_CACHE_MAX_BYTES", 64 * 1024 * 1024);
 const RESPONSE_CACHE_PRUNE_INTERVAL_MS = 30_000;
@@ -388,6 +389,7 @@ export function clearOneCCacheForProduct(catalogNumber) {
  * cleared — so router.refresh() on catalog/product pages returns fresh 1C data.
  */
 export function clearAllOneCCache() {
+  cacheGeneration += 1;
   const size = responseCache.size;
   responseCache.clear();
   responseCacheBytes = 0;
@@ -407,12 +409,18 @@ export async function oneCRequest(endpoint, options = {}) {
     method = "GET",
     body,
     timeoutMs = getOneCTimeoutMs(endpoint),
-    retries = 1,
+    retries: requestedRetries = 1,
     retryDelayMs = 200,
     cacheTtlMs = 0,
     cacheKey,
     retryOn5xx = true,
   } = options;
+  // Receipt/sale is a non-idempotent movement. Neither retry it after a
+  // timeout nor collapse two independent operations with identical bodies.
+  const stockMovement = body && typeof body === "object" &&
+    (Object.hasOwn(body, "Поступлення") || Object.hasOwn(body, "Реалізація"));
+  const retries = stockMovement ? 0 : requestedRetries;
+  const requestGeneration = cacheGeneration;
 
   pruneCache();
 
@@ -440,7 +448,8 @@ export async function oneCRequest(endpoint, options = {}) {
     }
   }
 
-  const inFlight = inFlightRequests.get(resolvedCacheKey);
+  const inFlightKey = `${requestGeneration}:${resolvedCacheKey}`;
+  const inFlight = stockMovement ? null : inFlightRequests.get(inFlightKey);
   if (inFlight) {
     return inFlight;
   }
@@ -525,7 +534,7 @@ export async function oneCRequest(endpoint, options = {}) {
           continue;
         }
 
-        if (cacheTtlMs > 0 && result.status >= 200 && result.status < 300) {
+        if (cacheTtlMs > 0 && requestGeneration === cacheGeneration && result.status >= 200 && result.status < 300) {
           setCached(resolvedCacheKey, result, cacheTtlMs);
           writeDevDiskCache(endpoint, resolvedCacheKey, result);
         }
@@ -555,9 +564,9 @@ export async function oneCRequest(endpoint, options = {}) {
       }
     }
   }, timeoutMs).finally(() => {
-    inFlightRequests.delete(resolvedCacheKey);
+    if (!stockMovement) inFlightRequests.delete(inFlightKey);
   });
 
-  inFlightRequests.set(resolvedCacheKey, requestPromise);
+  if (!stockMovement) inFlightRequests.set(inFlightKey, requestPromise);
   return requestPromise;
 }

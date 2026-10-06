@@ -233,10 +233,10 @@ export default function TovarPartsBackdrop() {
     };
 
     const apply = (progress: number) => {
-      const step = Math.round(progress * 320);
+      const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
-      const p = step / 320;
+      const p = step / 1024;
       const enter = (p + 1) / 2; // 0 entering → 1 leaving
       for (const plane of planes) {
         const y = Math.round(p * plane.driftM * 100) / 100;

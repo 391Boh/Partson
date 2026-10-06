@@ -7,9 +7,12 @@ import { BadgePercent, Check, ChevronDown, ImagePlus, Minus, Pencil, Plus, Shopp
 import ProductCardImage from "app/components/ProductCardImage";
 import type { Product } from "app/components/Data";
 import { buildVisibleCategoryLabel, buildVisibleProductName } from "app/lib/product-url";
+import { useProductQuantity } from "app/lib/use-product-quantity";
 import { useProductDescription } from "app/lib/use-product-description";
+import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
+import ProductDescriptionContent from "app/components/ProductDescriptionContent";
 import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
-import { parseAdminPriceInput, parseAdminQtyInput } from "app/lib/product-admin-validation";
+import { parseAdminPriceInput } from "app/lib/product-admin-validation";
 import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
 
 type AdminEditResult = { ok: boolean; error?: string; quantity?: number };
@@ -97,7 +100,8 @@ const ProductListRow: React.FC<Props> = ({
     onQtyChange,
     onImageOpen,
 }) => {
-    const { code, article, producer, quantity, category, group, subGroup } = item;
+    const { code, article, producer, category, group, subGroup } = item;
+    const [quantity, setQuantity] = useProductQuantity(code, item.quantity ?? 0);
     const name = buildVisibleProductName(item.name);
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
@@ -126,12 +130,11 @@ const ProductListRow: React.FC<Props> = ({
     const hasCostPrice =
         isAdmin && typeof costPriceUAH === "number" && Number.isFinite(costPriceUAH) && costPriceUAH > 0;
 
-    const [editingField, setEditingField] = useState<"name" | "price" | "qty" | "category" | "description" | null>(
+    const [editingField, setEditingField] = useState<"name" | "price" | "category" | "description" | null>(
         null
     );
     const [nameVal, setNameVal] = useState(name);
     const [priceVal, setPriceVal] = useState(item.priceEuro != null ? String(item.priceEuro) : "");
-    const [qtyVal, setQtyVal] = useState("");
     const [categoryVal, setCategoryVal] = useState(category || "");
     const [groupVal, setGroupVal] = useState(group || "");
     const [subGroupVal, setSubGroupVal] = useState(subGroup || "");
@@ -153,7 +156,13 @@ const ProductListRow: React.FC<Props> = ({
     // 1C's measured 1.9-3.7s description lookup to matter, so by the time
     // someone clicks it's often already cached.
     const [isHovered, setIsHovered] = useState(false);
-    const { description, loading: descriptionLoading } = useProductDescription(
+    const {
+        description,
+        status: descriptionStatus,
+        loading: descriptionLoading,
+        retry: retryDescription,
+        setDescription,
+    } = useProductDescription(
         code,
         article,
         isExpanded || isHovered
@@ -177,6 +186,8 @@ const ProductListRow: React.FC<Props> = ({
             setFieldError(result?.error ?? "Помилка збереження");
             return;
         }
+        // Show the saved text immediately and drop the stale cached copy.
+        setDescription(descriptionVal.trim() || null);
         closeEdit();
     };
 
@@ -199,30 +210,32 @@ const ProductListRow: React.FC<Props> = ({
             setFieldError(result?.error ?? "Помилка збереження");
             return;
         }
+        // Show the saved text immediately and drop the stale cached copy.
+        setDescription(descriptionVal.trim() || null);
         closeEdit();
     };
 
-    const saveQty = async (type: "receipt" | "sale") => {
-        if (!onAdminEdit || saving) return;
-        const parsed = parseAdminQtyInput(qtyVal);
-        if ("error" in parsed) {
-            setFieldError(parsed.error);
-            return;
+    const qtySubmitLock = useRef(false);
+    // Admin stock edit: the pencil turns the row's counter into the stock
+    // counter until the change is saved or cancelled — one counter, not two.
+    const [stockEditing, setStockEditing] = useState(false);
+
+    // One stock movement for the difference set in the stock stepper.
+    const commitStock = async (movement: StockMovement): Promise<{ ok: boolean; error?: string }> => {
+        if (!onAdminEdit || qtySubmitLock.current) {
+            return { ok: false, error: "Зачекайте завершення попередньої операції" };
         }
-        const n = parsed.value;
-        setSaving(true);
-        setFieldError(null);
-        const result = await onAdminEdit(type === "receipt" ? { receipt: n } : { sale: n }).catch(() => ({
-            ok: false as const,
-            error: "Помилка мережі",
-        }));
-        setSaving(false);
-        if (!result?.ok) {
-            setFieldError(result?.error ?? "Помилка збереження");
-            return;
+        qtySubmitLock.current = true;
+        const result = await onAdminEdit(
+            movement.type === "receipt" ? { receipt: movement.amount } : { sale: movement.amount }
+        ).catch(() => ({ ok: false as const, error: "Помилка мережі" }));
+        qtySubmitLock.current = false;
+        if (!result?.ok) return { ok: false, error: result?.error ?? "Помилка збереження" };
+        if (typeof result.quantity !== "number" || !Number.isSafeInteger(result.quantity) || result.quantity < 0) {
+            return { ok: false, error: "Не вдалося підтвердити залишок. Перевірте товар перед повторною операцією." };
         }
-        setQtyVal("");
-        closeEdit();
+        setQuantity(result.quantity);
+        return { ok: true };
     };
 
     const saveCategory = async () => {
@@ -239,6 +252,8 @@ const ProductListRow: React.FC<Props> = ({
             setFieldError(result?.error ?? "Помилка збереження");
             return;
         }
+        // Show the saved text immediately and drop the stale cached copy.
+        setDescription(descriptionVal.trim() || null);
         closeEdit();
     };
 
@@ -255,6 +270,8 @@ const ProductListRow: React.FC<Props> = ({
             setFieldError(result?.error ?? "Помилка збереження");
             return;
         }
+        // Show the saved text immediately and drop the stale cached copy.
+        setDescription(descriptionVal.trim() || null);
         closeEdit();
     };
 
@@ -409,55 +426,7 @@ const ProductListRow: React.FC<Props> = ({
                         </div>
                     )}
 
-                    {editingField === "qty" ? (
-                        <div
-                            className="mt-1 flex flex-wrap items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ animation: "adminEditFadeIn 0.15s ease-out" }}
-                        >
-                            <input
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={qtyVal}
-                                onChange={(e) => setQtyVal(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") void saveQty("receipt");
-                                    if (e.key === "Escape") closeEdit();
-                                }}
-                                autoFocus
-                                disabled={saving}
-                                placeholder="к-сть"
-                                className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => void saveQty("receipt")}
-                                disabled={saving || !qtyVal.trim()}
-                                className="inline-flex items-center justify-center rounded-lg bg-emerald-500 p-1.5 text-white transition-all hover:bg-emerald-600 active:scale-95 disabled:opacity-40"
-                                title="Поступлення (+)"
-                            >
-                                <Plus size={10} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void saveQty("sale")}
-                                disabled={saving || !qtyVal.trim()}
-                                className="inline-flex items-center justify-center rounded-lg bg-red-400 p-1.5 text-white transition-all hover:bg-red-500 active:scale-95 disabled:opacity-40"
-                                title="Продаж (-)"
-                            >
-                                <Minus size={10} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={closeEdit}
-                                className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-400 transition-colors hover:bg-slate-50"
-                            >
-                                <X size={10} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                        <div className="group/stock mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
                             {producer && producer !== "-" && <span className="font-bold text-slate-600">{producer}</span>}
                             {article && <span className="font-mono">{article}</span>}
                             <span
@@ -473,24 +442,23 @@ const ProductListRow: React.FC<Props> = ({
                                 />
                                 {isAvailable ? `В наявності · ${quantity} шт.` : "Під замовлення"}
                             </span>
-                            {canEdit && (
+                            {canEdit && !stockEditing && (
                                 <button
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setQtyVal("");
-                                        setEditingField("qty");
+                                        setStockEditing(true);
                                     }}
-                                    className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-100 bg-emerald-50/70 text-emerald-600 transition-all hover:border-emerald-200 hover:bg-emerald-100"
-                                    title="Поступлення / Продаж"
+                                    className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-emerald-100 bg-emerald-50/70 text-emerald-600 transition-all hover:border-emerald-200 hover:bg-emerald-100 sm:opacity-0 sm:group-hover/stock:opacity-100 sm:group-focus-within/stock:opacity-100"
+                                    title="Змінити залишок"
+                                    aria-label="Змінити залишок"
                                 >
                                     <Pencil size={9} />
                                 </button>
                             )}
                         </div>
-                    )}
 
-                    {fieldError && (editingField === "name" || editingField === "qty") && (
+                    {fieldError && editingField === "name" && (
                         <p className="mt-0.5 text-[9px] font-medium text-rose-500">{fieldError}</p>
                     )}
                 </div>
@@ -645,7 +613,17 @@ const ProductListRow: React.FC<Props> = ({
                     )}
                 </div>
 
-                {hasPrice && (
+                {stockEditing && canEdit ? (
+                    <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
+                        <AdminStockStepper
+                            stock={quantity}
+                            onCommit={commitStock}
+                            onClose={() => setStockEditing(false)}
+                            size="sm"
+                            autoFocus
+                        />
+                    </div>
+                ) : hasPrice && (
                     <div
                         className="hidden shrink-0 items-center rounded-full border border-slate-200 bg-white shadow-xs sm:flex"
                         style={{ padding: "2px 4px" }}
@@ -865,14 +843,29 @@ const ProductListRow: React.FC<Props> = ({
                                     <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
                                     Завантажую опис...
                                 </span>
+                            ) : description ? (
+                                <div className="min-w-0 flex-1">
+                                    <ProductDescriptionContent text={description} variant="compact" />
+                                </div>
+                            ) : descriptionStatus === "error" ? (
+                                <p className="min-w-0 flex-1">
+                                    Не вдалося завантажити опис.{" "}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); retryDescription(); }}
+                                        className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                                    >
+                                        Спробувати ще раз
+                                    </button>
+                                </p>
                             ) : (
-                                <p className="min-w-0 flex-1">{description || "Опис відсутній"}</p>
+                                <p className="min-w-0 flex-1">Опис відсутній</p>
                             )}
                             {canEdit && !descriptionLoading && (
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setDescriptionVal(description && description !== "Опис відсутній" ? description : "");
+                                        setDescriptionVal(description ?? "");
                                         setEditingField("description");
                                     }}
                                     className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-violet-200 bg-violet-50 text-violet-600 transition-all hover:border-violet-300 hover:bg-violet-100 sm:opacity-0 sm:group-hover/description:opacity-100"

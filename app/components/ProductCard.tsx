@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, ChevronDown, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent } from "lucide-react";
+import { Info, ShoppingCart, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent, ArrowUpRight, RotateCcw } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
@@ -10,18 +10,12 @@ import { buildManufacturerPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
-import { parseAdminQtyInput } from "app/lib/product-admin-validation";
 import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
+import { useProductQuantity } from "app/lib/use-product-quantity";
 import { useProductDescription } from "app/lib/use-product-description";
+import ProductDescriptionContent from "app/components/ProductDescriptionContent";
+import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
 
-const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
-const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
-// /api/product-description's own comment documents 1C description lookups
-// measured live at 1.9-3.7s per call, even repeated back-to-back. The old
-// 2600ms client timeout raced (and often lost to) that latency on ordinary,
-// successful requests — showing "Не вдалося завантажити опис" for products
-// that genuinely have one. Comfortably above the documented worst case.
-const DESCRIPTION_REQUEST_TIMEOUT_MS = 4500;
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
     backfaceVisibility: "hidden" as const,
@@ -165,8 +159,8 @@ const ProductCard: React.FC<Props> = ({
         ? "active:scale-[0.96] motion-reduce:active:scale-100"
         : "";
 
-    const quantity = item.quantity ?? 0;
     const code = item.code ?? "";
+    const [quantity, setQuantity] = useProductQuantity(code, item.quantity ?? 0);
     const name = buildVisibleProductName(
         item.name || "\u041D\u0430\u0437\u0432\u0430 \u0442\u043E\u0432\u0430\u0440\u0443 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u044F"
     );
@@ -230,23 +224,6 @@ const ProductCard: React.FC<Props> = ({
         },
         [article]
     );
-    const descriptionRequestUrl = useMemo(() => {
-        const params = new URLSearchParams();
-
-        // code first: matches useProductDescription's ordering (see that
-        // file's comment) so a hover-triggered prefetch warms the exact same
-        // cache key this effect reads below, instead of a differently-ordered
-        // query string that misses.
-        for (const key of [code, article]) {
-            const normalized = (key || "").trim();
-            if (!normalized || normalized === "-") continue;
-            params.append("lookup", normalized);
-        }
-
-        const serialized = params.toString();
-        return serialized ? `/api/product-description?${serialized}` : "";
-    }, [article, code]);
-
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
     const hasCostPrice =
@@ -310,15 +287,18 @@ const ProductCard: React.FC<Props> = ({
     }, []);
 
     // ================== РћРџРРЎ (BACK) ==================
-const [description, setDescription] = useState<string | null>(null);
-const [loadingDesc, setLoadingDesc] = useState(false);
-const descLoaded = useRef(false);
-// Which descriptionRequestUrl descLoaded/description currently reflect — lets
-// the fetch effect tell "same product, re-flipped" (skip refetch, keep
-// showing what's already loaded) apart from "URL actually changed" (e.g. an
-// admin edits the catalog number inline while the card is open), which must
-// reset both instead of silently keeping the previous product's description.
-const descLoadedForUrl = useRef("");
+// A hover (desktop) reliably precedes the click that actually flips the
+// card by a couple hundred ms or more — enough of a head start on 1C's
+// measured 1.9-3.7s description lookup to matter, so the lookup starts then.
+const [isHovered, setIsHovered] = useState(false);
+const {
+    description,
+    status: descriptionStatus,
+    retry: retryDescription,
+    setDescription,
+} = useProductDescription(code, article, isHovered || isFlipped);
+const loadingDesc =
+    descriptionStatus === "loading" || (isFlipped && descriptionStatus === "idle");
 
 // ================== ADMIN EDIT ==================
 const [isEditMode, setIsEditMode] = useState(false);
@@ -364,11 +344,6 @@ const [displayProducer, setDisplayProducer] = useState(producer);
 // pick up without a full remount.
 useEffect(() => setDisplayProducer(producer), [producer]);
 
-// Quick quantity edit (receipt / sale)
-const [quickEditQty, setQuickEditQty] = useState(false);
-const [quickQtyVal, setQuickQtyVal] = useState('');
-const [quickQtySaving, setQuickQtySaving] = useState(false);
-const [quickQtyError, setQuickQtyError] = useState<string | null>(null);
 
 
 // Front image upload
@@ -485,22 +460,25 @@ const handleQuickProducerSave = async () => {
     setQuickProducerSuggestions([]);
 };
 
-const handleQuickQtySave = async (type: 'receipt' | 'sale') => {
-    if (!onAdminEdit || quickQtySaving) return;
-    const parsedQty = parseAdminQtyInput(quickQtyVal);
-    if ('error' in parsedQty) { setQuickQtyError(parsedQty.error); return; }
-    const n = parsedQty.value;
-    setQuickQtySaving(true);
-    setQuickQtyError(null);
-    const result = await onAdminEdit(type === 'receipt' ? { receipt: n } : { sale: n }).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
-    setQuickQtySaving(false);
-    if (!result?.ok) {
-        setQuickQtyError(result?.error ?? 'Помилка збереження');
-        setTimeout(() => setQuickQtyError(null), 4000);
-        return;
+const quickQtySubmitLock = useRef(false);
+// Admin stock edit: the hover pencil turns the card's counter into the stock
+// counter until the change is saved or cancelled — one counter, not two.
+const [stockEditing, setStockEditing] = useState(false);
+
+// One stock movement for the difference the admin set in the stock stepper.
+const handleStockCommit = async (movement: StockMovement): Promise<{ ok: boolean; error?: string }> => {
+    if (!onAdminEdit || quickQtySubmitLock.current) return { ok: false, error: 'Зачекайте завершення попередньої операції' };
+    quickQtySubmitLock.current = true;
+    const result = await onAdminEdit(
+        movement.type === 'receipt' ? { receipt: movement.amount } : { sale: movement.amount }
+    ).catch(() => ({ ok: false as const, error: 'Помилка мережі' }));
+    quickQtySubmitLock.current = false;
+    if (!result?.ok) return { ok: false, error: result?.error ?? 'Помилка збереження' };
+    if (typeof result.quantity !== "number" || !Number.isSafeInteger(result.quantity) || result.quantity < 0) {
+        return { ok: false, error: "Не вдалося підтвердити залишок. Перевірте товар перед повторною операцією." };
     }
-    setQuickQtyVal('');
-    setQuickEditQty(false);
+    setQuantity(result.quantity);
+    return { ok: true };
 };
 
 const handleAdminSave = async () => {
@@ -538,11 +516,6 @@ const handleAdminSave = async () => {
 
     if (descChanged && data.description !== undefined) {
         setDescription(data.description || null);
-        descLoaded.current = true;
-        try {
-            window.sessionStorage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
-            window.localStorage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
-        } catch { /* ignore */ }
     }
 
     setEditSuccess(true);
@@ -568,168 +541,39 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
 };
 
 
-useEffect(() => {
-    // The product this card refers to changed (e.g. an admin edited the
-    // catalog number/article while the card was open) — the previously
-    // loaded description belongs to a different product now, so it must not
-    // keep showing while descLoaded.current still gates a refetch below.
-    if (descLoadedForUrl.current !== descriptionRequestUrl) {
-        descLoadedForUrl.current = descriptionRequestUrl;
-        descLoaded.current = false;
-        setDescription(null);
-    }
 
-    if (!isFlipped) return;
-    if (!descriptionRequestUrl) return;
-    if (descLoaded.current) return;
 
-    const readCachedDescription = () => {
-        if (typeof window === "undefined" || !descriptionRequestUrl) return null;
 
-        const readFromStorage = (storage: Storage) => {
-            try {
-                const raw = storage.getItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
-                if (!raw) return null;
-
-                const parsed = JSON.parse(raw) as { value?: string | null; t?: number };
-                if (!parsed || typeof parsed.t !== "number") return null;
-                if (Date.now() - parsed.t > DESCRIPTION_CACHE_TTL_MS) {
-                    storage.removeItem(`${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`);
-                    return null;
-                }
-
-                return typeof parsed.value === "string" && parsed.value.trim()
-                    ? parsed.value.trim()
-                    : null;
-            } catch {
-                return null;
-            }
-        };
-
-        const sessionHit = readFromStorage(window.sessionStorage);
-        if (sessionHit) return sessionHit;
-
-        try {
-            return readFromStorage(window.localStorage);
-        } catch {
-            return null;
-        }
+    // Both the front title and the back face's links open the product page;
+    // each counts as a select_item for analytics.
+    const handleProductLinkClick = (event: React.MouseEvent) => {
+        event.stopPropagation();
+        pushEcommerceEvent("select_item", {
+            currency: "UAH",
+            ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
+            ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
+            items: [
+                {
+                    item_id: item.code,
+                    item_name: item.name,
+                    ...(item.producer ? { item_brand: item.producer } : {}),
+                    ...(item.category ? { item_category: item.category } : {}),
+                    ...(item.group ? { item_category2: item.group } : {}),
+                    ...(item.subGroup ? { item_category3: item.subGroup } : {}),
+                    ...(item.article ? { item_variant: item.article } : {}),
+                    ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
+                    ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
+                    ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
+                    ...(effectivePriceUAH != null ? { price: effectivePriceUAH } : {}),
+                },
+            ],
+        });
     };
-
-    const writeCachedDescription = (value: string) => {
-        if (typeof window === "undefined" || !descriptionRequestUrl) return;
-
-        const payload = JSON.stringify({ value, t: Date.now() });
-
-        try {
-            window.sessionStorage.setItem(
-                `${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`,
-                payload
-            );
-        } catch {
-            // Ignore sessionStorage quota issues.
-        }
-
-        try {
-            window.localStorage.setItem(
-                `${DESCRIPTION_CACHE_PREFIX}${descriptionRequestUrl}`,
-                payload
-            );
-        } catch {
-            // Ignore localStorage quota issues.
-        }
-    };
-
-    const cachedDescription = readCachedDescription();
-    if (cachedDescription) {
-        setDescription(cachedDescription);
-        descLoaded.current = true;
-        return;
-    }
-
-    let cancelled = false;
-    let activeController: AbortController | null = null;
-
-    const attemptFetch = async () => {
-        const controller = new AbortController();
-        activeController = controller;
-        const timeoutId = window.setTimeout(
-            () => controller.abort(),
-            DESCRIPTION_REQUEST_TIMEOUT_MS
-        );
-        try {
-            const res = await fetch(descriptionRequestUrl, {
-                method: "GET",
-                headers: { Accept: "application/json" },
-                signal: controller.signal,
-            });
-            const data = (await res.json()) as { description?: string | null };
-            return typeof data.description === "string" && data.description.trim()
-                ? data.description.trim()
-                : null;
-        } finally {
-            window.clearTimeout(timeoutId);
-        }
-    };
-
-    const loadDescription = async () => {
-        try {
-            setLoadingDesc(true);
-
-            // A single slow/failed attempt shouldn't permanently show the error
-            // string \u2014 retry once before giving up, since the vast majority of
-            // failures here are transient 1C latency, not a real missing description.
-            let rawDesc: string | null = null;
-            try {
-                rawDesc = await attemptFetch();
-            } catch {
-                if (cancelled) return;
-                rawDesc = await attemptFetch();
-            }
-            if (cancelled) return;
-
-            setDescription(
-                rawDesc
-                    ? rawDesc
-                    : "\u041E\u043F\u0438\u0441 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u0456\u0439"
-            );
-            if (rawDesc) {
-                writeCachedDescription(rawDesc);
-            }
-
-            descLoaded.current = true;
-        } catch {
-            if (!cancelled) {
-                setDescription("\u041D\u0435 \u0432\u0434\u0430\u043B\u043E\u0441\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u043E\u043F\u0438\u0441");
-            }
-        } finally {
-            if (!cancelled) {
-                setLoadingDesc(false);
-            }
-        }
-    };
-
-    void loadDescription();
-
-    return () => {
-        cancelled = true;
-        activeController?.abort();
-    };
-}, [descriptionRequestUrl, isFlipped]);
-
-    // A hover (desktop) reliably precedes the click that actually flips the
-    // card by a couple hundred ms or more — enough of a head start on 1C's
-    // measured 1.9-3.7s description lookup to matter. This only warms the
-    // shared session/localStorage cache (descriptionRequestUrl above now uses
-    // the same code-first key order); the effect above still owns what's
-    // actually displayed, so this hook's own return value is unused here.
-    const [isHovered, setIsHovered] = useState(false);
-    useProductDescription(code, article, isHovered || isFlipped);
 
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[360px] sm:h-[340px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
+            className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[320px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
             itemScope={hasPrice ? true : undefined}
             itemType={hasPrice ? "https://schema.org/Product" : undefined}
             onMouseEnter={() => setIsHovered(true)}
@@ -902,29 +746,7 @@ useEffect(() => {
                                         itemProp="url"
                                         prefetchOnViewport={prefetchProductRoute}
                                         prefetchOnIntent
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            pushEcommerceEvent("select_item", {
-                                                currency: "UAH",
-                                                ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
-                                                ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
-                                                items: [
-                                                    {
-                                                        item_id: item.code,
-                                                        item_name: item.name,
-                                                        ...(item.producer ? { item_brand: item.producer } : {}),
-                                                        ...(item.category ? { item_category: item.category } : {}),
-                                                        ...(item.group ? { item_category2: item.group } : {}),
-                                                        ...(item.subGroup ? { item_category3: item.subGroup } : {}),
-                                                        ...(item.article ? { item_variant: item.article } : {}),
-                                                        ...(analyticsListId ? { item_list_id: analyticsListId } : {}),
-                                                        ...(analyticsListName ? { item_list_name: analyticsListName } : {}),
-                                                        ...(typeof analyticsIndex === "number" ? { index: analyticsIndex } : {}),
-                                                        ...(effectivePriceUAH != null ? { price: effectivePriceUAH } : {}),
-                                                    },
-                                                ],
-                                            });
-                                        }}
+                                        onClick={handleProductLinkClick}
                                         className="catalog-card-name catalog-product-title text-left text-[14.5px] text-slate-800 sm:text-[15.5px] transition-colors duration-200 hover:text-sky-700 no-underline line-clamp-4 sm:line-clamp-3"
                                         title={name}
                                     >
@@ -1130,7 +952,7 @@ useEffect(() => {
                                 </div>
                             )}
                             {/* Price display */}
-                            <div className={`ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                            <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
                                 <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
                                     {showCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>
@@ -1208,8 +1030,8 @@ useEffect(() => {
 
                     {/* Низ */}
                     <div className="catalog-card-actions mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
-                        <div className="flex min-w-0 flex-col items-start gap-1">
-                            <div className="group/qty flex min-w-0 items-center gap-1">
+                        <div className={`catalog-stock-control flex min-w-0 flex-col items-start ${isAvailable ? "catalog-stock-control--available" : "catalog-stock-control--backorder"}`}>
+                            <div className="catalog-stock-control-label group/qty flex min-w-0 items-center gap-1">
                                 <span
                                     aria-hidden="true"
                                     data-nosnippet
@@ -1218,54 +1040,36 @@ useEffect(() => {
                                             ? `В наявності · ${quantity} шт.`
                                             : "Під замовлення"
                                     }
-                                    className={`min-w-0 rounded-md border px-1.5 py-1 text-[12px] font-bold leading-[1.3] before:content-[attr(data-label)] ${
-                                        quantity > 0
-                                            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                                            : "border-amber-200 bg-amber-50 text-amber-900"
-                                    }`}
+                                    className="catalog-stock-control-status min-w-0 font-semibold before:content-[attr(data-label)]"
                                 />
-                                {isAdmin && onAdminEdit && !quickEditQty && (
+                                {isAdmin && onAdminEdit && !stockEditing && (
                                     <button
                                         type="button"
-                                        onClick={(e) => { e.stopPropagation(); setQuickEditQty(true); setQuickQtyVal(''); }}
+                                        onClick={(e) => { e.stopPropagation(); setStockEditing(true); }}
                                         className="inline-flex min-h-7 min-w-7 items-center justify-center rounded-lg border border-emerald-100 bg-emerald-50/70 p-1 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 sm:opacity-0 sm:group-hover/qty:opacity-100 sm:group-focus-within/qty:opacity-100 transition-all duration-150"
-                                        title="Поступлення / Продаж"
+                                        title="Змінити залишок"
+                                        aria-label="Змінити залишок"
                                     >
                                         <Pencil size={9} />
                                     </button>
                                 )}
                             </div>
-                            {quickEditQty && (
-                                <div className="flex w-full flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()} style={{ animation: 'adminEditFadeIn 0.15s ease-out' }}>
-                                    <input
-                                        type="number" min="1" step="1"
-                                        value={quickQtyVal}
-                                        onChange={(e) => { setQuickQtyVal(e.target.value); setQuickQtyError(null); }}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') void handleQuickQtySave('receipt'); if (e.key === 'Escape') setQuickEditQty(false); }}
-                                        autoFocus
-                                        disabled={quickQtySaving}
-                                        placeholder="к-сть"
-                                        className="w-16 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[10px] text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
-                                    />
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('receipt'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="inline-flex items-center justify-center p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all disabled:opacity-40" title="Поступлення (+)">
-                                        {quickQtySaving ? <span className="inline-block h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <Plus size={10} />}
-                                    </button>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); void handleQuickQtySave('sale'); }} disabled={quickQtySaving || !quickQtyVal.trim()} className="inline-flex items-center justify-center p-1.5 rounded-lg bg-red-400 hover:bg-red-500 text-white active:scale-95 transition-all disabled:opacity-40" title="Продаж (−)">
-                                        <Minus size={10} />
-                                    </button>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setQuickEditQty(false); setQuickQtyError(null); }} className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-colors">
-                                        <X size={10} />
-                                    </button>
-                                </div>
-                            )}
-                            {quickQtyError && <p className="text-[9px] text-rose-500 font-medium">{quickQtyError}</p>}
 
-                            {hasPrice ? (
+                            {stockEditing && isAdmin && onAdminEdit ? (
+                                <AdminStockStepper
+                                    stock={quantity}
+                                    onCommit={handleStockCommit}
+                                    onClose={() => setStockEditing(false)}
+                                    size="sm"
+                                    autoFocus
+                                />
+                            ) : hasPrice ? (
                             <div
-                                className={`flex items-center rounded-full border border-slate-200 bg-white shadow-xs transition-[border-color,box-shadow] duration-300 hover:border-slate-300 hover:shadow-sm ${
+                                className={`catalog-stock-control-stepper flex items-center ${
                                     isCounterDisabled ? "pointer-events-none opacity-50" : ""
                                 }`}
-                                style={{ padding: "2px 6px" }}
+                                role="group"
+                                aria-label="Кількість товару для замовлення"
                             >
                                 <button
                                     type="button"
@@ -1363,7 +1167,7 @@ useEffect(() => {
                                              ? "Надіслати запит у чат"
                                              : "Додати в кошик"
                                  }
-                                 className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-[background-color,border-color,box-shadow,color] duration-300 ease-out ${
+                                 className={`catalog-card-cart-button relative flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-[background-color,border-color,box-shadow,color] duration-300 ease-out ${
                                      isCartButtonDisabled
                                          ? isPriceLoading
                                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
@@ -1404,7 +1208,7 @@ useEffect(() => {
                                      e.stopPropagation();
                                      onFlip(code);
                                  }}
-                                 className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
+                                 className="catalog-card-details-button p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.10)] hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
                                  aria-label="Детальніше"
                              >
                                  <Info size={16} />
@@ -1422,7 +1226,7 @@ useEffect(() => {
         ${isAdmin ? "border-violet-200/80" : "border-slate-200"}
         bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
         shadow-[0_1px_2px_rgba(15,23,42,0.04),0_4px_12px_rgba(15,23,42,0.07),0_12px_24px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)]
-        flex flex-col
+        p-2.5 flex flex-col text-[11px] sm:text-[12px]
         transition-opacity duration-200
         ${backVisibilityClass}
     `}
@@ -1434,40 +1238,28 @@ useEffect(() => {
     aria-hidden={isFrontVisible}
     inert={isFrontVisible ? true : undefined}
 >
-    {/* Header: name + action buttons */}
-    <div className="group/backheader flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-slate-100/80 bg-gradient-to-r from-white to-slate-50/60 rounded-t-[1.3rem]">
-        <h3 className="catalog-product-title flex-1 min-w-0 text-[13.5px] text-slate-900 sm:text-[14.5px] line-clamp-2">
+    {/* Header: the name links to the product page, as on the front */}
+    <div className="group/backheader flex items-start gap-2 border-b border-slate-200/80 pb-2">
+        <SmartLink
+            href={productHref}
+            prefetchOnIntent
+            onClick={handleProductLinkClick}
+            className="catalog-product-title min-w-0 flex-1 text-left text-[14px] leading-snug text-slate-800 no-underline line-clamp-2 transition-colors duration-200 hover:text-sky-700 sm:text-[15px]"
+            title={name}
+        >
             {name}
-        </h3>
-        <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-            {isAdmin && onAdminEdit && !isEditMode && (
-                <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
-                    className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1.5 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 sm:opacity-0 sm:group-hover/backheader:opacity-100 sm:group-focus-within/backheader:opacity-100 transition-all duration-150"
-                    title="Редагувати"
-                >
-                    <Pencil size={12} />
-                </button>
-            )}
+        </SmartLink>
+        {isAdmin && onAdminEdit && !isEditMode && (
             <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (isEditMode) {
-                        setIsEditMode(false);
-                        setEditError(null);
-                        setGroupSuggestions([]);
-                        setSubGroupSuggestions([]);
-                        setCategorySuggestions([]);
-                    }
-                    onFlip(code);
-                }}
-                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600 active:scale-95 transition-all duration-150"
-                aria-label="Назад"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); enterEditMode(); }}
+                className="inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1.5 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-95 sm:opacity-0 sm:group-hover/backheader:opacity-100 sm:group-focus-within/backheader:opacity-100 transition-all duration-150"
+                title="Редагувати"
+                aria-label="Редагувати опис і категорії"
             >
-                <ChevronDown size={14} className="rotate-180" />
+                <Pencil size={12} />
             </button>
-        </div>
+        )}
     </div>
 
     {/* Breadcrumb pills */}
@@ -1489,7 +1281,7 @@ useEffect(() => {
             "bg-sky-50 text-sky-700 border-sky-100",
         ] as const;
         return (
-            <div className="flex flex-wrap items-center gap-1 px-3 py-1.5 border-b border-slate-100/60 bg-slate-50/30">
+            <div className="flex flex-wrap items-center gap-1 py-2">
                 {levels.map((value, i) => (
                     <span
                         key={i}
@@ -1506,7 +1298,7 @@ useEffect(() => {
     {/* Content: edit form or description */}
     {isAdmin && onAdminEdit && isEditMode ? (
         <>
-            <div className="catalog-admin-edit-form min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2.5 py-2 space-y-1.5 [-webkit-overflow-scrolling:touch]" onClick={(e) => e.stopPropagation()}>
+            <div className="catalog-admin-edit-form min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain py-2 space-y-1.5 [-webkit-overflow-scrolling:touch]" onClick={(e) => e.stopPropagation()}>
                 <div>
                     <label className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Опис</label>
                     <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-100 transition-all disabled:opacity-50 hover:border-slate-300" rows={2} disabled={editSaving} />
@@ -1607,7 +1399,7 @@ useEffect(() => {
             </div>
         </>
     ) : (
-        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-2.5 [-webkit-overflow-scrolling:touch]">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-2 pr-0.5 [-webkit-overflow-scrolling:touch]">
             {loadingDesc && (
                 <div className="space-y-2 animate-pulse">
                     <div className="h-2 bg-slate-200 rounded w-5/6" />
@@ -1617,12 +1409,60 @@ useEffect(() => {
                 </div>
             )}
             {!loadingDesc && (
-                <p className="text-[11px] sm:text-[12px] leading-relaxed text-slate-600 whitespace-pre-line">
-                    {description || "\u041E\u043F\u0438\u0441 \u0443\u0442\u043E\u0447\u043D\u044E\u0454\u0442\u044C\u0441\u044F \u2014 \u043D\u0430\u043F\u0438\u0448\u0456\u0442\u044C \u043D\u0430\u043C \u0443 \u0447\u0430\u0442, \u043F\u0456\u0434\u043A\u0430\u0436\u0435\u043C\u043E \u0434\u0435\u0442\u0430\u043B\u0456."}
-                </p>
+                <div className="text-[11px] sm:text-[12px] leading-relaxed text-slate-600">
+                    {description ? (
+                        <ProductDescriptionContent text={description} variant="compact" />
+                    ) : descriptionStatus === "error" ? (
+                        <p>
+                            Не вдалося завантажити опис.{" "}
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); retryDescription(); }}
+                                className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-900"
+                            >
+                                Спробувати ще раз
+                            </button>
+                        </p>
+                    ) : (
+                        <p>Опис уточнюється — напишіть нам у чат, підкажемо деталі.</p>
+                    )}
+                </div>
             )}
         </div>
     )}
+
+    {/* Footer: same row as the front's actions, so the turn-back button sits
+        exactly where the ⓘ button that flipped the card was. */}
+    <div className="catalog-card-actions mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
+        <SmartLink
+            href={productHref}
+            prefetchOnIntent
+            onClick={handleProductLinkClick}
+            className="inline-flex min-h-[44px] min-w-0 items-center gap-1.5 rounded-xl border border-sky-200 bg-white px-3 text-[12px] font-bold text-sky-800 no-underline transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900"
+        >
+            <span className="truncate">Сторінка товару</span>
+            <ArrowUpRight size={15} className="shrink-0" aria-hidden="true" />
+        </SmartLink>
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                if (isEditMode) {
+                    setIsEditMode(false);
+                    setEditError(null);
+                    setGroupSuggestions([]);
+                    setSubGroupSuggestions([]);
+                    setCategorySuggestions([]);
+                }
+                onFlip(code);
+            }}
+            className="catalog-card-details-button p-2 min-w-[44px] min-h-[44px] flex shrink-0 items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
+            aria-label="Повернути картку"
+            title="Повернути картку"
+        >
+            <RotateCcw size={16} />
+        </button>
+    </div>
 </div>
 
 

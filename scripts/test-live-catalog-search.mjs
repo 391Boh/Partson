@@ -20,7 +20,7 @@ for (const query of ["OC90", "щс90", "фільтр", "filtr", "zzzznotfound987
   const result = await search(query);
   results.set(query, result);
   const actual = result.correctedQuery || query;
-  assert.ok(result.items.every((item) => ["name", "article", "code", "producer"]
+  assert.ok(result.items.every((item) => ["name", "article", "code", "producer", "description"]
     .some((field) => api.matchesSearchField(item, actual, field))));
   console.log(JSON.stringify({ query, ms: Date.now() - start, count: result.items.length,
     total: result.totalCount, hasMore: result.hasMore, correctedQuery: result.correctedQuery,

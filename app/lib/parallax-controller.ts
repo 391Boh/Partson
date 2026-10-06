@@ -49,13 +49,12 @@ let documentRemeasureFrameId = 0;
 // A short half-life removes raw wheel stepping without making the artwork
 // trail behind the scrollbar. The wider previous value felt floaty on a
 // Windows mouse wheel and kept the rAF loop alive longer after scrollend.
-const EASE_HALF_LIFE_MS = 42;
+const EASE_HALF_LIFE_MS = 24;
 const SETTLE_EPSILON = 0.001;
-// Keep multi-plane effects fluid on 60/90 Hz screens while naturally landing
-// around 60–72 updates on 120/144 Hz displays. Writing every 8 ms on a 144 Hz
-// panel is imperceptibly different for these slow-moving background layers but
-// costs almost twice as much compositor work.
-const HEAVY_FRAME_INTERVAL_MS = 10.5;
+// Follow the display cadence on capable hardware. A fixed 10.5 ms gate
+// skipped every other frame on 120 Hz screens and introduced uneven pacing.
+// Only measured/conservative low-power mode limits decorative updates.
+const REDUCED_FRAME_INTERVAL_MS = 1000 / 60 - 1;
 // Registrations owned by product cards remain mounted for the lifetime of the
 // page. Do not update an off-screen glow just because another visible effect
 // keeps the shared frame loop alive. The small overscan primes the transform
@@ -91,8 +90,8 @@ const refreshMotionBudget = () => {
   if (constrainedHardware === null) {
     const nav = navigator as Navigator & { deviceMemory?: number };
     constrainedHardware =
-      (typeof nav.deviceMemory === "number" && nav.deviceMemory <= 4) ||
-      (typeof nav.hardwareConcurrency === "number" && nav.hardwareConcurrency <= 4);
+      (typeof nav.deviceMemory === "number" && nav.deviceMemory > 0 && nav.deviceMemory <= 4) ||
+      (typeof nav.hardwareConcurrency === "number" && nav.hardwareConcurrency > 0 && nav.hardwareConcurrency <= 2);
   }
   reduceHeavyMotion =
     Boolean(constrainedHardware) ||
@@ -181,13 +180,13 @@ const frame = (now: number) => {
     }
 
     // A slower device still gets visible parallax. Multi-plane backgrounds
-    // update at a capped ~30fps cadence while native scrolling can continue at
+    // update at a capped ~60fps cadence while native scrolling can continue at
     // 60/120fps; the previous implementation froze them for the whole tab.
     if (reduceHeavyMotion && reg.heavy) {
       reg.primed = true;
       reg.eased = reg.target;
       if (reg.target !== reg.applied) {
-        if (!Number.isFinite(reg.applied) || now - reg.lastHeavyApplyAt >= 30) {
+        if (!Number.isFinite(reg.applied) || now - reg.lastHeavyApplyAt >= REDUCED_FRAME_INTERVAL_MS) {
           reg.applied = reg.target;
           reg.lastHeavyApplyAt = now;
           reg.apply(reg.target);
@@ -214,14 +213,6 @@ const frame = (now: number) => {
     // Skip the transform write (and its string building) when this layer
     // hasn't actually moved this frame.
     if (reg.eased !== reg.applied) {
-      if (
-        reg.heavy &&
-        Number.isFinite(reg.applied) &&
-        now - reg.lastHeavyApplyAt < HEAVY_FRAME_INTERVAL_MS
-      ) {
-        anyActive = true;
-        return;
-      }
       reg.applied = reg.eased;
       if (reg.heavy) reg.lastHeavyApplyAt = now;
       reg.apply(reg.eased);
@@ -345,9 +336,8 @@ export function registerParallax(opts: {
     el: opts.el,
     compute: opts.compute,
     apply: opts.apply,
-    // Native scroll already interpolates homepage motion. Avoid running
-    // easing tails for every decorative plane between wheel events.
-    ease: opts.el.closest(".home-static") ? false : (opts.ease ?? true),
+    // A short filter smooths wheel steps without a long catch-up tail.
+    ease: opts.ease ?? true,
     heavy: opts.heavy ?? false,
     top: 0,
     height: 1,

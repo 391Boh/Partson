@@ -6,6 +6,12 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
+import {
+  fetchExactCatalogProductByLookup,
+  invalidateFullCatalogSnapshot,
+  patchFullCatalogSnapshotProduct,
+} from "app/lib/catalog-server";
+import { setProductEditOverride } from "app/lib/product-edit-overrides";
 
 export const runtime = "nodejs";
 
@@ -51,24 +57,12 @@ export async function POST(request: NextRequest) {
 
   const { value } = body;
 
-  // article = НомерПоКаталогу (catalog number), required by getinfo endpoint
-  // Falls back to code for backwards compatibility
-  const article =
-    typeof value.article === "string" && value.article.trim()
-      ? value.article.trim()
-      : typeof value.code === "string"
-        ? value.code.trim()
-        : "";
   const code =
     typeof value.code === "string" && value.code.trim()
       ? value.code.trim()
       : typeof value["Код"] === "string" && value["Код"].trim()
         ? value["Код"].trim()
         : "";
-
-  if (!isNonEmptyString(article, { minLength: 1, maxLength: 200 })) {
-    return json({ ok: false, error: "article (НомерПоКаталогу) is required" }, 400);
-  }
 
   if (typeof value.description !== "string") {
     return json({ ok: false, error: "description must be a string" }, 400);
@@ -79,51 +73,101 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "description is too long (max 10 000 chars)" }, 400);
   }
 
-  const oneCBody: Record<string, string> = {
-    НомерПоКаталогу: article,
-    Описание: description,
+  // The 1C description endpoint locates the product by НомерПоКаталогу only.
+  // The internal Код is never a valid stand-in for it (sending it there is
+  // what produced "Номенклатура не найдена"), but it can be used to read the
+  // product's current НомерПоКаталогу from 1C — read-only — when the caller
+  // has none or 1C doesn't recognise the one it sent (e.g. renamed in 1C
+  // since the page loaded).
+  const resolveCatalogNumberByCode = async () => {
+    if (!code) return "";
+    const product = await fetchExactCatalogProductByLookup(code, {
+      cacheTtlMs: 0,
+      retries: 0,
+      timeoutMs: 8_000,
+    }).catch(() => null);
+    return product && product.code.trim().toLowerCase() === code.toLowerCase()
+      ? product.article.trim()
+      : "";
   };
 
-  const result = await oneCRequest(ONEC_SET_DESCRIPTION_ENDPOINT, {
-    method: "POST",
-    body: oneCBody,
-    retries: 1,
-    retryDelayMs: 300,
-    cacheTtlMs: 0,
-  });
+  let article =
+    typeof value.article === "string" && value.article.trim() ? value.article.trim() : "";
+  if (!article) article = await resolveCatalogNumberByCode();
 
-  if (result.status < 200 || result.status >= 300) {
-    let oneCError: string | undefined;
-    try {
-      const parsed = JSON.parse(result.text) as { error?: string; message?: string };
-      oneCError = parsed?.error ?? parsed?.message;
-    } catch {
-      oneCError = result.text?.slice(0, 200) || undefined;
-    }
-    return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
+  if (!isNonEmptyString(article, { minLength: 1, maxLength: 200 })) {
+    return json({ ok: false, error: "У товару немає номера по каталогу (НомерПоКаталогу) — опис зберегти неможливо" }, 400);
   }
 
-  let parsed: { success?: boolean; found?: boolean; updated?: boolean; message?: string; error_message?: string } = {};
-  try {
-    parsed = JSON.parse(result.text) as typeof parsed;
-  } catch {
-    // non-JSON response from 1C — treat as success if HTTP 2xx
+  type OneCDescriptionReply = {
+    success?: boolean;
+    found?: boolean;
+    updated?: boolean;
+    message?: string;
+    error_message?: string;
+    error?: string;
+  };
+
+  const sendDescription = async (catalogNumber: string) => {
+    const result = await oneCRequest(ONEC_SET_DESCRIPTION_ENDPOINT, {
+      method: "POST",
+      body: { НомерПоКаталогу: catalogNumber, Описание: description },
+      retries: 1,
+      retryDelayMs: 300,
+      cacheTtlMs: 0,
+    });
+    let parsed: OneCDescriptionReply = {};
+    try {
+      parsed = JSON.parse(result.text) as OneCDescriptionReply;
+    } catch {
+      // non-JSON response from 1C — treat as success if HTTP 2xx
+    }
+    const ok = result.status >= 200 && result.status < 300;
+    const message = parsed.message || parsed.error_message || parsed.error || "";
+    const notFound =
+      parsed.found === false || /не\s+найден|не\s+знайден|not\s+found/i.test(message || (ok ? "" : result.text || ""));
+    return { result, parsed, ok, message, notFound };
+  };
+
+  let attempt = await sendDescription(article);
+  if (attempt.notFound) {
+    const resolved = await resolveCatalogNumberByCode();
+    if (resolved && resolved !== article) {
+      article = resolved;
+      attempt = await sendDescription(article);
+    }
+  }
+
+  const { result, parsed } = attempt;
+  if (!attempt.ok) {
+    let oneCError: string | undefined = attempt.message || undefined;
+    if (!oneCError) oneCError = result.text?.slice(0, 200) || undefined;
+    return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
   if (parsed.success === false || parsed.found === false) {
     return json({
       ok: false,
       error:
-        parsed.message ||
-        parsed.error_message ||
-        (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
+        attempt.message ||
+        (parsed.found === false ? `Товар з номером по каталогу «${article}» не знайдено в 1С` : "1C повернула помилку"),
     }, 422);
   }
 
   clearAllOneCCache();
   clearCatalogPageRouteCache();
+  // The product page reads its initial description from the cached product
+  // data / full-catalog snapshot, which still hold the old text: without
+  // these the reload after saving rendered the previous description first
+  // and only the client's live re-check swapped it. Same approach (and the
+  // same immediate expiry) as /api/product-update.
+  invalidateFullCatalogSnapshot();
+  if (code) {
+    setProductEditOverride(code, { description });
+    patchFullCatalogSnapshotProduct(code, { description });
+  }
   try {
-    revalidateTag("product-page-data", "max");
+    revalidateTag("product-page-data", { expire: 0 });
     revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
     if (code && code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
   } catch {

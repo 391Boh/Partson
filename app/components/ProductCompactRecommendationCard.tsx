@@ -75,6 +75,11 @@ export default function ProductCompactRecommendationCard({
             alt={visibleName}
             productCode={imageCode}
             articleHint={imageArticle}
+            // The src only ever comes from the image batch, which has already
+            // verified the photo — requesting it again with strict=1 first
+            // missed the route's warm cache and cost up to ~2 s per card
+            // before the same image was fetched a second time without it.
+            disableDirectFetch
             pending={false}
             loading={imagePriority ? "eager" : "lazy"}
             fetchPriority={imagePriority ? "high" : "auto"}

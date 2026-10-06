@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import {
   Activity,
   AlertTriangle,
@@ -71,70 +70,50 @@ export default function DiagnosticsSection() {
       <Block id="booking" kicker="OBD-II / ECU / Check Engine" title="Комп'ютерна діагностика авто у Львові">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:items-start">
           <div className="space-y-5">
-            <div className="flex items-start gap-4">
-              <Prose>
-                <p>
-                  <PartsOnLink /> проводить <Strong>комп&apos;ютерну діагностику авто у Львові</Strong> для
-                  швидкого пошуку причин помилок і несправностей. Підключаємося через OBD-II/EOBD, перевіряємо
-                  електронні блоки, розшифровуємо коди Check Engine, ABS, ESP, SRS, АКПП та пояснюємо, що
-                  варто ремонтувати першим.
-                </p>
-                <p>
-                  Діагностика корисна перед купівлею авто, після ремонту, при збільшеній витраті пального,
-                  втраті тяги, ривках, аварійному режимі коробки або появі індикаторів на панелі приладів.
-                </p>
-              </Prose>
-              <figure className="hidden shrink-0 place-items-center rounded-[20px] border border-sky-100 bg-[linear-gradient(145deg,#fff,#e0f2fe)] p-3 shadow-[0_12px_26px_rgba(14,165,233,0.12)] sm:grid">
-                <Image
-                  src="/Katlogo/datchyky_ta_elektronika.png"
-                  alt="Комп'ютерна діагностика електроніки авто у Львові"
-                  width={512}
-                  height={512}
-                  sizes="80px"
-                  className="h-20 w-20 object-contain"
-                />
-              </figure>
-            </div>
+            <Prose>
+              <p>
+                <PartsOnLink /> проводить <Strong>комп&apos;ютерну діагностику авто у Львові</Strong> для
+                швидкого пошуку причин помилок і несправностей. Підключаємося через OBD-II/EOBD, перевіряємо
+                електронні блоки, розшифровуємо коди Check Engine, ABS, ESP, SRS, АКПП та пояснюємо, що
+                варто ремонтувати першим.
+              </p>
+              <p>
+                Діагностика корисна перед купівлею авто, після ремонту, при збільшеній витраті пального,
+                втраті тяги, ривках, аварійному режимі коробки або появі індикаторів на панелі приладів.
+              </p>
+            </Prose>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex items-start gap-3 rounded-[18px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb,#fef3c7)] p-4 shadow-[0_10px_24px_rgba(245,158,11,0.12)]">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-600">
-                  <Wallet size={16} strokeWidth={2} aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-amber-700">Вартість</p>
-                  <p className="text-[15px] font-extrabold text-slate-900">За домовленістю</p>
-                  <p className="text-[12.5px] font-medium text-slate-600">Після уточнення авто й симптомів.</p>
+            <dl className="info-read max-w-[42rem] divide-y divide-[#d9e3ec] border-y border-[#d9e3ec]">
+              {[
+                { icon: Wallet, term: 'Вартість', value: 'За домовленістю', note: 'після уточнення авто й симптомів' },
+                { icon: MapPin, term: 'Виїзд', value: 'Від 500 грн', note: 'по Львову або за межі міста' },
+              ].map(({ icon: TermIcon, term, value, note }) => (
+                <div key={term} className="flex items-start gap-3 py-3.5">
+                  <TermIcon size={18} strokeWidth={1.9} className="mt-[3px] shrink-0 text-sky-600" aria-hidden="true" />
+                  <dt className="w-24 shrink-0 text-[15.5px]">{term}</dt>
+                  <dd className="min-w-0 text-[15.5px]">
+                    <strong>{value}</strong> — {note}
+                  </dd>
                 </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-[18px] border border-teal-200 bg-[linear-gradient(135deg,#f0fdfa,#ccfbf1)] p-4 shadow-[0_10px_24px_rgba(20,184,166,0.1)]">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-teal-200 bg-white text-teal-600">
-                  <MapPin size={16} strokeWidth={2} aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-teal-700">Виїзд</p>
-                  <p className="text-[15px] font-extrabold text-slate-900">Від 500 грн</p>
-                  <p className="text-[12.5px] font-medium text-slate-600">По Львову або за межі міста.</p>
-                </div>
-              </div>
-            </div>
+              ))}
+            </dl>
 
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
               <a
                 href={`tel:${DIAGNOSTICS_PHONE_RAW}`}
                 aria-label={`Подзвонити Роману для запису на комп'ютерну діагностику: ${DIAGNOSTICS_PHONE_DISPLAY}`}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#0ea5e9,#0284c7_52%,#0d9488)] px-4 text-[14px] font-bold text-white shadow-[0_14px_28px_rgba(14,165,233,0.28)] transition hover:-translate-y-0.5 hover:brightness-105"
+                className="inline-flex min-h-12 items-center gap-2 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#0369a1_0%,#0284c7_55%,#0d9488_100%)] px-5 text-[15px] font-bold text-white shadow-[0_12px_24px_rgba(14,165,233,0.22)] transition hover:brightness-110"
               >
-                <Phone size={15} strokeWidth={2} aria-hidden="true" />
+                <Phone size={16} strokeWidth={2} aria-hidden="true" />
                 Роман: {DIAGNOSTICS_PHONE_DISPLAY}
               </a>
               <a
                 href={MAPS_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50"
+                className="info-read inline-flex items-center gap-2 text-[15px] !text-[#13202f] underline decoration-sky-300/70 underline-offset-4 transition hover:decoration-sky-500"
               >
-                <MapPin size={14} strokeWidth={2} aria-hidden="true" />
+                <MapPin size={16} strokeWidth={2} className="shrink-0 text-sky-600" aria-hidden="true" />
                 {ADDRESS}
               </a>
             </div>
@@ -142,18 +121,15 @@ export default function DiagnosticsSection() {
 
           <aside
             aria-label="Запис на комп'ютерну діагностику авто"
-            className="relative overflow-hidden rounded-[24px] border border-sky-100 bg-[linear-gradient(150deg,#ffffff_0%,#f8fafc_48%,#e0f2fe_100%)] p-4 shadow-[0_20px_44px_rgba(14,116,144,0.12)] ring-1 ring-white/80 sm:p-5"
+            className="rounded-[22px] border border-sky-100 bg-white/90 p-5 shadow-[0_18px_40px_rgba(14,116,144,0.1)] sm:p-6"
           >
-            <p className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10.5px] font-black uppercase tracking-[0.12em] text-sky-800">
-              <Wrench size={13} strokeWidth={2} aria-hidden="true" />
+            <h3 className="flex items-start gap-2.5 text-[20px] leading-tight text-[#13202f]">
+              <Wrench size={20} strokeWidth={1.9} className="mt-0.5 shrink-0 text-sky-600" aria-hidden="true" />
               Запис на діагностику
-            </p>
-            <h3 className="mt-2.5 text-[20px] leading-tight text-slate-900">
-              Залиште заявку — уточнимо симптоми й час візиту
             </h3>
-            <p className="mb-3 mt-1.5 text-[13px] font-medium leading-relaxed text-slate-600">
-              Передзвонимо, підкажемо, що підготувати, зорієнтуємо щодо вартості та за потреби одразу
-              підберемо запчастини після перевірки.
+            <p className="info-read mb-4 mt-2 text-[15px] leading-[1.65]">
+              Залиште телефон і коротко опишіть, що турбує. Передзвонимо, узгодимо час візиту й
+              підкажемо, що підготувати.
             </p>
             <DiagnosticsConsultationForm />
           </aside>
@@ -161,26 +137,18 @@ export default function DiagnosticsSection() {
       </Block>
 
       <Block id="systems" kicker="Системи авто" title="Що перевіряємо під час комп'ютерної діагностики">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Двигун і паливна система" icon={Gauge} tone="sky">
-            <List>
-              <Li icon={Activity}>Блок керування ECU: пропуски запалювання, суміш, датчики кисню, MAF/MAP, тиск палива, EGR, турбіна.</Li>
-            </List>
+            Блок керування ECU: пропуски запалювання, суміш, датчики кисню, MAF/MAP, тиск палива, EGR, турбіна.
           </Card>
           <Card title="Безпека та ходова" icon={ShieldCheck} tone="teal">
-            <List>
-              <Li tone="teal">ABS, ESP, SRS Airbag, електропідсилювач керма, гальмівні системи й датчики швидкості коліс.</Li>
-            </List>
+            ABS, ESP, SRS Airbag, електропідсилювач керма, гальмівні системи й датчики швидкості коліс.
           </Card>
           <Card title="Трансмісія" icon={Cpu} tone="indigo">
-            <List>
-              <Li tone="indigo">АКПП, DSG, CVT, роботизовані коробки: температура, соленоїди, адаптації та аварійні режими.</Li>
-            </List>
+            АКПП, DSG, CVT, роботизовані коробки: температура, соленоїди, адаптації та аварійні режими.
           </Card>
           <Card title="Комфортна електроніка" icon={Car} tone="cyan">
-            <List>
-              <Li tone="cyan">Клімат, парктроніки, світло, центральний замок, мережі CAN/LIN.</Li>
-            </List>
+            Клімат, парктроніки, світло, центральний замок, мережі CAN/LIN.
           </Card>
         </div>
       </Block>
@@ -216,7 +184,7 @@ export default function DiagnosticsSection() {
 
       <Block id="when" kicker="Симптоми" title="Коли варто приїхати на діагностику">
         <Card title="Не відкладайте, якщо помітили" icon={AlertTriangle} tone="rose">
-          <List className="grid gap-x-8 gap-y-2.5 space-y-0 md:grid-cols-2">
+          <List className="info-content-grid grid gap-x-8 gap-y-5 space-y-0 md:grid-cols-2">
             <Li icon={AlertTriangle} tone="rose">Горить Check Engine, ABS, ESP, Airbag, EPC, DPF, акумулятор або індикатор коробки.</Li>
             <Li icon={Activity} tone="rose">Авто погано заводиться, троїть, втрачає тягу, зросла витрата пального або з&apos;явилися ривки.</Li>
             <Li icon={Gauge} tone="rose">Коробка переходить в аварійний режим, є затримки перемикання чи поштовхи.</Li>
@@ -231,21 +199,18 @@ export default function DiagnosticsSection() {
         title="Марки та моделі, які можемо продіагностувати"
         lead="Працюємо з популярними європейськими, японськими, корейськими та американськими авто з підтримкою OBD-II/EOBD."
       >
-        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid overflow-hidden rounded-[18px] border border-[#d9e3ec] bg-white/80 sm:grid-cols-2 xl:grid-cols-3">
           {BRANDS.map(({ brand, models }) => (
-            <li
-              key={brand}
-              className="rounded-[16px] border border-slate-200/80 bg-white/90 px-4 py-3 shadow-[0_6px_16px_rgba(15,23,42,0.035)] transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_12px_24px_rgba(14,165,233,0.1)]"
-            >
-              <h3 className="text-[14.5px] text-slate-900">
+            <li key={brand} className="-mb-px -mr-px border-b border-r border-[#e6edf3] px-4 py-3 sm:px-5">
+              <h3 className="text-[15.5px] text-[#13202f]">
                 <span className="sr-only">Комп&apos;ютерна діагностика </span>
                 {brand}
               </h3>
-              <p className="mt-1 text-[12.5px] font-medium leading-relaxed text-slate-500">{models.join(' · ')}</p>
+              <p className="info-read info-read-muted mt-0.5 text-[14px] leading-[1.55]">{models.join(', ')}</p>
             </li>
           ))}
         </ul>
-        <p className="mt-4 max-w-3xl text-[13.5px] font-medium leading-6 text-slate-500">
+        <p className="info-read info-read-muted mt-4 max-w-[42rem] text-[14.5px] leading-[1.65]">
           Також перевіряємо інші моделі та модифікації. Для точного запису вкажіть марку, модель, рік
           випуску, двигун або VIN у формі консультації.
         </p>

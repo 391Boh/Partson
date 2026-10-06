@@ -1,3 +1,4 @@
+import { markProductFirestorePresence } from "app/lib/product-firestore-presence";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { getProductReviews } from "app/lib/reviews-server";
 import { NextRequest, NextResponse } from "next/server";
@@ -113,6 +114,8 @@ export async function POST(request: NextRequest) {
         createdAt: new Date(),
       });
     });
+
+    markProductFirestorePresence("reviews", productCode);
 
     return NextResponse.json(
       { ok: true },

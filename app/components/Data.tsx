@@ -115,7 +115,10 @@ const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
-const IMAGE_EAGER_ITEMS_COUNT = 4;
+// The first screen of cards (2 rows on desktop) loads its photos directly,
+// without waiting for the shared batch — the same 8 the catalog page
+// preloads in its HTML (app/katalog/page.tsx), so they come from cache.
+const IMAGE_EAGER_ITEMS_COUNT = 8;
 // List rows are much shorter than a grid card, so more of them sit in the
 // first viewport — list view eager-loads this many up front instead of
 // IMAGE_EAGER_ITEMS_COUNT. Every "how many images get to skip the shared
@@ -133,13 +136,13 @@ const VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE = ITEMS_PER_PAGE;
 const VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE = 4;
 const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
-// Matches ProductCard's actual h-[360px]/sm:h-[340px] plus CATALOG_GRID_CLASS's
-// gap-3/sm:gap-5/lg:gap-4 (372 below 640px, ~356-360 at sm/lg) — kept in sync
+// Matches ProductCard's actual h-[320px] plus CATALOG_GRID_CLASS's
+// gap-3/sm:gap-5/lg:gap-4 (332 below 640px, ~336-340 at sm/lg) — kept in sync
 // with the non-virtualized fallback below (both feed virtualRowHeightPx) so
 // crossing the VIRTUALIZATION_MIN_ITEMS threshold via "load more" doesn't
 // swap from one guess to a different guess before the real ResizeObserver
 // measurement lands a frame later — that mismatch was a visible row-jump.
-const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 358;
+const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 338;
 // Keep only a small, generous window mounted once the catalog grows beyond
 // three API pages. This prevents images, card effects and React reconciliation
 // for old pages from competing with the browser's scroll frame.
@@ -5549,7 +5552,7 @@ const Data: React.FC<DataProps> = ({
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
-  // List view's row height differs from the grid card's fixed 340-360px, and
+  // List view's row height differs from the grid card's fixed 320px, and
   // the virtual window's spacer math assumes that fixed height — rather than
   // re-deriving it for a second layout, list mode simply renders unwindowed
   // (its rows are much shorter than a flip-card, so more of them mounted at
@@ -5759,7 +5762,7 @@ const Data: React.FC<DataProps> = ({
     if (typeof window === "undefined") return;
 
     if (!shouldUseVirtualWindow) {
-      const estimatedHeight = viewportWidth < 640 ? 372 : 358;
+      const estimatedHeight = viewportWidth < 640 ? 332 : 338;
       setVirtualRowHeightPx(estimatedHeight);
       setVirtualWindowRange({
         startIndex: 0,

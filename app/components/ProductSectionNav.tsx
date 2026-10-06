@@ -61,7 +61,7 @@ export default function ProductSectionNav({
         linkRect.left < railRect.left
           ? linkRect.left - railRect.left
           : linkRect.right - railRect.right;
-      rail.scrollBy({ left: delta, behavior: "smooth" });
+      rail.scrollBy({ left: delta, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     }
   }, [activeHref]);
 
@@ -71,11 +71,12 @@ export default function ProductSectionNav({
   // so back/forward and reload/deep-linking behave exactly as a normal
   // anchor link would) makes clicking one of these visibly do something.
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = document.getElementById(href.slice(1));
     if (!target) return;
     event.preventDefault();
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.history.pushState(null, "", href);
+    target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    if (window.location.hash !== href) window.history.pushState(null, "", href);
     setActiveHref(href);
   };
 

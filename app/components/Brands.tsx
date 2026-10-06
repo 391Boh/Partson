@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Info, Search, ShoppingBag, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
@@ -75,7 +75,7 @@ const handleBrandLogoLoadError = (event: SyntheticEvent<HTMLImageElement>) => {
 };
 
 type BrandSearchInputProps = {
-  value: string;
+  defaultValue: string;
   onChange: (value: string) => void;
   className?: string;
   // Collapse-to-button is owned by the parent (the "Швидкий пошук" trigger
@@ -90,7 +90,14 @@ type BrandSearchInputProps = {
 const BRAND_SEARCH_EXAMPLES = ["Bosch", "Brembo", "Continental", "Castrol", "Febi", "Sachs"];
 
 const BrandSearchInput = memo(
-  ({ value, onChange, className, onCollapse }: BrandSearchInputProps) => {
+  ({ defaultValue, onChange: onSearchChange, className, onCollapse }: BrandSearchInputProps) => {
+    const [value, setValue] = useState(defaultValue);
+    const onChange = useCallback((next: string) => {
+      // Paint the typed character first; rebuilding the manufacturer rail
+      // can yield to subsequent keystrokes instead of blocking the input.
+      setValue(next);
+      startTransition(() => onSearchChange(next));
+    }, [onSearchChange]);
     const [animatedPlaceholder, setAnimatedPlaceholder] = useState(BRAND_SEARCH_EXAMPLES[0] ?? "");
 
     useEffect(() => {
@@ -850,6 +857,7 @@ export default function BrandCarousel({
                 moved down next to the pager instead (reveal-tail below),
                 since that's the control it's actually paired with. */}
             <div className="mt-5">
+              <div className="h-[62px]">
               <AnimatePresence mode="wait" initial={false}>
                 {!isSearchOpen ? (
                   <motion.div
@@ -890,10 +898,11 @@ export default function BrandCarousel({
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
                   >
-                    <BrandSearchInput value={search} onChange={setSearch} onCollapse={() => setIsSearchOpen(false)} />
+                    <BrandSearchInput defaultValue={search} onChange={setSearch} onCollapse={() => setIsSearchOpen(false)} />
                   </motion.div>
                 )}
               </AnimatePresence>
+              </div>
 
               <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
                 {search.trim() ? "Знайдено " : "Доступно для пошуку: "}

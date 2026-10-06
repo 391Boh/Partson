@@ -16,7 +16,7 @@ let products = [
 let calls = [];
 let fail = false;
 let malformed = false;
-const fields = ["Наименование", "НомерПоКаталогу", "Код", "ПроизводительНаименование"];
+const fields = ["Наименование", "НомерПоКаталогу", "Код", "ПроизводительНаименование", "Описание"];
 const transport = async (_endpoint, options) => {
   calls.push(options.body);
   if (fail) return { status: 503, text: "unavailable" };
@@ -27,7 +27,7 @@ const transport = async (_endpoint, options) => {
   let items = products.filter((p) => {
     // Reproduce the service's noisy name matches for OEM identifiers.
     if (field === "Наименование" && query === "oc90") return true;
-    return !field || p[field].toLowerCase().includes(query);
+    return !field || (p[field] || "").toLowerCase().includes(query);
   });
   const direction = body.СортировкаПоЦене;
   const price = (p) => p.ЦінаПрод > 0 ? p.ЦінаПрод : direction === "ASC" ? 999999999999 : -1;
@@ -114,6 +114,34 @@ products = [
   product("004", "Інший товар", "XX", "OC90", 0),
   product("005", "Фільтр Golf 4", "G4", "BOSCH", 15),
 ];
+
+// Description-only hits participate in the union and retain every page.
+products = Array.from({length:45}, (_,i)=>({
+  ...product(String(i).padStart(4,"0"), i===0?"Сумісність Golf":"Запчастина", i===1?"Golf-REF":"PART-"+i),
+  Описание: i<2?"":`Сумісність Golf 4, двигун 1.9 TDI`,
+}));
+assert.deepEqual(await collect("Golf", {limit:16}), products.map(p=>p.Код));
+assert.deepEqual(await collect("Golf", {searchFilter:"description",limit:16}), products.slice(2).map(p=>p.Код));
+assert.deepEqual(await collect("Golf", {searchFilter:"article"}), ["0001"]);
+assert.deepEqual(await collect("Golf", {searchFilter:"name"}), ["0000"]);
+assert.ok(calls.filter(body=>body.Описание).every(body=>body.ВключатьОписание===true));
+// Unsupported description filters may return fuzzy batches: verify locally
+// and continue until a genuine match, without the old 400-item scan cutoff.
+const fuzzyDescriptions=loadCatalogSearch(async (_endpoint,{body})=>{
+  const rows=Array.from({length:520},(_,i)=>({...product(String(i).padStart(4,"0"),"Інший товар","X"),Описание:i===519?"Сумісність Golf":"Інше"}));
+  const matches=rows.filter(p=>!body.ПослеКода||p.Код>body.ПослеКода);
+  const page=matches.slice(0,body.Лимит);
+  return {status:200,text:JSON.stringify({items:page,has_more:matches.length>page.length,next_cursor:matches.length>page.length?page.at(-1).Код:""})};
+});
+assert.deepEqual(Array.from((await fuzzyDescriptions.fetchCatalogProductsByQuery({searchQuery:"Golf",searchFilter:"description",limit:16,forceAllgoodsSource:true,includePriceEnrichment:false})).items,p=>p.code),["0519"]);
+// A warmed index must include descriptions and agree with the live union.
+await api.fetchPromoCatalogProducts();
+const indexed=await api.searchCatalogIndex("Golf",{filter:"all",limit:100});
+assert.deepEqual(Array.from(indexed.items,p=>p.code),products.map(p=>p.Код));
+assert.equal(indexed.totalCount,45);
+const partial=loadCatalogSearch(async (_endpoint,{body})=>body.ПослеКода?{status:503,text:"unavailable"}:{status:200,text:JSON.stringify({items:[products[0]],has_more:true,next_cursor:products[0].Код})});
+await assert.rejects(partial.fetchPromoCatalogProducts(),/snapshot request failed/);
+assert.equal(await partial.searchCatalogIndex("Golf",{filter:"all",limit:16}),null);
 
 console.log("Catalog search regression checks passed: fields, duplicates, pagination, sorting, layout, transliteration, failures and fuzzy matches.");
 

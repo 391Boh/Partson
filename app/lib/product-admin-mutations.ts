@@ -77,7 +77,8 @@ export async function saveProductAdminFields(
       fetch("/api/product-update-description", {
         method: "POST",
         headers,
-        body: JSON.stringify({ article, description: data.description }),
+        // code lets the route patch the product page's cached copy right away.
+        body: JSON.stringify({ article, code, description: data.description }),
       })
         .then(async (r) => {
           const payload = await r.json() as ProductAdminMutationResult;

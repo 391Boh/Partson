@@ -75,7 +75,7 @@ export default function PrivacySection() {
 
       <Block id="sharing" kicker="Передача даних" title="Кому можуть передаватися дані">
         <Card title="Лише в межах необхідного" icon={Truck} tone="amber">
-          <List className="grid gap-x-8 gap-y-2.5 space-y-0 md:grid-cols-2">
+          <List className="info-content-grid grid gap-x-8 gap-y-5 space-y-0 md:grid-cols-2">
             <Li icon={Truck} tone="amber">Службам доставки: Нова Пошта, Укрпошта, Meest або іншим перевізникам, яких обирає клієнт.</Li>
             <Li icon={CreditCard} tone="amber">Платіжним сервісам і банкам для проведення онлайн-оплати або повернення коштів.</Li>
             <Li icon={MessageCircle} tone="amber">Google Customer Reviews — email, номер замовлення, країна та очікувана дата доставки для показу добровільної пропозиції залишити відгук.</Li>
@@ -86,7 +86,7 @@ export default function PrivacySection() {
       </Block>
 
       <Block id="protection" kicker="Безпека" title="Захист, строки зберігання та ваші права">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Захист і строки зберігання" icon={ShieldCheck} tone="indigo">
             <List>
               <Li icon={ShieldCheck} tone="indigo">Організаційні та технічні заходи захисту від втрати, несанкціонованого доступу або розголошення.</Li>

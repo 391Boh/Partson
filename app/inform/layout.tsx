@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Onest } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
@@ -38,6 +39,16 @@ export const metadata: Metadata = {
   title: { default: "Інформація для клієнтів", template: "%s | PartsON" },
 };
 
+// Reading face for the info pages' long-form text (headings stay in the
+// site's Exo 2). Onest is drawn for Cyrillic body copy; next/font self-hosts
+// it at build time, so the browser never contacts Google (CSP font-src
+// 'self' still holds).
+const readingFont = Onest({
+  subsets: ["cyrillic", "latin"],
+  display: "swap",
+  variable: "--font-reading",
+});
+
 export default function InformLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <div className={readingFont.variable}>{children}</div>;
 }

@@ -1186,6 +1186,9 @@ export async function generateMetadata({
     title,
     description,
     canonicalPath: buildManufacturerPath(producer.slug),
+    // A brand known only from the static brand list (no products in the
+    // catalog) renders a thin page — keep it reachable but out of the index.
+    index: producer.productCount > 0,
     keywords: buildManufacturerKeywords(producer.label),
     openGraphTitle: `${title} | PartsON`,
     image: producerImage ?? {

@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { registerParallax } from "app/lib/parallax-controller";
 
 const BASE_SCALE = 1.025;
-const PROGRESS_STEPS = 240;
+const PROGRESS_STEPS = 1024;
 
 export default function HeroParallaxBackground({ children }: { children: ReactNode }) {
   const photoRef = useRef<HTMLDivElement>(null);
@@ -46,10 +46,10 @@ export default function HeroParallaxBackground({ children }: { children: ReactNo
           lastStep = step;
           const p = step / PROGRESS_STEPS;
           const eased = p * p * (3 - 2 * p);
-          photo.style.transform = `translate3d(0,${(eased * 40 * factor).toFixed(2)}px,0) scale(${(BASE_SCALE + eased * 0.07 * factor).toFixed(4)})`;
+          photo.style.transform = `translate3d(0,${(eased * 5 * factor).toFixed(3)}%,0) scale(${(BASE_SCALE + eased * 0.11 * factor).toFixed(4)})`;
         },
-        // Follow native scroll directly: no easing-tail frames after scroll stops.
-        ease: false,
+        // Brief smoothing keeps wheel input fluid and direction changes crisp.
+        ease: true,
         heavy: true,
       });
     };

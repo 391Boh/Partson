@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ImageOff, Maximize2 } from "lucide-react";
 
-import ImageModal from "app/components/ImageModal";
+import dynamic from "next/dynamic";
+
+const ImageModal = dynamic(() => import("app/components/ImageModal"), { ssr: false });
 import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import {
   clearProductImageMissing,
@@ -375,6 +377,15 @@ export default function ProductImageWithFallback({
     <>
       <div
         onClick={openLightbox}
+        role={canOpen ? "button" : undefined}
+        tabIndex={canOpen ? 0 : undefined}
+        aria-label={canOpen ? `Збільшити фото: ${alt}` : undefined}
+        onKeyDown={(event) => {
+          if (canOpen && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            openLightbox();
+          }
+        }}
         className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)] ${
           canOpen ? "cursor-zoom-in" : ""
         }`}
@@ -397,7 +408,9 @@ export default function ProductImageWithFallback({
             onError={handleError}
             width={width}
             height={height}
-            sizes="(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
+            sizes={variant === "catalog"
+              ? "(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
+              : "(max-width: 639px) 280px, (max-width: 1023px) 460px, 520px"}
             placeholder="blur"
             blurDataURL={BLUR_DATA_URL}
             // /product-image/[code] used to be listed here too, which made

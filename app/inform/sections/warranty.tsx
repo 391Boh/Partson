@@ -37,7 +37,7 @@ export default function WarrantySection() {
             оформлення замовлення.
           </p>
         </Prose>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid mt-8 grid gap-6 md:grid-cols-2">
           <Card title="Гарантійний строк" icon={Clock} tone="teal">
             <List>
               <Li tone="teal">Стандартно — <Strong>від 12 місяців</Strong> залежно від виробника й категорії товару.</Li>
@@ -67,7 +67,7 @@ export default function WarrantySection() {
       </Block>
 
       <Block id="quality" kicker="Контроль якості" title="Як ми дбаємо про якість товарів">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="info-content-grid grid gap-6 md:grid-cols-2">
           <Card title="Перевірені бренди" icon={Star} tone="amber">
             <List>
               <Li tone="amber">Постачаємо лише <Strong>перевірені бренди</Strong> — виробників із підтвердженою якістю.</Li>

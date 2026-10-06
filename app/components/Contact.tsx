@@ -245,7 +245,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         aria-labelledby="contact-modal-title"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className="customer-overlay-panel customer-overlay-panel--contact soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter overflow-y-auto overflow-x-hidden"
+        className="customer-window customer-overlay-panel customer-overlay-panel--contact soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter overflow-y-auto overflow-x-hidden"
       >
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 rounded-full" />
@@ -262,7 +262,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
               </p>
             </div>
 
-            <button onClick={onClose} className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
               <X size={22} strokeWidth={2.5} />
             </button>
           </div>
@@ -270,6 +270,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
           <div className="soft-panel-tabs">
             <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">
               <button
+                aria-pressed={tab === "phones"}
                 onClick={() => {
                   setTab("phones");
                 }}
@@ -284,6 +285,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
               </button>
 
               <button
+                aria-pressed={tab === "address"}
                 onClick={() => {
                   setTab("address");
                 }}
@@ -303,14 +305,14 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
             <div className="space-y-1.5 pb-1">
               {tab === "phones" && (
                 <div className="space-y-1.5">
-                  <div className="grid grid-cols-1 gap-1.5 min-[430px]:grid-cols-2">
+                  <div className="customer-contact-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {CONTACT_PEOPLE.map((c) => {
                       const operator = getOperatorInfo(c.phone);
 
                       return (
                         <div
                           key={c.phone}
-                          className="soft-surface-card group relative w-full overflow-hidden rounded-[18px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(2,6,23,0.18),0_6px_14px_rgba(14,165,233,0.09)] sm:rounded-[20px] sm:px-3 sm:py-3"
+                          className="customer-contact-card soft-surface-card group relative w-full overflow-hidden rounded-[18px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(2,6,23,0.18),0_6px_14px_rgba(14,165,233,0.09)] sm:rounded-[20px] sm:px-3 sm:py-3"
                         >
                           <div className="flex items-center gap-2">
                             <div className="relative shrink-0">
@@ -322,18 +324,19 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13px] font-bold text-slate-900">{c.name}</p>
-                              <p className="mt-0.5 truncate text-[9.5px] font-bold uppercase tracking-[0.09em] text-slate-400">
+                              <p className="truncate text-[15px] font-bold text-slate-900">{c.name}</p>
+                              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
                                 {c.role}
                               </p>
                               <div className="mt-1 flex min-w-0 items-center gap-1.5">
-                                <p className="min-w-0 truncate text-[11.5px] font-semibold text-slate-600">{c.phone}</p>
+                                <p className="min-w-0 truncate text-[14px] font-semibold text-slate-600">{c.phone}</p>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyPhone(c.phone)}
                                   className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white/90 text-slate-400 shadow-[0_4px_10px_rgba(148,163,184,0.16)] transition hover:bg-sky-50 hover:border-sky-200 hover:text-sky-500"
                                   aria-label={`Скопіювати номер ${c.phone}`}
                                   title="Скопіювати номер"
+                                  data-contact-copy
                                 >
                                   {copiedPhone === c.phone ? <Check size={11} /> : <Copy size={11} />}
                                 </button>
@@ -348,7 +351,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                             </span>
                           </div>
 
-                          <div className="mt-2 grid grid-cols-2 gap-1.5">
+                          <div className="customer-contact-actions mt-4 grid grid-cols-2 gap-2">
                             {c.actions.map((action) => (
                               <button
                                 key={action}

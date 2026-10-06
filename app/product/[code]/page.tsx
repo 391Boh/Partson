@@ -30,6 +30,9 @@ import ProductGallery from "app/components/ProductGallery";
 import ProductSectionNav from "app/components/ProductSectionNav";
 import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
+import ProductDescriptionServerCard, {
+  startProductDescriptionLookup,
+} from "app/components/ProductDescriptionServerCard";
 import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
@@ -55,14 +58,17 @@ import {
   resolveProductCodeFromNameSlug,
   resolveProductCodeFromSeoRoute,
 } from "app/lib/product-route-resolver";
+import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critical-css";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { buildProductFaqJsonLd } from "app/lib/product-faq";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { normalizeProductDisplayName } from "app/lib/product-display-name";
 import { buildProductMetaDescription, buildProductSeoTitle, buildProductImageAlt } from "app/lib/product-seo-copy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProductEditOverride } from "app/lib/product-edit-overrides";
+import { getProductFirestorePresence } from "app/lib/product-firestore-presence";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
   getAllPricedProductSitemapEntries,
@@ -373,7 +379,7 @@ const buildPureProductName = (
     const nameEnd = stopCandidates.length > 0 ? Math.min(...stopCandidates) : baseName.length;
     const extracted = baseName.slice(nameStart, nameEnd).replace(/\s{2,}/g, " ").trim();
     if (extracted) {
-      return extracted;
+      return normalizeProductDisplayName(extracted);
     }
   }
 
@@ -415,7 +421,7 @@ const buildPureProductName = (
     cleaned = cleaned.replace(categoryTailRegex, "").replace(/\s{2,}/g, " ").trim();
   }
 
-  return cleaned || baseName;
+  return normalizeProductDisplayName(cleaned || baseName);
 };
 
 const buildReadableNameFromSlugSource = (value: string) => {
@@ -486,7 +492,7 @@ const buildFrontendProductHeading = (
       .trim();
   }
 
-  return cleaned || buildPureProductName(value, hints);
+  return cleaned ? normalizeProductDisplayName(cleaned) : buildPureProductName(value, hints);
 };
 
 const buildCatalogProductFromSitemapEntry = (
@@ -1630,8 +1636,11 @@ export async function generateMetadata({
     }
   }
 
-  const routeProduct = routeData.product;
   const resolvedCode = (routeData.code || fallbackCode || "").trim();
+  const metadataOverride = getProductEditOverride(resolvedCode);
+  const routeProduct = routeData.product && metadataOverride
+    ? { ...routeData.product, ...metadataOverride } as CatalogProduct
+    : routeData.product;
   const fallbackTitleSource =
     routeSlugs?.nameSlug || resolvedCode || decodedParam || "Товар";
   const productProducer = (routeProduct?.producer || "").trim();
@@ -1821,11 +1830,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // product refresh. Starting the timers after that refresh added its entire
   // duration to the nominal 900ms budget on a slow Firestore response.
   const earlyResolvedCode = resolvedCode;
+  // Most products have no reviews and no extra photos: skip those per-product
+  // Firestore reads (~0.7 s before the first byte) when the catalog-wide
+  // presence index says there is nothing to fetch. Before its first scan
+  // completes (null) the reads run as before.
+  const firestorePresence = getProductFirestorePresence();
   const earlyReviewsPromise = earlyResolvedCode
-    ? loadProductPageReviews(earlyResolvedCode)
+    ? firestorePresence && !firestorePresence.reviews.has(earlyResolvedCode)
+      ? Promise.resolve<ProductPageReviews>([null, null])
+      : loadProductPageReviews(earlyResolvedCode)
     : null;
   const earlyGalleryImagesPromise = earlyResolvedCode
-    ? loadProductPageGallery(earlyResolvedCode)
+    ? firestorePresence && !firestorePresence.gallery.has(earlyResolvedCode)
+      ? Promise.resolve<string[]>([])
+      : loadProductPageGallery(earlyResolvedCode)
     : null;
 
   if (resolvedCode && product) {
@@ -1954,6 +1972,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     product = { ...product, ...productEditOverride } as CatalogProduct;
   }
 
+  // Start the 1C description lookup now, while the rest of the page is still
+  // being prepared, rather than when its Suspense boundary renders — by then
+  // the analog/similar-item queries already hold allgoods' few 1C slots and a
+  // ~0.2 s lookup waited up to the boundary's whole timeout in their queue.
+  const descriptionLookup = product.description?.trim()
+    ? null
+    : startProductDescriptionLookup(
+        (product.code || resolvedCode).trim(),
+        (product.article || "").trim()
+      );
+
   const isModalView = false;
   const isSeoResolvedInternally = false;
   const canonicalPath = buildCanonicalProductPath(product, resolvedCode);
@@ -1977,6 +2006,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : Array.from(
         new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
       );
+  // Description only: code first, same order as the catalog card/list row.
+  // The 1C code is unique per product while an article can repeat across
+  // producers, and the description lookup takes the first key that has one.
+  // The identical order also makes the page and the catalog share one client
+  // cache entry, so an admin edit from the catalog clears it for both.
+  const descriptionLookupKeys = Array.from(
+    new Set([product.code.trim() || resolvedCode, product.article.trim()].filter(Boolean))
+  );
   const inlineInitialPriceEuro = toPositiveNumberOrNull(product.priceEuro);
   const shouldEmitProductStructuredData = !isModalView && hasResolvedCatalogProduct;
   const productCategory = (product.category || "").trim();
@@ -2135,7 +2172,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : "grid gap-3 px-3 py-2.5 sm:gap-3.5 sm:px-5 sm:py-3.5 lg:px-7 lg:py-4";
   const heroProductImageClass = isModalView
     ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
-    : "mx-auto aspect-square w-full max-w-[360px] rounded-[20px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[460px] lg:max-w-[520px]";
+    : "mx-auto aspect-square w-full max-w-[280px] rounded-[20px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[460px] lg:max-w-[520px]";
   const descriptionTextClass = isModalView
     ? "mt-1.5 space-y-2 break-words text-sm font-medium leading-relaxed text-slate-700"
     : "mt-2.5 space-y-2.5 break-words text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
@@ -2218,11 +2255,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
       icon: Truck,
     },
   ];
+  // Product page's own critical CSS (see app/lib/critical-css.ts): React
+  // hoists this small render-blocking <link> into <head>, and the root
+  // layout's loader then fetches the full site stylesheet without blocking
+  // first paint. Without the file the full stylesheet stays render-blocking.
+  const criticalCssHref = resolveCriticalCssHref("product");
   return (
     <div
       className={isModalView ? "min-h-screen bg-white text-slate-900" : "min-h-screen text-slate-900"}
       style={isModalView ? undefined : pageBackground}
     >
+      {criticalCssHref ? (
+        <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
+      ) : null}
       <div
         className={
           isModalView
@@ -2236,8 +2281,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           }`}
         >
           <header className="relative overflow-hidden border-b border-slate-200/80 bg-[linear-gradient(145deg,#f8fbff_0%,#ffffff_48%,#f0fdfa_100%)] px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
-            <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-sky-200/30 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-teal-100/50 blur-3xl" />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(186,230,253,0.3),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(204,251,241,0.3),transparent_55%)]" />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#0ea5e9,#22d3ee_45%,#14b8a6)]" />
 
             <div className="relative mx-auto max-w-[1280px]">
@@ -2262,17 +2306,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
               )}
 
               <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.08fr)] lg:gap-x-6 lg:gap-y-4 xl:grid-cols-[minmax(410px,0.9fr)_minmax(0,1.1fr)] xl:gap-x-8">
-                {/* Photo first on mobile (order-1) — the standard "see the
-                    product before reading about it" pattern; the info block
-                    below used to come first, pushing the actual photo past
-                    the title/rating/producer text on a phone. Desktop keeps
-                    its original side-by-side order (lg:order-1) since that
-                    layout doesn't have this stacking problem. */}
-                <div className="order-1 min-w-0 lg:order-1 lg:row-span-2">
-                  <div className="group/photo relative flex h-full min-h-[310px] flex-col overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_18px_48px_rgba(15,23,42,0.09)] ring-1 ring-slate-200/70 sm:min-h-[410px] sm:rounded-[26px] lg:min-h-[520px]">
+                <div className="order-2 min-w-0 lg:order-1 lg:row-span-2">
+                  <div className="group/photo relative flex h-full min-h-[290px] flex-col overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_12px_32px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70 sm:min-h-[410px] sm:rounded-[26px] lg:min-h-[520px]">
                     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(224,242,254,0.78),transparent_48%),linear-gradient(155deg,rgba(255,255,255,0)_55%,rgba(20,184,166,0.07))]" />
                     <span className="pointer-events-none absolute -left-1/2 top-0 z-10 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent transition-transform duration-1000 ease-out group-hover/photo:translate-x-[520%] motion-reduce:hidden" />
-                    <div className="relative flex min-h-[270px] flex-1 items-center justify-center p-3 sm:min-h-[350px] sm:p-6 lg:min-h-[430px]">
+                    <div className="relative flex min-h-[260px] flex-1 items-center justify-center p-3 sm:min-h-[350px] sm:p-6 lg:min-h-[430px]">
                       <ProductImageWithFallback
                         alt={buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article })}
                         width={720}
@@ -2286,6 +2324,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         hasKnownPhoto={productHasKnownPhoto}
                         preferCachedPreview
                         syncWithProductGallery
+                        // The page's LCP image goes straight to /product-image,
+                        // which already serves a cached, recompressed WebP
+                        // (measured: median 14 KB / 800px, p90 37 KB). Through
+                        // /_next/image every product × width was a separate
+                        // cold AVIF encode on the VPS — 0.9–1.5 s before the
+                        // first byte, i.e. most of the page's LCP.
+                        unoptimized
                         className={heroProductImageClass}
                       />
                     </div>
@@ -2298,7 +2343,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
                 </div>
 
-                <div className="order-2 min-w-0 lg:order-2">
+                <div className="order-1 min-w-0 lg:order-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
                       {productEyebrowLabel}
@@ -2307,10 +2352,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <ProductStockBadge code={product.code || resolvedCode} quantity={product.quantity} />
                   </div>
 
-                  <div className="relative mt-3 border-l-[3px] border-sky-500 pl-3.5 sm:mt-4 sm:pl-4">
+                  <div className="relative mt-3 sm:mt-4">
                     <h1
                       style={{ fontStyle: "normal" }}
-                      className="font-display max-w-[27ch] break-words text-[clamp(1.65rem,3.2vw,2.8rem)] font-extrabold leading-[1.06] tracking-[-0.042em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
+                      className="font-display max-w-[27ch] break-words text-[clamp(1.45rem,3.2vw,2.65rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
                     >
                       {productHeadingText}
                     </h1>
@@ -2364,9 +2409,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </div>
                   ) : null}
 
-                  <div className="mt-4 grid overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/80 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:grid-cols-2">
+                  <div className="mt-4 grid overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/80 shadow-[0_10px_30px_rgba(15,23,42,0.05)] grid-cols-2">
                     {product.producer ? (
-                      <div className="flex min-h-[72px] items-center gap-3 border-b border-slate-200/80 px-3.5 py-3 sm:border-b-0 sm:border-r">
+                      <div className="flex min-h-[60px] items-center gap-3 border-r border-slate-200/80 px-3.5 py-2">
                         {producerLogoPath ? (
                           <div className="grid h-11 w-16 shrink-0 place-items-center rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm">
                             <Image
@@ -2394,13 +2439,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       </div>
                     ) : null}
                     {visibleProductSubgroup || visibleProductGroup ? (
-                      <div className={`flex min-h-[72px] items-center gap-3 px-3.5 py-3 ${!product.producer ? "sm:col-span-2" : ""}`}>
+                      <div className={`flex min-h-[60px] items-center gap-3 px-3.5 py-2 ${!product.producer ? "col-span-2" : ""}`}>
                         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700">
                           <PackageSearch size={21} aria-hidden="true" />
                         </span>
                         <div className="min-w-0">
                           <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Категорія</p>
-                          <Link href={categoryLandingHref} className="mt-1 block truncate text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">
+                          <Link href={categoryLandingHref} className="mt-1 block break-words text-[12px] leading-snug sm:text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">
                             {visibleProductSubgroup || visibleProductGroup}
                           </Link>
                         </div>
@@ -2423,7 +2468,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     isInStock={isInStock}
                   />
 
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[15px] border border-white bg-white/65 px-3.5 py-3 text-[10px] font-bold text-slate-600 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[15px] border border-white bg-white/65 px-3.5 py-2 text-[10px] font-bold text-slate-600 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
                     {productHeroHighlights.map(({ label, icon: HighlightIcon }) => (
                       <span key={label} className="inline-flex items-center gap-1.5">
                         <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
@@ -2464,23 +2509,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className={contentGridClass}>
             <section id="product-description" className="scroll-mt-24 space-y-3">
               <div className="grid gap-2.5">
-                <ProductDescriptionClientCard
-                  initialText={product.description || null}
-                  lookupKeys={lookupKeys}
-                  isModalView={isModalView}
-                  descriptionTextClass={descriptionTextClass}
-                  enableClientLookup
-                  fitmentText={productFitmentText}
-                  contactPhone={STORE_PHONE_DISPLAY}
-                  contactAddress={STORE_ADDRESS}
-                  chatButton={
-                    <OpenChatButton
-                      message={chatPrefillMessage}
-                      title="Відкрити чат з менеджером"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-sky-200 bg-white text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
+                <Suspense
+                  fallback={
+                    <ProductDescriptionClientCard
+                      initialText={null}
+                      lookupKeys={descriptionLookupKeys}
+                      isModalView={isModalView}
+                      descriptionTextClass={descriptionTextClass}
+                      enableClientLookup
+                      fitmentText={productFitmentText}
+                      contactPhone={STORE_PHONE_DISPLAY}
+                      contactAddress={STORE_ADDRESS}
                     />
                   }
-                />
+                >
+                  <ProductDescriptionServerCard
+                    descriptionLookup={descriptionLookup}
+                    initialText={product.description || null}
+                    lookupKeys={descriptionLookupKeys}
+                    isModalView={isModalView}
+                    descriptionTextClass={descriptionTextClass}
+                    enableClientLookup
+                    fitmentText={productFitmentText}
+                    contactPhone={STORE_PHONE_DISPLAY}
+                    contactAddress={STORE_ADDRESS}
+                    chatButton={
+                      <OpenChatButton
+                        message={chatPrefillMessage}
+                        title="Відкрити чат з менеджером"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-sky-200 bg-white text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
+                      />
+                    }
+                  />
+                </Suspense>
               </div>
 
               {!isModalView && (

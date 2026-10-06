@@ -24,6 +24,10 @@ export type ManufacturerListItem = {
   description: string | null;
   logoPath: string | null;
   productCount: number;
+  // Priced + photographed products only — what the brand page itself lists
+  // and bases its index/noindex decision on. productCount above may also
+  // include unfiltered 1C totals.
+  publicProductCount: number;
   groupsCount: number;
   categoriesCount: number;
 };
@@ -89,6 +93,7 @@ export const buildManufacturersDirectoryData = async (
       description: brand.description ?? null,
       logoPath: resolveProducerLogo(label, logoMap) || brand.logo || null,
       productCount: 0,
+      publicProductCount: 0,
       groupsCount: 0,
       categoriesCount: 0,
     });
@@ -110,6 +115,10 @@ export const buildManufacturersDirectoryData = async (
         `Виробник ${label} у каталозі PartsON з прямим переходом до товарів бренду.`,
       logoPath: existing?.logoPath || resolveProducerLogo(label, logoMap) || null,
       productCount: Math.max(existing?.productCount || 0, producer.productCount || 0),
+      publicProductCount: Math.max(
+        existing?.publicProductCount || 0,
+        producer.productCount || 0
+      ),
       groupsCount: Math.max(existing?.groupsCount || 0, producer.groupsCount || 0),
       categoriesCount: Math.max(
         existing?.categoriesCount || 0,

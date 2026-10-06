@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import { clearBrowserCatalogCache } from "app/components/Data";
+import { QuantityStepper } from "app/components/QuantityStepper";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
 import {
@@ -657,11 +658,16 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               </div>
 
               <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Кількість — ціле число; 0 означає відсутність товару.</p>
-              <Field label="Початкова кількість, шт.">
-                <input type="text" inputMode="numeric" value={fields.quantity}
-                  onChange={(e) => set("quantity", e.target.value)}
-                  className={fieldClass} />
-              </Field>
+              {/* Not <Field>: that wraps its child in a <label>, and a click on
+                  the label text would activate the first button inside — "−". */}
+              <div>
+                <p className="mb-1 block text-xs font-semibold text-slate-500">Початкова кількість, шт.</p>
+                <QuantityStepper
+                  value={fields.quantity}
+                  onChange={(next) => set("quantity", next)}
+                  ariaLabel="Початкова кількість, шт."
+                />
+              </div>
 
               <Field label="Опис (необов'язково)">
                 <textarea

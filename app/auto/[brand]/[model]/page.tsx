@@ -24,6 +24,7 @@ import {
 import { getCategoryIconPath } from "app/lib/category-icons";
 import {
   findCarBrandBySlug,
+  buildAutoModelKey,
   findCarModelInBrand,
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
@@ -144,7 +145,18 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
   // getModelGroupBreakdown is React cache()-wrapped, so calling it here and
   // again in the page body for the same (brand, model) is deduped within the
   // same request — no extra 1C round-trip, just a richer, accurate description.
-  const { groups } = await getModelGroupBreakdown(brand, model);
+  const [{ groups }, verifiedModelKeys] = await Promise.all([
+    getModelGroupBreakdown(brand, model),
+    getVerifiedAutoModelKeys(),
+  ]);
+  // Only models with real products are indexed (the same verified set the
+  // auto sitemap submits). A model with no matching groups is a thin page;
+  // a verified one stays indexable even if this render's 1C breakdown timed
+  // out to empty. Without the snapshot, keep the previous behaviour.
+  const indexable =
+    !verifiedModelKeys ||
+    groups.length > 0 ||
+    verifiedModelKeys.has(buildAutoModelKey(brand, model));
   const brandLower = brand.toLowerCase();
   const modelLower = model.toLowerCase();
   const title = buildModelTitle(brand, model, groups.length);
@@ -154,6 +166,7 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
     title,
     description,
     canonicalPath: buildAutoModelPath(brand, model),
+    index: indexable,
     keywords: [
       `запчастини ${brandLower} ${modelLower}`,
       `${brandLower} ${modelLower} запчастини`,

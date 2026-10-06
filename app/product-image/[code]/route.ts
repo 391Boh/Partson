@@ -93,8 +93,13 @@ const CATALOG_IMAGE_RETRY_LOOKUP_OPTIONS = {
   allowUrlDownload: true,
   skipMissCache: true,
 };
+// The last attempt (and the card's delayed late-recovery requests, which
+// clamp to retry=2) only happens after two failures for an item the catalog
+// says has a photo — by then a 1C timeout is far likelier "1C is busy" than
+// "no photo" (a genuine miss is answered quickly and authoritatively), so
+// give a slow answer real room instead of failing the card a third time.
 const CATALOG_IMAGE_FINAL_LOOKUP_OPTIONS = {
-  timeoutMs: 1500,
+  timeoutMs: 4000,
   retries: 0,
   retryDelayMs: 80,
   cacheTtlMs: 1000 * 60 * 20,

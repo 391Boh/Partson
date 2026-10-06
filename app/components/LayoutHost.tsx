@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentType, ReactNode } from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { LayoutAccountRuntimeProps } from "./LayoutAccountRuntime";
 import Header from "./Header";
@@ -393,7 +393,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       void import("./ChatButton")
         .then((module) => {
           if (!cancelled) {
-            setChatButtonComponent(() => module.default);
+            startTransition(() => setChatButtonComponent(() => module.default));
           }
         })
         .catch((error) => {
@@ -402,6 +402,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
 
     let timeoutId: number | null = null;
+    let cancelChatButtonTask: (() => void) | null = null;
     const triggerChatButtonLoad = (event?: Event) => {
       if (event?.type === "click" && isNavigationClick(event)) {
         return;
@@ -409,7 +410,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       window.removeEventListener("click", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
-      loadChatButton();
+      // An unrelated first click should paint before optional chat UI mounts.
+      cancelChatButtonTask = scheduleBackgroundTask(loadChatButton);
     };
 
     window.addEventListener("click", triggerChatButtonLoad, {
@@ -431,6 +433,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       window.removeEventListener("click", triggerChatButtonLoad);
       window.removeEventListener("keydown", triggerChatButtonLoad);
       if (timeoutId != null) window.clearTimeout(timeoutId);
+      cancelChatButtonTask?.();
     };
   }, [ChatButtonComponent, pathname]);
 
