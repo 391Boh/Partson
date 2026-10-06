@@ -14,6 +14,8 @@ pm2 save
 
 Для першого запуску замініть `pm2 restart` на `pm2 start`.
 
+Після оновлення залежностей від 6 жовтня 2026 року `npm ci` може показати 7 попереджень high у залежностях розробки; production-аудит `npm audit --omit=dev` показує 0. Причина та стан виправлень описані в [перевірці залежностей](dependency-security.md). Не застосовуйте `npm audit fix --force` замість встановлення перевіреного lock-файлу.
+
 ```bash
 pm2 status
 curl --fail --silent --show-error --output /dev/null --write-out 'HTTP %{http_code}\n' http://127.0.0.1:3000/
