@@ -74,6 +74,11 @@ for (const body of [{ receipt: -1 }, { sale: 1.5 }, { quantity: 2, receipt: 1 }]
   assert.equal(sent, undefined);
 }
 freshStock = null;
+for (const reply of [{ updated: false }, { error: "Номенклатура не найдена" }, { message: "Номенклатура не найдена" }]) {
+  const failed = await update({ name: "New name" }, reply);
+  assert.equal(failed.status, 422, "A failed 1C edit must not be presented as success");
+  assert.equal(failed.body.ok, false);
+}
 assert.equal((await update({ sale: 1 }, { success: true })).status, 502);
 assert.equal((await update({ sale: 1 }, { success: true, quantity_result: { success: false } })).body.ok, false);
 assert.equal((await update({ receipt: 1 }, { success: true, count: 1, items: [{}] })).body.ok, false);

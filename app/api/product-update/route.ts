@@ -259,6 +259,7 @@ export async function POST(request: NextRequest) {
     updated?: boolean;
     message?: string;
     error_message?: string;
+    error?: string;
     Код?: string;
     count?: number;
     items?: unknown[];
@@ -271,20 +272,27 @@ export async function POST(request: NextRequest) {
     quantity?: number | string;
     quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number | string; КількістьДо?: number | string };
   } = {};
+  let replyText = "";
   try {
-    parsed = JSON.parse(result.text) as typeof parsed;
+    const payload: unknown = JSON.parse(result.text);
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      parsed = payload as typeof parsed;
+    } else if (typeof payload === "string") {
+      replyText = payload;
+    }
   } catch {
-    // Non-JSON 2xx response from 1C is treated as success.
+    replyText = result.text;
   }
 
-  if (parsed.success === false || parsed.found === false) {
+  const updateError = parsed.error_message || parsed.error || parsed.message || replyText;
+  const productNotFound = parsed.found === false || /не\s+найден|не\s+знайден|not\s+found/i.test(updateError);
+  if (parsed.success === false || parsed.updated === false || parsed.error || parsed.error_message || productNotFound) {
     return json(
       {
         ok: false,
         error:
-          parsed.message ||
-          parsed.error_message ||
-          (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
+          updateError ||
+          (productNotFound ? "Товар не знайдено в 1С" : "1C повернула помилку"),
       },
       422
     );

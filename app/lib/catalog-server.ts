@@ -495,6 +495,7 @@ const fetchAllgoodsProductsByExactLookup = async (
     cacheTtlMs?: number;
     includeDescription?: boolean;
     includeCostPrice?: boolean;
+    lookupFields?: string[];
   }
 ) => {
   const normalized = (lookupValue || "").trim();
@@ -575,6 +576,7 @@ export const fetchExactCatalogProductByLookup = async (
     cacheTtlMs?: number;
     includeDescription?: boolean;
     includeCostPrice?: boolean;
+    lookupFields?: string[];
   }
 ) => {
   const normalized = safeDecode(lookupValue || "").trim();
@@ -588,6 +590,7 @@ export const fetchExactCatalogProductByLookup = async (
     cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
     includeDescription: options?.includeDescription,
     includeCostPrice: options?.includeCostPrice,
+    lookupFields: options?.lookupFields,
   }).catch(() => []);
 
   return exactMatches.find((item) => isExactCatalogLookupMatch(item, normalized)) ?? null;

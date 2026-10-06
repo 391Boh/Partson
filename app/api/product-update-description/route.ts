@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       cacheTtlMs: 0,
       retries: 0,
       timeoutMs: 8_000,
+      lookupFields: ["Код"],
     }).catch(() => null);
     return product && product.code.trim().toLowerCase() === code.toLowerCase()
       ? product.article.trim()
@@ -93,7 +94,13 @@ export async function POST(request: NextRequest) {
 
   let article =
     typeof value.article === "string" && value.article.trim() ? value.article.trim() : "";
-  if (!article) article = await resolveCatalogNumberByCode();
+  // A page can still hold an old article after another editor renamed it.
+  // Resolve before writing: the old article may now belong to another item.
+  const currentArticle = await resolveCatalogNumberByCode();
+  if (code && !currentArticle) {
+    return json({ ok: false, error: "Не вдалося перевірити актуальний артикул товару в 1С. Опис не змінено; оновіть товар і повторіть збереження." }, 503);
+  }
+  if (currentArticle) article = currentArticle;
 
   if (!isNonEmptyString(article, { minLength: 1, maxLength: 200 })) {
     return json({ ok: false, error: "У товару немає номера по каталогу (НомерПоКаталогу) — опис зберегти неможливо" }, 400);
@@ -117,15 +124,21 @@ export async function POST(request: NextRequest) {
       cacheTtlMs: 0,
     });
     let parsed: OneCDescriptionReply = {};
+    let replyText = "";
     try {
-      parsed = JSON.parse(result.text) as OneCDescriptionReply;
+      const payload: unknown = JSON.parse(result.text);
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        parsed = payload as OneCDescriptionReply;
+      } else if (typeof payload === "string") {
+        parsed = { message: payload };
+      }
     } catch {
-      // non-JSON response from 1C — treat as success if HTTP 2xx
+      replyText = result.text;
     }
     const ok = result.status >= 200 && result.status < 300;
-    const message = parsed.message || parsed.error_message || parsed.error || "";
+    const message = parsed.error_message || parsed.error || parsed.message || replyText;
     const notFound =
-      parsed.found === false || /не\s+найден|не\s+знайден|not\s+found/i.test(message || (ok ? "" : result.text || ""));
+      parsed.found === false || /не\s+найден|не\s+знайден|not\s+found/i.test(message);
     return { result, parsed, ok, message, notFound };
   };
 
@@ -145,7 +158,7 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
-  if (parsed.success === false || parsed.found === false) {
+  if (parsed.success === false || parsed.updated === false || parsed.error || parsed.error_message || attempt.notFound) {
     return json({
       ok: false,
       error:
