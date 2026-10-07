@@ -28,7 +28,8 @@ export function useSectionReveal<T extends HTMLElement = HTMLDivElement>() {
     const el = ref.current;
     if (!el || typeof window === "undefined") return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (motion.matches) {
       el.classList.add("is-revealed");
       return;
     }
@@ -36,12 +37,17 @@ export function useSectionReveal<T extends HTMLElement = HTMLDivElement>() {
     // Adding one DOM class avoids rerendering the entire interactive catalog,
     // car picker or brand directory at the exact moment it enters viewport.
     const reveal = () => el.classList.add("is-revealed");
+    const onMotionChange = () => { if (motion.matches) reveal(); };
+    motion.addEventListener("change", onMotionChange);
+    el.addEventListener("focusin", reveal);
     const safety = window.setTimeout(reveal, SAFETY_MS);
     const stop = observeNearViewport(el, REVEAL_MARGIN, reveal);
 
     return () => {
       window.clearTimeout(safety);
       stop();
+      motion.removeEventListener("change", onMotionChange);
+      el.removeEventListener("focusin", reveal);
     };
   }, []);
 

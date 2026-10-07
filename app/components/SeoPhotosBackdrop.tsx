@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import {
   getCenteredParallaxProgress,
   registerParallax,
+  applyTimelineParallax,
+  canUseTimelineParallax,
 } from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the SEO / store section — real storefront photos as
@@ -171,20 +173,21 @@ export default function SeoPhotosBackdrop() {
       lastStep = NaN;
     };
 
+    const transformAt = (plane: Plane, p: number) => {
+      // centre-peak: 1 when the section is dead-centre, 0 at the scroll extremes
+      const centreClose = 1 - Math.abs(p);
+      const y = Math.round(p * plane.driftM * 100) / 100;
+      const r = Math.round((plane.rot + p * plane.rotDriftM) * 1000) / 1000;
+      const s = Math.round((1 + centreClose * plane.swellM) * 10000) / 10000;
+      return `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
+    };
+
     const apply = (progress: number) => {
       const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
       const p = step / 1024;
-      // centre-peak: 1 when the section is dead-centre, 0 at the scroll extremes
-      const centreClose = 1 - Math.abs(p);
-      for (const plane of planes) {
-        const y = Math.round(p * plane.driftM * 100) / 100;
-        const r = Math.round((plane.rot + p * plane.rotDriftM) * 1000) / 1000;
-        const s =
-          Math.round((1 + centreClose * plane.swellM) * 10000) / 10000;
-        plane.el.style.transform = `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
-      }
+      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
     };
 
     const loadImages = () => {
@@ -193,14 +196,29 @@ export default function SeoPhotosBackdrop() {
       showImages();
     };
 
+    // Compositor path where supported: the transforms are handed to a CSS
+    // scroll-driven animation once and nothing runs on scroll. The shared JS
+    // controller below remains the fallback.
+    const timeline = canUseTimelineParallax();
+    let timelineOn = false;
     let measuredWidth = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === measuredWidth) return;
       measuredWidth = window.innerWidth;
       recompute();
+      if (timelineOn) applyTimelineParallax(root, allPlanes, planes, transformAt);
     };
 
     const start = () => {
+      if (timelineOn) return;
+      if (timeline) {
+        timelineOn = true;
+        recompute();
+        applyTimelineParallax(root, allPlanes, planes, transformAt);
+        window.addEventListener("resize", onResize, { passive: true });
+        window.addEventListener("orientationchange", onResize);
+        return;
+      }
       if (handle) {
         handle.refresh();
         return;
@@ -242,6 +260,8 @@ export default function SeoPhotosBackdrop() {
       stopImagePreload();
       io.disconnect();
       stop();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, []);
 

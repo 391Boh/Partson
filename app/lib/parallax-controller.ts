@@ -371,3 +371,40 @@ export function registerParallax(opts: {
     },
   };
 }
+
+/** Native scroll-driven animations available (compositor-only parallax). */
+export const canUseTimelineParallax = () =>
+  typeof CSS !== "undefined" && CSS.supports("animation-timeline: view()");
+
+/**
+ * Compositor alternative to `registerParallax` for multi-plane backdrops.
+ * Every effect here is a transform of the same -1…0…+1 progress that
+ * `getCenteredParallaxProgress` produces, and each is linear in progress on
+ * either side of 0. So three samples per plane (entering, centred, leaving)
+ * written as custom properties are enough: the `[data-plx-root]` keyframes in
+ * globals.css interpolate them on the root's own view timeline, with bezier
+ * segments that reproduce the controller's smoothstep exactly. No scroll
+ * listener, no rAF and no main-thread style writes while scrolling — the
+ * previous per-frame transform writes repainted whole homepage stages.
+ * Call again after a breakpoint change; planes left out stop animating.
+ */
+export function applyTimelineParallax<P extends { el: HTMLElement }>(
+  root: HTMLElement,
+  all: readonly P[],
+  active: readonly P[],
+  transformAt: (plane: P, progress: number) => string
+) {
+  root.dataset.plxRoot = "";
+  const live = new Set(active);
+  for (const plane of all) {
+    const { el } = plane;
+    if (!live.has(plane)) {
+      delete el.dataset.plx;
+      continue;
+    }
+    el.style.setProperty("--plx-0", transformAt(plane, -1));
+    el.style.setProperty("--plx-1", transformAt(plane, 0));
+    el.style.setProperty("--plx-2", transformAt(plane, 1));
+    el.dataset.plx = "";
+  }
+}

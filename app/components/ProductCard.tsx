@@ -923,7 +923,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             </button>
                         </div>
                     ) : (
-                        <div className="catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5">
+                        <div className={`catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5 ${!showCostPrice && showPartnerDiscountTeaser ? "catalog-card-price-row--teaser" : ""}`}>
                             {/* Pill toggle Прод / Закуп — visible to any admin, even before a
                                 cost price has ever been saved, so they have a way to switch into
                                 "Закуп" mode and enter one for the first time via the pencil edit
@@ -950,6 +950,25 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                         }`}
                                     >Закуп</button>
                                 </div>
+                            )}
+                            {/* Public partner discount teaser, beside the regular price. */}
+                            {!showCostPrice && showPartnerDiscountTeaser && (
+                                <SmartLink
+                                    href="/partnership"
+                                    className="catalog-card-discount-teaser"
+                                    onClick={(event) => event.stopPropagation()}
+                                    aria-label="Дізнатися про знижки для партнерів"
+                                >
+                                    <span className="catalog-card-discount-icon" aria-hidden="true"><BadgePercent size={12} strokeWidth={2.4} /></span>
+                                    <span className="catalog-card-discount-copy">
+                                        <span className="catalog-card-discount-value">
+                                            {typeof promoPercent === "number" && promoPercent > 0
+                                                ? `−${promoPercent}%`
+                                                : "Знижка"}
+                                        </span>
+                                        <span className="catalog-card-discount-caption">партнерам</span>
+                                    </span>
+                                </SmartLink>
                             )}
                             {/* Price display */}
                             <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
@@ -988,20 +1007,6 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     )}
                                 </span>
                             </div>
-                            {/* Teaser for a non-partner/anonymous visitor — the actual
-                                discounted price stays hidden, only the fact that one
-                                exists is shown. Sibling of the price pill (not nested
-                                inside its own overflow-hidden/nowrap box) so the parent
-                                row's flex-wrap can drop it to its own line on a narrow
-                                card instead of clipping it. */}
-                            {!showCostPrice && showPartnerDiscountTeaser && (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2 py-1 text-[9px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset]">
-                                    <BadgePercent className="h-3 w-3 shrink-0" strokeWidth={2.4} aria-hidden="true" />
-                                    {typeof promoPercent === "number" && promoPercent > 0
-                                        ? `-${promoPercent}% для партнерів`
-                                        : "Знижка для партнерів"}
-                                </span>
-                            )}
                             {/* Admin edit pencil */}
                             {isAdmin && onAdminEdit && (
                                 <button

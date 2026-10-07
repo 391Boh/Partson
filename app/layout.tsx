@@ -89,8 +89,12 @@ const socialLinks = (process.env.NEXT_PUBLIC_SOCIAL_LINKS || "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+// The store's Google Maps listing (place CID from its Maps URL). Used as the
+// map link and as a sameAs fallback so the local-business entity links to its
+// Google listing even where NEXT_PUBLIC_GBP_URL isn't configured.
+const STORE_GOOGLE_MAPS_URL = "https://maps.google.com/?cid=11517394092669341405";
 const sameAsLinks = Array.from(
-  new Set([googleBusinessProfileUrl, ...socialLinks].filter(Boolean))
+  new Set([googleBusinessProfileUrl || STORE_GOOGLE_MAPS_URL, ...socialLinks].filter(Boolean))
 );
 const googleTagManagerId = (() => {
   const rawId = (
@@ -288,44 +292,6 @@ const websiteJsonLd = {
   },
 };
 
-const siteNavigationJsonLd = [
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Каталог",
-    url: `${siteUrl}/katalog`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Групи товарів",
-    url: `${siteUrl}/groups`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Виробники",
-    url: `${siteUrl}/manufacturers`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Підбір за автомобілем",
-    url: `${siteUrl}/auto`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Інформація",
-    url: `${siteUrl}/inform`,
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SiteNavigationElement",
-    name: "Контакти",
-    url: `${siteUrl}/inform/location`,
-  },
-];
 
 const organizationJsonLd = {
   "@context": "https://schema.org",
@@ -361,6 +327,8 @@ const organizationJsonLd = {
     "@type": "PostalAddress",
     streetAddress: "вул. Перфецького, 8",
     addressLocality: "Львів",
+    addressRegion: "Львівська область",
+    postalCode: "79000",
     addressCountry: "UA",
   },
   openingHoursSpecification: [
@@ -397,14 +365,17 @@ const localBusinessJsonLd = {
   image: storePhotoUrls,
   logo: `${organizationLogoUrl}`,
   description:
-    "Магазин автозапчастин PartsON: підбір деталей, консультація та доставка по Україні.",
+    "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
   priceRange: "$$",
   currenciesAccepted: "UAH",
   paymentAccepted: "Готівка, банківська картка, післяплата, безготівковий розрахунок",
-  areaServed: {
-    "@type": "Country",
-    name: "Україна",
-  },
+  hasMap: STORE_GOOGLE_MAPS_URL,
+  // The shop serves Lviv in person (pickup) and the whole country by post.
+  areaServed: [
+    { "@type": "City", name: "Львів" },
+    { "@type": "AdministrativeArea", name: "Львівська область" },
+    { "@type": "Country", name: "Україна" },
+  ],
   telephone: "+380634211851",
   email: "romaniukbboogg@gmail.com",
   parentOrganization: { "@id": organizationId },
@@ -413,6 +384,8 @@ const localBusinessJsonLd = {
     "@type": "PostalAddress",
     streetAddress: "вул. Перфецького, 8",
     addressLocality: "Львів",
+    addressRegion: "Львівська область",
+    postalCode: "79000",
     addressCountry: "UA",
   },
   geo:
@@ -484,10 +457,6 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(websiteJsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: safeJsonLd(siteNavigationJsonLd) }}
         />
         <script
           type="application/ld+json"

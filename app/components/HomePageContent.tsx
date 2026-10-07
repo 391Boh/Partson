@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Hero from "./hero";
 import ScrollPerformanceGuard from "./ScrollPerformanceGuard";
+import HomeScrollMotion from "./HomeScrollMotion";
 
 export default function HomePageContent({
   children,
@@ -10,6 +11,7 @@ export default function HomePageContent({
   return (
     <div className="home-static relative min-h-screen overflow-x-clip text-white">
       <ScrollPerformanceGuard />
+      <HomeScrollMotion />
       <div className="section-reveal home-section-stage home-section-stage-hero">
         <Hero />
       </div>

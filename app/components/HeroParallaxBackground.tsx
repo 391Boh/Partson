@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { registerParallax } from "app/lib/parallax-controller";
+import { canUseTimelineParallax, registerParallax } from "app/lib/parallax-controller";
 
 const BASE_SCALE = 1.025;
 const PROGRESS_STEPS = 1024;
@@ -25,6 +25,16 @@ export default function HeroParallaxBackground({ children }: { children: ReactNo
       handle = null;
       photo.style.willChange = "";
     };
+
+    // Compositor path: globals.css animates the photo on the section's own
+    // view timeline ([data-hero-plx]) with the same curve, so nothing runs per
+    // scroll frame. The JS controller below is the fallback.
+    if (canUseTimelineParallax()) {
+      section.dataset.heroPlx = "";
+      return () => {
+        delete section.dataset.heroPlx;
+      };
+    }
 
     const sync = () => {
       stop();

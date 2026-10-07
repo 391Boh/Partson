@@ -10,6 +10,7 @@ type CardStatus = "loading" | "guest" | "active" | "pending";
 type PartnershipStatusCardProps = {
   showCta?: boolean;
   edge?: boolean;
+  hideGuest?: boolean;
 };
 
 const STEPS = [
@@ -68,7 +69,7 @@ function StepRail() {
   );
 }
 
-export default function PartnershipStatusCard({ showCta = true, edge = false }: PartnershipStatusCardProps) {
+export default function PartnershipStatusCard({ showCta = true, edge = false, hideGuest = false }: PartnershipStatusCardProps) {
   const { ready, user } = useFirebaseAuthState();
   const [status, setStatus] = useState<CardStatus>("loading");
   const [totalSpent, setTotalSpent] = useState(0);
@@ -104,6 +105,8 @@ export default function PartnershipStatusCard({ showCta = true, edge = false }: 
   const outerClass = edge ? "" : "p-5 sm:p-6";
   const stripClass = edge ? edgeStripClass : darkStripClass;
   const contentClass = edge ? "page-shell-inline relative z-10" : "relative z-10";
+
+  if (hideGuest && (!user || status === "guest")) return null;
 
   if (status === "loading") {
     return (

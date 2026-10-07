@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import {
   getCenteredParallaxProgress,
   registerParallax,
+  applyTimelineParallax,
+  canUseTimelineParallax,
 } from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the manufacturers picker — parts-maker wordmarks as
@@ -237,30 +239,46 @@ export default function BrandsLogosBackdrop() {
       lastStep = NaN;
     };
 
+    const transformAt = (plane: Plane, p: number) => {
+      const absP = p < 0 ? -p : p; // spread opens at both scroll extremes
+      const x = Math.round(absP * plane.spreadM * 100) / 100;
+      const y = Math.round(p * plane.yBobM * 100) / 100;
+      const r = Math.round((plane.rot - absP * plane.rotTiltM) * 1000) / 1000;
+      const tx = plane.cx ? `calc(-50% + ${x}px)` : `${x}px`;
+      return `translate3d(${tx},${y}px,0) rotate(${r}deg)`;
+    };
+
     const apply = (progress: number) => {
       const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
       const p = step / 1024;
-      const absP = p < 0 ? -p : p; // spread opens at both scroll extremes
-      for (const plane of planes) {
-        const x = Math.round(absP * plane.spreadM * 100) / 100;
-        const y = Math.round(p * plane.yBobM * 100) / 100;
-        const r =
-          Math.round((plane.rot - absP * plane.rotTiltM) * 1000) / 1000;
-        const tx = plane.cx ? `calc(-50% + ${x}px)` : `${x}px`;
-        plane.el.style.transform = `translate3d(${tx},${y}px,0) rotate(${r}deg)`;
-      }
+      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
     };
 
+    // Compositor path where supported: the transforms are handed to a CSS
+    // scroll-driven animation once and nothing runs on scroll. The shared JS
+    // controller below remains the fallback.
+    const timeline = canUseTimelineParallax();
+    let timelineOn = false;
     let measuredWidth = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === measuredWidth) return;
       measuredWidth = window.innerWidth;
       recompute();
+      if (timelineOn) applyTimelineParallax(root, allPlanes, planes, transformAt);
     };
 
     const start = () => {
+      if (timelineOn) return;
+      if (timeline) {
+        timelineOn = true;
+        recompute();
+        applyTimelineParallax(root, allPlanes, planes, transformAt);
+        window.addEventListener("resize", onResize, { passive: true });
+        window.addEventListener("orientationchange", onResize);
+        return;
+      }
       if (handle) {
         handle.refresh();
         return;
@@ -297,6 +315,8 @@ export default function BrandsLogosBackdrop() {
     return () => {
       io.disconnect();
       stop();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, []);
 

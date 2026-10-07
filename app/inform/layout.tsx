@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Onest } from "next/font/google";
 import type { ReactNode } from "react";
+import InformationMotion from "./InformationMotion";
 
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 
@@ -50,5 +51,5 @@ const readingFont = Onest({
 });
 
 export default function InformLayout({ children }: { children: ReactNode }) {
-  return <div className={readingFont.variable}>{children}</div>;
+  return <InformationMotion className={readingFont.variable}>{children}</InformationMotion>;
 }

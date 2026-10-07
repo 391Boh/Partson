@@ -5,6 +5,7 @@ import { buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
+import HomeSeoLinks from "./components/HomeSeoLinks";
 
 // The root page shares the root layout's segment, so the layout's
 // "%s | PartsON" title template doesn't apply here — name the brand directly.
@@ -65,6 +66,7 @@ export default function HomePage() {
       <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />
+        <HomeSeoLinks />
       </div>
     </HomePageContent>
   );

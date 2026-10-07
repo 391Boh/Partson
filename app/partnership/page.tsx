@@ -1,514 +1,126 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import {
-  Handshake, Percent, BadgeCheck, BadgePercent,
-  Zap, Package, Wrench, Store, Clock,
-  Navigation, ShieldCheck,
-  Users, Building2, TrendingUp, Tag,
-} from "lucide-react";
-import { buildPageMetadata, appendSeoContact } from "app/lib/seo-metadata";
+import { ArrowDown, ArrowUpRight, BadgeCheck, BadgePercent, Handshake, MapPin, Package, ScanLine, Store, Truck, Wrench } from "lucide-react";
+import { buildPageMetadata, STORE_ADDRESS, STORE_PHONE_DISPLAY, STORE_PHONE_TEL } from "app/lib/seo-metadata";
+import { getSiteUrl } from "app/lib/site-url";
 import { PARTNER_DISCOUNT_PERCENT, PARTNER_THRESHOLD_UAH } from "app/lib/partnership-discount";
 import PartnershipCtaClient from "./PartnershipCtaClient";
 import PartnershipStatusCard from "./PartnershipStatusCard";
 import PartnershipDeliveryClient from "./PartnershipDeliveryClient";
+import PartnershipVisual from "./PartnershipVisual";
+import PartnershipSavings from "./PartnershipSavings";
+import PartnershipReveal from "./PartnershipReveal";
+import PartnershipScrollNav from "./PartnershipScrollNav";
+import { PartsGraphic, MembershipGraphic, DeliveryGraphic } from "./PartnershipGraphics";
+
+const threshold = PARTNER_THRESHOLD_UAH.toLocaleString("uk-UA");
+const title = `Автозапчастини для СТО: партнерська знижка ${PARTNER_DISCOUNT_PERCENT}% | PartsON`;
+const description = `Партнерська програма PartsON для СТО, автомагазинів і механіків. Знижка ${PARTNER_DISCOUNT_PERCENT}% після замовлень на ${threshold} грн, підбір за VIN, доставка у Львові та Україні.`;
 
 export const metadata: Metadata = buildPageMetadata({
-  title: `Партнерська програма PartsON — знижка ${PARTNER_DISCOUNT_PERCENT}% для СТО та автомагазинів`,
-  description: appendSeoContact(
-    `Партнерство з PartsON: постійна знижка ${PARTNER_DISCOUNT_PERCENT}% після замовлень на ${PARTNER_THRESHOLD_UAH} грн. Власна доставка по Львову та Nova Poshta по Україні. Для СТО, автомагазинів та механіків.`
-  ),
+  title,
+  description,
   canonicalPath: "/partnership",
-  keywords: [
-    "партнерська програма автозапчастини",
-    "знижки для СТО Львів",
-    "доставка запчастин Львів",
-    "партнер PartsON",
-    "знижка на запчастини",
-    "автомагазин партнер",
-    "гуртові ціни на запчастини",
-    "накопичувальна знижка автозапчастини",
-  ],
+  keywords: ["автозапчастини для СТО", "партнерська програма PartsON", "знижки на автозапчастини", "постачальник запчастин Львів", "автозапчастини для автомагазинів"],
+  image: { url: "/images/partnership-workshop-v1.webp", width: 1920, height: 720, alt: "Автозапчастини для СТО та автомагазинів — партнерська програма PartsON" },
 });
 
+const faqs = [
+  { question: "Як стати партнером PartsON?", answer: `Зареєструйтеся або увійдіть у свій акаунт і оформлюйте замовлення. Коли загальна сума замовлень у вашому акаунті досягне ${threshold} грн, партнерський статус активується автоматично. Окрема заявка не потрібна.` },
+  { question: "Коли починає діяти партнерська знижка?", answer: `Базова знижка ${PARTNER_DISCOUNT_PERCENT}% діє на наступні замовлення після активації партнерського статусу. Для її застосування потрібно бути авторизованим у партнерському акаунті.` },
+  { question: "Чи потрібен промокод або платний внесок?", answer: "Ні. Участь у програмі безкоштовна. Після активації статусу базова партнерська знижка застосовується автоматично, без промокодів." },
+  { question: "Як побачити спеціальні ціни для партнерів?", answer: "Увійдіть в акаунт з активним партнерським статусом. Спеціальна ціна, якщо вона є для товару, відображається в каталозі та на сторінці товару. Неавторизовані відвідувачі бачать повідомлення про партнерську пропозицію." },
+  { question: "Як отримати запчастини у Львові та інших містах?", answer: `У Львові доступні власна доставка PartsON та самовивіз: ${STORE_ADDRESS}. По Україні відправляємо Новою поштою. Спосіб отримання обирайте під час оформлення замовлення.` },
+  { question: "Де перевірити прогрес до партнерського статусу?", answer: "Після входу в акаунт на цій сторінці відображається ваш статус і накопичена сума замовлень. Тут також можна зберегти налаштування доставки для наступних покупок." },
+];
+
+const audiences = [
+  { icon: Wrench, number: "01", title: "СТО та майстерні", lead: "Менше витрат на кожен ремонт.", text: "Деталі для ремонту й планового ТО — в одному каталозі. Закуповуйте з партнерською знижкою та залишайте більше коштів для розвитку майстерні." },
+  { icon: Store, number: "02", title: "Автомагазини", lead: "Вигідніші закупівлі для вашого магазину.", text: "Порівнюйте виробників, перевіряйте залишки та замовляйте потрібні позиції. Партнерські умови — у вашому акаунті." },
+  { icon: Handshake, number: "03", title: "Приватні механіки", lead: "Потрібна деталь. Зрозуміла ціна.", text: "Знаходьте запчастини за артикулом або уточнюйте підбір за VIN. Замовлення для різних клієнтів накопичуються в одному акаунті." },
+];
+
 export default function PartnershipPage() {
+  const siteUrl = getSiteUrl();
+  const url = `${siteUrl}/partnership`;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "WebPage", "@id": `${url}#webpage`, url, name: title, description, inLanguage: "uk-UA", breadcrumb: { "@id": `${url}#breadcrumbs` } },
+      { "@type": "BreadcrumbList", "@id": `${url}#breadcrumbs`, itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Головна", item: siteUrl },
+        { "@type": "ListItem", position: 2, name: "Партнерська програма", item: url },
+      ] },
+      { "@type": "FAQPage", "@id": `${url}#faq`, mainEntity: faqs.map(({ question, answer }) => ({ "@type": "Question", name: question, acceptedAnswer: { "@type": "Answer", text: answer } })) },
+    ],
+  };
+
   return (
-    <div className="font-ui">
-
-      {/* ── HERO ── */}
-      <section
-        className="relative isolate overflow-hidden pt-14 text-white sm:pt-20"
-        style={{
-          backgroundImage: [
-            "radial-gradient(ellipse 160% 90% at 6% 0%, rgba(56,189,248,0.26) 0%, rgba(56,189,248,0.06) 46%, transparent 70%)",
-            "radial-gradient(ellipse 100% 70% at 96% 4%, rgba(37,99,235,0.16) 0%, transparent 68%)",
-            "linear-gradient(180deg, rgba(2,6,23,1) 0%, rgba(5,11,36,0.97) 18%, rgba(11,21,58,0.93) 50%, rgba(9,18,50,0.82) 100%)",
-          ].join(", "),
-        }}
-      >
-        <span className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[image:linear-gradient(to_bottom,rgba(2,6,23,0.55)_0%,transparent_100%)]" />
-        {/* subtle dot grid */}
-        <span aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.032]"
-          style={{ backgroundImage: "radial-gradient(circle, rgba(125,211,252,1) 1px, transparent 1px)", backgroundSize: "26px 26px" }} />
-
-        <div className="page-shell-inline relative z-10">
-          <div className="grid items-center gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:gap-10">
-
-            {/* text */}
-            <div className="max-w-2xl">
-              <span className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-sky-400/28 bg-sky-500/10 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-300 backdrop-blur-sm">
-                <Handshake size={10} strokeWidth={2.5} />
-                Партнерська програма
-              </span>
-
-              <h1 className="text-[2rem] font-black leading-[1.05] tracking-[-0.03em] text-white sm:text-[2.8rem]">
-                Знижки та переваги для{" "}
-                <span className="bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-300 bg-clip-text text-transparent">
-                  вашого бізнесу
-                </span>
-              </h1>
-
-              <p className="mt-4 max-w-lg text-[14px] font-medium leading-relaxed text-sky-100/70">
-                Програма для СТО, автомагазинів і механіків, які регулярно замовляють запчастини.
-                Після покупок на{" "}
-                <strong className="font-semibold text-white">{PARTNER_THRESHOLD_UAH}&nbsp;грн</strong>{" "}
-                статус партнера активується автоматично — і на кожне наступне замовлення діє
-                постійна знижка <strong className="font-semibold text-white">{PARTNER_DISCOUNT_PERCENT}%</strong> без обмежень.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold">
-                {[
-                  { label: "Без заявок і внесків", c: "border-emerald-400/24 bg-emerald-500/10 text-emerald-200" },
-                  { label: "Статус назавжди", c: "border-sky-400/24 bg-sky-500/10 text-sky-200" },
-                  { label: "Доставка по Україні", c: "border-indigo-400/24 bg-indigo-500/10 text-indigo-200" },
-                ].map(({ label, c }) => (
-                  <span key={label} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 backdrop-blur-sm ${c}`}>
-                    <BadgeCheck size={10} strokeWidth={2.5} />
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <aside className="relative overflow-hidden rounded-[22px] border border-white/[0.13] bg-white/[0.075] p-5 shadow-[0_24px_70px_rgba(2,6,23,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:p-6">
-              <span className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-sky-400/18 blur-3xl" />
-              <span className="pointer-events-none absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-cyan-300/12 blur-3xl" />
-              <div className="relative">
-                <div className="mb-4 flex items-center gap-3">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-sky-300/24 bg-sky-400/12 text-sky-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-                    <Handshake size={20} strokeWidth={1.8} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-300/80">Для бізнесу</p>
-                    <h2 className="text-[1.18rem] font-black tracking-[-0.02em] text-white">
-                      Постійна знижка для СТО і магазинів
-                    </h2>
-                  </div>
-                </div>
-
-                <p className="text-[13px] font-medium leading-relaxed text-sky-100/68">
-                  Зареєструйтесь у PartsON, замовляйте автозапчастини для СТО, автомагазину чи майстерні
-                  та отримайте постійну партнерську знижку після досягнення порогу.
-                </p>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {[
-                    { value: `${PARTNER_DISCOUNT_PERCENT}%`, label: "знижка" },
-                    { value: `${PARTNER_THRESHOLD_UAH}`, label: "грн поріг" },
-                    { value: "0", label: "внесок" },
-                  ].map(({ value, label }) => (
-                    <div key={label} className="rounded-2xl border border-white/[0.10] bg-white/[0.07] px-2.5 py-2.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
-                      <p className="text-[1.15rem] font-black tracking-tight text-white">{value}</p>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.10em] text-sky-200/58">{label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-5">
-                  <PartnershipCtaClient />
-                </div>
-
-                <p className="mt-3 text-[11.5px] font-medium leading-relaxed text-sky-100/48">
-                  Партнерство PartsON для закупівлі запчастин у Львові та доставки по Україні.
-                </p>
-              </div>
-            </aside>
-
-          </div>
+    <PartnershipReveal>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
+      <section className="partner-hero" aria-labelledby="partner-title">
+        <PartnershipVisual />
+        <div className="page-shell-inline partner-hero-content">
+          <nav aria-label="Навігаційний шлях" className="partner-breadcrumbs"><Link href="/">Головна</Link><span>/</span><span aria-current="page">Партнерська програма</span></nav>
+          <span className="partner-eyebrow"><span /> PARTSON ДЛЯ БІЗНЕСУ</span>
+          <h1 id="partner-title">Автозапчастини для СТО.<br /><em>Більше вигоди для вашої справи.</em></h1>
+          <p className="partner-hero-description">Ваші закупівлі працюють на вас. Для СТО, автомагазинів і механіків — <strong className="partner-inline-accent">постійна знижка {PARTNER_DISCOUNT_PERCENT}%</strong> на наступні замовлення після покупок на <strong>{threshold} грн.</strong></p>
+          <div className="partner-hero-actions"><PartnershipCtaClient /><a className="partner-how-link" href="#how-it-works">Як це працює <ArrowDown size={16} /></a></div>
+          <div className="partner-hero-proof"><span><BadgeCheck size={16} /> Без внесків</span><span><BadgeCheck size={16} /> Автоматична активація</span><span><BadgeCheck size={16} /> Доставка по Україні</span></div>
+          <div className="partner-hero-signature" aria-hidden="true"><span>ВАША ПАРТНЕРСЬКА ПЕРЕВАГА</span><strong>−{PARTNER_DISCOUNT_PERCENT}<small>%</small></strong><span>НА НАСТУПНІ ЗАМОВЛЕННЯ</span></div>
         </div>
-
-        <div className="relative z-10 mt-10">
-          <PartnershipStatusCard showCta={false} edge />
+        <div className="partner-stat-bar page-shell-inline">
+          <div><strong>{PARTNER_DISCOUNT_PERCENT}%</strong><span>базова знижка партнера</span></div>
+          <div><strong>{threshold}<small> грн</small></strong><span>замовлень до активації</span></div>
+          <div><strong>0<small> грн</small></strong><span>вартість участі</span></div>
+          <a href="#benefits">Усі переваги <ArrowDown size={20} /></a>
         </div>
       </section>
 
-      {/* ── FEATURES PANEL ── */}
-      <section className="relative isolate overflow-hidden bg-gradient-to-br from-cyan-50/98 via-sky-100/72 to-blue-100/85 py-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.90),inset_0_-1px_0_rgba(30,64,175,0.07)] sm:py-12">
-        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(103,232,249,0.18),transparent_36%),radial-gradient(circle_at_88%_70%,rgba(56,189,248,0.13),transparent_40%)]" />
-        <span className="pointer-events-none absolute -left-10 top-8 hidden h-32 w-32 rounded-full bg-cyan-200/20 blur-3xl lg:block" />
+      <PartnershipScrollNav />
 
-        <div className="page-shell-inline relative z-10">
-          <div className="home-section-surface relative overflow-hidden rounded-[22px] border border-white/82 bg-[linear-gradient(148deg,rgba(255,255,255,0.97),rgba(236,254,255,0.93),rgba(219,234,254,0.90))] shadow-[0_18px_40px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.94)]">
-            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent" />
-            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(103,232,249,0.11),transparent_28%),radial-gradient(circle_at_92%_88%,rgba(96,165,250,0.09),transparent_30%)]" />
+      <section id="benefits" className="partner-section page-shell-inline">
+        <div className="partner-section-heading"><div><span className="partner-kicker">01 / ДЛЯ ВАШОЇ СПРАВИ</span><h2>Ваша справа — автомобілі.<br /><em>Наша — потрібні запчастини.</em></h2></div><p><strong>Один постачальник. Більше можливостей.</strong> Запчастини для щоденної роботи, підбір за VIN і партнерські ціни — у Львові та з доставкою по Україні.</p></div>
+        <PartsGraphic />
+        <div className="partner-audience-grid">{audiences.map(({ icon: Icon, number, title: name, lead, text }) => <article key={number} className="partner-audience-card" data-partner-drift={number === "02" ? "-0.035" : "0.035"}><div className="partner-card-top"><Icon size={26} strokeWidth={1.5} /><span>{number}</span></div><h3>{name}</h3><p className="partner-card-lead">{lead}</p><p>{text}</p></article>)}</div>
+        <div className="partner-service-line"><span><ScanLine size={20} /> Підбір за VIN та артикулом</span><span><Package size={20} /> Наявність у каталозі</span><span><BadgePercent size={20} /> Спеціальні пропозиції партнерам</span></div>
+      </section>
 
-            <div className="relative divide-y divide-sky-100/50">
-
-              {/* доставка */}
-              <div id="delivery" className="scroll-mt-24 p-5 sm:p-6">
-                <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Доставка</p>
-                <h2 className="mb-4 text-[1.05rem] font-extrabold tracking-tight text-slate-900">Отримуйте запчастини зручним способом</h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    {
-                      tag: "По Львову", tagStyle: "border-emerald-200/75 bg-emerald-50 text-emerald-700",
-                      icon: Navigation, iconStyle: "border-emerald-200/60 bg-white/80 text-emerald-600",
-                      glow: "bg-emerald-200/18", check: "bg-emerald-100 text-emerald-600",
-                      title: "Власна доставка PartsON",
-                      desc: "Кур'єр доставляє прямо до вашого СТО чи магазину — не потрібно їхати на пошту або очікувати черги.",
-                      points: ["В день замовлення або наступного дня", "Самовивіз на вул. Перфецького, 8", "Оплата при отриманні"],
-                    },
-                  ].map(({ tag, tagStyle, icon: Icon, iconStyle, glow, check, title, desc, points }) => (
-                    <div key={tag} className="relative overflow-hidden rounded-[15px] border border-white/72 bg-white/52 p-4 transition-[box-shadow] duration-300 hover:bg-white/72 hover:shadow-[0_5px_16px_rgba(14,165,233,0.08)]">
-                      <span className={`pointer-events-none absolute -right-4 -top-4 h-14 w-14 rounded-full ${glow} blur-xl`} />
-                      <div className="relative flex items-start gap-3">
-                        <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border ${iconStyle} shadow-[0_2px_5px_rgba(0,0,0,0.05)]`}>
-                          <Icon size={15} strokeWidth={1.9} />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                            <span className={`inline-flex rounded-full border px-2 py-px text-[10px] font-bold ${tagStyle}`}>{tag}</span>
-                            <span className="text-[12.5px] font-bold text-slate-800">{title}</span>
-                          </div>
-                          <p className="text-[12px] font-medium leading-relaxed text-slate-500">{desc}</p>
-                          <ul className="mt-2 space-y-1">
-                            {points.map(p => (
-                              <li key={p} className="flex items-center gap-1.5 text-[11.5px] font-medium text-slate-600">
-                                <span className={`inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full ${check}`}>
-                                  <BadgeCheck size={8} strokeWidth={2.5} />
-                                </span>
-                                {p}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* NP branded card */}
-                  <div className="col-span-full sm:col-span-1 relative overflow-hidden rounded-[15px] border border-amber-100 bg-gradient-to-br from-white/90 to-amber-50/70 p-4">
-                    <span className="pointer-events-none absolute -right-4 -top-4 h-14 w-14 rounded-full bg-red-200/20 blur-xl" />
-                    <div className="relative">
-                      <div className="mb-2 flex items-center gap-2">
-                        <Image src="/nova-poshta-logo.svg" alt="Nova Poshta" width={90} height={24} />
-                        <span className="inline-flex rounded-full border border-amber-200/75 bg-amber-50 px-2 py-px text-[10px] font-bold text-amber-700">По Україні</span>
-                      </div>
-                      <p className="text-[12px] font-medium leading-relaxed text-slate-500">
-                        Відправляємо до будь-якого відділення, поштомату або кур&apos;єром додому по всій Україні.
-                      </p>
-                      <ul className="mt-2 space-y-1">
-                        {["Відправлення наступного робочого дня", "2 000+ відділень та поштоматів NP", "Трекінг-номер відразу після відправки"].map(p => (
-                          <li key={p} className="flex items-center gap-1.5 text-[11.5px] font-medium text-slate-600">
-                            <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                              <BadgeCheck size={8} strokeWidth={2.5} />
-                            </span>
-                            {p}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* налаштування доставки */}
-              <PartnershipDeliveryClient />
-
-              {/* переваги + кроки */}
-              <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-sky-100/50">
-
-                {/* переваги */}
-                <div className="p-5 sm:p-6">
-                  <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Що включено</p>
-                  <h2 className="mb-4 text-[1.05rem] font-extrabold tracking-tight text-slate-900">Умови партнерської програми</h2>
-                  <div className="space-y-2">
-                    {[
-                      {
-                        Icon: Percent,
-                        title: `Знижка ${PARTNER_DISCOUNT_PERCENT}% на весь асортимент`,
-                        desc: "Автоматично застосовується до кожного замовлення — не потрібні промокоди чи заявки.",
-                        i: "border-sky-200/75 bg-sky-50 text-sky-700", g: "bg-sky-300/10",
-                      },
-                      {
-                        Icon: Zap,
-                        title: "Ексклюзивні акції та сезонні розпродажі",
-                        desc: "Ранній доступ до комплектів ТО зі знижкою та flash-пропозицій для партнерів.",
-                        i: "border-amber-200/75 bg-amber-50 text-amber-700", g: "bg-amber-300/10",
-                      },
-                      {
-                        Icon: Clock,
-                        title: "Пріоритетна обробка замовлень",
-                        desc: "Замовлення партнерів обробляються першими — менший час від оформлення до відправки.",
-                        i: "border-emerald-200/75 bg-emerald-50 text-emerald-700", g: "bg-emerald-300/10",
-                      },
-                      {
-                        Icon: ShieldCheck,
-                        title: "Гарантія якості та підтримка",
-                        desc: "Оригінали від офіційних дистриб'юторів. Пріоритетна підтримка при поверненні та гарантійних випадках.",
-                        i: "border-indigo-200/75 bg-indigo-50 text-indigo-700", g: "bg-indigo-300/10",
-                      },
-                      {
-                        Icon: Tag,
-                        title: "Підбір запчастин за VIN і артикулом",
-                        desc: "Ваш менеджер допомагає підібрати правильну деталь до конкретного авто — зменшує кількість повернень.",
-                        i: "border-violet-200/75 bg-violet-50 text-violet-700", g: "bg-violet-300/10",
-                      },
-                    ].map(({ Icon, title, desc, i, g }) => (
-                      <div key={title} className="relative flex items-start gap-2.5 overflow-hidden rounded-[11px] border border-white/65 bg-white/48 px-3 py-2.5 transition-[background] duration-200 hover:bg-white/68">
-                        <span className={`pointer-events-none absolute -right-2 -top-2 h-9 w-9 rounded-full ${g} blur-lg`} />
-                        <span className={`relative mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border ${i}`}>
-                          <Icon size={12} strokeWidth={2} />
-                        </span>
-                        <div className="relative min-w-0">
-                          <p className="text-[12.5px] font-bold text-slate-900 leading-tight">{title}</p>
-                          <p className="mt-0.5 text-[11.5px] font-medium text-slate-500 leading-relaxed">{desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* для кого + кроки */}
-                <div className="border-t border-sky-100/50 p-5 sm:p-6 lg:border-t-0">
-
-                  <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Для кого</p>
-                  <h2 className="mb-3 text-[1.05rem] font-extrabold tracking-tight text-slate-900">Хто може стати партнером</h2>
-                  <div className="mb-5 grid grid-cols-3 gap-2">
-                    {[
-                      { Icon: Wrench, label: "СТО", c: "border-sky-200/65 bg-sky-50/80 text-sky-700", g: "bg-sky-200/14" },
-                      { Icon: Store, label: "Автомагазини", c: "border-indigo-200/65 bg-indigo-50/80 text-indigo-700", g: "bg-indigo-200/14" },
-                      { Icon: Package, label: "Механіки", c: "border-cyan-200/65 bg-cyan-50/80 text-cyan-700", g: "bg-cyan-200/14" },
-                    ].map(({ Icon, label, c, g }) => (
-                      <div key={label} className="relative overflow-hidden rounded-[12px] border border-white/68 bg-white/50 p-3 text-center">
-                        <span className={`pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full ${g} blur-lg`} />
-                        <span className={`relative mx-auto mb-1.5 inline-flex h-7 w-7 items-center justify-center rounded-[9px] border ${c}`}>
-                          <Icon size={13} strokeWidth={1.9} />
-                        </span>
-                        <p className="text-[11.5px] font-bold text-slate-800">{label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Як це працює</p>
-                  <div>
-                    {[
-                      { n: "1", title: "Зареєструйте акаунт", desc: "Безкоштовно. Потрібен лише email або номер телефону.", g: "from-sky-500 to-cyan-500" },
-                      { n: "2", title: `Замовляйте на суму від ${PARTNER_THRESHOLD_UAH} грн`, desc: "Усі замовлення враховуються — поточний прогрес видно у профілі.", g: "from-indigo-500 to-sky-500" },
-                      { n: "3", title: "Отримуйте статус партнера", desc: "Активується автоматично після досягнення порогу — без підтверджень.", g: "from-emerald-500 to-cyan-500" },
-                    ].map(({ n, title, desc, g }, idx, arr) => (
-                      <div key={n} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] bg-gradient-to-br ${g} text-[11px] font-black text-white shadow-[0_2px_6px_rgba(14,165,233,0.15)]`}>{n}</span>
-                          {idx < arr.length - 1 && <span className="my-1 w-px grow bg-gradient-to-b from-sky-200/65 to-transparent" style={{ minHeight: "0.6rem" }} />}
-                        </div>
-                        <div className={`min-w-0 ${idx < arr.length - 1 ? "pb-3" : ""} pt-0.5`}>
-                          <p className="text-[12.5px] font-extrabold text-slate-900 leading-tight">{title}</p>
-                          <p className="mt-0.5 text-[11.5px] font-medium text-slate-500 leading-relaxed">{desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-            </div>
+      <section id="how-it-works" className="partner-process">
+        <div className="page-shell-inline partner-section">
+          <div className="partner-process-intro">
+          <div className="partner-section-heading"><div><span className="partner-kicker">02 / ПРОСТИЙ СТАРТ</span><h2>Три кроки.<br /><em>Постійна вигода.</em></h2></div><p><strong>Без заявок, внесків і промокодів.</strong> Замовляйте з одного акаунта — партнерський статус активується автоматично.</p></div>
+            <MembershipGraphic />
           </div>
+          <ol className="partner-step-grid">
+            <li><span>01</span><h3>Створіть акаунт</h3><p><strong>Почніть із реєстрації.</strong> Уже маєте акаунт? Просто увійдіть і замовляйте з нього.</p></li>
+            <li><span>02</span><h3>Замовляйте запчастини</h3><p><strong>Накопичте {threshold} грн замовлень.</strong> Обирайте потрібні деталі — система врахує їхню загальну суму в акаунті.</p></li>
+            <li><span>03</span><h3>Отримайте статус</h3><p><strong>Ваші наступні покупки — зі знижкою {PARTNER_DISCOUNT_PERCENT}%.</strong> Статус активується автоматично. Достатньо увійти в акаунт.</p></li>
+          </ol>
+          <div className="partner-personal-status"><PartnershipStatusCard showCta={false} hideGuest /></div>
         </div>
       </section>
 
-      {/* ── АКЦІЙНІ ТОВАРИ ── */}
-      <section className="relative isolate overflow-hidden bg-gradient-to-br from-rose-50/90 via-white to-amber-50/50 py-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_16%,rgba(244,63,94,0.10),transparent_36%),radial-gradient(circle_at_92%_84%,rgba(251,191,36,0.10),transparent_38%)]" />
+      <section id="savings" className="partner-section page-shell-inline partner-savings-section">
+        <div><span className="partner-kicker">03 / ВИГОДА В ЦИФРАХ</span><h2>Менше витрат.<br /><em>Більше для бізнесу.</em></h2><p className="partner-section-copy"><strong>{PARTNER_DISCOUNT_PERCENT}% економії — на вашу користь.</strong> Оберіть суму закупівель і побачте, скільки залишиться для інструментів, обладнання чи розвитку бізнесу.</p><div className="partner-promo-note"><BadgePercent size={24} /><div><h3>А ще — спеціальні ціни</h3><p>Окремі товари мають спеціальні партнерські пропозиції. Увійдіть в активний партнерський акаунт і перевірте актуальну ціну в каталозі.</p></div></div></div>
+        <div className="partner-savings-drift" data-partner-drift="-0.045"><PartnershipSavings /></div>
+      </section>
 
-        <div className="page-shell-inline relative z-10">
-          <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(150deg,rgba(255,255,255,0.97),rgba(255,241,242,0.85),rgba(255,251,235,0.75))] shadow-[0_18px_44px_rgba(159,18,57,0.10),inset_0_1px_0_rgba(255,255,255,0.94)]">
-            <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent" />
-            <span className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-rose-200/24 blur-3xl" />
-
-            <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-8">
-              <div>
-                <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.18em] text-rose-700">
-                  <BadgePercent size={12} strokeWidth={2.4} />
-                  Акційні товари
-                </span>
-                <h2 className="text-[1.25rem] font-black leading-tight tracking-[-0.02em] text-slate-900 sm:text-[1.5rem]">
-                  Окремі товари — ще дешевше за звичайну знижку партнера
-                </h2>
-                <p className="mt-2.5 max-w-xl text-[13px] font-medium leading-relaxed text-slate-600">
-                  Крім постійних {PARTNER_DISCOUNT_PERCENT}% на весь асортимент, частина товарів у каталозі
-                  має окрему акційну ціну — вигіднішу, ніж стандартна знижка. Це рішення постачальника
-                  щодо конкретних позицій, і список оновлюється без попередження.
-                </p>
-                <ul className="mt-4 space-y-2">
-                  {[
-                    "Позначені бейджем «Акція» прямо на картці товару в каталозі та на сторінці товару",
-                    "Видно автоматично, щойно ви залогінені під партнерським акаунтом — нічого активувати не треба",
-                    "Діють на додачу до асортименту зі знижкою, а не замість нього",
-                  ].map((text) => (
-                    <li key={text} className="flex items-start gap-2 text-[12.5px] font-medium leading-relaxed text-slate-700">
-                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-                        <BadgeCheck size={10} strokeWidth={2.5} />
-                      </span>
-                      {text}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/katalog"
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-rose-300 bg-rose-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-[0_10px_22px_rgba(225,29,72,0.24)] transition hover:bg-rose-700 hover:shadow-[0_12px_26px_rgba(225,29,72,0.3)]"
-                >
-                  Переглянути каталог
-                  <BadgePercent size={14} strokeWidth={2.4} />
-                </Link>
-              </div>
-
-              {/* Realistic mini-preview — matches the actual catalog badge/price
-                  treatment (rose "Акція" pill on the photo corner, struck-through
-                  regular price, promo price) so it's recognizable, not an abstract
-                  mockup. Not a real ProductCard: no data fetching on a page that
-                  doesn't otherwise touch the catalog. */}
-              <div className="relative mx-auto w-full max-w-[280px] rounded-[18px] border border-rose-100 bg-white/90 p-3 shadow-[0_16px_36px_rgba(159,18,57,0.12)] sm:max-w-[300px]">
-                <div className="relative flex h-20 w-full items-center gap-2 rounded-xl border border-rose-100/80 bg-[linear-gradient(135deg,rgba(255,241,242,0.9),rgba(255,251,235,0.7))] p-1.5">
-                  <div className="relative flex h-full w-2/5 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
-                    <Package size={26} strokeWidth={1.6} className="text-rose-300" aria-hidden="true" />
-                    <span className="pointer-events-none absolute right-1 top-1 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm">
-                      Акція
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[11px] font-bold text-slate-700">Гальмівні колодки Bosch</p>
-                    <p className="text-[9.5px] font-medium text-slate-400">Код: 00-01234</p>
-                  </div>
-                </div>
-                <div className="mt-2.5 flex items-end gap-2">
-                  <span className="text-[12px] font-bold text-slate-400 line-through decoration-rose-400">1&nbsp;240&nbsp;грн</span>
-                  <span className="text-[19px] font-black leading-none text-rose-600">980&nbsp;грн</span>
-                </div>
-                <span className="mt-1.5 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-rose-700">
-                  Для партнера
-                </span>
-              </div>
-            </div>
-          </div>
+      <section id="delivery" className="partner-delivery">
+        <div className="page-shell-inline partner-section">
+          <div className="partner-section-heading"><div><span className="partner-kicker">04 / ПОРУЧ ІЗ ВАМИ</span><h2>Запчастини там,<br /><em>де вони потрібні.</em></h2></div><Link href="/contact" className="partner-text-link">Зв’язатися з PartsON <ArrowUpRight size={18} /></Link></div>
+          <DeliveryGraphic />
+          <div className="partner-delivery-grid"><article data-partner-drift="0.03"><Truck size={28} /><span className="partner-delivery-tag">ЛЬВІВ</span><h3>Доставка PartsON</h3><p><strong>Прямо до вашої майстерні.</strong> Доставляємо запчастини до СТО чи магазину у Львові. Умови узгодимо під час замовлення.</p></article><article data-partner-drift="-0.03"><Package size={28} /><span className="partner-delivery-tag">УКРАЇНА</span><h3>Нова пошта</h3><p><strong>У ваше місто по Україні.</strong> Відділення, поштомат або кур’єр — обирайте зручне отримання під час замовлення.</p></article><article data-partner-drift="0.03"><MapPin size={28} /><span className="partner-delivery-tag">САМОВИВІЗ</span><h3>Заберіть особисто</h3><p><strong>Зручно, якщо ви поруч.</strong> {STORE_ADDRESS}. Готовність замовлення уточнюйте: <a href={`tel:${STORE_PHONE_TEL}`}>{STORE_PHONE_DISPLAY}</a>.</p></article></div>
+          <div className="partner-delivery-settings"><PartnershipDeliveryClient /></div>
         </div>
       </section>
 
-      {/* ── EDITORIAL ── */}
-      <section className="relative isolate overflow-hidden bg-gradient-to-br from-sky-50/96 via-blue-50/78 to-indigo-50/88 py-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]">
-        <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_84%_12%,rgba(56,189,248,0.13),transparent_38%),radial-gradient(circle_at_10%_80%,rgba(96,165,250,0.11),transparent_36%)]" />
-
-        <div className="page-shell-inline relative z-10">
-          <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-
-            {/* main text */}
-            <div className="relative overflow-hidden rounded-[20px] border border-white/78 bg-[linear-gradient(148deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92))] p-6 shadow-[0_10px_28px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.92)] sm:p-7">
-              <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
-              <span className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-sky-200/16 blur-3xl" />
-
-              <p className="mb-1 text-[10.5px] font-bold uppercase tracking-[0.20em] text-sky-500/80">Про PartsON</p>
-              <h2 className="mb-4 text-[1.1rem] font-extrabold tracking-tight text-slate-900">
-                Надійний постачальник автозапчастин для автобізнесу у Львові та по всій Україні
-              </h2>
-
-              <div className="space-y-3 text-[13px] font-medium leading-relaxed text-slate-600">
-                <p>
-                  <strong className="font-semibold text-slate-800">PartsON</strong> — інтернет-магазин автозапчастин у Львові з власним складом і кур&apos;єрською службою.
-                  Підбираємо деталі за VIN-кодом, артикулом і параметрами авто для популярних марок:
-                  Toyota, Volkswagen, Ford, BMW, Renault, Opel, Skoda, Hyundai, Kia, Audi, Mercedes, Nissan та інших.
-                  Каталог охоплює оригінальні деталі та перевірені аналоги від провідних виробників — Bosch, NGK, Febi, Sachs, TRW, Bilstein, Gates та інших.
-                </p>
-                <p>
-                  Партнерська програма — це не разова акція, а постійна умова співпраці.
-                  Знижка поширюється на весь асортимент без виключень: фільтри, гальмівні колодки та диски,
-                  амортизатори, ремені і ланцюги ГРМ, свічки, підшипники, рульові наконечники, ШРУС,
-                  лямбда-зонди, датчики, деталі кузова та витратні матеріали для ТО.
-                </p>
-                <p>
-                  Для СТО і автомайстерень партнерство означає нижчу собівартість кожного ремонту.
-                  Для автомагазинів — стабільного постачальника з широким каталогом і вигідною закупівельною ціною.
-                  Для приватних механіків — можливість закладати різницю у свою маржу, купуючи деталі для клієнтів.
-                </p>
-                <p>
-                  Партнерський статус не має терміну дії і не вимагає мінімального обороту щомісяця.
-                  Разом з тим, усі нові партнери отримують доступ до ексклюзивних акцій — сезонних знижок,
-                  комплектів для ТО та спеціальних пропозицій, які доступні тільки зареєстрованим партнерам.
-                </p>
-              </div>
-            </div>
-
-            {/* side */}
-            <div className="space-y-4">
-
-              {/* who works with us */}
-              <div className="relative overflow-hidden rounded-[20px] border border-white/78 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(236,254,255,0.92))] p-5 shadow-[0_8px_20px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.92)]">
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] border border-sky-200/70 bg-sky-50 text-sky-600">
-                    <Users size={13} strokeWidth={1.9} />
-                  </span>
-                  <p className="text-[12.5px] font-extrabold text-slate-900">Хто з нами співпрацює</p>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    { Icon: Building2, label: "СТО та автосервіси", sub: "Закупівлі фільтрів, гальм, ходової" },
-                    { Icon: Store, label: "Автомагазини та дилери", sub: "Поповнення складу та асортименту" },
-                    { Icon: Wrench, label: "Приватні механіки", sub: "Деталі під конкретні замовлення" },
-                    { Icon: Package, label: "Транспортні компанії", sub: "Обслуговування флоту та спецтехніки" },
-                  ].map(({ Icon, label, sub }) => (
-                    <div key={label} className="flex items-center gap-2.5 border-b border-sky-100/45 pb-2 last:border-0 last:pb-0">
-                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border border-sky-200/55 bg-sky-50/75 text-sky-600">
-                        <Icon size={11} strokeWidth={2} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-bold text-slate-800 leading-tight">{label}</p>
-                        <p className="text-[10.5px] font-medium text-slate-500">{sub}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* catalog highlights */}
-              <div className="relative overflow-hidden rounded-[20px] border border-white/78 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(219,234,254,0.90))] p-5 shadow-[0_8px_20px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.92)]">
-                <span className="pointer-events-none absolute -right-6 -top-6 h-18 w-18 rounded-full bg-indigo-200/18 blur-2xl" />
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] border border-indigo-200/70 bg-indigo-50 text-indigo-600">
-                    <TrendingUp size={13} strokeWidth={1.9} />
-                  </span>
-                  <p className="text-[12.5px] font-extrabold text-slate-900">Каталог PartsON</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { val: "200+", label: "Брендів запчастин" },
-                    { val: "50+", label: "Марок авто" },
-                    { val: "Львів", label: "Власний склад" },
-                    { val: "1–2 дні", label: "Доставка по Львову" },
-                  ].map(({ val, label }) => (
-                    <div key={label} className="rounded-[10px] border border-sky-100/60 bg-white/55 px-3 py-2 text-center">
-                      <p className="text-[1.1rem] font-black tracking-tight text-indigo-700">{val}</p>
-                      <p className="text-[10px] font-semibold text-slate-500 leading-tight">{label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
+      <section id="faq" className="partner-section page-shell-inline partner-faq-section">
+        <div><span className="partner-kicker">05 / УСЕ ЗРОЗУМІЛО</span><h2>Відповіді перед<br /><em>першим замовленням.</em></h2><p className="partner-section-copy">Залишилися запитання про закупівлю автозапчастин для вашого бізнесу? <a href={`tel:${STORE_PHONE_TEL}`}>Зателефонуйте нам.</a></p></div>
+        <div className="partner-faq-list">{faqs.map(({ question, answer }) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div>
       </section>
 
-    </div>
+      <section className="partner-final"><div className="page-shell-inline"><span className="partner-kicker">PARTSON / ВАШ НАСТУПНИЙ КРОК</span><h2>Працюйте з автозапчастинами.<br /><em>Заробляйте з перевагою.</em></h2><p>Почніть із реєстрації. Замовлення на <strong>{threshold} грн</strong> відкривають <strong>постійну знижку {PARTNER_DISCOUNT_PERCENT}%</strong> для наступних покупок.</p><PartnershipCtaClient /><Link href="/katalog" className="partner-final-catalog">Переглянути каталог автозапчастин <ArrowUpRight size={17} /></Link></div></section>
+    </PartnershipReveal>
   );
 }

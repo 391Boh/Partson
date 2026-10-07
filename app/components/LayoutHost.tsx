@@ -18,6 +18,9 @@ import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 import type { ProductFullEditTarget } from "./ProductFullEditModal";
 
+// Quiet time after the last scroll before html.is-scrolling is removed.
+const SCROLL_SETTLE_MS = 250;
+
 const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
   ssr: false,
 });
@@ -254,7 +257,10 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       if (endTimer !== null) window.clearTimeout(endTimer);
       // Give the final compositor frame time to land before hover shadows and
       // clarity filters become eligible again under a stationary pointer.
-      endTimer = window.setTimeout(finishScroll, 80);
+      // Long enough to bridge the pauses between mouse-wheel bursts: every
+      // toggle of this root class restyles a large part of the homepage, and
+      // an 80 ms settle toggled it at each pause (a visible hitch per burst).
+      endTimer = window.setTimeout(finishScroll, SCROLL_SETTLE_MS);
     };
 
     const beginScroll = () => {
@@ -277,7 +283,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         return;
       }
       if (endTimer !== null) window.clearTimeout(endTimer);
-      endTimer = window.setTimeout(finishScroll, 120);
+      endTimer = window.setTimeout(finishScroll, SCROLL_SETTLE_MS);
     };
 
     // wheel/touchmove fires before the browser applies the next scroll delta.
@@ -289,7 +295,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       // Native scrollend remains the primary signal. This longer timer only
       // cleans up wheel/touch intent at a scroll boundary where no scroll (and
       // therefore no scrollend) is emitted, so the class cannot get stuck.
-      endTimer = window.setTimeout(finishScroll, supportsScrollEnd ? 1_200 : 140);
+      endTimer = window.setTimeout(finishScroll, supportsScrollEnd ? 1_200 : SCROLL_SETTLE_MS);
     };
 
     window.addEventListener("wheel", handleScrollIntent, { passive: true });

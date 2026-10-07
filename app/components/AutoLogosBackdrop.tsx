@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import {
   getCenteredParallaxProgress,
   registerParallax,
+  applyTimelineParallax,
+  canUseTimelineParallax,
 } from "app/lib/parallax-controller";
 
 // Atmospheric layer behind the car-picker. Each brand mark is a
@@ -275,28 +277,44 @@ export default function AutoLogosBackdrop() {
       lastStep = NaN; // force the next frame to write
     };
 
+    const transformAt = (plane: Plane, p: number) => {
+      const y = Math.round(p * plane.driftM * 100) / 100;
+      const r = Math.round((plane.rot + p * plane.rotSwingM) * 1000) / 1000;
+      const s = Math.round((1 + p * plane.scaleSwingM) * 10000) / 10000;
+      return `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
+    };
+
     const apply = (progress: number) => {
       const step = Math.round(progress * 1024);
       if (step === lastStep) return;
       lastStep = step;
       const p = step / 1024;
-      for (const plane of planes) {
-        const y = Math.round(p * plane.driftM * 100) / 100;
-        const r =
-          Math.round((plane.rot + p * plane.rotSwingM) * 1000) / 1000;
-        const s = Math.round((1 + p * plane.scaleSwingM) * 10000) / 10000;
-        plane.el.style.transform = `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
-      }
+      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
     };
 
+    // Compositor path where supported: the transforms are handed to a CSS
+    // scroll-driven animation once and nothing runs on scroll. The shared JS
+    // controller below remains the fallback.
+    const timeline = canUseTimelineParallax();
+    let timelineOn = false;
     let measuredWidth = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === measuredWidth) return;
       measuredWidth = window.innerWidth;
       recompute();
+      if (timelineOn) applyTimelineParallax(root, allPlanes, planes, transformAt);
     };
 
     const start = () => {
+      if (timelineOn) return;
+      if (timeline) {
+        timelineOn = true;
+        recompute();
+        applyTimelineParallax(root, allPlanes, planes, transformAt);
+        window.addEventListener("resize", onResize, { passive: true });
+        window.addEventListener("orientationchange", onResize);
+        return;
+      }
       if (handle) {
         handle.refresh();
         return;
@@ -333,6 +351,8 @@ export default function AutoLogosBackdrop() {
     return () => {
       io.disconnect();
       stop();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, []);
 
