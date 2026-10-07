@@ -28,6 +28,7 @@ import {
   buildCatalogProducerPath,
   buildGroupPath,
   buildManufacturerPath,
+  buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import {
   EMPTY_CATALOG_SEO_FACETS,
@@ -40,13 +41,12 @@ import { carBrands } from "app/components/carBrands";
 import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
   fetchCatalogProductsByQuery,
-  fetchEuroRate,
   fetchPromoCatalogProducts,
-  toPriceUah,
 } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { buildProductImagePath, buildProductSeoImagePath } from "app/lib/product-image-path";
-import { buildProductPath } from "app/lib/product-url";
+import { buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -285,6 +285,10 @@ type CatalogSeoState = {
   title: string;
   description: string;
   indexable: boolean;
+  // False only when the SEO facets were loaded and the producer has no
+  // /manufacturers page (no catalog products) — e.g. ?producer=QH. The
+  // canonical and breadcrumb must not point at a URL that 404s.
+  producerHasPage: boolean;
 };
 
 const pickFirstValue = (value: string | string[] | undefined) =>
@@ -298,8 +302,9 @@ const buildGroupLandingPath = (group: string) => {
   return path !== "/groups" ? path : buildCatalogCategoryPath(group);
 };
 
-const buildManufacturerLandingPath = (producer: string) => {
-  const path = buildManufacturerPath(producer);
+const buildManufacturerLandingPath = (producer: string, hasPage = true) => {
+  if (!hasPage) return buildCatalogProducerPath(producer);
+  const path = buildManufacturerPathFromLabel(producer);
   return path !== "/manufacturers" ? path : buildCatalogProducerPath(producer);
 };
 
@@ -435,15 +440,40 @@ const resolveCatalogSeoState = (
     title,
     description,
     indexable,
+    producerHasPage: true,
   };
 };
 
+const applyProducerPageAvailability = (
+  state: CatalogSeoState,
+  facets: CatalogSeoFacets
+): CatalogSeoState => {
+  // Empty facets mean 1C and the snapshot were both unavailable — keep the
+  // manufacturer canonical rather than guess a page is missing.
+  if (!state.producer || facets.producers.length === 0) return state;
+  const producerSlug = buildSeoSlug(state.producer);
+  if (facets.producers.some((producer) => producer.slug === producerSlug)) return state;
+
+  const isProducerLanding = !state.group && !state.subcategory && !state.searchQuery;
+  return {
+    ...state,
+    producerHasPage: false,
+    canonicalPath: isProducerLanding
+      ? buildCatalogProducerPath(state.producer)
+      : state.canonicalPath,
+  };
+};
+
+const loadCatalogSeoFacets = () =>
+  getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS)
+    .catch(() => EMPTY_CATALOG_SEO_FACETS)
+    .then((facets) => resolveCatalogSeoFacetsWithFallback(facets));
+
 // The <title>/meta title (state.title) is deliberately terser and
 // keyword-first for search snippets. This is the fuller, sentence-style
-// heading actually shown on the page — both the visible section heading and
-// the page's real (sr-only) <h1> read from this single function so they
-// never drift into two differently-worded statements of the same page
-// topic again.
+// heading actually shown on the page as its only <h1> (in CatalogSeoSnapshot).
+// An identical sr-only <h1> used to sit above the product grid, which left
+// the page with the same heading twice (h1 + h2).
 const buildCatalogSeoHeading = (state: CatalogSeoState) =>
   state.searchQuery
     ? `Пошук «${state.searchQuery}» — каталог автозапчастин PartsON`
@@ -625,7 +655,7 @@ const buildCatalogBreadcrumbJsonLd = (siteUrl: string, state: CatalogSeoState) =
         "@type": "ListItem",
         position: 3,
         name: producer,
-        item: `${siteUrl}${buildManufacturerLandingPath(producer)}`,
+        item: `${siteUrl}${buildManufacturerLandingPath(producer, state.producerHasPage)}`,
       },
       {
         "@type": "ListItem",
@@ -652,7 +682,7 @@ const buildCatalogBreadcrumbJsonLd = (siteUrl: string, state: CatalogSeoState) =
         "@type": "ListItem",
         position: 3,
         name: producer,
-        item: `${siteUrl}${buildManufacturerLandingPath(producer)}`,
+        item: `${siteUrl}${buildManufacturerLandingPath(producer, state.producerHasPage)}`,
       },
       {
         "@type": "ListItem",
@@ -779,63 +809,27 @@ const buildSeoProductPath = (item: CatalogSeoProduct) =>
     category: item.category || item.group,
   });
 
+// Product rich results and merchant listings are for single-product pages
+// (developers.google.com/search/docs/appearance/structured-data/product-snippet,
+// …/merchant-listing); every product page already ships its own full
+// Product + Offer. The listing therefore names its products by URL only —
+// the same summary-list shape ProductRelatedItemsSection uses — and lists only
+// public products, whose pages are indexable.
 const buildCatalogItemListJsonLd = (
   siteUrl: string,
   state: CatalogSeoState,
-  items: CatalogSeoProduct[],
-  euroRate: number | null
+  items: CatalogSeoProduct[]
 ) => {
-  if (euroRate == null || !Number.isFinite(euroRate) || euroRate <= 0) return null;
   const currentUrl = `${siteUrl}${state.canonicalPath}`;
   const itemListElement = items
-    .filter(
-      (item) =>
-        item.code &&
-        item.name &&
-        typeof item.priceEuro === "number" &&
-        item.priceEuro > 0
-    )
+    .filter((item) => item.code && item.name && isPublicCatalogProduct(item))
     .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
-    .map((item, index) => {
-      const url = `${siteUrl}${buildSeoProductPath(item)}`;
-      const imagePath = item.hasPhoto === true
-        ? buildProductSeoImagePath(item.code, item.article)
-        : "";
-
-      return {
-        "@type": "ListItem",
-        position: index + 1,
-        url,
-        item: {
-          "@type": "Product",
-          name: item.name,
-          sku: item.code,
-          mpn: item.article || item.code,
-          image: imagePath ? `${siteUrl}${imagePath}` : undefined,
-          brand: item.producer
-            ? {
-                "@type": "Brand",
-                name: item.producer,
-              }
-            : undefined,
-          url,
-          offers:
-            typeof item.priceEuro === "number" && item.priceEuro > 0
-              ? {
-                  "@type": "Offer",
-                  priceCurrency: "UAH",
-                  price: toPriceUah(item.priceEuro, euroRate),
-                  availability:
-                    item.quantity > 0
-                      ? "https://schema.org/InStock"
-                      : "https://schema.org/OutOfStock",
-                  itemCondition: "https://schema.org/NewCondition",
-                  url,
-                }
-              : undefined,
-        },
-      };
-    });
+    .map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${siteUrl}${buildSeoProductPath(item)}`,
+      name: buildVisibleProductName(item.name),
+    }));
 
   if (itemListElement.length === 0) return null;
 
@@ -992,15 +986,15 @@ const CatalogSeoSnapshot = async ({
                 )}
               </div>
 
-              {/* H2 — основний SEO-заголовок */}
-              <h2
+              {/* H1 сторінки — єдиний; товарна сітка вище заголовків не має */}
+              <h1
                 id="catalog-seo-block-title"
                 className="catalog-seo-title mt-3 max-w-4xl text-slate-900"
               >
                 {seoHeading}
-              </h2>
+              </h1>
 
-              {/* H3 — підзаголовок з ключовими словами (не дублює h2) */}
+              {/* H3 — підзаголовок з ключовими словами (не дублює h1) */}
               {seoSubheading && (
                 <h3 className="catalog-seo-subtitle mt-1.5 max-w-3xl text-sky-700">
                   {seoSubheading}
@@ -1280,8 +1274,10 @@ export async function generateMetadata({ searchParams }: KatalogPageProps): Prom
     searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>)
   );
 
-  const { title, description, canonicalPath, indexable } =
-    resolveCatalogSeoState(resolvedSearchParams);
+  const baseState = resolveCatalogSeoState(resolvedSearchParams);
+  const { title, description, canonicalPath, indexable } = baseState.producer
+    ? applyProducerPageAvailability(baseState, await loadCatalogSeoFacets())
+    : baseState;
 
   return buildPageMetadata({
     title,
@@ -1340,9 +1336,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     producer: state.producer || null,
     expandHierarchy: state.expandHierarchy,
   });
-  const seoFacetsPromise = getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS)
-    .catch(() => EMPTY_CATALOG_SEO_FACETS)
-    .then((facets) => resolveCatalogSeoFacetsWithFallback(facets));
+  const seoFacetsPromise = loadCatalogSeoFacets();
   const manufacturersDirectoryPromise = seoFacetsPromise.then((facets) =>
     resolveWithTimeout(
       () => buildManufacturersDirectoryData(facets),
@@ -1350,7 +1344,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       MANUFACTURERS_DIRECTORY_TIMEOUT_MS
     )
   );
-  const [rawInitialPagePayload, seoFacets, productTreeDataset, euroRate, manufacturersDirectoryData] = await Promise.all([
+  const [rawInitialPagePayload, seoFacets, productTreeDataset, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
       () => promoOnly
         ? fetchPromoCatalogPayload()
@@ -1366,7 +1360,6 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       null,
       CATALOG_PRODUCT_TREE_TIMEOUT_MS
     ).catch(() => null),
-    resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null),
     manufacturersDirectoryPromise,
   ]);
   // Start the first page's 1C photo lookup now, while this HTML streams to the
@@ -1384,13 +1377,13 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const seoTotalCount = promoOnly
     ? initialPagePayload?.totalCount ?? null
     : resolveCatalogSeoTotalCount(state, seoFacets);
-  const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, state);
-  const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, state);
+  const structuredDataState = applyProducerPageAvailability(state, seoFacets);
+  const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, structuredDataState);
+  const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, structuredDataState);
   const catalogItemListJsonLd = buildCatalogItemListJsonLd(
     siteUrl,
-    state,
-    initialPagePayload?.items ?? [],
-    euroRate
+    structuredDataState,
+    initialPagePayload?.items ?? []
   );
   const topGroups = (productTreeDataset?.groups ?? []).slice(0, 16).map((g) => ({
     label: g.label,
@@ -1453,12 +1446,6 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
           fetchPriority={index === 0 ? "high" : "low"}
         />
       ))}
-      {/* The <title> tag (state.title) stays terser/keyword-first for search
-          snippets — this sr-only h1 instead matches the sentence-style
-          heading actually shown on the page (CatalogSeoSnapshot's visible
-          heading), so what's announced as the page's h1 doesn't say
-          something different from what's on screen. */}
-      <h1 className="sr-only">{buildCatalogSeoHeading(state)}</h1>
       <KatalogPageShell
         initialPagePayload={initialPagePayload}
         initialQuerySignature={initialQuerySignature}

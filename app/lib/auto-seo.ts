@@ -165,6 +165,13 @@ export const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup
     body: { [AUTO_FIELDS.brand]: brand },
     cacheTtlMs: AUTO_CACHE_TTL_MS,
   });
+  // oneCRequest never throws: an unreachable or failing 1C comes back as a
+  // 5xx with an error body, which used to parse as "no models" — and the
+  // /auto model page then answered a real model with a 404. Report it as a
+  // failure so callers can tell "1C unavailable" from "brand has no models".
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`1C getauto failed: ${response.status}`);
+  }
 
   const rows = parseAutoResponse(response.text);
   if (rows.length === 0) return null;
@@ -263,7 +270,7 @@ const buildAutoSeoData = async (): Promise<AutoSeoData> => {
   const groups = await mapWithConcurrency(
     uniqueBrands,
     FETCH_CONCURRENCY,
-    async (brand) => fetchBrandModels(brand)
+    async (brand) => fetchBrandModels(brand).catch(() => null)
   );
 
   const brandGroups = groups.filter((entry): entry is AutoSeoBrandGroup => Boolean(entry));

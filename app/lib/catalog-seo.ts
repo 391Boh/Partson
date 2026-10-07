@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import { type CatalogProduct, fetchCatalogProductsByQuery } from "app/lib/catalog-server";
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
-import { buildSeoSlug } from "app/lib/seo-slug";
+import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { readCatalogSeoFacetsSnapshot } from "app/lib/catalog-seo-snapshot";
 
@@ -426,9 +426,29 @@ export const findSeoGroupBySlug = cache(async (slug: string) => {
   return data.groups.find((group) => slugCandidates.includes(group.slug)) || null;
 });
 
+// A plain transliterated slug (/manufacturers/mann-filter) is how older
+// links and Google's index reference some producers whose label contains
+// spaces or punctuation, so the hashed candidate above never matches it.
+// Producers are sorted by popularity, so on a plain-slug collision the
+// larger brand wins.
+export const findSeoProducerByPlainSlug = <T extends SeoFacetItem>(
+  producers: T[],
+  slug: string
+): T | null => {
+  const normalized = normalizeToken(slug);
+  if (!normalized) return null;
+  return (
+    producers.find((producer) => buildPlainSeoSlug(producer.label) === normalized) ||
+    null
+  );
+};
+
 export const findSeoProducerBySlug = cache(async (slug: string) => {
   const slugCandidates = buildSlugLookupCandidates(slug);
   if (slugCandidates.length === 0) return null;
   const data = await getCatalogSeoFacets();
-  return data.producers.find((producer) => slugCandidates.includes(producer.slug)) || null;
+  return (
+    data.producers.find((producer) => slugCandidates.includes(producer.slug)) ||
+    findSeoProducerByPlainSlug(data.producers, slug)
+  );
 });

@@ -6,7 +6,7 @@ import {
 } from "app/lib/catalog-server";
 import {
   buildCatalogProducerPath,
-  buildManufacturerPath,
+  buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 
@@ -102,7 +102,7 @@ const collectProducerItems = async (group: string, subcategory: string) => {
         subcategory,
         { expandHierarchy: true }
       ),
-      manufacturerPath: buildManufacturerPath(entry.label),
+      manufacturerPath: buildManufacturerPathFromLabel(entry.label),
     }))
     .filter((entry) => entry.productCount > 0)
     .sort((left, right) => {

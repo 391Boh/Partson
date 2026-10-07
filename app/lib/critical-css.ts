@@ -34,5 +34,27 @@ export const resolveCriticalCssHref = (target: CriticalCssTarget): string | null
   }
 };
 
+// Full site stylesheet as a plain href — same lookup as the root layout's
+// loader. For pages that can't rely on that loader: a 404 response renders
+// the not-found boundary without the root layout's <head> children, so
+// app/not-found.tsx links the stylesheet itself (React hoists it into <head>).
+export const resolveSiteStylesheetHref = (): string | null => {
+  const stylesDir = path.join(process.cwd(), "public", "styles");
+  try {
+    if (process.env.NODE_ENV === "production") {
+      const manifest = JSON.parse(readFileSync(path.join(stylesDir, "manifest.json"), "utf8")) as {
+        href?: string;
+      };
+      return manifest.href && /^\/styles\/site\.[0-9a-f]{10}\.css$/.test(manifest.href)
+        ? manifest.href
+        : null;
+    }
+    const { mtimeMs } = statSync(path.join(stylesDir, "dev.css"));
+    return `/styles/dev.css?t=${Math.floor(mtimeMs)}`;
+  } catch {
+    return null;
+  }
+};
+
 // Marker the root layout's stylesheet loader looks for in <head>.
 export const CRITICAL_CSS_PRECEDENCE = "critical";

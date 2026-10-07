@@ -26,6 +26,7 @@ import {
   findCarBrandBySlug,
   buildAutoModelKey,
   findCarModelInBrand,
+  assertModelBreakdownAvailable,
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
   type AutoModelGroupSummary,
@@ -145,10 +146,12 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
   // getModelGroupBreakdown is React cache()-wrapped, so calling it here and
   // again in the page body for the same (brand, model) is deduped within the
   // same request — no extra 1C round-trip, just a richer, accurate description.
-  const [{ groups }, verifiedModelKeys] = await Promise.all([
+  const [breakdown, verifiedModelKeys] = await Promise.all([
     getModelGroupBreakdown(brand, model),
     getVerifiedAutoModelKeys(),
   ]);
+  assertModelBreakdownAvailable(breakdown, brand, model);
+  const { groups } = breakdown;
   // Only models with real products are indexed (the same verified set the
   // auto sitemap submits). A model with no matching groups is a thin page;
   // a verified one stays indexable even if this render's 1C breakdown timed
@@ -193,10 +196,17 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   }
 
   const { brand, brandEntry, model } = resolved;
-  const { groups, categories, totalProducts, effectiveQuery } = await getModelGroupBreakdown(
-    brand,
-    model
-  );
+  const breakdown = await getModelGroupBreakdown(brand, model);
+  assertModelBreakdownAvailable(breakdown, brand, model);
+  const {
+    groups,
+    categories,
+    totalProducts,
+    sampleProducts,
+    sampleProductsQuery,
+    effectiveQuery,
+    status: breakdownStatus,
+  } = breakdown;
   // Groups with no real Категорія (categoryLabel === "") never make it into
   // `categories` (see getModelGroupBreakdown's category-bucketing pass) —
   // including "Інше" (see the analogous fix in auto-directory-data.ts).
@@ -405,9 +415,9 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                         Запчастини для {brand} {model}
                       </h1>
                       <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
-                        Для цієї моделі поки немає окремо підтверджених товарів. Це не
-                        означає, що потрібної деталі немає: перегляньте загальний каталог
-                        або напишіть у чат — допоможемо уточнити сумісність.
+                        {breakdownStatus === "unavailable"
+                          ? "Зараз не вдалося завантажити товари для цієї моделі. Перегляньте загальний каталог або напишіть у чат — допоможемо підібрати деталь."
+                          : "Для цієї моделі поки немає окремо підтверджених товарів. Це не означає, що потрібної деталі немає: перегляньте загальний каталог або напишіть у чат — допоможемо уточнити сумісність."}
                       </p>
 
                       <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
@@ -724,6 +734,43 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               </div>
             )}
           </section>
+
+          {sampleProducts.length > 0 ? (
+            <section className={directoryPanelClass} aria-labelledby="auto-model-products-title">
+              <div className={directoryHeaderClass}>
+                <div className="max-w-4xl">
+                  <p className={directoryBadgeClass}>Збіг за назвою</p>
+                  <h2 id="auto-model-products-title" className={directoryTitleClass}>
+                    Товари з «{sampleProductsQuery}» у назві
+                  </h2>
+                  <p className={directoryDescriptionClass}>
+                    Це пошукові збіги за назвою моделі, а не перевірена сумісність із {brand}{" "}
+                    {model}: у назві може бути інше покоління чи модифікація. Перед
+                    замовленням звірте деталь за артикулом або VIN.
+                  </p>
+                </div>
+              </div>
+              <ul className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+                {sampleProducts.map((product) => (
+                  <li key={product.href} className="min-w-0">
+                    <SmartLink
+                      href={product.href}
+                      className={`${directoryListCardClass} flex h-full min-w-0 flex-col gap-1 px-4 py-3 transition-colors duration-200 hover:border-sky-200`}
+                    >
+                      <span className="text-[14px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                        {product.name}
+                      </span>
+                      {product.producer || product.article ? (
+                        <span className="text-[12px] font-medium text-slate-500 [overflow-wrap:anywhere]">
+                          {[product.producer, product.article].filter(Boolean).join(" · ")}
+                        </span>
+                      ) : null}
+                    </SmartLink>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <CatalogSeoTextSection
             contained={false}

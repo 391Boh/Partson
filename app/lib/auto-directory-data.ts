@@ -1,6 +1,7 @@
 import "server-only";
 
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { cache } from "react";
@@ -14,6 +15,8 @@ import {
 } from "app/lib/car-model-search";
 import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
+import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 
@@ -49,22 +52,74 @@ export interface AutoModelsPageData {
 // of taking the build down, and picks up real data on the next revalidation.
 const MODELS_FOR_BRAND_TIMEOUT_MS = 8000;
 
+const isProductionBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
+  process.env.npm_lifecycle_event === "build";
+
+type BrandModelsLookup =
+  | { status: "ok"; data: AutoModelsPageData }
+  | { status: "empty" }
+  | { status: "unavailable" };
+
+// Separates "1C answered with no models" from "1C failed or timed out" — the
+// plain getModelsForBrand below collapses both into null.
+const loadModelsForBrand = cache(async (brand: string): Promise<BrandModelsLookup> => {
+  const normalizedBrand = normalizeValue(brand);
+  if (!normalizedBrand) return { status: "empty" };
+
+  const unavailable = { status: "unavailable" } as const;
+  const result = await resolveWithTimeout<BrandModelsLookup>(
+    () =>
+      fetchBrandModels(normalizedBrand).then(
+        (models): BrandModelsLookup =>
+          models && models.models.length > 0
+            ? { status: "ok", data: { brand: models.brand, models: models.models } }
+            : { status: "empty" },
+        (): BrandModelsLookup => unavailable
+      ),
+    unavailable,
+    MODELS_FOR_BRAND_TIMEOUT_MS
+  );
+  return result;
+});
+
 export const getModelsForBrand = cache(
   async (brand: string): Promise<AutoModelsPageData | null> => {
-    const normalizedBrand = normalizeValue(brand);
-    if (!normalizedBrand) return null;
-
-    const result = await resolveWithTimeout(
-      () => fetchBrandModels(normalizedBrand).catch(() => null),
-      null,
-      MODELS_FOR_BRAND_TIMEOUT_MS
-    );
-    if (!result || result.models.length === 0) return null;
-
-    return { brand: result.brand, models: result.models };
+    const lookup = await loadModelsForBrand(brand);
+    return lookup.status === "ok" ? lookup.data : null;
   }
 );
 
+export class AutoModelsUnavailableError extends Error {
+  constructor(brand: string) {
+    super(`1C getauto unavailable for brand "${brand}"`);
+    this.name = "AutoModelsUnavailableError";
+  }
+}
+
+// The verified-model snapshot (scripts/generate-auto-model-sitemap.ts) keys
+// models as "BRAND::Exact model name" — enough to recover a model's name when
+// 1C can't be asked. generateStaticParams pre-renders exactly this set.
+const findModelInVerifiedSnapshot = async (brand: string, normalizedSlug: string) => {
+  const keys = await getVerifiedAutoModelKeys();
+  if (!keys) return null;
+  const prefix = `${normalizeValue(brand)}::`;
+  for (const key of keys) {
+    if (!key.startsWith(prefix)) continue;
+    const model = key.slice(prefix.length);
+    if (buildPlainSeoSlug(model) === normalizedSlug) return model;
+  }
+  return null;
+};
+
+// null only when the model is known not to exist (1C answered without it) —
+// the model page turns that into a real 404. When 1C fails or times out (seen
+// for ~7% of model pages under the parallel load of `next build`), the
+// verified snapshot answers instead, so a real, sitemap-listed model is never
+// cached as a 404. Outside the snapshot a request-time render throws (5xx,
+// retried by crawlers and never stored by ISR); during `next build` a throw
+// would fail the whole build, and such a model isn't pre-rendered anyway.
 export const findCarModelInBrand = async (
   brand: string,
   modelSlug: string
@@ -72,8 +127,15 @@ export const findCarModelInBrand = async (
   const normalizedSlug = normalizeValue(modelSlug).toLowerCase();
   if (!normalizedSlug) return null;
 
-  const data = await getModelsForBrand(brand);
-  if (!data) return null;
+  const lookup = await loadModelsForBrand(brand);
+  if (lookup.status === "unavailable") {
+    const snapshotModel = await findModelInVerifiedSnapshot(brand, normalizedSlug);
+    if (snapshotModel) return snapshotModel;
+    if (isProductionBuildPhase) return null;
+    throw new AutoModelsUnavailableError(brand);
+  }
+  if (lookup.status === "empty") return null;
+  const data = lookup.data;
 
   return (
     data.models.find((model) => buildPlainSeoSlug(model.name) === normalizedSlug)?.name ?? null
@@ -125,10 +187,34 @@ export interface AutoModelCategorySummary {
   groups: AutoModelGroupSummary[];
 }
 
+// A product the model's description search actually returned, linked by its
+// canonical /product URL. Only public products (real price + photo — the same
+// rule that makes a product page indexable) so these links never point at a
+// noindex page.
+export interface AutoModelProductLink {
+  name: string;
+  href: string;
+  producer: string;
+  article: string;
+}
+
 export interface AutoModelGroupBreakdown {
   groups: AutoModelGroupSummary[];
   categories: AutoModelCategorySummary[];
   totalProducts: number;
+  sampleProducts: AutoModelProductLink[];
+  // "ok": a complete 1C scan found products. "empty": every query tier was
+  // scanned completely and 1C returned nothing — a real absence.
+  // "unavailable": a 1C request failed or the time budget ran out, so the
+  // absence of groups says nothing about the catalog.
+  status: "ok" | "empty" | "unavailable";
+  // ISO time of the 1C scan when the data came from the last-good snapshot
+  // (see readModelBreakdownSnapshot) instead of this render's own lookup.
+  snapshotSavedAt?: string;
+  // The words every sample product's name contains: the base model name
+  // without generation/chassis code, plus the brand for numeric models. This
+  // is a name match only — 1C has no applicability data to confirm fitment.
+  sampleProductsQuery: string;
   // The search string that actually produced these results — may differ from
   // the raw model name (see getModelGroupBreakdown's tiered fallback) so
   // catalog deep-links can reuse the exact query that worked.
@@ -138,6 +224,27 @@ export interface AutoModelGroupBreakdown {
 const MODEL_GROUP_FALLBACK_COUNT_LIMIT = 120;
 const MODEL_GROUP_FALLBACK_MAX_PAGES = 40;
 const MODEL_GROUP_FALLBACK_MAX_ITEMS = 4800;
+// Product links shown on the model page (see AutoModelProductLink). A few
+// extra candidates let in-stock items win the limited slots.
+const MODEL_SAMPLE_PRODUCT_LIMIT = 12;
+const MODEL_SAMPLE_PRODUCT_CANDIDATES = 48;
+
+// The description search also matches products that only mention the model
+// somewhere in a long description (or as a substring of another word), so the
+// group counts stay broad. Product links are stricter: every query word must
+// appear as a whole word in the product's own name, so the reason a product
+// is listed for this model is visible to the shopper.
+const tokenizeForNameMatch = (value: string | null | undefined) =>
+  normalizeValue(value)
+    .toLocaleLowerCase("uk-UA")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+
+const productNameMentionsQuery = (name: string | null | undefined, queryTokens: string[]) => {
+  if (queryTokens.length === 0) return false;
+  const nameTokens = new Set(tokenizeForNameMatch(name));
+  return queryTokens.every((token) => nameTokens.has(token));
+};
 
 const buildDedupeKey = (item: CatalogProduct) =>
   normalizeValue(item.code) ||
@@ -196,10 +303,19 @@ type GroupVariant = {
 // guaranteeing unique slugs), and track each underlying (filterGroup,
 // filterSubcategory) variant with its own count inside that bucket — the
 // variant with the most matching products becomes the card's link target.
+type CollectedModelBreakdown = Omit<
+  AutoModelGroupBreakdown,
+  "effectiveQuery" | "status" | "snapshotSavedAt"
+> & { complete: boolean };
+
 const collectModelGroupBreakdown = async (
-  searchQuery: string
-): Promise<Omit<AutoModelGroupBreakdown, "effectiveQuery">> => {
+  searchQuery: string,
+  brand: string
+): Promise<CollectedModelBreakdown> => {
   let cursor = "";
+  // A failed page used to be swallowed as "no more items", so a partial or
+  // empty scan looked exactly like a complete one.
+  let complete = true;
   let cursorField = "";
   const seen = new Set<string>();
   const labelBuckets = new Map<
@@ -207,6 +323,22 @@ const collectModelGroupBreakdown = async (
     { label: string; productCount: number; variants: Map<string, GroupVariant> }
   >();
   let totalProducts = 0;
+  const sampleCandidates: CatalogProduct[] = [];
+  // Names say "POLO 94-" / "GALAXY 06-", not "Polo I" / "Galaxy III", so match
+  // on the base model with generation numerals and chassis codes removed.
+  const baseModelQuery =
+    stripTrailingChassisCode(stripRomanNumerals(searchQuery) || searchQuery) ||
+    stripRomanNumerals(searchQuery) ||
+    searchQuery;
+  // A bare number ("80", "308") also matches sizes and counts in names, so a
+  // numeric model must appear next to its brand as well.
+  const isNumericModel = tokenizeForNameMatch(baseModelQuery).every((token) =>
+    /^\d+$/.test(token)
+  );
+  const sampleProductsQuery = isNumericModel
+    ? `${normalizeValue(brand)} ${baseModelQuery}`
+    : baseModelQuery;
+  const queryTokens = tokenizeForNameMatch(sampleProductsQuery);
 
   for (let page = 1; page <= MODEL_GROUP_FALLBACK_MAX_PAGES; page += 1) {
     const batch = await fetchCatalogProductsByQuery({
@@ -222,12 +354,10 @@ const collectModelGroupBreakdown = async (
       retries: 0,
       retryDelayMs: 100,
       cacheTtlMs: 1000 * 60 * 20,
-    }).catch(() => ({
-      items: [],
-      hasMore: false,
-      nextCursor: "",
-      cursorField: "",
-    }));
+    }).catch(() => {
+      complete = false;
+      return { items: [], hasMore: false, nextCursor: "", cursorField: "" };
+    });
 
     if (batch.items.length === 0) break;
 
@@ -236,6 +366,13 @@ const collectModelGroupBreakdown = async (
       if (!dedupeKey || seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
       totalProducts += 1;
+      if (
+        sampleCandidates.length < MODEL_SAMPLE_PRODUCT_CANDIDATES &&
+        isPublicCatalogProduct(item) &&
+        productNameMentionsQuery(item.name, queryTokens)
+      ) {
+        sampleCandidates.push(item);
+      }
 
       const resolved = resolveGroupFilterParams(item);
       // A product can match the description search while having no group
@@ -390,7 +527,28 @@ const collectModelGroupBreakdown = async (
     }))
     .sort((a, b) => b.productCount - a.productCount || a.label.localeCompare(b.label, "uk"));
 
-  return { groups, categories, totalProducts };
+  // In-stock first; otherwise keep 1C's order (stable sort).
+  const sampleProducts = sampleCandidates
+    .slice()
+    .sort((a, b) => Number((b.quantity ?? 0) > 0) - Number((a.quantity ?? 0) > 0))
+    .slice(0, MODEL_SAMPLE_PRODUCT_LIMIT)
+    .map((item) => ({
+      name: buildVisibleProductName(item.name || ""),
+      href: buildProductPath({
+        code: item.code,
+        article: item.article,
+        name: item.name,
+        producer: item.producer,
+        group: item.group,
+        subGroup: item.subGroup,
+        category: item.category,
+      }),
+      producer: (item.producer || "").trim(),
+      article: (item.article || "").trim(),
+    }))
+    .filter((item) => item.name);
+
+  return { groups, categories, totalProducts, sampleProducts, sampleProductsQuery, complete };
 };
 
 // Mirrors collectProducerFallbackStats (app/manufacturers/[slug]/page.tsx) but
@@ -411,35 +569,132 @@ const collectModelGroupBreakdown = async (
 // empty breakdown instead of taking the build down with it.
 const MODEL_GROUP_BREAKDOWN_TIMEOUT_MS = 8000;
 
+type BreakdownData = Omit<AutoModelGroupBreakdown, "status" | "snapshotSavedAt">;
+
+// Last successful breakdown per model, so a 1C timeout (routine under the
+// parallel load of `next build`: measured ~28% of model pages, while the same
+// lookups take 0.2-1s on their own) shows the real catalog data from the last
+// complete scan instead of an empty "no products" page cached for 6h. One file
+// per model, written atomically — build workers write concurrently.
+const MODEL_BREAKDOWN_SNAPSHOT_DIR =
+  process.env.AUTO_MODEL_BREAKDOWN_SNAPSHOT_DIR ||
+  join(/* turbopackIgnore: true */ process.cwd(), ".cache", "auto-model-breakdowns");
+const MODEL_BREAKDOWN_SNAPSHOT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
+
+const modelBreakdownSnapshotPath = (brand: string, model: string) =>
+  join(
+    /* turbopackIgnore: true */ MODEL_BREAKDOWN_SNAPSHOT_DIR,
+    `${createHash("sha1").update(buildAutoModelKey(normalizeValue(brand), normalizeValue(model))).digest("hex")}.json`
+  );
+
+export const readModelBreakdownSnapshot = async (
+  brand: string,
+  model: string,
+  maxAgeMs = MODEL_BREAKDOWN_SNAPSHOT_MAX_AGE_MS
+): Promise<{ data: BreakdownData; savedAt: string } | null> => {
+  try {
+    const text = await readFile(/* turbopackIgnore: true */ modelBreakdownSnapshotPath(brand, model), "utf8");
+    const parsed = JSON.parse(text) as { savedAt?: string; data?: BreakdownData };
+    const savedAtMs = parsed.savedAt ? Date.parse(parsed.savedAt) : NaN;
+    if (!parsed.data || !Number.isFinite(savedAtMs) || Date.now() - savedAtMs > maxAgeMs) return null;
+    if (!Array.isArray(parsed.data.groups) || parsed.data.groups.length === 0) return null;
+    return { data: parsed.data, savedAt: parsed.savedAt as string };
+  } catch {
+    return null;
+  }
+};
+
+const writeModelBreakdownSnapshot = async (brand: string, model: string, data: BreakdownData) => {
+  try {
+    await mkdir(/* turbopackIgnore: true */ MODEL_BREAKDOWN_SNAPSHOT_DIR, { recursive: true });
+    const target = modelBreakdownSnapshotPath(brand, model);
+    const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(temp, JSON.stringify({ savedAt: new Date().toISOString(), brand, model, data }));
+    await rename(temp, target);
+  } catch {
+    // A read-only or full disk only costs the fallback, never the page.
+  }
+};
+
+const collectTieredModelBreakdown = async (
+  brand: string,
+  cleanedModel: string
+): Promise<{ data: BreakdownData; complete: boolean }> => {
+  const tiers = [cleanedModel];
+  const withoutNumerals = stripRomanNumerals(cleanedModel);
+  if (withoutNumerals && withoutNumerals !== cleanedModel) tiers.push(withoutNumerals);
+  const withoutChassisCode = stripTrailingChassisCode(withoutNumerals || cleanedModel);
+  if (withoutChassisCode && withoutChassisCode !== (withoutNumerals || cleanedModel)) {
+    tiers.push(withoutChassisCode);
+  }
+
+  let first: { data: BreakdownData; complete: boolean } | null = null;
+  let allComplete = true;
+  for (const query of tiers) {
+    const { complete, ...rest } = await collectModelGroupBreakdown(query, brand);
+    const result = { data: { ...rest, effectiveQuery: query }, complete };
+    first ??= result;
+    allComplete &&= complete;
+    if (rest.totalProducts > 0) return result;
+  }
+  return { data: (first as { data: BreakdownData }).data, complete: allComplete };
+};
+
 export const getModelGroupBreakdown = cache(
   async (brand: string, model: string): Promise<AutoModelGroupBreakdown> => {
     const cleanedModel = cleanModelQuery(model);
-    if (!cleanedModel) return { groups: [], categories: [], totalProducts: 0, effectiveQuery: "" };
+    const emptyData: BreakdownData = {
+      groups: [],
+      categories: [],
+      totalProducts: 0,
+      sampleProducts: [],
+      sampleProductsQuery: "",
+      effectiveQuery: cleanedModel,
+    };
+    if (!cleanedModel) return { ...emptyData, status: "empty" };
 
-    return resolveWithTimeout(
-      async () => {
-        const primary = await collectModelGroupBreakdown(cleanedModel);
-        if (primary.totalProducts > 0) return { ...primary, effectiveQuery: cleanedModel };
-
-        const withoutNumerals = stripRomanNumerals(cleanedModel);
-        if (withoutNumerals && withoutNumerals !== cleanedModel) {
-          const secondary = await collectModelGroupBreakdown(withoutNumerals);
-          if (secondary.totalProducts > 0) return { ...secondary, effectiveQuery: withoutNumerals };
-        }
-
-        const withoutChassisCode = stripTrailingChassisCode(withoutNumerals || cleanedModel);
-        if (withoutChassisCode && withoutChassisCode !== (withoutNumerals || cleanedModel)) {
-          const tertiary = await collectModelGroupBreakdown(withoutChassisCode);
-          if (tertiary.totalProducts > 0) return { ...tertiary, effectiveQuery: withoutChassisCode };
-        }
-
-        return { ...primary, effectiveQuery: cleanedModel };
-      },
-      { groups: [], categories: [], totalProducts: 0, effectiveQuery: cleanedModel },
+    const lookup = await resolveWithTimeout(
+      () => collectTieredModelBreakdown(brand, cleanedModel),
+      null,
       MODEL_GROUP_BREAKDOWN_TIMEOUT_MS
     );
+
+    if (lookup?.complete && lookup.data.totalProducts > 0) {
+      await writeModelBreakdownSnapshot(brand, model, lookup.data);
+      return { ...lookup.data, status: "ok" };
+    }
+    if (lookup?.complete) return { ...lookup.data, status: "empty" };
+
+    // Timed out, or some 1C page failed: prefer the last complete scan.
+    const snapshot = await readModelBreakdownSnapshot(brand, model);
+    if (snapshot) return { ...snapshot.data, status: "ok", snapshotSavedAt: snapshot.savedAt };
+    // A partial scan with products is still real data, just possibly short.
+    if (lookup && lookup.data.totalProducts > 0) return { ...lookup.data, status: "ok" };
+    return { ...emptyData, status: "unavailable" };
   }
 );
+
+export class AutoModelBreakdownUnavailableError extends Error {
+  constructor(brand: string, model: string) {
+    super(`1C product breakdown unavailable for "${brand} ${model}"`);
+    this.name = "AutoModelBreakdownUnavailableError";
+  }
+}
+
+// A request-time render must not replace a good cached page with an empty one
+// because 1C was slow: throwing makes ISR keep serving the previous version and
+// retry on the next request (an uncached first render answers 5xx, which
+// crawlers retry — never a 404). `next build` can't throw (it would fail the
+// whole build), so there the page renders an honest "couldn't load" state.
+export const assertModelBreakdownAvailable = (
+  breakdown: AutoModelGroupBreakdown,
+  brand: string,
+  model: string
+) => {
+  if (breakdown.status === "unavailable" && !isProductionBuildPhase) {
+    throw new AutoModelBreakdownUnavailableError(brand, model);
+  }
+};
 
 // Cheap sibling of getModelGroupBreakdown for build-time sitemap filtering —
 // same tiered query widening, but a single limit:1 lookup per tier instead of

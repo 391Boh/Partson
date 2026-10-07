@@ -37,9 +37,10 @@ import {
   buildCatalogCategoryPath,
   buildGroupItemPath,
   buildGroupPath,
-  buildManufacturerPath,
+  buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
+import { GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY } from "app/lib/google-merchant-feed";
 import {
   buildProductSeoImagePath,
 } from "app/lib/product-image-path";
@@ -613,7 +614,8 @@ const buildProductJsonLd = (options: {
     description,
     url: canonicalUrl,
     mainEntityOfPage: canonicalUrl,
-    category: [group, subGroup].filter(Boolean).join(" / ") || "Автозапчастини",
+    // The 1C group/subgroup stays in additionalProperty below.
+    category: GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY,
     image: Array.from(new Set(imageUrls.filter(Boolean))).map((url) => ({
       "@type": "ImageObject",
       url,
@@ -1543,7 +1545,7 @@ const resolveProductRouteDataFromSitemapParam = cache(
   }
 );
 
-const recoverProductRouteDataFromNameSlug = async (
+const recoverProductRouteDataFromNameSlug = cache(async (
   rawCode: string
 ): Promise<ResolvedProductRouteData | null> => {
   const decodedParam = safeDecodeURIComponent(rawCode || "").trim();
@@ -1580,7 +1582,7 @@ const recoverProductRouteDataFromNameSlug = async (
     isSeoRoute: true,
     product: recoveredProduct,
   };
-};
+});
 
 export async function generateMetadata({
   params,
@@ -1633,6 +1635,29 @@ export async function generateMetadata({
         isSeoRoute: Boolean(metadataLookupSource),
         product: sitemapProduct,
       };
+    }
+  }
+  // The sitemap holds only public products (price + photo), so the lookups
+  // above miss every other product. The page body still finds those through
+  // the 1C route resolution below and renders them, but the metadata used to
+  // fall back to a transliterated slug title/description ("Tros hazu t3 80
+  // ad550336"). Mirror the page's own fallback chain — both helpers are
+  // request-cached, so this shares the page's lookup rather than adding one.
+  if (!routeData.code && !(canUseDirectFallbackCode && fallbackCode && !routeSlugs)) {
+    const resolvedRouteData = await resolveWithTimeout(
+      () => getResolvedProductRouteData(rawCode || ""),
+      { code: "", isSeoRoute: false, product: null },
+      PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
+    );
+    const recoveredRouteData = resolvedRouteData.code
+      ? resolvedRouteData
+      : await resolveWithTimeout(
+          () => recoverProductRouteDataFromNameSlug(rawCode || ""),
+          null,
+          PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+        );
+    if (recoveredRouteData?.code) {
+      routeData = recoveredRouteData;
     }
   }
 
@@ -2071,7 +2096,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? buildProductGroupLandingFallbackPath(productCategory, productGroup)
     : null;
   const producerLandingPath = product.producer
-    ? buildManufacturerPath(product.producer)
+    ? buildManufacturerPathFromLabel(product.producer)
     : null;
   const producerLogoPath = product.producer
     ? resolveProducerLogo(product.producer, brandLogoMap)

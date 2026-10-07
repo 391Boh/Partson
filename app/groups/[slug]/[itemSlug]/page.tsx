@@ -31,7 +31,6 @@ import {
 import {
   fetchCatalogProductsByQuery,
   fetchEuroRate,
-  toPriceUah,
   type CatalogProduct,
 } from "app/lib/catalog-server";
 import {
@@ -39,6 +38,7 @@ import {
   buildCatalogProducerPath,
   buildGroupItemPath,
   buildManufacturerPath,
+  buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
@@ -49,8 +49,8 @@ import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
@@ -208,7 +208,9 @@ const buildGroupItemProducerSplit = (options: {
             directGroup.label,
             { expandHierarchy: true }
           ),
-          manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
+          manufacturerPath: producer.slug
+          ? buildManufacturerPath(producer.slug)
+          : buildManufacturerPathFromLabel(producer.label),
         };
       }
 
@@ -236,7 +238,9 @@ const buildGroupItemProducerSplit = (options: {
           options.itemLabels[0],
           { expandHierarchy: true }
         ),
-        manufacturerPath: buildManufacturerPath(producer.slug || producer.label),
+        manufacturerPath: producer.slug
+          ? buildManufacturerPath(producer.slug)
+          : buildManufacturerPathFromLabel(producer.label),
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
@@ -320,7 +324,7 @@ const collectDirectGroupItemProducerSplitUncached = async (
           normalizedSubcategory,
           { expandHierarchy: true }
         ),
-        manufacturerPath: buildManufacturerPath(entry.label),
+        manufacturerPath: buildManufacturerPathFromLabel(entry.label),
       }))
       .filter((entry) => entry.productCount > 0)
       .sort((left, right) => {
@@ -907,24 +911,22 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     },
   };
 
-  // Google requires an `offers` (or review/aggregateRating) block on Product
-  // structured data — products with no resolved price can't satisfy that, so
-  // they're excluded here even though they still render in the visible list below.
-  const pricedSchemaProducts = visibleProducts.filter(
-    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
-  );
-
-  const hasValidEuroRate =
-    typeof euroRate === "number" && Number.isFinite(euroRate) && euroRate > 0;
-  const productItemListJsonLd = pricedSchemaProducts.length > 0 && hasValidEuroRate
+  // Product + Offer markup belongs on each product's own page (Google limits
+  // product rich results and merchant listings to single-product pages); this
+  // category page lists its products by URL only, and only public products
+  // whose pages are indexable.
+  const schemaProducts = visibleProducts.filter(isPublicCatalogProduct);
+  const productItemListJsonLd = schemaProducts.length > 0
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "@id": `${canonicalPageUrl}#product-list`,
         name: `Популярні товари: ${visibleLabel}`,
-        numberOfItems: pricedSchemaProducts.length,
-        itemListElement: pricedSchemaProducts.map((product, index) => {
-          const productPath = buildProductPath({
+        numberOfItems: schemaProducts.length,
+        itemListElement: schemaProducts.map((product, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: `${siteUrl}${buildProductPath({
             code: product.code,
             article: product.article,
             name: product.name,
@@ -932,40 +934,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             group: product.group,
             subGroup: product.subGroup,
             category: product.category,
-          });
-          const url = `${siteUrl}${productPath}`;
-          const imagePath = product.hasPhoto === true
-            ? buildProductSeoImagePath(product.code, product.article)
-            : "";
-
-          return {
-            "@type": "ListItem",
-            position: index + 1,
-            url,
-            item: {
-              "@type": "Product",
-              name: buildVisibleProductName(product.name),
-              sku: product.article || undefined,
-              mpn: product.code || undefined,
-              image: imagePath ? `${siteUrl}${imagePath}` : undefined,
-              brand: product.producer
-                ? { "@type": "Brand", name: product.producer }
-                : undefined,
-              url,
-              offers: {
-                "@type": "Offer",
-                priceCurrency: "UAH",
-                price: toPriceUah(product.priceEuro as number, euroRate),
-                availability:
-                  product.quantity > 0
-                    ? "https://schema.org/InStock"
-                    : "https://schema.org/OutOfStock",
-                itemCondition: "https://schema.org/NewCondition",
-                url,
-              },
-            },
-          };
-        }),
+          })}`,
+          name: buildVisibleProductName(product.name),
+        })),
       }
     : null;
 

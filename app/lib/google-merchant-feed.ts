@@ -13,6 +13,12 @@ import {
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 
+// Google product taxonomy ID 899. Shared with the product page's Product
+// JSON-LD `category`, which Search Console flags as invalid when it carries
+// the internal 1C group name instead.
+export const GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY =
+  "Vehicles & Parts > Vehicle Parts & Accessories > Motor Vehicle Parts";
+
 type GoogleMerchantFeedItem = {
   id: string;
   title: string;
@@ -394,7 +400,7 @@ const toGoogleMerchantFeedItem = (
     // finer per-group mapping guessed without checking each leaf against
     // Google's real taxonomy — a wrong specific category risks disapproval,
     // a correct broad one never does.
-    googleProductCategory: "Vehicles & Parts > Vehicle Parts & Accessories > Motor Vehicle Parts",
+    googleProductCategory: GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY,
     customLabel0: producer || undefined,
     customLabel1: entry.quantity > 0 ? "in_stock" : "backorder",
   };
@@ -448,6 +454,7 @@ ${itemsXml}
   </channel>
 </rss>`;
 };
+
 
 export const getGoogleMerchantFeedSnapshot = async (options?: {
   siteUrl?: string;

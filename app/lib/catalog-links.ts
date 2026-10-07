@@ -1,4 +1,4 @@
-import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { buildPlainSeoSlug, buildSeoSlug } from "app/lib/seo-slug";
 
 const normalizeFacetValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -75,6 +75,19 @@ export const buildManufacturerPath = (
       : buildPlainSeoSlug(normalizedProducer);
 
   return `/manufacturers/${encodeURIComponent(slug)}`;
+};
+
+// Manufacturer pages live at the hashed facet slug (buildSeoSlug of the
+// producer label — see catalog-seo.ts), not at the plain transliteration
+// buildManufacturerPath derives from a raw label. "MANN FILTER" → plain
+// "mann-filter", but its page is /manufacturers/mann-filter-35ch8p. Use this
+// whenever only the producer's display name is at hand.
+export const buildManufacturerPathFromLabel = (
+  producerLabel: string | null | undefined
+) => {
+  const normalizedProducer = normalizeFacetValue(producerLabel);
+  if (!normalizedProducer) return "/manufacturers";
+  return buildManufacturerPath(buildSeoSlug(normalizedProducer));
 };
 
 export const buildCatalogProducerPath = (

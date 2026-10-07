@@ -31,3 +31,10 @@ app/generated/group-preview-manifest.ts
 public/group-previews/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Local backups, build logs and editor swap files (seen untracked on the production server)
+.env*.backup
+.env*.bak
+build.log
+*.swp
+*.swo

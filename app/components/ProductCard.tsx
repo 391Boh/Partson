@@ -6,7 +6,7 @@ import { Info, ShoppingCart, Trash2, MessageCircle, Copy, Check, Pencil, ImagePl
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
-import { buildManufacturerPath } from "app/lib/catalog-links";
+import { buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
@@ -170,7 +170,7 @@ const ProductCard: React.FC<Props> = ({
         const normalizedProducer = (producer || "").trim();
         if (!normalizedProducer || normalizedProducer === "-") return "";
 
-        const manufacturerPath = buildManufacturerPath(normalizedProducer);
+        const manufacturerPath = buildManufacturerPathFromLabel(normalizedProducer);
         const query = new URLSearchParams({ producer: normalizedProducer }).toString();
         return `${manufacturerPath}?${query}`;
     }, [producer]);

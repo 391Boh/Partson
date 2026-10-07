@@ -1,14 +1,22 @@
 import Link from "next/link";
 import { ArrowRight, Home, PackageSearch, SearchX } from "lucide-react";
 
+import { resolveSiteStylesheetHref } from "app/lib/critical-css";
+
 export const metadata = {
   title: "Сторінку не знайдено",
   robots: { index: false, follow: true },
 };
 
 export default function NotFound() {
+  const stylesheetHref = resolveSiteStylesheetHref();
   return (
     <div className="page-shell-inline relative isolate flex min-h-[70vh] flex-col items-center justify-center overflow-hidden py-16 text-center">
+      {/* A real 404 response skips the root layout's <head> stylesheet
+          loader, which left this page unstyled; React hoists this into <head>. */}
+      {stylesheetHref ? (
+        <link rel="stylesheet" href={stylesheetHref} precedence="default" />
+      ) : null}
       <span className="notfound-aurora" aria-hidden="true" />
 
       <span className="notfound-digits" aria-hidden="true">

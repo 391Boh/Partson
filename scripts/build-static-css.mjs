@@ -19,7 +19,6 @@ import {
   mkdirSync,
   readFileSync,
   writeFileSync,
-  readdirSync,
   rmSync,
   watch as watchFile,
 } from "node:fs";
@@ -105,16 +104,9 @@ const buildProduction = () => {
     criticalSizes.push(`${name} (${(css.length / 1024).toFixed(1)} KiB)`);
   }
 
-  // Clean up previously-hashed builds so /public/styles doesn't accumulate
-  // stale CSS from every past deploy forever.
-  const keep = new Set([finalName, ...Object.values(critical)]);
-  for (const file of readdirSync(outputDir)) {
-    if (keep.has(file)) continue;
-    if (/^(site|critical-[a-z]+)\.[0-9a-f]{10}\.css$/.test(file)) {
-      rmSync(path.join(outputDir, file), { force: true });
-    }
-  }
-
+  // Keep previous content-hashed styles. Cached HTML and an older running
+  // Next server can still reference any of them; a build must not delete
+  // assets used by the active release. Prune only retired deployment folders.
   writeFileSync(
     path.join(outputDir, "manifest.json"),
     JSON.stringify({ href: `/styles/${finalName}`, critical })

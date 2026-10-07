@@ -34,13 +34,12 @@ import {
   resolveProducerSocialImage,
 } from "app/lib/brand-logo";
 import {
+  findSeoProducerByPlainSlug,
   findSeoProducerBySlug,
   type SeoProducerFacet,
 } from "app/lib/catalog-seo";
 import {
   fetchCatalogProductsByQuery,
-  fetchEuroRate,
-  toPriceUah,
   type CatalogProduct,
 } from "app/lib/catalog-server";
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
@@ -58,9 +57,9 @@ import { fetchProductImageBase64Batch } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
-  buildProductSeoImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -955,8 +954,10 @@ const findFallbackProducerBySlug = cache(async (slug: string) => {
     facets.producers.find(
       (producer) =>
         producer.slug === normalizedSlug ||
-        buildSeoSlug(producer.label) === normalizedSlug
-    ) || null
+        buildSeoSlug(producer.label) === normalizedSlug ||
+        producer.slug === buildSeoSlug(normalizedSlug)
+    ) ||
+    findSeoProducerByPlainSlug(facets.producers, normalizedSlug)
   );
 });
 
@@ -1162,13 +1163,7 @@ export async function generateMetadata({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
-    return {
-      title: "Виробника не знайдено",
-      robots: {
-        index: false,
-        follow: false,
-      },
-    };
+    notFound();
   }
 
   const title = buildManufacturerTitle(producer.label);
@@ -1220,16 +1215,10 @@ export default async function ManufacturerDetailPage({
       );
   const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
   const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
-  const needsEuroRate = visibleProducts.some(
-    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
-  );
-  // These three only depend on topProducts/visibleProducts above, not on each
-  // other — euro rate lookup, group sampling and image resolution used to run
-  // back-to-back, each paying its own full timeout on the tail case.
-  const [euroRate, productSamplesByGroup, visibleProductImages] = await Promise.all([
-    needsEuroRate
-      ? resolveWithTimeout(() => fetchEuroRate(), null, 500).catch(() => null)
-      : Promise.resolve(null),
+  // These two only depend on topProducts/visibleProducts above, not on each
+  // other — group sampling and image resolution used to run back-to-back,
+  // each paying its own full timeout on the tail case.
+  const [productSamplesByGroup, visibleProductImages] = await Promise.all([
     buildManufacturerGroupProductSamples(
       producer.label,
       producer.topGroups,
@@ -1340,24 +1329,22 @@ export default async function ManufacturerDetailPage({
       : undefined,
   };
 
-  // Google requires an `offers` (or review/aggregateRating) block on Product
-  // structured data — products with no resolved price can't satisfy that, so
-  // they're excluded here even though they still render in the visible list below.
-  const pricedSchemaProducts = visibleProducts.filter(
-    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
-  );
-
-  const hasValidEuroRate =
-    typeof euroRate === "number" && Number.isFinite(euroRate) && euroRate > 0;
-  const productItemListJsonLd = pricedSchemaProducts.length > 0 && hasValidEuroRate
+  // Product + Offer markup belongs on each product's own page (Google limits
+  // product rich results and merchant listings to single-product pages); the
+  // brand page lists its products by URL only, and only public products whose
+  // pages are indexable.
+  const schemaProducts = visibleProducts.filter(isPublicCatalogProduct);
+  const productItemListJsonLd = schemaProducts.length > 0
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "@id": `${canonicalPageUrl}#product-list`,
         name: `Популярні товари бренду ${producer.label}`,
-        numberOfItems: pricedSchemaProducts.length,
-        itemListElement: pricedSchemaProducts.map((product, index) => {
-          const productPath = buildProductPath({
+        numberOfItems: schemaProducts.length,
+        itemListElement: schemaProducts.map((product, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: `${siteUrl}${buildProductPath({
             code: product.code,
             article: product.article,
             name: product.name,
@@ -1365,39 +1352,9 @@ export default async function ManufacturerDetailPage({
             group: product.group,
             subGroup: product.subGroup,
             category: product.category,
-          });
-          const url = `${siteUrl}${productPath}`;
-          return {
-            "@type": "ListItem",
-            position: index + 1,
-            url,
-            item: {
-              "@type": "Product",
-              name: buildVisibleProductName(product.name),
-              url,
-              image:
-                product.hasPhoto === true
-                  ? `${siteUrl}${buildProductSeoImagePath(product.code, product.article)}`
-                  : undefined,
-              sku: product.article || undefined,
-              mpn: product.code || undefined,
-              category:
-                product.subGroup || product.group || product.category || undefined,
-              brand: { "@type": "Brand", name: producer.label },
-              offers: {
-                "@type": "Offer",
-                priceCurrency: "UAH",
-                price: toPriceUah(product.priceEuro as number, euroRate),
-                availability:
-                  product.quantity > 0
-                    ? "https://schema.org/InStock"
-                    : "https://schema.org/OutOfStock",
-                itemCondition: "https://schema.org/NewCondition",
-                url,
-              },
-            },
-          };
-        }),
+          })}`,
+          name: buildVisibleProductName(product.name),
+        })),
       }
     : null;
 
