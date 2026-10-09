@@ -6,8 +6,15 @@ module.exports = {
   apps: [
     {
       name: 'partson-web',
-      script: 'npm',
-      args: 'run start:web',
+      // Run Next.js itself, not `npm run start:web`: PM2 measures (and
+      // restarts on) the memory of the process it spawns. Through npm that was
+      // npm (~12 MB) while next-server (300-700 MB) ran as a grandchild outside
+      // max_memory_restart. `next start` does not fork — the process renames
+      // itself to next-server — so this pid is the server. Same command as
+      // package.json's start:web.
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3000',
+      interpreter: 'node',
       instances: 1,
       exec_mode: 'fork',
       
