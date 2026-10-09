@@ -27,7 +27,11 @@ const BLOG_REVALIDATE_SECONDS = 60 * 10;
 // render (or a production build worker) until gRPC's ~60s transport timeout.
 // Failed requests are not stored in unstable_cache, so the next request can
 // retry normally instead of caching an empty blog after a transient outage.
-const BLOG_QUERY_TIMEOUT_MS = 4_500;
+// Measured from a fresh process: the first Firestore query takes ~2.1-2.3 s
+// (gRPC channel + auth) and a warm one ~1.1-1.3 s, so 4.5 s left too little
+// headroom on a busy server/dev machine and live articles intermittently
+// vanished. 8 s still bounds a build worker well below gRPC's own timeout.
+const BLOG_QUERY_TIMEOUT_MS = 8_000;
 
 const withBlogQueryTimeout = async <T>(promise: Promise<T>, label: string): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -148,7 +152,20 @@ export const getPublishedBlogPosts = cache(async () => {
   }
 });
 
-// Unlike the list above, a failed lookup is rethrown rather than mapped to
+// For pages cached with ISR (/blog, blog sitemap): rethrow instead of
+// returning [] so a Firestore timeout during revalidation keeps serving the
+// last good render. The lenient getPublishedBlogPosts() above turned one
+// timeout into an empty blog cached for the whole revalidate window.
+export const getPublishedBlogPostsOrThrow = cache(async () => {
+  try {
+    return await getPublishedBlogPostsCached();
+  } catch (error) {
+    console.error("Failed to load blog posts", error);
+    throw error;
+  }
+});
+
+// Unlike getPublishedBlogPosts(), a failed lookup is rethrown rather than mapped to
 // null: callers treat null as "no such post" and answer 404, so a Firestore
 // timeout used to turn a live article into a 404 (and, under ISR, replace the
 // cached page with it). Throwing lets ISR keep serving the last good render.

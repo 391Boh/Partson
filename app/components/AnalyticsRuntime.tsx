@@ -21,6 +21,10 @@ import {
   sanitizeAnalyticsSearchTerm,
   updateGoogleConsent,
 } from "app/lib/gtm";
+import {
+  captureMarketingAttribution,
+  installContactClickTracking,
+} from "app/lib/marketing-attribution";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 
 type ConsentChoice = "granted" | "denied";
@@ -200,6 +204,17 @@ function AnalyticsPageViewTracker({ enabled }: { enabled: boolean }) {
   const lastRouteRef = useRef("");
   const previousLocationRef = useRef("");
 
+  // Campaign parameters of the landing URL (and of later in-site URLs that
+  // carry them) for attributing leads/orders confirmed offline.
+  useEffect(() => {
+    captureMarketingAttribution(window.location);
+  }, [routeKey]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return installContactClickTracking(resolvePageType);
+  }, [enabled]);
+
   useEffect(() => {
     if (!enabled || !pathname || lastRouteRef.current === routeKey) return;
 
@@ -313,7 +328,7 @@ function AnalyticsConsentBanner({
     <aside
       role="region"
       aria-labelledby="analytics-consent-title"
-      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-w-3xl overflow-hidden rounded-[20px] border border-slate-200/90 bg-white p-3.5 shadow-[0_20px_54px_rgba(15,23,42,0.2)] ring-1 ring-white sm:bottom-5 sm:p-4"
+      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl overflow-y-auto overscroll-contain rounded-[16px] border border-slate-200/90 bg-white p-3.5 shadow-[0_20px_54px_rgba(15,23,42,0.2)] ring-1 ring-white sm:bottom-5 sm:p-4"
     >
       <div className="grid gap-3">
         <div className="min-w-0">
@@ -374,13 +389,13 @@ function AnalyticsConsentBanner({
           </div>
         ) : null}
 
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <button
             type="button"
             onClick={() =>
               saveSelection({ analyticsGranted: false, advertisingGranted: false })
             }
-            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            className="inline-flex min-h-11 items-center justify-center rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2"
           >
             Лише необхідні
           </button>
@@ -393,7 +408,7 @@ function AnalyticsConsentBanner({
               }
               setShowDetails(true);
             }}
-            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-800 transition hover:bg-sky-100"
+            className="inline-flex min-h-11 items-center justify-center rounded-[13px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-800 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2"
           >
             {showDetails ? "Зберегти вибір" : "Налаштувати"}
           </button>
@@ -402,7 +417,7 @@ function AnalyticsConsentBanner({
             onClick={() =>
               saveSelection({ analyticsGranted: true, advertisingGranted: true })
             }
-            className="inline-flex min-h-10 items-center justify-center rounded-[13px] border border-sky-700 bg-sky-700 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-800"
+            className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-[13px] border border-sky-700 bg-sky-700 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2 sm:col-span-1"
           >
             Дозволити все
           </button>

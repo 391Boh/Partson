@@ -1,4 +1,4 @@
-import { getPublishedBlogPosts } from "app/lib/blog";
+import { getPublishedBlogPostsOrThrow } from "app/lib/blog";
 import { isStorageMediaUrl } from "app/lib/blog-media";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { buildUrlSetXml, createSitemapXmlResponse } from "app/lib/sitemap-xml";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const siteUrl = getSiteUrl();
   const fallbackLastModified = getConfiguredSitemapLastModified();
-  const posts = await getPublishedBlogPosts();
+  const posts = await getPublishedBlogPostsOrThrow();
 
   const entries = [
     {

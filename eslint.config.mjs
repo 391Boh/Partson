@@ -13,6 +13,9 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".next-dev/**",
+    ".next-*/**",
+    ".agents/skills/**",
+    ".claude/skills/**",
     ".next-home-perf/**",
     ".dev-archive/**",
     ".scratch/**",

@@ -2,12 +2,22 @@
 
 import { useEffect } from "react";
 
+import { installHomeParallaxFallback } from "app/lib/home-parallax-fallback";
+
 const HOVER_SELECTOR = ".card-metal, .home-feature-card, .reveal-adv-cards > article";
 
 /** Pointer-follow data for the homepage hover signatures. Scroll motion
  * (parallax, sliding panels, stage transitions) is pure CSS scroll-driven
  * animation in globals.css, so this component never runs on scroll. */
 export default function HomeScrollMotion() {
+  // Parallax where CSS scroll timelines are unsupported (Safari, Firefox);
+  // a no-op where globals.css already runs it on the compositor.
+  useEffect(() => {
+    const home = document.querySelector<HTMLElement>(".home-static");
+    if (!home) return;
+    return installHomeParallaxFallback(home);
+  }, []);
+
   useEffect(() => {
     const home = document.querySelector<HTMLElement>(".home-static");
     if (!home || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
@@ -39,6 +49,7 @@ export default function HomeScrollMotion() {
     };
     const onMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
+      if (document.documentElement.classList.contains("is-scrolling")) return;
       const target = (event.target as Element | null)?.closest<HTMLElement>(HOVER_SELECTOR) ?? null;
       if (target !== card) {
         release();
@@ -48,7 +59,11 @@ export default function HomeScrollMotion() {
       point = { x: event.clientX, y: event.clientY };
       if (card && !frame) frame = requestAnimationFrame(paint);
     };
-    const onScroll = () => { rect = null; card = null; };
+    const onScroll = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      release();
+    };
 
     home.addEventListener("pointermove", onMove, { passive: true });
     home.addEventListener("pointerleave", release);

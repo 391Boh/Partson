@@ -930,7 +930,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                 below (previously gated on hasCostPrice, which made that impossible:
                                 you couldn't set a cost price without already having one). */}
                             {isAdmin && (
-                                <div className="flex shrink-0 rounded-[10px] border border-slate-200 bg-slate-100/70 p-[3px] shadow-inner gap-[2px]">
+                                <div className="catalog-admin-price-mode flex shrink-0 rounded-[10px] border border-slate-200 bg-slate-100/70 p-[3px] shadow-inner gap-[2px]">
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setShowCostPrice(false); }}
@@ -1022,6 +1022,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                         setQuickEditPrice(true);
                                     }}
                                     className="inline-flex min-h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 p-1 text-violet-600 hover:bg-violet-100 hover:border-violet-300 hover:text-violet-700 active:scale-[0.95] sm:min-h-8 sm:min-w-8 sm:opacity-0 sm:group-hover/price:opacity-100 sm:group-focus-within/price:opacity-100 transition-all duration-150"
+                                    aria-label="Редагувати ціну"
                                     title="Редагувати ціну"
                                 >
                                     <Pencil size={11} />
@@ -1042,7 +1043,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     data-nosnippet
                                     data-label={
                                         quantity > 0
-                                            ? `В наявності · ${quantity} шт.`
+                                            ? isAdmin ? `Наявно: ${quantity} шт.` : `В наявності · ${quantity} шт.`
                                             : "Під замовлення"
                                     }
                                     className="catalog-stock-control-status min-w-0 font-semibold before:content-[attr(data-label)]"

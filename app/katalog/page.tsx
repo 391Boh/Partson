@@ -1427,7 +1427,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   // preloading the first screen's photos here lets the HTML scanner fetch them
   // while JS loads; the cards then find them in the cache. The first one is
   // the LCP candidate (high priority); the rest stay low so they don't
-  // compete with the page's CSS/JS. Matches Data.tsx's IMAGE_EAGER_ITEMS_COUNT.
+  // compete with CSS/JS. Media queries match Data.tsx's responsive grid budget.
   const FIRST_SCREEN_IMAGE_PRELOADS = 8;
   const firstScreenImageHrefs = (initialPagePayload?.items ?? [])
     .filter((item) => item.hasPhoto !== false && (item.code || item.article))
@@ -1444,6 +1444,12 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
           as="image"
           href={href}
           fetchPriority={index === 0 ? "high" : "low"}
+          media={
+            index < 2 ? undefined
+              : index < 4 ? "(min-width: 640px)"
+              : index < 6 ? "(min-width: 1024px)"
+              : "(min-width: 1280px)"
+          }
         />
       ))}
       <KatalogPageShell

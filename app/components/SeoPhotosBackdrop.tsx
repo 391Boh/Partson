@@ -2,13 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-import {
-  getCenteredParallaxProgress,
-  registerParallax,
-  applyTimelineParallax,
-  canUseTimelineParallax,
-} from "app/lib/parallax-controller";
-
 // Atmospheric layer behind the SEO / store section — real storefront photos as
 // a parallax backdrop. Only five, generously spaced (two per edge + one off the
 // bottom) so nothing ever overlaps, even at full drift.
@@ -148,7 +141,6 @@ export default function SeoPhotosBackdrop() {
       swellM: 0,
     }));
 
-    let handle: ReturnType<typeof registerParallax> | null = null;
     let imagesLoaded = false;
     let planes: Plane[] = allPlanes;
     let lastStep = NaN;
@@ -179,7 +171,7 @@ export default function SeoPhotosBackdrop() {
       const y = Math.round(p * plane.driftM * 100) / 100;
       const r = Math.round((plane.rot + p * plane.rotDriftM) * 1000) / 1000;
       const s = Math.round((1 + centreClose * plane.swellM) * 10000) / 10000;
-      return `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
+      return `translate(${plane.tx},${y}px) rotate(${r}deg) scale(${s})`;
     };
 
     const apply = (progress: number) => {
@@ -199,46 +191,48 @@ export default function SeoPhotosBackdrop() {
     // Compositor path where supported: the transforms are handed to a CSS
     // scroll-driven animation once and nothing runs on scroll. The shared JS
     // controller below remains the fallback.
-    const timeline = canUseTimelineParallax();
-    let timelineOn = false;
+    // Static composition, like /partnership: every plane sits at its centred
+    // pose — the one seen mid-scroll — and nothing moves with the scroll.
+    // Scroll-linked motion of these filtered, semi-transparent layers was
+    // recomposited on every frame (and ran per-frame JS where scroll
+    // timelines are unsupported), which is what made the homepage scroll lag.
+    // Depth: each moving plane gets its own vertical travel (the per-plane
+    // amplitude this backdrop was designed with); globals.css translates it
+    // on the backdrop's scroll timeline — compositor only, set once here.
+    const markDepth = () => {
+      for (const p of allPlanes) {
+        delete p.el.dataset.plxDrift;
+        p.el.style.removeProperty("--plx-drift");
+      }
+      for (const p of planes) {
+        if (!p.driftM) continue;
+        p.el.style.setProperty("--plx-drift", `${p.driftM}px`);
+        p.el.dataset.plxDrift = "";
+      }
+    };
+    let staticOn = false;
     let measuredWidth = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === measuredWidth) return;
       measuredWidth = window.innerWidth;
       recompute();
-      if (timelineOn) applyTimelineParallax(root, allPlanes, planes, transformAt);
+      if (staticOn) {
+        apply(0);
+        markDepth();
+      }
     };
 
     const start = () => {
-      if (timelineOn) return;
-      if (timeline) {
-        timelineOn = true;
-        recompute();
-        applyTimelineParallax(root, allPlanes, planes, transformAt);
-        window.addEventListener("resize", onResize, { passive: true });
-        window.addEventListener("orientationchange", onResize);
-        return;
-      }
-      if (handle) {
-        handle.refresh();
-        return;
-      }
+      if (staticOn) return;
+      staticOn = true;
       recompute();
-      for (const p of planes) p.el.style.willChange = "transform";
+      apply(0);
+      markDepth();
       window.addEventListener("resize", onResize, { passive: true });
       window.addEventListener("orientationchange", onResize);
-      handle = registerParallax({
-        el: section as HTMLElement,
-        heavy: true,
-        compute: getCenteredParallaxProgress,
-        apply,
-      });
     };
     const stop = () => {
-      if (!handle) return;
-      handle.release();
-      handle = null;
-      for (const p of allPlanes) p.el.style.willChange = "";
+      staticOn = false;
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
     };
@@ -269,7 +263,7 @@ export default function SeoPhotosBackdrop() {
     <div
       ref={rootRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      className="home-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >
       {PHOTOS.map((photo) => (
         <div
@@ -289,7 +283,7 @@ export default function SeoPhotosBackdrop() {
               "radial-gradient(ellipse 88% 88% at 50% 50%, #000 56%, transparent 100%)",
             WebkitMaskImage:
               "radial-gradient(ellipse 88% 88% at 50% 50%, #000 56%, transparent 100%)",
-            transform: `translate3d(${photo.cx ? "-50%" : "0"}, 0, 0) rotate(${photo.rot}deg)`,
+            transform: `translate(${photo.cx ? "-50%" : "0"}, 0) rotate(${photo.rot}deg)`,
           }}
           className={`seo-photo absolute bg-cover bg-center bg-no-repeat ${photo.className}`}
         />

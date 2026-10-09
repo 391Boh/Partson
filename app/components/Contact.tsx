@@ -420,6 +420,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                           href={STORE_MAPS_URL}
                           target="_blank"
                           rel="noreferrer"
+                          data-analytics-contact="manual"
                           onClick={() =>
                             pushAnalyticsEvent("contact_click", {
                               contact_method: "map",

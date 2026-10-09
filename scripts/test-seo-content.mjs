@@ -23,6 +23,21 @@ assert.notEqual(text, description({ ...product, article: '09.9772.12' }));
 assert.ok(title({ name: product.productName, producer: product.producer, article: product.article }).endsWith('| PartsON'));
 assert.equal((title({ name: 'Фільтр BOSCH AB123', producer: 'BOSCH', article: 'AB123' }).match(/AB123/g) || []).length, 1);
 assert.ok(title({ name: 'Фільтр AB1234', article: 'AB123' }).includes('— AB123'), 'Do not confuse partial article matches');
+// Long names keep their fitment: the site name, then the manufacturer, are
+// dropped before the name itself is cut; the article always stays.
+const kiaTitle = title({ name: 'Фільтр повітря KIA RIO HYUNDAI ACCENT 02-', producer: 'ALPHA', article: 'AF1741' });
+assert.equal(kiaTitle, 'Фільтр повітря KIA RIO HYUNDAI ACCENT 02- — ALPHA AF1741');
+const lampTitle = title({ name: 'Лампа сигналу повороту переднього ліва SCUDO 94-', producer: 'DEPO', article: '6611518LUE' });
+assert.equal(lampTitle, 'Лампа сигналу повороту переднього ліва SCUDO 94- — 6611518LUE');
+const cutTitle = title({ name: 'Щітка склоочисника безкаркасна RENAULT Clio II, TOYOTA Avensis/Corolla', producer: 'BOSCH', article: '3397118901' });
+assert.ok(cutTitle.length <= 65 && cutTitle.endsWith('… — 3397118901'), cutTitle);
+for (const value of [kiaTitle, lampTitle, cutTitle]) assert.ok(value.length <= 65, value);
+const { normalizeProductDisplayName: displayName } = load('app/lib/product-display-name');
+assert.equal(displayName('Трос зчеплення Vectra A 1. 8-2. 0, Calibra 89-'), 'Трос зчеплення Vectra A 1.8-2.0, Calibra 89-');
+assert.equal(displayName('Подушка двигуна ASTRA H 1. 9CDTi 04-'), 'Подушка двигуна ASTRA H 1.9CDTi 04-');
+assert.equal(displayName('Трос зчеплення Omega 1, 8-2, 0 86-87'), 'Трос зчеплення Omega 1, 8-2, 0 86-87');
+assert.equal(displayName('1. 2 болти в комплекті'), '1. 2 болти в комплекті');
+assert.equal(displayName('Сальник 12. 02-'), 'Сальник 12. 02-');
 assert.ok(!alt(product).includes('ANALOG'));
 for (const name of ['', 'Фільтр '.repeat(100), '<b>Фільтр</b>']) {
  assert.ok(description({ productName: name }).length <= 160);

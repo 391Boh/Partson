@@ -474,16 +474,12 @@ html.is-scrolling .home-card-hover::before {
   transition: none !important;
 }
 
-html.is-scrolling .home-glow-section::before {
-  opacity: var(--home-section-glow-opacity) !important;
-  background-position: 0% 0%, 100% 0%, 50% 100% !important;
-  transform: translateZ(0) !important;
-}
-
-html.is-scrolling .home-glow-section::after {
-  opacity: 0 !important;
-  transform: translate3d(-20%, 0, 0) skewX(-16deg) !important;
-}
+/* The section glow's hover state is gated with html:not(.is-scrolling) at
+   its own rule instead of being overridden here. Forcing fixed glow values
+   during scrolling did not match the resting values of every section variant
+   (e.g. -sky resets background-position), so each scroll end started a
+   900 ms main-thread background-position transition and repainted a whole
+   section. */
 
 html.is-scrolling :is(.home-glass-card, .home-panel-hover, .home-card-hover)::before {
   opacity: 0 !important;
@@ -522,18 +518,18 @@ html.is-scrolling .home-scroll-decor {
   backdrop-filter: none !important;
 }
 
-html.is-scrolling .home-static :is(a, button, img, article, section, figure) {
-  transition-property: none !important;
-}
-
 /* .home-glow-section's own cards (tovar.tsx/Brands.tsx/Auto.tsx —
-   .group/category, .group/tile, .group/choice) aren't wrapped in
-   .home-static, so they were missing both fixes above: the section itself
-   stopped transitioning during scroll, but each card's own hover
-   border/shadow transition kept running, visibly animating in and back out
-   as it passed under a stationary cursor — and even with the transition
-   off, :hover would still apply/clear instantly, snapping card after card. */
-html.is-scrolling .home-glow-section :is(a, button, img, article) {
+   .group/category, .group/tile, .group/choice, all .card-metal) keep their
+   hover border/shadow transition from animating in and out as they pass
+   under a stationary cursor.
+
+   Target the cards by class only. The previous tag-wide selectors
+   (`:is(a, button, img, article, section, figure)`) made every toggle of
+   html.is-scrolling restyle ~620 homepage elements — 75-170 ms on a 4x
+   throttled CPU, at the start and end of each scroll gesture, which was the
+   freeze felt when scrolling began. A class selector restyles only the
+   cards. */
+html.is-scrolling :is(.home-static, .home-glow-section) .card-metal {
   transition-property: none !important;
 }
 
@@ -815,6 +811,13 @@ html.reduce-scroll-effects.is-scrolling
   );
   background-size: 220% 100%;
   animation: footerSkeletonSweep 1.8s ease-in-out infinite;
+  /* Main-thread animation (background-position): DeferredFooter sets
+     data-shimmer only while the skeleton is on screen. */
+  animation-play-state: paused;
+}
+
+[data-shimmer] .footer-skeleton-block {
+  animation-play-state: running;
 }
 
 @keyframes footerSkeletonSweep {
@@ -1547,14 +1550,14 @@ html.is-scrolling .hero-photo {
    highlight, competing for attention on every single card hover. Now the
    ambient glow only shows when the pointer is over empty section
    background, not over one of its cards. */
-.home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::before,
+html:not(.is-scrolling) .home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::before,
 .home-glow-section:focus-within::before {
   opacity: var(--home-section-glow-opacity-hover);
   background-position: 8% 3%, 92% 6%, 52% 92%;
   transform: scale(1.015);
 }
 
-.home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::after,
+html:not(.is-scrolling) .home-glow-section:hover:not(:has(.group\/category:hover, .group\/tile:hover, .group\/choice:hover))::after,
 .home-glow-section:focus-within::after {
   opacity: 0.72;
   transform: translate3d(430%, 0, 0) skewX(-16deg);
@@ -1625,16 +1628,16 @@ html:not(.is-scrolling)
 
 /* Background imagery is always present. Hover only adds a restrained clarity
    lift; it never controls whether the image exists or where it sits. */
-[class~="group/auto"]:hover .auto-logos-mark,
-[class~="group/brandcars"]:hover .brands-logos-mark {
+html:not(.is-scrolling) [class~="group/auto"]:hover .auto-logos-mark,
+html:not(.is-scrolling) [class~="group/brandcars"]:hover .brands-logos-mark {
   opacity: calc(var(--mo, 0.18) * 1.62);
   filter: saturate(1.16) contrast(1.1);
 }
-[class~="group/selector"]:hover .tovar-part {
+html:not(.is-scrolling) [class~="group/selector"]:hover .tovar-part {
   opacity: calc(var(--po, 0.11) * 1.82);
   filter: grayscale(0.1) contrast(1.1) saturate(1.1) !important;
 }
-[class~="group/seo"]:hover .seo-photo {
+html:not(.is-scrolling) [class~="group/seo"]:hover .seo-photo {
   opacity: calc(var(--po, 0.11) * 1.5);
   filter: grayscale(0.16) contrast(1.16) brightness(1.05) saturate(1.12) !important;
 }
@@ -1650,20 +1653,13 @@ html.is-scrolling
   box-shadow: none !important;
   transition: none !important;
 }
-html.is-scrolling [class~="group/auto"] .auto-logos-mark,
-html.is-scrolling [class~="group/brandcars"] .brands-logos-mark {
-  opacity: calc(var(--mo, 0.18) * 1.45) !important;
-  filter: saturate(1.04) contrast(1.03) !important;
-  transition: none !important;
-}
-html.is-scrolling [class~="group/selector"] .tovar-part {
-  opacity: calc(var(--po, 0.11) * 1.65) !important;
-  filter: grayscale(0.22) !important;
-  transition: none !important;
-}
-html.is-scrolling [class~="group/seo"] .seo-photo {
-  opacity: calc(var(--po, 0.11) * 1.35) !important;
-  filter: grayscale(0.28) contrast(1.1) brightness(1.03) saturate(1.06) !important;
+/* The clarity lift above is simply not applied while scrolling. Forcing
+   "resting" values here instead did not match the real resting values (the
+   phone opacities below, each layer's own filter class), so every toggle of
+   html.is-scrolling started 360 ms opacity/filter transitions on every
+   backdrop plane — main-thread animations (the !important blocks
+   compositing) repainting each plane per frame at scroll start and end. */
+html.is-scrolling :is(.auto-logos-mark, .brands-logos-mark, .tovar-part, .seo-photo) {
   transition: none !important;
 }
 @media (max-width: 640px) {
@@ -7071,7 +7067,7 @@ svg.catalog-filter-search-icon {
   align-self: start;
 }
 
-.home-static :is(.hero-account-surface, .home-category-grid .reveal-head, .home-brands-grid > .reveal-head, .home-auto-grid .reveal-search > div) {
+.home-static :is(.hero-account-surface, .home-category-grid .reveal-head, .home-brands-grid > .reveal-head, .home-auto-grid .reveal-search-panel) {
   padding: var(--home-panel-padding);
   border-radius: 24px;
 }
@@ -7406,31 +7402,6 @@ html[data-admin-copy="true"] body * {
 @keyframes homeSeamUnfold {
   from { opacity: 0.25; scale: 0.35 1; }
   to { opacity: 1; scale: 1 1; }
-}
-
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    html:not(.reduce-scroll-effects) .home-static :is(.home-slot-auto, .home-slot-product, .home-slot-brands) {
-      view-timeline-name: --home-section-entry;
-      view-timeline-axis: block;
-    }
-
-    html:not(.reduce-scroll-effects) .home-static .home-slot-auto { --home-slide-x: -14px; }
-    html:not(.reduce-scroll-effects) .home-static .home-slot-product { --home-slide-x: 14px; }
-    html:not(.reduce-scroll-effects) .home-static .home-slot-brands { --home-slide-x: -14px; }
-
-    html:not(.reduce-scroll-effects) .home-static .home-slot-ready :is(.reveal-head, .reveal-search) {
-      animation: homeSectionSlide 1ms linear both;
-      animation-timeline: --home-section-entry;
-      animation-range: entry 0% entry 100%;
-    }
-
-    html:not(.reduce-scroll-effects) .home-static .home-scroll-seam {
-      animation: homeSeamUnfold 1ms linear both;
-      animation-timeline: --home-section-entry;
-      animation-range: entry 0% entry 100%;
-    }
-  }
 }
 
 /* Stronger descriptions on the homepage, with distinct light/dark tones.
@@ -9114,7 +9085,7 @@ html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto
 .home-static .card-metal img {
   transition: scale 360ms var(--home-hover-ease),transform 360ms var(--home-hover-ease);
 }
-.home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search > div,.home-auto-grid .reveal-head > div,.reveal-adv-copy,.reveal-adv-map) {
+.home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel,.reveal-adv-copy,.reveal-adv-map) {
   transition: opacity 340ms,transform 560ms var(--home-hover-ease),scale 300ms var(--home-hover-ease),border-color 200ms,box-shadow 260ms var(--home-hover-ease);
 }
 .home-static :is(.card-metal,.home-feature-card):focus-visible {
@@ -9139,7 +9110,7 @@ html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto
     border-color: rgb(var(--home-hover-rgb) / 55%);
     box-shadow: inset 0 1px 0 #fff,0 10px 24px -14px rgb(var(--home-hover-rgb) / 40%);
   }
-  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search > div,.home-auto-grid .reveal-head > div,.reveal-adv-copy,.reveal-adv-map):hover {
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel,.reveal-adv-copy,.reveal-adv-map):hover {
     border-color: rgb(var(--home-hover-rgb) / 48%);
     box-shadow: inset 0 0 0 1px rgb(var(--home-hover-rgb) / 18%),inset 0 1px 0 rgb(255 255 255 / 50%),0 12px 30px -18px rgb(var(--home-hover-rgb) / 34%);
   }
@@ -9148,7 +9119,7 @@ html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto
   html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article):hover { scale: 1.012; }
   html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .home-slot-auto .card-metal:hover { transform: translateY(-2px); }
   html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .home-slot-brands .card-metal:hover { transform: translateY(-3px); }
-  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search > div,.home-auto-grid .reveal-head > div):hover { scale: 1.004; }
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel):hover { scale: 1.004; }
   html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .home-feature-card:hover::after { animation: site-glint-pass 720ms var(--home-hover-ease); }
   .home-static .reveal-adv-cards > article > div:first-of-type > span:first-child svg { transition: rotate 280ms var(--home-hover-ease),scale 280ms var(--home-hover-ease); }
 }
@@ -9169,7 +9140,7 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
 html.is-scrolling .home-static .home-feature-card::after,
 html.reduce-scroll-effects .home-static .home-feature-card::after { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article,.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search > div,.home-auto-grid .reveal-head > div,.reveal-adv-copy,.reveal-adv-map),
+  .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article,.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel,.reveal-adv-copy,.reveal-adv-map),
   .home-static .card-metal img { transition: none !important; scale: 1 !important; }
   .home-static :is(.home-feature-card,.card-metal)::after { animation: none !important; transition: none !important; opacity: 0 !important; }
 }
@@ -9178,7 +9149,7 @@ html.is-scrolling .home-static .card-metal:hover {
   background-color: rgb(255 255 255 / 35%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 60%),0 3px 10px -5px rgb(var(--home-hover-rgb) / 12%);
 }
-html.is-scrolling .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search > div,.home-auto-grid .reveal-head > div):hover { scale: 1; }
+html.is-scrolling .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel):hover { scale: 1; }
 .home-static :is(.section-reveal-auto,.section-reveal-cats,.section-reveal-brands,.section-reveal-advantages).is-revealed :is(.reveal-head,.reveal-search,.reveal-adv-copy,.reveal-adv-map) {
   transition-property: opacity,transform,scale,border-color,box-shadow !important;
   transition-duration: 340ms,560ms,300ms,200ms,260ms !important;
@@ -9192,9 +9163,8 @@ html.is-scrolling .home-static .home-section-stage :is(.reveal-head,.reveal-sear
      --mx/--my px and --dx/--dy -1..1 onto the hovered card), a coloured ring,
      lift and an icon pop. Each stage has its own gesture (magnetic logo,
      accent rail, 3D tilt). Fine pointers only, paused while scrolling.
-   - Scroll: CSS scroll-driven animations only (compositor, no listeners).
-     The two panels of each stage slide toward each other and drift at
-     different depths; backdrop parallax also runs here (data-plx).
+   - Scroll: small headings enter on native timelines; large interactive
+     panels stay stationary. Background planes provide the depth (data-plx).
    - Gaps between stages carry a connector that unfolds on entry.
    Reduced motion / .reduce-scroll-effects turn all of it off.
    ========================================================================= */
@@ -9422,45 +9392,6 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
 @keyframes homeConnectorLine { from { opacity: 0; scale: 0 1; } to { opacity: 1; scale: 1 1; } }
 @keyframes homeConnectorNode { from { opacity: 0; rotate: -135deg; scale: 0.3; } to { opacity: 1; rotate: 45deg; scale: 1; } }
 
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    html:not(.reduce-scroll-effects) .home-static > .home-section-stage:not(.home-section-stage-hero) {
-      view-timeline: --home-stage block;
-    }
-    /* Whole stages are deliberately not moved: any transform on a stage
-       wrapper (even translate-only) re-renders its backdrop-filter panels
-       every frame — measured as the main source of dropped scroll frames.
-       The panels and the connector carry the transition instead. */
-    /* the two panels slide toward each other; the left one also floats at a
-       different depth than the right one (parallax) */
-    html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto-grid > .reveal-head, .home-category-grid > :first-child, .home-brands-grid > .reveal-head, .home-story-grid > .reveal-adv-copy) {
-      animation: homeSlideFromLeft linear both, homeDepthNear linear both;
-      animation-timeline: --home-stage, --home-stage;
-      animation-range: entry 5% entry 85%, cover 0% cover 100%;
-    }
-    html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto-grid > .reveal-search, .home-category-grid > aside, .home-brands-grid > .home-brand-cards, .home-story-grid > .reveal-adv-map) {
-      animation: homeSlideFromRight linear both;
-      animation-timeline: --home-stage;
-      animation-range: entry 15% entry 95%;
-    }
-    /* alternate direction stage by stage */
-    html:not(.reduce-scroll-effects) .home-static .home-slot-product { --home-slide: -70px; }
-    html:not(.reduce-scroll-effects) .home-static > .home-section-stage:not(.home-section-stage-hero)::before {
-      animation: homeConnectorLine linear both !important;
-      animation-timeline: --home-stage !important;
-      animation-range: entry 0% entry 45% !important;
-    }
-    html:not(.reduce-scroll-effects) .home-static > .home-section-stage:not(.home-section-stage-hero)::after {
-      animation: homeConnectorNode linear both !important;
-      animation-timeline: --home-stage !important;
-      animation-range: entry 0% entry 55% !important;
-    }
-  }
-  @media (prefers-reduced-motion: no-preference) and (max-width: 1023px) {
-    html:not(.reduce-scroll-effects) .home-static .home-slot-product { --home-slide: -22px; }
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article) { transform: none !important; scale: 1 !important; --home-spot: 0 !important; }
   .home-static :is(.card-metal > span, .card-metal img, .reveal-adv-cards > article span) { translate: none !important; scale: 1 !important; rotate: none !important; }
@@ -9480,18 +9411,6 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
    view timeline's scroller (progress frozen at ~50%). clip crops identically
    without that, so the timeline tracks the page scroll. */
 .home-static :is(.home-glow-section, .home-section-stage-static > section) { overflow: clip; }
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    [data-plx-root] { view-timeline: --plx-backdrop block; }
-    [data-plx-root] [data-plx] {
-      will-change: transform;
-      animation: plxBackdrop linear both;
-      animation-timeline: --plx-backdrop;
-      animation-range: cover 0% cover 100%;
-    }
-  }
-}
-
 /* Hero photo parallax on the compositor (HeroParallaxBackground). Same curve
    as the JS fallback: smoothstep over the hero's own height as it scrolls
    off the top (exit-crossing), translate 5% / scale +0.11 on desktop and
@@ -9500,17 +9419,1094 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
   from { transform: scale(1.025); }
   to { transform: translate3d(0, calc(5% * var(--hero-plx-k)), 0) scale(calc(1.025 + 0.11 * var(--hero-plx-k))); }
 }
+/* Responsive customer workspaces: one scroll owner, safe edges and touch controls. */
+.customer-window.customer-overlay-panel.app-overlay-panel {
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-content {
+  min-width: 0;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel :is(input, select, textarea) {
+  max-width: 100%;
+}
+.customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-tabs button {
+  min-height: 44px;
+  min-width: 0;
+  white-space: normal;
+}
+.catalog-product-card :is(.catalog-card-title, .catalog-card-meta, .catalog-card-actions) { min-width: 0; }
+.catalog-product-card .catalog-card-name { overflow-wrap: anywhere; }
+
+@media (max-width: 639px), (max-height: 500px) {
+  .customer-window.customer-overlay-panel.app-overlay-panel {
+    top: max(8px, env(safe-area-inset-top));
+    bottom: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    width: auto;
+    margin-inline: auto;
+    max-width: 720px;
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    border-radius: 16px;
+    overflow-y: auto;
+    scroll-padding-block: 90px 20px;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel { max-width: 460px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-content {
+    padding: 12px !important;
+    gap: 12px;
+    flex: 0 0 auto;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-header {
+    position: sticky;
+    top: -12px;
+    z-index: 5;
+    margin-inline: -12px;
+    padding: 12px;
+    gap: 10px;
+    background: #17283e;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-title {
+    font-size: 20px !important;
+    overflow-wrap: anywhere;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-subtitle {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .app-panel-scroll {
+    overflow: visible;
+    max-height: none;
+    flex: 0 0 auto;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-fields > .soft-surface-card { padding: 12px; gap: 12px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-hero { padding: 12px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .customer-profile-identity { gap: 8px !important; }
+  .customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel form > .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+}
+@media (max-width: 639px) {
+  .catalog-product-card { height: 440px !important; }
+  .catalog-product-card--admin { height: 440px !important; }
+  .catalog-product-card .catalog-card-face { padding: 12px; border-radius: 16px; }
+  .catalog-product-card .catalog-card-hero { height: 108px; }
+  .catalog-product-card .catalog-card-name { font-size: 16px; line-height: 1.35; }
+  .catalog-product-card .catalog-card-price-row { flex-wrap: wrap; gap: 6px; }
+  .catalog-product-card .catalog-card-actions { gap: 6px; flex-wrap: wrap; align-items: center; }
+  .catalog-product-card .catalog-stock-control-stepper button { width: 44px !important; height: 44px !important; flex-shrink: 0; }
+  .catalog-product-card .catalog-card-cart-button { flex: 1; min-width: 44px; padding-inline: 8px; }
+  .catalog-product-card .catalog-card-details-button { flex-shrink: 0; }
+}
+
+/* A measured counter grid keeps its buttons inside the availability surface
+   in both cart states; intrinsic label width no longer determines its size. */
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control {
+  width: fit-content;
+  min-width: 114px;
+  max-width: 100%;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 7px 8px;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control-stepper {
+  display: grid;
+  grid-template-columns: 28px minmax(28px, auto) 28px;
+  width: auto;
+  min-width: 92px;
+  gap: 4px;
+  align-items: center;
+  justify-content: start;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control-stepper > span {
+  width: auto !important;
+  margin: 0 !important;
+  padding-inline: 2px;
+  font-size: 14px;
+  font-weight: 750;
+  text-align: center;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control-stepper > button {
+  border-radius: 10px;
+  box-shadow: none;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-card-actions {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-card-actions > .flex.shrink-0 {
+  margin-left: auto;
+}
+@media (max-width: 639px) {
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control {
+    min-width: 146px;
+  }
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-stock-control-stepper {
+    grid-template-columns: 44px minmax(32px, auto) 44px;
+    min-width: 128px;
+    padding-top: 6px;
+  }
+  .catalog-product-card:not(.catalog-product-card--admin):has(button[aria-label="Видалити товар з кошика"]) {
+    height: 440px !important;
+  }
+}
+@media (min-width: 640px) {
+  .catalog-product-card:not(.catalog-product-card--admin) {
+    height: 384px !important;
+  }
+}
+@media (min-width: 640px) {
+  .catalog-product-card:not(.catalog-product-card--admin):has(button[aria-label="Видалити товар з кошика"]) {
+    height: 440px !important;
+  }
+}
+
+/* Mobile filtering: readable compact rows with one vertical scroll surface. */
+@media (max-width: 639px) {
+  .catalog-filter-card { border-radius: 16px; }
+  .catalog-filter-card__header { gap: 4px; padding: 6px; }
+  .catalog-filter-card__header > div:first-child { display: none; }
+  .catalog-filter-card__header { grid-template-columns: minmax(0,1fr) auto; }
+  .catalog-filter-mini-bar { gap: 3px; justify-content: space-between; }
+  .catalog-filter-mini-bar > button { min-width: 44px; min-height: 44px; box-shadow: none; }
+  .catalog-filter-card__header > div:last-child { gap: 4px; }
+  .catalog-filter-card__header > div:last-child > button { width: 44px; height: 44px; box-shadow: none; }
+  .catalog-filter-panel-stage {
+    max-height: min(430px, calc(100svh - 150px)) !important;
+    padding: 8px;
+    border-radius: 12px;
+    background: #f8fbfe;
+    box-shadow: none;
+    scrollbar-width: thin;
+  }
+  .catalog-filter-panel-view { min-width: 0; }
+  .catalog-filter-card .catalog-filter-search-shell {
+    position: sticky;
+    top: -8px;
+    z-index: 3;
+    min-width: 0;
+    width: 100%;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgb(15 23 42 / 6%);
+  }
+  .catalog-filter-card .catalog-filter-search-input { font-size: 16px; min-height: 44px; }
+  .catalog-filter-card .catalog-filter-rail-shell { padding: 4px; border-radius: 12px; box-shadow: none; background: #fff; }
+  .catalog-filter-card .directory-mobile-list .directory-horizontal-rail {
+    max-height: none;
+    overflow: visible;
+    gap: 6px;
+    padding: 2px;
+  }
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card) {
+    height: auto;
+    min-height: 52px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+  .catalog-filter-card .catalog-filter-brand-card { font-size: 13px; }
+  .catalog-filter-card .directory-mobile-list .catalog-filter-choice-card { min-height: 52px; }
+  .catalog-filter-card .directory-mobile-list .catalog-filter-choice-card span.line-clamp-2 { font-size: 13px; line-height: 1.3; }
+  .catalog-filter-card .auto-filter-steps > button { min-height: 48px; padding: 6px 3px; border-radius: 10px; }
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card):focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
+  .catalog-filter-card .catalog-filter-horizontal-rail .catalog-filter-choice-card { height: 56px; min-height: 56px; }
+}
+@media (max-width: 639px) {
+  .catalog-filter-card .catalog-filter-price-panel { padding: 8px; gap: 10px; box-shadow: none; }
+  .catalog-filter-card .catalog-price-block { padding: 8px; gap: 8px; border-radius: 12px; box-shadow: none; }
+  .catalog-filter-card .catalog-price-control-card { padding: 6px; border-radius: 10px; box-shadow: none; backdrop-filter: none; }
+  .catalog-filter-card .catalog-price-control-card > .relative { min-width: 0; }
+  .catalog-filter-card .catalog-price-control-card input { min-width: 0; max-width: 100%; min-height: 44px; font-size: 16px; }
+  .catalog-filter-card :is(.catalog-price-preset,.catalog-price-control-card button) { min-height: 44px; }
+  .catalog-filter-card .catalog-price-presets { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+}
+
+/* A single filter surface: navigation, pinned search, then the choices. */
+@media (max-width: 639px) {
+  .catalog-filter-card { background: #fff; border-color: #b9d7eb; box-shadow: 0 6px 18px rgb(15 23 42 / 8%); }
+  .catalog-filter-card::before, .catalog-filter-card::after { display: none; }
+  .catalog-filter-card__header { background: #f0f7fc; border-bottom-color: #dfebf4; }
+  .catalog-filter-mini-bar { padding-block: 0; margin-block: 0; gap: 3px; }
+  .catalog-filter-mini-bar > button { flex-direction: column; justify-content: center; gap: 2px; min-height: 50px; padding: 5px 6px; border-radius: 10px; }
+  .filter-tab-label { display: block; font-size: 10px; font-weight: 700; line-height: 1.15; }
+  .catalog-filter-panel-stage { padding: 0 8px 8px; border: 0; border-radius: 0; background: #fff; box-shadow: none; --tw-ring-shadow: 0 0 #0000; }
+  .catalog-filter-panel-stage .catalog-filter-panel-view { height: auto; }
+  .catalog-filter-panel-stage .catalog-filter-panel-view > .h-full { height: auto; }
+  .catalog-filter-card .catalog-filter-category-toolbar {
+    position: sticky; top: 0; z-index: 5; padding: 8px 0; gap: 6px; background: #fff;
+  }
+  .catalog-filter-card .catalog-filter-category-toolbar .catalog-filter-search-shell { position: relative; top: auto; }
+  .catalog-filter-card .catalog-filter-category-toolbar button { min-height: 44px; box-shadow: none; }
+  .catalog-filter-card .catalog-filter-search-shell {
+    top: 0; margin-bottom: 6px; border: 1px solid #c7ddeb;
+    background: #f4f8fc; box-shadow: none; border-radius: 10px;
+  }
+  .catalog-filter-card .catalog-filter-search-icon { box-shadow: none; background: transparent; color: #2478a7; }
+  .catalog-filter-card .catalog-filter-rail-shell { padding: 0; border: 0; border-radius: 0; background: transparent; }
+  .catalog-filter-card .directory-mobile-list .directory-horizontal-rail { padding: 0; gap: 4px; }
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card) {
+    padding: 7px 8px; border-color: #e3edf5; background-image: none; background-color: #f8fbfe;
+  }
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card)[aria-pressed="true"] { background: #e5f3ff; border-color: #38a6df; }
+  .catalog-filter-card .auto-filter-compact > .space-y-4 { gap: 8px; }
+  .catalog-filter-card .auto-filter-compact .grid.grid-cols-1 { gap: 8px; }
+  .catalog-filter-card .auto-filter-steps { gap: 4px; }
+  .catalog-filter-card .auto-filter-steps > button { box-shadow: none; padding: 5px 3px; }
+  .catalog-filter-card .catalog-price-block { border: 0; background: transparent; padding: 4px 0; }
+}
+
+/* Admin quantity controls keep their intrinsic width on tablet layouts. */
+.catalog-product-card--admin .catalog-stock-control { min-width: 106px; flex: 0 0 auto; max-width: 100%; }
+.catalog-product-card--admin .catalog-stock-control-stepper {
+  display: grid; grid-template-columns: 28px minmax(28px,auto) 28px;
+  width: auto; min-width: 92px; gap: 4px; align-items: center;
+}
+.catalog-product-card--admin .catalog-stock-control-stepper > span { width: auto !important; margin: 0 !important; text-align: center; }
+.catalog-product-card--admin .catalog-card-actions { flex-wrap: wrap; gap: 6px; }
+.catalog-product-card--admin .catalog-card-actions > .flex.shrink-0 { margin-left: auto; }
+@media (min-width: 640px) and (max-width: 1023px), (pointer: coarse) {
+  .catalog-product-card--admin { height: 440px !important; }
+  .catalog-product-card--admin .catalog-stock-control { min-width: 148px; }
+  .catalog-product-card--admin .catalog-stock-control-stepper { grid-template-columns: 44px minmax(32px,auto) 44px; min-width: 128px; padding-top: 4px; }
+  .catalog-product-card--admin .catalog-stock-control-stepper > button { width: 44px !important; height: 44px !important; border-radius: 10px; }
+}
+
+/* Shared filtering workspace: restrained elevation and clear selected states. */
+.catalog-filter-card {
+  border-color: #a6c8df;
+  background: linear-gradient(160deg,#ffffff 30%,#f1f8fd);
+  box-shadow: inset 0 1px 0 #fff, 0 4px 8px rgb(15 52 80 / 6%), 0 16px 34px rgb(15 52 80 / 12%);
+}
+.catalog-filter-card::before, .catalog-filter-card::after { display: none; }
+.catalog-filter-card__header {
+  background: linear-gradient(125deg,#e4f1fb,#f3f9fe 55%,#e4f5f2);
+  border-bottom-color: #c5dce9;
+}
+.catalog-filter-mini-bar > button { box-shadow: inset 0 1px 0 #fff, 0 3px 6px rgb(15 52 80 / 8%); }
+.catalog-filter-mini-bar > button[aria-pressed="true"] { border-color: #248bbd; background: #dceffc; color: #075985; box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgb(2 132 199 / 15%); }
+.catalog-filter-panel-stage { border: 0; background: transparent; box-shadow: none; --tw-ring-shadow: 0 0 #0000; }
+.catalog-filter-card .catalog-filter-rail-shell { border: 0; padding: 0; background: transparent; box-shadow: none; }
+.catalog-filter-card .catalog-filter-search-shell {
+  position: sticky; top: 0; z-index: 4;
+  background: #f3f8fc; border: 1px solid #b5d2e5; border-radius: 12px;
+  box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgb(15 52 80 / 7%);
+}
+.catalog-filter-card .catalog-filter-search-icon { background: transparent; box-shadow: none; color: #2478a7; }
+.catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card) {
+  border-color: #cddfea; background: linear-gradient(145deg,#fff,#f3f8fc);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 5px rgb(15 52 80 / 6%);
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+@media (hover: hover) {
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card):hover { border-color: #6db4d7; box-shadow: inset 0 1px 0 #fff, 0 4px 10px rgb(2 132 199 / 12%); }
+}
+@media (min-width: 640px) {
+  .catalog-filter-card__header { padding: 10px 12px; gap: 10px; }
+  .catalog-filter-mini-bar { gap: 6px; }
+  .catalog-filter-mini-bar > button { min-height: 44px; padding: 7px 12px; border-radius: 11px; }
+  .catalog-filter-panel-stage { padding: 0 4px 8px; }
+  .catalog-filter-card .directory-mobile-list > .grid { display: block; padding-inline: 0; }
+  .catalog-filter-card .directory-mobile-list .directory-horizontal-rail {
+    display: grid; grid-auto-flow: row; grid-template-rows: none;
+    grid-template-columns: repeat(3,minmax(0,1fr)); grid-auto-columns: auto;
+    overflow: visible; max-height: none; gap: 8px; padding: 3px;
+    scroll-snap-type: none;
+  }
+  .catalog-filter-card .directory-mobile-list :is(.directory-rail-arrow,.directory-rail-pagination) { display: none; }
+  .catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card) { height: auto; min-height: 56px; padding: 8px 10px; border-radius: 11px; }
+  .catalog-filter-card .catalog-filter-category-toolbar { position: sticky; top: 0; z-index: 5; padding: 8px 0; background: #f7fbfe; gap: 8px; }
+  .catalog-filter-card .catalog-filter-category-toolbar .catalog-filter-search-shell { position: relative; }
+  .catalog-filter-card .catalog-price-block { padding: 8px; box-shadow: none; }
+}
+@media (min-width: 1280px) {
+  .catalog-filter-card .directory-mobile-list .directory-horizontal-rail { grid-template-columns: repeat(4,minmax(0,1fr)); }
+}
+.catalog-filter-card :is(.catalog-filter-choice-card,.catalog-filter-brand-card)[aria-pressed="true"] {
+  border-color: #2f9bba; background: linear-gradient(145deg,#e5f5ff,#e2f4ed);
+  box-shadow: inset 0 1px 0 #fff, 0 3px 8px rgb(2 132 199 / 12%);
+}
+.catalog-filter-card .auto-filter-compact .catalog-filter-choice-card[aria-pressed="true"] {
+  background: linear-gradient(135deg,#0369a1,#075985); color: #fff; border-color: #0284c7;
+}
+
+/* Admin tools occupy their own rows rather than squeezing between values. */
+.catalog-product-card--admin { height: 440px !important; }
+.catalog-product-card--admin .catalog-card-face-front { overflow-y: auto; overflow-x: hidden; }
+.catalog-product-card--admin :is(.catalog-card-meta,.catalog-card-price-row,.catalog-card-actions,.catalog-admin-price-editor) { flex-shrink: 0; }
+.catalog-product-card--admin .catalog-card-hero { height: 96px; }
+.catalog-product-card--admin .catalog-card-price-row {
+  display: grid; grid-template-columns: minmax(0,1fr) 36px; gap: 6px;
+}
+.catalog-product-card--admin .catalog-admin-price-mode {
+  grid-column: 1 / -1; justify-self: start; padding: 2px; box-shadow: none;
+}
+.catalog-product-card--admin .catalog-admin-price-mode button { min-height: 32px; min-width: 58px; font-size: 10px; }
+.catalog-product-card--admin .catalog-card-price-pill { grid-column: 1; width: 100%; margin-left: 0; justify-content: space-between; min-height: 36px; padding: 6px 8px; }
+.catalog-product-card--admin .catalog-card-price-row > button { width: 36px; height: 36px; opacity: 1; margin: 0; }
+.catalog-product-card--admin .catalog-card-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: center; padding-top: 6px; }
+.catalog-product-card--admin .catalog-stock-control {
+  grid-column: 1 / -1; display: flex; flex-direction: row;
+  align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-width: 0; padding: 5px 7px;
+}
+.catalog-product-card--admin .catalog-stock-control-label { flex: 1; min-width: 0; width: auto; justify-content: flex-start; gap: 4px; }
+.catalog-product-card--admin .catalog-stock-control-stepper { flex: 0 0 auto; border-top: 0; padding-top: 0; }
+.catalog-product-card--admin .catalog-card-actions > .flex.shrink-0 { grid-column: 2; margin-left: 0; }
+.catalog-product-card .catalog-card-price-pill { border-radius: 12px; border-color: #bdd7ee; background: linear-gradient(145deg,#fff,#edf6ff); box-shadow: inset 0 1px 0 #fff,0 3px 7px rgb(30 64 105 / 7%); }
+.catalog-product-card .catalog-card-price-pill > span:last-child { flex-wrap: wrap; justify-content: flex-end; row-gap: 3px; }
+.catalog-product-card .catalog-card-discount-teaser { flex-shrink: 0; border-color: rgb(190 24 93 / 25%); background: linear-gradient(135deg,#fff5f8,#fce4ec); box-shadow: inset 0 1px 0 #fff,0 3px 7px rgb(159 18 57 / 9%); }
+@media (max-width: 639px) {
+  .catalog-product-card--admin { height: 440px !important; }
+  .catalog-product-card--admin .catalog-card-hero { height: 96px; }
+  .catalog-product-card--admin .catalog-admin-price-mode button { min-height: 36px; min-width: 64px; }
+  .catalog-product-card .catalog-card-price-row--teaser { justify-content: flex-end; gap: 6px; }
+  .catalog-product-card .catalog-card-discount-teaser { padding-inline: 6px; gap: 4px; height: 30px; margin-left: 0; }
+  .catalog-product-card .catalog-card-discount-value { font-size: 12px; }
+  .catalog-product-card .catalog-card-discount-caption { font-size: 10px; }
+  .catalog-product-card .catalog-card-price-pill { min-height: 36px; padding: 6px 8px; gap: 4px; }
+}
+.catalog-product-card--admin .catalog-card-price-pill > span:first-child { display: none; }
+.catalog-product-card--admin .catalog-card-price-pill > span:last-child { width: 100%; min-width: 0; }
+.catalog-product-card--admin .catalog-card-price-pill > span:last-child > span:not(:last-child):not(.line-through) { font-size: 18px; line-height: 1.1; }
+.catalog-product-card--admin .catalog-card-meta { gap: 2px; padding: 2px 0; margin-top: 2px; }
+.catalog-product-card--admin .catalog-card-meta > div:not(:has(input)) { min-height: 28px; height: 28px; align-items: center; flex: 0 0 auto; }
+.catalog-product-card--admin .catalog-card-meta > div:has(input) { height: auto; }
+
+/* Compact mobile controls and a denser desktop customer card. */
+@media (max-width: 639px) {
+  .catalog-product-card .catalog-card-price-pill { width: fit-content; flex: 0 0 auto; max-width: 100%; }
+  .catalog-product-card--admin .catalog-card-price-row { grid-template-columns: max-content 36px; justify-content: end; }
+  .catalog-product-card--admin .catalog-admin-price-mode { justify-self: end; }
+  .catalog-product-card--admin .catalog-card-price-pill { width: fit-content; justify-content: center; }
+  .catalog-product-card--admin .catalog-card-price-pill > span:last-child { width: auto; }
+  .catalog-product-card--admin .catalog-stock-control {
+    grid-column: 1; justify-self: start; width: fit-content;
+    min-width: 144px; max-width: 160px; flex-direction: column;
+    align-items: stretch; gap: 4px; padding: 5px 7px;
+  }
+  .catalog-product-card--admin .catalog-stock-control-label { flex: 0 0 auto; width: 100%; }
+  .catalog-product-card--admin .catalog-stock-control-stepper { border-top: 1px solid rgb(34 99 71 / 12%); padding-top: 4px; }
+  .catalog-product-card--admin .catalog-card-actions { align-items: end; }
+  .catalog-product-card--admin:has(button[aria-label="Видалити товар з кошика"]) .catalog-stock-control { grid-column: 1 / -1; }
+}
+@media (min-width: 640px) {
+  .catalog-product-card:not(.catalog-product-card--admin) { height: 360px !important; }
+  .catalog-product-card:not(.catalog-product-card--admin):has(button[aria-label="Видалити товар з кошика"]) { height: 400px !important; }
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-card-meta { gap: 2px; margin-top: 2px; padding: 2px 0; }
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-card-meta > div { height: 26px; min-height: 26px; align-items: center; flex: 0 0 auto; }
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-card-actions { margin-top: 8px; }
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-card-price-row { margin-top: 5px; }
+}
+@media (max-width: 639px) {
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row > .catalog-card-price-pill { width: fit-content; max-width: none; }
+  .catalog-product-card--admin .catalog-card-price-pill > span:last-child { flex-wrap: nowrap; white-space: nowrap; }
+}
+
+/* Admin value surfaces stay intrinsic on every viewport. */
+.catalog-product-card--admin .catalog-card-price-row {
+  grid-template-columns: minmax(0,max-content) 36px;
+  justify-content: end;
+}
+.catalog-product-card--admin .catalog-admin-price-mode { justify-self: end; }
+.catalog-product-card.catalog-product-card--admin .catalog-card-price-row > .catalog-card-price-pill {
+  width: fit-content; max-width: 100%; justify-self: end;
+  justify-content: center; padding: 5px 8px; gap: 4px;
+}
+.catalog-product-card--admin .catalog-card-price-pill > span:last-child {
+  width: auto; flex-wrap: nowrap; white-space: nowrap; gap: 4px;
+}
+.catalog-product-card--admin .catalog-card-actions {
+  display: flex; flex-wrap: wrap; justify-content: space-between;
+  align-items: flex-end; gap: 6px;
+}
+.catalog-product-card--admin .catalog-stock-control {
+  width: 110px; min-width: 110px; max-width: 100%;
+  flex: 0 0 auto; flex-direction: column; align-items: stretch;
+  gap: 4px; padding: 5px 7px; border-radius: 10px;
+}
+.catalog-product-card--admin .catalog-stock-control-label { width: 100%; flex: 0 0 auto; }
+.catalog-product-card--admin .catalog-stock-control-stepper {
+  border-top: 1px solid rgb(34 99 71 / 12%); padding-top: 4px;
+}
+.catalog-product-card--admin .catalog-card-actions > .flex.shrink-0 { margin-left: auto; }
+@media (max-width: 639px), (min-width: 640px) and (max-width: 1023px), (pointer: coarse) {
+  .catalog-product-card--admin .catalog-stock-control { width: 146px; min-width: 146px; }
+}
+
+/* Desktop admin card: Прод/Закуп, price and its pencil share one row (the
+   partner-discount teaser, when present, takes a second one), and the stock
+   label stays on one line. Stacking them left ~35px of empty card under the
+   price on most products and made admin cards 80px taller than the
+   customer ones. Height is shared by every card in the grid (the virtual
+   grid measures one card), so it fits the teaser variant. From 1280px only:
+   the 4-column admin grid is ~220px per card at 1024px, too narrow for one
+   row, and tablet widths use the larger touch controls. */
+@media (min-width: 1280px) {
+  .catalog-product-card.catalog-product-card--admin { height: 372px !important; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row {
+    grid-template-columns: auto minmax(0, 1fr) 36px;
+    align-items: center;
+    justify-content: stretch;
+    width: 100%;
+    margin-left: 0;
+    row-gap: 4px;
+  }
+  .catalog-product-card.catalog-product-card--admin .catalog-admin-price-mode { grid-column: 1; grid-row: 1; justify-self: start; }
+  .catalog-product-card.catalog-product-card--admin .catalog-admin-price-mode button { min-width: 46px; min-height: 32px; padding-inline: 8px; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row > .catalog-card-price-pill {
+    grid-column: 2; grid-row: 1; justify-self: end; width: fit-content; max-width: 100%;
+  }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row > button { grid-column: 3; grid-row: 1; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row > .catalog-card-discount-teaser {
+    grid-column: 1 / -1; grid-row: 2; justify-self: end; margin: 0;
+  }
+}
+
+/* ---- Stock counter (catalog cards, customer and admin, every viewport).
+   A light translucent surface: status (dot + text) on top, a hairline, then
+   a quiet −/count/+ stepper. Mouse: 26px buttons. Touch keeps the site-wide
+   44px hit area (globals: pointer: coarse) but draws a 34px chip inside it,
+   so the counter reads compact on phones without smaller tap targets. */
+.catalog-product-card .catalog-card-actions .catalog-stock-control {
+  --qty-btn: 44px;
+  --qty-chip: 34px;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 6px 8px 7px;
+  border: 1px solid rgb(22 163 74 / 18%);
+  border-radius: 12px;
+  background: rgb(240 253 244 / 45%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control--backorder {
+  border-color: rgb(217 119 6 / 20%);
+  background: rgb(255 251 235 / 50%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-label {
+  width: auto;
+  min-height: 20px;
+  gap: 6px;
+  justify-content: flex-start;
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-label::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgb(34 197 94 / 16%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control--backorder .catalog-stock-control-label::before {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 16%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-status {
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: #166534;
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control--backorder .catalog-stock-control-status { color: #92400e; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control-label > button {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 2px;
+  border-radius: 6px;
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper {
+  display: grid;
+  grid-template-columns: var(--qty-btn) minmax(24px, 1fr) var(--qty-btn);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 0;
+  margin: 0;
+  padding: 3px 0 0;
+  border-top: 1px solid rgb(22 101 52 / 12%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button {
+  position: relative;
+  isolation: isolate;
+  width: var(--qty-btn) !important;
+  height: var(--qty-btn) !important;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #0f766e;
+  box-shadow: none;
+}
+/* The visible chip; the button around it is the (larger on touch) hit area. */
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--qty-btn) - var(--qty-chip)) / 2);
+  z-index: -1;
+  border-radius: 9px;
+  border: 1px solid rgb(15 118 110 / 18%);
+  background: rgb(255 255 255 / 75%);
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button:last-child { color: #0e7490; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button:last-child::before {
+  border-color: rgb(14 116 144 / 30%);
+  background: rgb(204 251 241 / 70%);
+}
+@media (hover: hover) {
+  .catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button:not(:disabled):hover::before {
+    background: #fff;
+    border-color: rgb(14 116 144 / 45%);
+  }
+}
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > button:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control-stepper > span {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 750;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) and (pointer: fine) {
+  .catalog-product-card .catalog-card-actions .catalog-stock-control { --qty-btn: 26px; --qty-chip: 26px; }
+}
+
+/* Remove-from-cart: a small button stacked above the cart button. As a
+   third 44px button in the row it pushed cart/details onto a new line below
+   the card's fixed height (admin cards, every viewport). Stacked, the button
+   column (28 + 4 + 44px) is no taller than the stock counter beside it. */
+.catalog-product-card .catalog-card-actions > .flex.shrink-0:has(> button[aria-label="Видалити товар з кошика"]) {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  gap: 4px;
+  align-items: end;
+}
+.catalog-product-card .catalog-card-actions > .flex.shrink-0 > button[aria-label="Видалити товар з кошика"] {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.catalog-product-card .catalog-card-actions > .flex.shrink-0:has(> button[aria-label="Видалити товар з кошика"]) > .catalog-card-cart-button { grid-column: 1; grid-row: 2; }
+.catalog-product-card .catalog-card-actions > .flex.shrink-0:has(> button[aria-label="Видалити товар з кошика"]) > button:last-child { grid-column: 2; grid-row: 2; }
+@media (pointer: coarse) {
+  .catalog-product-card .catalog-card-actions > .flex.shrink-0 > button[aria-label="Видалити товар з кошика"] { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
+}
+/* Keep the counter and the buttons on one row: on narrow cards (the 4-column
+   admin grid at 1024px) the status wraps to two lines instead of the buttons
+   wrapping below the card's fixed height. */
+.catalog-product-card .catalog-card-actions { flex-wrap: nowrap; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control { flex: 0 1 auto; min-width: 0; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control-status { white-space: normal; }
+.catalog-product-card .catalog-card-actions .catalog-stock-control-label { align-items: center; }
+/* Phone admin card: its extra price-mode row needs a little more than 440px. */
+@media (max-width: 639px) {
+  .catalog-product-card.catalog-product-card--admin { height: 468px !important; }
+}
+/* 4-column admin grid at 1024-1279px: ~220px cards wrap the stock status. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .catalog-product-card.catalog-product-card--admin { height: 456px !important; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-label::before { display: none; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-status { font-size: 10.5px; }
+}
+/* Wrap the status between words only ("В наявності" / "· 2 шт."). */
+.catalog-product-card .catalog-card-actions .catalog-stock-control-status { overflow-wrap: normal; word-break: normal; hyphens: none; }
+
+/* Crawlable homepage directories share a single editorial surface. */
+.home-popular-surface {
+  position: relative; isolation: isolate; overflow: hidden;
+  padding: clamp(18px,3vw,32px);
+  border: 1px solid #c5dae3; border-radius: 20px;
+  background: radial-gradient(ellipse at 100% 0%, #d9efed 0%, transparent 48%),
+    linear-gradient(155deg, #fbfdfd 20%, #eff5f8 72%, #e3edf3);
+  box-shadow: inset 0 1px 0 #fff, 0 8px 20px rgb(24 57 76 / 5%), 0 24px 48px rgb(24 57 76 / 8%);
+}
+.home-popular-surface::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: linear-gradient(rgb(28 101 114 / 8%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(28 101 114 / 8%) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(120deg, transparent 40%, #000);
+}
+.home-popular-blueprint {
+  position: absolute; top: 8px; right: 10px; z-index: -1;
+  width: clamp(180px,27vw,360px); height: auto; color: #237d88;
+  opacity: .18; pointer-events: none;
+}
+.home-popular-intro { position: relative; }
+@media (max-width: 639px) {
+  .home-popular-blueprint { top: 0; right: -56px; opacity: .12; }
+  .home-popular-surface { border-radius: 16px; }
+}
+.home-popular-intro h2 { margin: 0; font-size: clamp(24px,3vw,34px); font-weight: 800; line-height: 1.15; letter-spacing: -.025em; color: #142e44; }
+.home-popular-intro h2 span { color: #087c85; }
+.home-popular-intro p { margin: 12px 0 0; max-width: 70ch; color: #526878; font-size: 14px; line-height: 1.65; }
+.home-popular-groups { display: grid; gap: 24px; margin-top: 26px; }
+.home-popular-group { min-width: 0; }
+.home-popular-group + .home-popular-group { padding-top: 20px; border-top: 1px solid #dce8f0; }
+.home-popular-group-heading { display: flex; align-items: center; gap: 9px; color: #087c85; }
+.home-popular-group-heading h3 { margin: 0; color: #20394e; font-size: 16px; font-weight: 750; line-height: 1.35; }
+.home-popular-category-list,.home-popular-brand-list { list-style: none; padding: 0; margin: 14px 0 0; gap: 6px; }
+.home-popular-category-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.home-popular-brand-list { display: flex; flex-wrap: wrap; }
+.home-popular-category-link,.home-popular-brand-link { display: flex; align-items: center; min-height: 44px; gap: 8px; border-radius: 9px; border: 1px solid transparent; color: #28475d; text-decoration: none; font-size: 13px; font-weight: 650; line-height: 1.35; transition: background-color .16s,border-color .16s,color .16s; }
+.home-popular-category-link { height: 100%; padding: 8px; background: #edf5fa; }
+.home-popular-category-link svg { flex: 0 0 auto; color: #247d9c; }
+.home-popular-category-link span { min-width: 0; overflow-wrap: anywhere; }
+.home-popular-brand-link { padding: 7px 10px; background: #f0f5f8; }
+.home-popular-directory-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 10px; color: #086c7d; text-decoration: underline; text-underline-offset: 4px; font-size: 13px; font-weight: 750; }
+.home-popular-nav a:focus-visible { outline: 2px solid #0284c7; outline-offset: 3px; }
+@media (hover:hover) {
+  .home-popular-category-link:hover,.home-popular-brand-link:hover { background: #dceef7; border-color: #8bc2d7; color: #075985; }
+  .home-popular-directory-link:hover { color: #034f60; }
+}
+@media (min-width:1024px) {
+  .home-popular-groups { grid-template-columns: 1.15fr 1fr 1fr; gap: 26px; }
+  .home-popular-group + .home-popular-group { padding-top: 0; border-top: 0; }
+}
+@media (max-width:359px) {
+  .home-popular-category-list { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .home-popular-nav a { transition: none; }
+}
+
+/* Reuse the catalogue's actual category artwork and brand identities. */
+.home-popular-category-image,.home-popular-logo { display: grid; flex: 0 0 auto; place-items: center; width: 36px; height: 36px; }
+.home-popular-logo { background: #fff; border-radius: 7px; padding: 3px; }
+.home-popular-category-image img,.home-popular-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.home-popular-brand-link { gap: 7px; padding: 5px 8px; }
+.home-popular-category-link { padding: 7px; gap: 7px; }
+@media (max-width:639px) {
+  .home-popular-category-image { width: 30px; height: 30px; }
+  .home-popular-logo { width: 30px; height: 30px; }
+  .home-popular-category-link { font-size: 12px; }
+}
+
+/* ---- Popular sections: aligned, quiet tile grids.
+   Categories 2 columns, car brands 3, manufacturers 2 — six rows each. On
+   desktop the three groups share one row track list (subgrid), so tile rows
+   line up across columns and the "Усі …" links share one baseline. No nested
+   panels: columns are separated by hairlines on the existing surface. */
+.home-popular-groups { gap: 22px; margin-top: 24px; align-items: stretch; }
+.home-popular-group,
+.home-popular-group + .home-popular-group { display: flex; flex-direction: column; }
+
+.home-popular-category-list,
+.home-popular-brand-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 10px;
+  grid-auto-rows: minmax(52px, auto);
+}
+.home-popular-list--categories,
+.home-popular-list--producers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.home-popular-list--cars { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.home-popular-category-link,
+.home-popular-brand-link {
+  height: 100%;
+  min-height: 52px;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid #e1ecf3;
+  background: #f7fafc;
+  color: #28475d;
+  transition: background-color .16s, border-color .16s, color .16s;
+}
+.home-popular-brand-link span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.home-popular-list--cars .home-popular-brand-link {
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.home-popular-category-image,
+.home-popular-logo { width: 32px; height: 32px; padding: 3px; border-radius: 7px; background: #fff; }
+.home-popular-category-image { background: transparent; padding: 0; }
+.home-popular-list--cars .home-popular-logo { width: 28px; height: 28px; }
+
+.home-popular-directory-link { margin-top: auto; }
+
+@media (hover: hover) {
+  .home-popular-category-link:hover,
+  .home-popular-brand-link:hover { background: #eef7fb; border-color: #a9d3e3; color: #075985; }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .home-popular-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-popular-group--categories { grid-column: 1 / -1; }
+  .home-popular-list--categories { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .home-popular-group--producers { padding-left: 22px; border-left: 1px solid #dce8f0; }
+  .home-popular-group--cars,
+  .home-popular-group--producers { padding-top: 20px; border-top: 1px solid #dce8f0; }
+}
+@media (min-width: 1024px) {
+  .home-popular-groups { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.22fr) minmax(0, 0.9fr); gap: 0; }
+  .home-popular-group + .home-popular-group { padding-left: 22px; margin-left: 22px; border-left: 1px solid #dce8f0; }
+}
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 1024px) {
+    .home-popular-groups { grid-template-rows: auto repeat(6, minmax(52px, auto)) auto; }
+    .home-popular-group,
+    .home-popular-group + .home-popular-group {
+      display: grid;
+      grid-row: span 8;
+      grid-template-rows: subgrid;
+      row-gap: 6px;
+    }
+    .home-popular-group-heading { margin-bottom: 6px; }
+    .home-popular-category-list,
+    .home-popular-brand-list {
+      grid-row: span 6;
+      grid-template-rows: subgrid;
+      grid-auto-rows: auto;
+      margin: 0;
+    }
+    .home-popular-directory-link { margin-top: 4px; }
+  }
+}
+@media (max-width: 639px) {
+  .home-popular-category-image,
+  .home-popular-logo { width: 28px; height: 28px; }
+  .home-popular-list--cars .home-popular-brand-link { font-size: 11.5px; }
+}
+
+/* Reserve space for all three cart actions, including removal, on phones. */
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control {
+  width: 118px; min-width: 118px; padding: 4px;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-stepper {
+  grid-template-columns: 44px minmax(16px,1fr) 44px;
+  min-width: 0; width: 100%; gap: 2px;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-stepper > button {
+  width: 44px !important; height: 44px !important;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-stepper > span {
+  min-width: 0; padding-inline: 0; font-size: 12px;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-status { font-size: 10px; }
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions { gap: 4px; }
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions > .flex.shrink-0 { gap: 2px; }
+
+/* Keep the compact admin stock label on a single line beside its edit action. */
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-label {
+  width: 100%; min-width: 0; gap: 3px;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-label::before { display: none; }
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-status {
+  white-space: nowrap; flex: 1 1 auto; min-width: 0;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-actions .catalog-stock-control-label > button { flex-shrink: 0; }
+
+/* PartsON journal: editorial hierarchy, calm reading, navy and teal wayfinding. */
+.blog-page { min-height: 100vh; background: #f5f8fa; color: #183247; }
+.blog-page a:focus-visible,.blog-page summary:focus-visible { outline: 3px solid #07808a; outline-offset: 5px; }
+.blog-breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; line-height: 1.6; color: #536a79; }
+.blog-breadcrumb a { text-decoration: none; }
+.blog-breadcrumb a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.blog-masthead { padding: 32px 0 42px; background: #e8f1f3; border-bottom: 1px solid #cedfe5; }
+.blog-masthead-layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 48px; align-items: end; margin-top: 28px; }
+.blog-masthead h1 { margin: 0; font-size: clamp(32px,3.7vw,54px); line-height: 1.13; letter-spacing: -.03em; }
+.blog-masthead h1 span { color: #087781; }
+.blog-masthead p { max-width: 40ch; margin: 0 0 4px; font-size: 16px; line-height: 1.75; color: #415d70; }
+.blog-posts { padding-top: 36px; padding-bottom: 44px; }
+.blog-feature { display: grid; grid-template-columns: 1.35fr 1fr; min-height: 400px; overflow: hidden; border-radius: 18px; background: #112f45; color: #fff; text-decoration: none; box-shadow: 0 12px 28px rgb(24 50 71 / 12%); }
+.blog-feature-image,.blog-story-image { position: relative; overflow: hidden; display: grid; place-items: center; background: #d5e5eb; color: #225b70; }
+.blog-feature-image { min-height: 360px; }
+.blog-feature-image img,.blog-story-image img { object-fit: cover; transition: transform .45s cubic-bezier(.16,1,.3,1); }
+.blog-feature-copy { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: clamp(24px,3vw,42px); }
+.blog-post-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; line-height: 1.6; color: #526a79; }
+.blog-post-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.blog-feature .blog-post-meta { color: #bfd4df; }
+.blog-feature h2 { margin: 20px 0 14px; font-size: clamp(25px,2.6vw,36px); line-height: 1.2; letter-spacing: -.025em; }
+.blog-feature-copy > p { margin: 0; color: #d0dfe7; font-size: 15px; line-height: 1.75; }
+.blog-read-link { display: inline-flex; align-items: center; gap: 14px; margin-top: 26px; font-weight: 750; font-size: 14px; color: #087781; }
+.blog-feature .blog-read-link { color: #fff; padding-bottom: 7px; border-bottom: 1px solid #68b9ba; }
+.blog-read-link svg { transition: transform .2s cubic-bezier(.16,1,.3,1); }
+.blog-more-posts { margin-top: 40px; }
+.blog-more-posts > h2,.blog-about h2 { margin: 0; font-size: clamp(25px,2.5vw,34px); line-height: 1.25; letter-spacing: -.02em; }
+.blog-card-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; margin-top: 24px; }
+.blog-story-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: #fff; border: 1px solid #d6e3e9; border-radius: 14px; text-decoration: none; transition: border-color .2s,box-shadow .2s; }
+.blog-story-image { aspect-ratio: 16 / 10; }
+.blog-story-copy { display: flex; flex-direction: column; flex: 1; padding: 22px; }
+.blog-story-copy h3 { margin: 14px 0 10px; font-size: 21px; line-height: 1.35; font-weight: 800; }
+.blog-story-copy > p { margin: 0 0 22px; font-size: 14px; line-height: 1.7; color: #526a79; }
+.blog-story-copy .blog-read-link { margin-top: auto; }
+.blog-about { padding-bottom: 56px; }
+.blog-about-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding-top: 32px; border-top: 1px solid #cfdee5; }
+.blog-about-heading p { margin: 0; max-width: 56ch; font-size: 15px; line-height: 1.75; color: #526a79; }
+.blog-topic-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 36px; margin-top: 30px; }
+.blog-topic-grid svg { color: #087781; }
+.blog-topic-grid h3 { margin: 14px 0 8px; font-size: 18px; font-weight: 750; }
+.blog-topic-grid p { margin: 0; max-width: 44ch; font-size: 14px; line-height: 1.75; color: #526a79; }
+.blog-catalog-bridge { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 0 0; margin-top: 30px; border-top: 1px solid #cfdee5; }
+.blog-catalog-bridge p { margin: 0; font-size: 16px; font-weight: 650; }
+.blog-catalog-bridge a,.blog-empty a { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 44px; padding: 10px 18px; background: #087781; color: #fff; border-radius: 9px; text-decoration: none; font-size: 14px; font-weight: 750; }
+.blog-empty { padding: 48px 20px; text-align: center; }
+.blog-empty > svg { margin: 0 auto 18px; color: #087781; }
+.blog-empty h2 { font-size: 28px; }
+.blog-empty p { margin: 14px auto 24px; max-width: 46ch; line-height: 1.7; }
+.blog-article-page { background: #fafcfd; }
+.blog-article-header { padding-top: 30px; }
+.blog-article-header h1 { max-width: 1000px; margin: 28px 0 20px; font-size: clamp(32px,4.2vw,58px); line-height: 1.12; letter-spacing: -.03em; }
+.blog-article-deck { max-width: 76ch; margin: 0; font-size: clamp(16px,1.5vw,19px); line-height: 1.75; color: #4b6576; }
+.blog-article-byline { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 24px; font-size: 13px; line-height: 1.6; color: #526a79; }
+.blog-article-byline a,.blog-article-byline span { display: inline-flex; align-items: center; gap: 7px; }
+.blog-article-byline a { color: #076d77; font-weight: 750; text-decoration: none; }
+.blog-article-cover { margin: 30px 0 0; border-radius: 16px; overflow: hidden; background: #e2edf1; }
+.blog-cover-image { display: block; width: 100%; max-height: 520px; aspect-ratio: 16 / 8; object-fit: cover; }
+.blog-reading-layout { display: grid; grid-template-columns: minmax(0,740px); justify-content: center; gap: 64px; padding-top: 42px; padding-bottom: 56px; }
+.blog-reading-layout--with-toc { grid-template-columns: minmax(0,740px) minmax(200px,270px); }
+.blog-reading-content { min-width: 0; scroll-margin-top: 100px; }
+.blog-toc { grid-column: 2; grid-row: 1; min-width: 0; }
+.blog-toc-desktop { position: sticky; top: 100px; max-height: calc(100svh - 140px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #aec7d1 transparent; }
+.blog-toc h2 { font-size: 16px; font-weight: 800; margin: 0 0 16px; }
+.blog-toc ol { list-style: none; padding: 0; margin: 0; }
+.blog-toc li + li { margin-top: 2px; }
+.blog-toc a { display: block; padding: 10px 0; font-size: 13px; line-height: 1.5; color: #4b6576; text-decoration: none; border-bottom: 1px solid #e2ebef; }
+.blog-toc a:hover { color: #076d77; }
+.blog-toc .blog-toc-subheading { padding-left: 12px; }
+.blog-toc-mobile { display: none; }
+.blog-reading-layout--with-toc .blog-reading-content { grid-column: 1; grid-row: 1; }
+.blog-prose { max-width: 70ch; font-size: 17px; line-height: 1.85; color: #344f61; overflow-wrap: anywhere; }
+.blog-prose p { margin: 0 0 24px; font-weight: 400; }
+.blog-prose h2,.blog-prose h3 { color: #183247; scroll-margin-top: 110px; font-weight: 800; letter-spacing: -.015em; }
+.blog-prose h2 { margin: 42px 0 16px; font-size: 28px; line-height: 1.3; }
+.blog-prose h3 { margin: 30px 0 12px; font-size: 21px; line-height: 1.4; }
+.blog-prose > :first-child { margin-top: 0; }
+.blog-prose strong { color: #203d51; font-weight: 750; }
+.blog-prose ul { margin: 0 0 26px; padding-left: 24px; list-style: disc; }
+.blog-prose li { padding-left: 4px; margin: 9px 0; }
+.blog-prose li::marker { color: #087781; }
+.blog-prose a { color: #076d77; text-decoration-color: #7bb5bd; text-underline-offset: 4px; }
+.blog-inline-figure { margin: 28px 0 36px; }
+.blog-inline-figure img { display: block; width: 100%; max-height: 480px; height: auto; object-fit: contain; border-radius: 12px; background: #edf3f6; }
+.blog-article-video { margin-top: 36px; }
+.blog-article-video h2 { font-size: 24px; font-weight: 800; margin: 0 0 16px; }
+.blog-article-video > div { aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; background: #112f45; }
+.blog-article-video iframe,.blog-article-video video { width: 100%; height: 100%; border: 0; }
+.blog-author-note { display: flex; gap: 18px; margin-top: 40px; padding: 24px 0; border-top: 1px solid #cfdee5; border-bottom: 1px solid #cfdee5; }
+.blog-author-note > svg { flex-shrink: 0; color: #087781; margin-top: 2px; }
+.blog-author-note a { font-weight: 750; color: #183247; text-decoration: none; }
+.blog-author-note p { margin: 8px 0; font-size: 14px; line-height: 1.75; color: #526a79; }
+.blog-author-note .blog-policy-link { display: inline-flex; align-items: center; gap: 5px; color: #076d77; font-size: 13px; min-height: 36px; }
+.blog-article-next { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; padding-top: 22px; }
+.blog-article-next a { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: #076d77; text-decoration: none; font-size: 14px; font-weight: 750; }
+.blog-reading-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 1100; pointer-events: none; }
+.blog-reading-progress > div { height: 100%; background: #087781; transform: scaleX(0); transform-origin: left; }
+@media (hover:hover) {
+  .blog-feature:hover img,.blog-story-card:hover img { transform: scale(1.025); }
+  .blog-feature:hover .blog-read-link svg,.blog-story-card:hover .blog-read-link svg { transform: translate(3px,-3px); }
+  .blog-story-card:hover { border-color: #8bb6c4; box-shadow: 0 8px 22px rgb(24 50 71 / 8%); }
+  .blog-catalog-bridge a:hover,.blog-empty a:hover { background: #065c64; }
+}
+@media (max-width:1023px) {
+  .blog-masthead-layout { grid-template-columns: 1fr; gap: 20px; }
+  .blog-masthead p { max-width: 64ch; }
+  .blog-feature { grid-template-columns: 1.1fr 1fr; }
+  .blog-card-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .blog-reading-layout,.blog-reading-layout--with-toc { grid-template-columns: minmax(0,740px); gap: 26px; }
+  .blog-toc,.blog-reading-layout--with-toc .blog-reading-content { grid-column: auto; grid-row: auto; }
+  .blog-toc-desktop { display: none; }
+  .blog-toc-mobile { display: block; border-block: 1px solid #cfdee5; padding-block: 8px; }
+  .blog-toc-mobile summary { cursor: pointer; padding: 12px 0; font-weight: 750; color: #076d77; }
+  .blog-toc-mobile nav { padding: 0 0 14px; }
+}
+@media (max-width:767px) {
+  .blog-feature { grid-template-columns: 1fr; min-height: 0; }
+  .blog-feature-image { min-height: 0; aspect-ratio: 16 / 10; }
+  .blog-feature-copy { padding: 24px; }
+  .blog-feature h2 { margin-top: 16px; }
+  .blog-about-heading { grid-template-columns: 1fr; gap: 14px; }
+  .blog-topic-grid { grid-template-columns: 1fr; gap: 24px; }
+  .blog-topic-grid > div { display: grid; grid-template-columns: 24px 1fr; column-gap: 14px; }
+  .blog-topic-grid h3 { margin: 0 0 6px; }
+  .blog-topic-grid p { grid-column: 2; }
+  .blog-catalog-bridge { align-items: flex-start; flex-direction: column; gap: 14px; }
+}
+@media (max-width:639px) {
+  .blog-masthead { padding: 22px 0 30px; }
+  .blog-masthead-layout { margin-top: 20px; }
+  .blog-masthead p { font-size: 15px; }
+  .blog-posts { padding-top: 22px; padding-bottom: 32px; }
+  .blog-card-grid { grid-template-columns: 1fr; gap: 20px; }
+  .blog-article-header { padding-top: 22px; }
+  .blog-article-header h1 { margin: 22px 0 16px; }
+  .blog-article-byline { gap: 10px 16px; font-size: 12px; }
+  .blog-article-cover { margin-top: 24px; border-radius: 12px; }
+  .blog-cover-image { aspect-ratio: 16 / 10; }
+  .blog-reading-layout { padding-top: 26px; padding-bottom: 36px; }
+  .blog-prose { font-size: 16px; line-height: 1.8; }
+  .blog-prose h2 { font-size: 24px; margin-top: 34px; }
+  .blog-prose h3 { font-size: 20px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .blog-page *, .blog-page *::before,.blog-page *::after { transition: none !important; scroll-behavior: auto !important; }
+  .blog-feature:hover img,.blog-story-card:hover img { transform: none; }
+}
+
+/* ---- Homepage paint budget ------------------------------------------------
+   Filters are re-run every time a tile is rasterised, i.e. on every newly
+   exposed strip while scrolling. The homepage carried 67 filtered elements
+   (/partnership: 5), and its paint/raster cost per scroll was ~3x higher.
+   Dropped here because the effect is not visible at their opacity:
+   - backdrop marks: saturate(1.04) contrast(1.03);
+   - parts/photos at ~15-18% opacity: grayscale/contrast tweaks;
+   - heading glows that are already soft radial gradients: blur(40px).
+   The desktop hover "clarity" filter on the backdrops is unchanged. */
+.home-static :is(.auto-logos-mark, .brands-logos-mark, .tovar-part, .seo-photo) {
+  filter: none;
+}
+.home-static [class*="bg-[radial-gradient"][class*="blur-2xl"] {
+  filter: none;
+}
+
+/* ---- Homepage parallax and block drift (compositor-only) -----------------
+   Each section's backdrop moves as ONE layer (.home-backdrop: all of its
+   marks/parts/photos together), slower than the content: four translated
+   layers instead of the ~40 individually rotated/scaled/filtered planes that
+   made scrolling lag. The hero photo drifts down as the hero leaves, and the
+   info panels of each section drift against their card grids for depth.
+   Only `translate` on scroll timelines: no JS per frame, no repaint, no
+   filters on moving layers. Off for reduced motion and for devices the
+   ScrollPerformanceGuard marks as slow (html.reduce-scroll-effects). */
+@keyframes homeBackdropDrift {
+  from { translate: 0 calc(var(--home-backdrop-shift) * -1); }
+  to { translate: 0 var(--home-backdrop-shift); }
+}
+@keyframes homeHeroPhotoDrift {
+  from { translate: 0 0; }
+  to { translate: 0 var(--home-hero-shift); }
+}
+@keyframes homePlaneDrift {
+  from { translate: 0 calc(var(--plx-drift, 0px) * -1); }
+  to { translate: 0 var(--plx-drift, 0px); }
+}
+@keyframes homePanelDrift {
+  from { translate: 0 var(--home-panel-shift); }
+  to { translate: 0 calc(var(--home-panel-shift) * -1); }
+}
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    [data-hero-plx] { view-timeline: --hero-photo block; --hero-plx-k: 0.46; }
-    [data-hero-plx] .hero-photo {
-      will-change: transform;
-      animation: heroPhotoDrift cubic-bezier(0.3333, 0, 0.6667, 1) both;
-      animation-timeline: --hero-photo;
+    html:not(.reduce-scroll-effects) .home-static {
+      --home-backdrop-shift: 60px;
+      --home-hero-shift: 9%;
+      --home-panel-shift: 18px;
+    }
+    html:not(.reduce-scroll-effects) .home-static .home-backdrop {
+      will-change: translate;
+      view-timeline: --home-backdrop block;
+      animation: homeBackdropDrift linear both;
+      animation-timeline: view(block);
+      animation-range: cover 0% cover 100%;
+    }
+    /* Near planes travel further than the field as a whole: real depth.
+       ~6 planes per section (each backdrop's own moving subset), translate
+       only — no rotation, scale or filter changes on moving layers. */
+    html:not(.reduce-scroll-effects) .home-static .home-backdrop [data-plx-drift] {
+      will-change: translate;
+      animation: homePlaneDrift linear both;
+      animation-timeline: --home-backdrop;
+      animation-range: cover 0% cover 100%;
+    }
+    html:not(.reduce-scroll-effects) .home-static .hero-section-smooth {
+      view-timeline: --home-hero block;
+    }
+    html:not(.reduce-scroll-effects) .home-static .hero-photo {
+      animation: homeHeroPhotoDrift linear both;
+      animation-timeline: --home-hero;
       animation-range: exit-crossing 0% exit-crossing 100%;
     }
+    html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.reveal-head, .reveal-adv-copy) {
+      animation: homePanelDrift linear both;
+      animation-timeline: view(block);
+      animation-range: cover 0% cover 100%;
+    }
   }
-  @media (prefers-reduced-motion: no-preference) and (min-width: 641px) {
-    [data-hero-plx] { --hero-plx-k: 1; }
+  @media (prefers-reduced-motion: no-preference) and (max-width: 767px) {
+    html:not(.reduce-scroll-effects) .home-static {
+      --home-backdrop-shift: 30px;
+      --home-hero-shift: 5%;
+      --home-panel-shift: 10px;
+    }
   }
+}
+
+/* ---- Homepage list hovers: no displacement --------------------------------
+   Tiles, cards and their logos/photos/icons no longer jump, scale, tilt or
+   follow the cursor on hover; the hover is carried by the ring, the halo,
+   the accent rail and the cursor glare instead. Same for the whole-stage
+   hover, which loses its 90px inset glow (it repainted the entire section
+   each time the pointer crossed into it) and keeps the outline. */
+@media (hover: hover) and (pointer: fine) {
+  /* var() on purpose: the CSS minifier folds literal scale/translate/rotate
+     into a single `transform` declaration, which leaves the separate
+     `scale: 1.012` hover rule in force. */
+  .home-static :is(.card-metal, .home-feature-card, .reveal-adv-cards > article):hover {
+    transform: none !important;
+    scale: var(--home-hover-scale, 1) !important;
+    translate: var(--home-hover-shift, 0 0) !important;
+    rotate: var(--home-hover-rotate, 0deg) !important;
+  }
+  html:not(.is-scrolling) .home-static > .home-section-stage:not(.home-section-stage-hero):hover :is(.home-glow-section, .home-section-stage-static > section) {
+    box-shadow: inset 0 1px 0 #fff;
+  }
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .home-feature-card:hover {
+    background-color: rgb(10 30 49 / 96%);
+    background-image: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgb(56 189 248 / 10%), transparent 70%);
+    border-color: rgb(125 211 252 / 55%);
+    box-shadow: inset 0 1px 0 rgb(186 230 253 / 12%), 0 12px 26px -12px rgb(2 6 23 / 55%);
+  }
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .hero-account-surface:hover {
+    background-color: rgb(2 6 23 / 88%);
+    border-color: rgb(125 211 252 / 40%);
+    box-shadow: inset 0 1px 0 rgb(186 230 253 / 12%), 0 16px 32px -14px rgb(2 6 23 / 55%);
+  }
+  .home-static .hero-section-smooth:hover > .home-scroll-decor {
+    opacity: 0.22;
+  }
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .reveal-adv-cards > article:hover {
+    background-color: rgb(255 255 255 / 98%);
+  }
+}
+.home-static .home-slot-auto .card-metal > span:nth-child(2),
+.home-static .home-slot-brands .card-metal > span:nth-child(2) {
+  translate: var(--home-hover-shift, 0 0);
+  scale: var(--home-hover-scale, 1);
+}
+.home-static .home-slot-product .card-metal img,
+.home-static .home-feature-card .home-feature-image img {
+  scale: var(--home-hover-scale, 1);
+  rotate: var(--home-hover-rotate, 0deg);
+}
+.home-static .reveal-adv-cards > article > div:first-of-type > span:first-child {
+  scale: var(--home-hover-scale, 1);
+  rotate: var(--home-hover-rotate, 0deg);
 }

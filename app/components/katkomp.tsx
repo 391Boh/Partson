@@ -784,7 +784,7 @@ const Category: React.FC<CategoryProps> = ({
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="catalog-filter-category-toolbar flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-extrabold text-slate-800">
           {!isSearchMode && (activeCategory || activeGroup) ? (
             <button
@@ -922,6 +922,7 @@ const Category: React.FC<CategoryProps> = ({
                       <button
                         key={item.name}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => handleCategorySelect(item.name)}
                         className={`catalog-filter-choice-card group/card flex h-[72px] w-full shrink-0 cursor-pointer snap-start items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 text-left shadow-[0_8px_18px_rgba(15,23,42,0.07),inset_0_1px_0_white] transition-[background-color,border-color,box-shadow] duration-300 ease-out hover:shadow-[0_14px_28px_rgba(14,116,144,0.14),inset_0_1px_0_white] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 ${buttonClass}`}
                       >
@@ -1009,6 +1010,7 @@ const Category: React.FC<CategoryProps> = ({
                       <button
                         key={item.id}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => handleSubgroupSelect(item)}
                         className={`catalog-filter-choice-card flex h-[72px] w-full flex-col justify-center gap-0.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected

@@ -2,13 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-import {
-  getCenteredParallaxProgress,
-  registerParallax,
-  applyTimelineParallax,
-  canUseTimelineParallax,
-} from "app/lib/parallax-controller";
-
 // Atmospheric layer behind the car-picker. Each brand mark is a
 // gradient-filled silhouette — the SVG is a CSS `mask`, the shape is filled
 // with a chrome ramp, so it always reads as one clean, lightly polished
@@ -246,7 +239,6 @@ export default function AutoLogosBackdrop() {
       scaleSwingM: 0,
     }));
 
-    let handle: ReturnType<typeof registerParallax> | null = null;
     // Only the marks actually painted at the current breakpoint get animated —
     // on phones ~half the field is `display:none`, and writing a transform to a
     // hidden node still costs a style-recalc entry every frame.
@@ -281,7 +273,7 @@ export default function AutoLogosBackdrop() {
       const y = Math.round(p * plane.driftM * 100) / 100;
       const r = Math.round((plane.rot + p * plane.rotSwingM) * 1000) / 1000;
       const s = Math.round((1 + p * plane.scaleSwingM) * 10000) / 10000;
-      return `translate3d(${plane.tx},${y}px,0) rotate(${r}deg) scale(${s})`;
+      return `translate(${plane.tx},${y}px) rotate(${r}deg) scale(${s})`;
     };
 
     const apply = (progress: number) => {
@@ -295,46 +287,48 @@ export default function AutoLogosBackdrop() {
     // Compositor path where supported: the transforms are handed to a CSS
     // scroll-driven animation once and nothing runs on scroll. The shared JS
     // controller below remains the fallback.
-    const timeline = canUseTimelineParallax();
-    let timelineOn = false;
+    // Static composition, like /partnership: every plane sits at its centred
+    // pose — the one seen mid-scroll — and nothing moves with the scroll.
+    // Scroll-linked motion of these filtered, semi-transparent layers was
+    // recomposited on every frame (and ran per-frame JS where scroll
+    // timelines are unsupported), which is what made the homepage scroll lag.
+    // Depth: each moving plane gets its own vertical travel (the per-plane
+    // amplitude this backdrop was designed with); globals.css translates it
+    // on the backdrop's scroll timeline — compositor only, set once here.
+    const markDepth = () => {
+      for (const p of allPlanes) {
+        delete p.el.dataset.plxDrift;
+        p.el.style.removeProperty("--plx-drift");
+      }
+      for (const p of planes) {
+        if (!p.driftM) continue;
+        p.el.style.setProperty("--plx-drift", `${p.driftM}px`);
+        p.el.dataset.plxDrift = "";
+      }
+    };
+    let staticOn = false;
     let measuredWidth = window.innerWidth;
     const onResize = () => {
       if (window.innerWidth === measuredWidth) return;
       measuredWidth = window.innerWidth;
       recompute();
-      if (timelineOn) applyTimelineParallax(root, allPlanes, planes, transformAt);
+      if (staticOn) {
+        apply(0);
+        markDepth();
+      }
     };
 
     const start = () => {
-      if (timelineOn) return;
-      if (timeline) {
-        timelineOn = true;
-        recompute();
-        applyTimelineParallax(root, allPlanes, planes, transformAt);
-        window.addEventListener("resize", onResize, { passive: true });
-        window.addEventListener("orientationchange", onResize);
-        return;
-      }
-      if (handle) {
-        handle.refresh();
-        return;
-      }
+      if (staticOn) return;
+      staticOn = true;
       recompute();
-      for (const p of planes) p.el.style.willChange = "transform";
+      apply(0);
+      markDepth();
       window.addEventListener("resize", onResize, { passive: true });
       window.addEventListener("orientationchange", onResize);
-      handle = registerParallax({
-        el: section as HTMLElement,
-        heavy: true,
-        compute: getCenteredParallaxProgress,
-        apply,
-      });
     };
     const stop = () => {
-      if (!handle) return;
-      handle.release();
-      handle = null;
-      for (const p of allPlanes) p.el.style.willChange = "";
+      staticOn = false;
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
     };
@@ -360,7 +354,7 @@ export default function AutoLogosBackdrop() {
     <div
       ref={rootRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      className="home-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >
       {/* hairline dot-grid on the deepest moving plane — a slow counter-drift
           gives the whole panel a floor to move against; brightens on hover.
@@ -370,7 +364,7 @@ export default function AutoLogosBackdrop() {
         data-parallax
         data-depth="0.28"
         data-dir="-1"
-        style={{ transform: "translate3d(0,0,0)" }}
+        style={{ transform: "none" }}
         className="home-scroll-decor absolute -inset-y-[8%] inset-x-0 opacity-[0.42] transition-opacity duration-[900ms] ease-out group-hover/auto:opacity-70 bg-[radial-gradient(rgba(37,99,235,0.12)_1px,transparent_1.5px)] bg-[length:27px_27px] [mask-image:linear-gradient(to_bottom,transparent_0%,#000_22%,#000_82%,transparent_100%)]"
       />
 
@@ -395,7 +389,7 @@ export default function AutoLogosBackdrop() {
               WebkitMaskSize: "contain",
               WebkitMaskPosition: "center",
               WebkitMaskRepeat: "no-repeat",
-              transform: `translate3d(${logo.cx ? "-50%" : "0"}, 0, 0) rotate(${logo.rot}deg)`,
+              transform: `translate(${logo.cx ? "-50%" : "0"}, 0) rotate(${logo.rot}deg)`,
             }}
             className={`auto-logos-mark absolute ${logo.className}`}
           />

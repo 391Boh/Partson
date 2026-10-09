@@ -17,15 +17,34 @@ const short = (value: string, length: number) => {
 
 type ProductIdentity = { productName?: string; producer?: string; article?: string; category?: string; group?: string; subGroup?: string };
 
+const SEO_TITLE_MAX_LENGTH = 65;
+
 export function buildProductSeoTitle({ name, producer, article }: { name: string; producer?: string; article?: string }) {
-  const label = clean(buildVisibleProductName(name));
+  const label = clean(buildVisibleProductName(name)) || "Автозапчастина";
   const maker = clean(producer);
   const code = clean(article);
-  const identity = [maker && !contains(label, maker) ? short(maker, 18) : "", code && !contains(label, code) ? short(code, 24) : ""].filter(Boolean).join(" ");
-  const suffix = `${identity ? ` — ${identity}` : ""} | PartsON`;
-  // Keep the part type readable and its real article distinguishable. The
-  // character budget is editorial; Google truncates by rendered width.
-  return `${short(label || "Автозапчастина", Math.max(20, 65 - suffix.length))}${suffix}`;
+  const makerPart = maker && !contains(label, maker) ? short(maker, 18) : "";
+  const codePart = code && !contains(label, code) ? short(code, 24) : "";
+  const withIdentity = (...parts: string[]) => {
+    const identity = parts.filter(Boolean).join(" ");
+    return identity ? ` — ${identity}` : "";
+  };
+  // The name ends with the fitment (model, engine, years) — what people
+  // search for next to the article. Rather than cutting it, drop the least
+  // useful parts first: the site name (Google shows it separately), then the
+  // manufacturer (still in the H1, description and Product schema). The
+  // article always stays. The character budget is editorial; Google
+  // truncates by rendered width.
+  const suffixes = [
+    `${withIdentity(makerPart, codePart)} | PartsON`,
+    withIdentity(makerPart, codePart),
+    withIdentity(codePart),
+  ];
+  for (const suffix of suffixes) {
+    if (label.length + suffix.length <= SEO_TITLE_MAX_LENGTH) return `${label}${suffix}`;
+  }
+  const suffix = suffixes[suffixes.length - 1];
+  return `${short(label, Math.max(20, SEO_TITLE_MAX_LENGTH - suffix.length))}${suffix}`;
 }
 
 export function buildProductMetaDescription(options: ProductIdentity) {

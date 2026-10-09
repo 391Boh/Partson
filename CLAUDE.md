@@ -2,6 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Impeccable design workflow
+
+Impeccable is installed for this project in `.claude/skills/impeccable` and
+`.agents/skills/impeccable`. Its design detector hooks are enabled for Claude
+Code and Codex. Use the installed skill for UI changes: audit the affected
+surface, apply focused improvements, then polish and verify mobile and desktop
+together. Preserve PartsON's existing visual identity and Ukrainian copy.
+
+Prioritize clear product selection, legible prices and availability, keyboard
+focus, comfortable touch targets, and smooth scrolling. Measure performance
+before adding motion; keep decorative effects inactive offscreen. Use the
+partnership page as the incumbent reference for the quality of motion.
+
+Run `.claude/skills/impeccable/scripts/impeccable context --target <file>` once
+per session and follow the matching command reference. Useful chat commands:
+`/impeccable audit`, `/impeccable optimize`, `/impeccable adapt`, and
+`/impeccable polish`. Check rendered results rather than changing the established
+palette merely to satisfy a detector heuristic. Respect pending changes by
+other agents in the working tree.
+
 ## Commands
 
 ```bash

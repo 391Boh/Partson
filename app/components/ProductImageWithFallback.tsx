@@ -132,6 +132,7 @@ export default function ProductImageWithFallback({
   );
 
   const [requestSrc, setRequestSrc] = useState(primarySrc || "");
+  const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
   const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -183,6 +184,7 @@ export default function ProductImageWithFallback({
     setLightboxOpen(false);
     setFinalRetryQueued(false);
     setSelectedGallerySrc("");
+    setCachedPreviewSrc("");
 
     if (!hasKnownPhoto) {
       if (normalizedProductCode) {
@@ -208,6 +210,10 @@ export default function ProductImageWithFallback({
         normalizedProductCode,
         normalizedArticleHint || undefined
       );
+      if (cached && variant === "full" && isCatalogImageSrc(cached)) {
+        // Reuse the already downloaded thumbnail while the full request continues.
+        setCachedPreviewSrc(cached);
+      }
       if (cached && !(variant === "full" && isCatalogImageSrc(cached))) {
         const isAlreadyShowingSameSrc =
           statusRef.current === "loaded" && requestSrcRef.current === cached;
@@ -340,7 +346,8 @@ export default function ProductImageWithFallback({
 
   const isLoaded = status === "loaded";
   const showPlaceholder = (!hasKnownPhoto && !selectedGallerySrc) || status === "missing";
-  const showSkeleton = !showPlaceholder && !isLoaded;
+  const showCachedPreview = Boolean(cachedPreviewSrc && !selectedGallerySrc && !showPlaceholder && !isLoaded);
+  const showSkeleton = !showPlaceholder && !isLoaded && !showCachedPreview;
   const canOpen = zoomEnabled && isLoaded;
   const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
 
@@ -394,6 +401,18 @@ export default function ProductImageWithFallback({
           <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 transition-opacity duration-200" />
         ) : null}
 
+        {showCachedPreview ? (
+          <Image
+            src={cachedPreviewSrc}
+            alt=""
+            fill
+            unoptimized
+            loading="eager"
+            decoding="async"
+            className="product-cached-preview object-contain"
+          />
+        ) : null}
+
         {requestSrc ? (
           <Image
             key={requestSrc}
@@ -411,7 +430,7 @@ export default function ProductImageWithFallback({
             sizes={variant === "catalog"
               ? "(max-width: 767px) 100vw, (max-width: 1279px) 46vw, 520px"
               : "(max-width: 639px) 280px, (max-width: 1023px) 460px, 520px"}
-            placeholder="blur"
+            placeholder={showCachedPreview ? "empty" : "blur"}
             blurDataURL={BLUR_DATA_URL}
             // /product-image/[code] used to be listed here too, which made
             // this `unoptimized` for essentially every real product photo —

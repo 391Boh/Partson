@@ -787,6 +787,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             </div>
             <div className="catalog-filter-rail-shell rounded-[18px] border border-white/80 bg-white/46 p-2 shadow-inner sm:p-3">
               <HorizontalDirectoryRail
+                    mobileList
                 ariaLabel="Виробники автозапчастин"
                 rows={2}
                 className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
@@ -796,6 +797,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       key={b.name}
                       type="button"
                       aria-label={`Виробник ${b.name}`}
+                      aria-pressed={producerParam === b.name}
                       title={b.name}
                       onClick={() => {
                         const nextParams = new URLSearchParams(currentSearchParams.toString());
@@ -1152,6 +1154,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               aria-pressed={isAutoSelected}
             >
               <Car size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
+              <span className="filter-tab-label sm:hidden">Авто</span>
               <span className="hidden sm:inline">Авто</span>
               {carCount > 0 && (
                 <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-blue-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-blue-700 sm:ring-0">
@@ -1168,6 +1171,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               title={displayCategoryLabel || 'Категорія'}
             >
               <Layers size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
+              <span className="filter-tab-label sm:hidden">Категорії</span>
               {hasCategoryLabel ? (
                 <>
                   <span className="hidden md:inline text-slate-500">Категорія</span>
@@ -1193,6 +1197,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               title={displayProducerLabel || 'Виробник'}
             >
               <Package size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
+              <span className="filter-tab-label sm:hidden">Бренди</span>
               <span className="hidden sm:inline">Виробник</span>
               {producerParam && (
                 <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-purple-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-purple-700 sm:ring-0">
@@ -1220,6 +1225,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   </span>
                 )}
               </span>
+              <span className="filter-tab-label sm:hidden">Ціна</span>
               <span className="hidden items-center gap-1 whitespace-nowrap sm:flex">
                 <span className="text-[15px] font-black leading-none" aria-hidden="true">
                   ₴

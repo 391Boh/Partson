@@ -408,3 +408,16 @@ export function applyTimelineParallax<P extends { el: HTMLElement }>(
     el.dataset.plx = "";
   }
 }
+
+/** Release native animation layers while their section is outside overscan.
+ * Reapplying the timeline resumes at the current scroll position. */
+export function clearTimelineParallax(
+  root: HTMLElement,
+  planes: readonly { el: HTMLElement }[]
+) {
+  delete root.dataset.plxRoot;
+  for (const { el } of planes) {
+    delete el.dataset.plx;
+    el.style.willChange = "";
+  }
+}

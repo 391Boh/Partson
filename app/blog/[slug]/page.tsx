@@ -3,10 +3,18 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Clock, ShieldCheck } from "lucide-react";
+import { blogReadingMinutes, formatBlogDate } from "app/lib/blog-presentation";
+import ArticleReadingProgress from "../ArticleReadingProgress";
 
-import { getPublishedBlogPostBySlug, getPublishedBlogPosts } from "app/lib/blog";
-import { buildBlogCoverCropPath, toPublicBlogImageSrc } from "app/lib/blog-media";
+import {
+  getPublishedBlogPostBySlug,
+  getPublishedBlogPosts,
+} from "app/lib/blog";
+import {
+  buildBlogCoverCropPath,
+  toPublicBlogImageSrc,
+} from "app/lib/blog-media";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -15,30 +23,6 @@ import BlogAdminActions from "./BlogAdminActions";
 type BlogPostPageProps = { params: Promise<{ slug: string }> };
 
 export const revalidate = 3600;
-
-const formatDate = (value: string | undefined) => {
-  if (!value) return "Оновлено";
-  return new Intl.DateTimeFormat("uk-UA", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(value));
-};
-
-const timeAgo = (value: string | undefined): string => {
-  if (!value) return "";
-  const diff = Date.now() - new Date(value).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "щойно";
-  if (mins < 60) return `${mins} хв тому`;
-  const hours = Math.floor(diff / 3_600_000);
-  if (hours < 24) return `${hours} год тому`;
-  const days = Math.floor(diff / 86_400_000);
-  if (days < 30) return `${days} дн тому`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months} міс тому`;
-  return `${Math.floor(days / 365)} р тому`;
-};
 
 const getVideoEmbedUrl = (url: string): string | null => {
   try {
@@ -55,7 +39,9 @@ const getVideoEmbedUrl = (url: string): string | null => {
       const id = u.pathname.replace(/\//g, "");
       if (id) return `https://player.vimeo.com/video/${id}`;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 };
 
@@ -77,7 +63,12 @@ const applyInline = (text: string): (string | React.ReactElement)[] => {
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
       return (
-        <a key={i} href={linkMatch[2]} rel="noopener noreferrer" className="text-sky-600 underline decoration-sky-200 underline-offset-2 hover:text-sky-700">
+        <a
+          key={i}
+          href={linkMatch[2]}
+          rel="noopener noreferrer"
+          className="text-sky-600 underline decoration-sky-200 underline-offset-2 hover:text-sky-700"
+        >
           {linkMatch[1]}
         </a>
       );
@@ -114,17 +105,23 @@ const parseContent = (content: string): BlockNode[] => {
     currentP = [];
   };
   const flushUl = () => {
-    if (currentUl.length > 0) { blocks.push({ type: "ul", items: [...currentUl] }); currentUl = []; }
+    if (currentUl.length > 0) {
+      blocks.push({ type: "ul", items: [...currentUl] });
+      currentUl = [];
+    }
   };
 
   for (const line of lines) {
     if (line.trim() === "") {
-      flushP(); flushUl();
+      flushP();
+      flushUl();
     } else if (line.startsWith("## ")) {
-      flushP(); flushUl();
+      flushP();
+      flushUl();
       blocks.push({ type: "h2", text: line.slice(3).trim() });
     } else if (line.startsWith("### ")) {
-      flushP(); flushUl();
+      flushP();
+      flushUl();
       blocks.push({ type: "h3", text: line.slice(4).trim() });
     } else if (line.startsWith("- ")) {
       flushP();
@@ -134,20 +131,31 @@ const parseContent = (content: string): BlockNode[] => {
       currentP.push(line);
     }
   }
-  flushP(); flushUl();
+  flushP();
+  flushUl();
   return blocks;
 };
 
 // Changes on every edit, so versioned image URLs can be cached for good.
-const buildBlogImageVersion = (post: { updatedAt?: string; publishedAt?: string; createdAt?: string }) =>
-  String(new Date(post.updatedAt || post.publishedAt || post.createdAt || 0).getTime());
+const buildBlogImageVersion = (post: {
+  updatedAt?: string;
+  publishedAt?: string;
+  createdAt?: string;
+}) =>
+  String(
+    new Date(
+      post.updatedAt || post.publishedAt || post.createdAt || 0,
+    ).getTime(),
+  );
 
 export async function generateStaticParams() {
   const posts = await getPublishedBlogPosts();
   return posts.map((p) => ({ slug: p.slug }));
 }
 
-export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPublishedBlogPostBySlug(decodeURIComponent(slug));
   if (!post) {
@@ -174,7 +182,12 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     description: appendSeoContact(post.excerpt),
     canonicalPath: `/blog/${post.slug}`,
     type: "article",
-    keywords: ["блог PartsON", "автозапчастини Львів", post.title, ...contentWords],
+    keywords: [
+      "блог PartsON",
+      "автозапчастини Львів",
+      post.title,
+      ...contentWords,
+    ],
     image: { url: socialImage, alt: post.imageAlt || post.title },
     openGraphTitle: `${post.title} | Блог PartsON`,
   });
@@ -193,7 +206,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   // Google recommends article images in 16:9, 4:3 and 1:1.
   const seoImage = post.imageDataUrl
     ? (["16x9", "4x3", "1x1"] as const).map(
-        (ratio) => `${siteOrigin}${buildBlogCoverCropPath(post.slug, ratio, buildBlogImageVersion(post))}`
+        (ratio) =>
+          `${siteOrigin}${buildBlogCoverCropPath(post.slug, ratio, buildBlogImageVersion(post))}`,
       )
     : [`${siteOrigin}/opengraph-partson-v3.png`];
 
@@ -201,9 +215,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   // Legacy posts keep images as inline base64 — swap them for short proxy
   // URLs so the HTML doesn't carry megabytes of image data.
   const imageVersion = buildBlogImageVersion(post);
-  const coverImageSrc = toPublicBlogImageSrc(post.imageDataUrl, post.slug, null, imageVersion);
+  const coverImageSrc = toPublicBlogImageSrc(
+    post.imageDataUrl,
+    post.slug,
+    null,
+    imageVersion,
+  );
   const extraImages = (post.extraImages ?? []).map(
-    (src, index) => toPublicBlogImageSrc(src, post.slug, index, imageVersion) ?? ""
+    (src, index) =>
+      toPublicBlogImageSrc(src, post.slug, index, imageVersion) ?? "",
   );
   const videoEmbedUrl = post.videoUrl ? getVideoEmbedUrl(post.videoUrl) : null;
   // Not a recognized YouTube/Vimeo link but still a video URL — an uploaded
@@ -232,7 +252,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     publisher: {
       "@type": "Organization",
       name: "PartsON",
-      logo: { "@type": "ImageObject", url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v3.png` },
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl.replace(/\/$/, "")}/google-logo-partson-v3.png`,
+      },
     },
     mainEntityOfPage: canonicalUrl,
   };
@@ -241,17 +264,54 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Головна", item: siteUrl.replace(/\/$/, "") },
-      { "@type": "ListItem", position: 2, name: "Блог", item: `${siteUrl.replace(/\/$/, "")}/blog` },
-      { "@type": "ListItem", position: 3, name: post.title, item: canonicalUrl },
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Головна",
+        item: siteUrl.replace(/\/$/, ""),
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Блог",
+        item: `${siteUrl.replace(/\/$/, "")}/blog`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: post.title,
+        item: canonicalUrl,
+      },
     ],
   };
 
+  const headings = contentBlocks.flatMap((block, index) =>
+    block.type === "h2" || block.type === "h3"
+      ? [
+          {
+            id: `section-${index}`,
+            title: block.text.replace(/\*\*/g, ""),
+            level: block.type,
+          },
+        ]
+      : [],
+  );
+  const contents = (
+    <ol>
+      {headings.map((heading) => (
+        <li
+          key={heading.id}
+          className={heading.level === "h3" ? "blog-toc-subheading" : undefined}
+        >
+          <a href={`#${heading.id}`}>{heading.title}</a>
+        </li>
+      ))}
+    </ol>
+  );
+
   return (
-    <main
-      className="font-ui min-h-screen text-slate-900"
-      style={{ background: "linear-gradient(180deg,#dbeeff 0%,#eaf4fd 10%,#f2f8fe 24%,#f9fcff 42%,#ffffff 66%,#f5f9fd 100%)" }}
-    >
+    <main className="blog-page blog-article-page font-ui">
+      <ArticleReadingProgress />
       <BlogAdminActions
         slug={post.slug}
         initialTitle={post.title}
@@ -262,269 +322,167 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         initialExtraImages={post.extraImages ? extraImages : undefined}
         initialVideoUrl={post.videoUrl}
       />
-
       <article>
-        {/* ── hero ── */}
-        <header
-          className="relative isolate overflow-hidden text-white"
-          style={{
-            background: "linear-gradient(148deg,#071e38 0%,#0a3460 30%,#0d5490 58%,#1268a8 80%,#0a3d6c 100%)",
-            boxShadow: "0 8px 40px rgba(7,30,56,0.55), 0 2px 0 rgba(18,104,168,0.30)",
-          }}
-        >
-          {/* deep volume layer */}
-          <span className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                "radial-gradient(ellipse 65% 80% at 0% 0%,rgba(56,182,255,0.28) 0%,transparent 55%)," +
-                "radial-gradient(ellipse 55% 60% at 100% 0%,rgba(80,140,255,0.20) 0%,transparent 52%)," +
-                "radial-gradient(ellipse 80% 40% at 50% 100%,rgba(6,25,50,0.60) 0%,transparent 70%)",
-            }}
-          />
-          {/* dot grid */}
-          <span className="pointer-events-none absolute inset-0 opacity-[0.035]"
-            style={{
-              backgroundImage: "radial-gradient(circle,rgba(186,230,255,1) 1px,transparent 1px)",
-              backgroundSize: "24px 24px",
-            }}
-          />
-          {/* inner top highlight */}
-          <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/40 to-transparent" />
-          {/* bottom shadow fade */}
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-b from-transparent to-black/20" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-sky-950/60" />
-
-          <div className="page-shell-inline relative z-10 py-3.5 sm:py-5">
-            <div className={`grid items-center gap-4 ${post.imageDataUrl ? "lg:grid-cols-[1fr_480px]" : ""}`}>
-              <div>
-                <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                  <Link
-                    href="/blog"
-                    className="inline-flex items-center gap-1 rounded border border-white/18 bg-white/10 px-2 py-0.5 text-[10.5px] font-bold text-sky-200 transition hover:bg-white/16"
-                  >
-                    <ArrowLeft size={10} strokeWidth={2.5} /> Блог
-                  </Link>
-                  <time dateTime={published} className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-300/70">
-                    <CalendarDays size={10} /> Опубліковано: {formatDate(published)}
-                  </time>
-                  <time dateTime={updated} className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-200/65">
-                    Оновлено: {formatDate(updated)}
-                  </time>
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-white/45">
-                    <Clock size={10} /> {timeAgo(published)}
-                  </span>
-                </div>
-                <h1 className="text-[1.35rem] font-black leading-[1.1] tracking-[-0.04em] text-white sm:text-[1.8rem] lg:text-[2rem]">
-                  {post.title}
-                </h1>
-                <p className="mt-1.5 text-[12.5px] font-medium leading-snug text-sky-50/55 sm:text-[13px]">
-                  {post.excerpt}
-                </p>
-              </div>
-
-              {coverImageSrc && (
-                <div className="hidden lg:block">
-                  <div className="overflow-hidden rounded-[8px] border border-white/18 shadow-[0_16px_44px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)]">
-                    <Image
-                      src={coverImageSrc}
-                      alt={post.imageAlt || post.title}
-                      width={960}
-                      height={560}
-                      unoptimized
-                      priority
-                      className="aspect-[16/9] w-full object-cover"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {coverImageSrc && (
-              <div className="mt-2.5 lg:hidden">
-                <div className="overflow-hidden rounded-[7px] border border-white/16 shadow-[0_8px_24px_rgba(0,0,0,0.28)]">
-                  <Image
-                    src={coverImageSrc}
-                    alt={post.imageAlt || post.title}
-                    width={720}
-                    height={380}
-                    unoptimized
-                    priority
-                    className="max-h-[240px] w-full object-cover sm:max-h-[320px]"
-                  />
-                </div>
-              </div>
+        <header className="blog-article-header page-shell-inline">
+          <nav className="blog-breadcrumb" aria-label="Навігація статті">
+            <Link href="/">Головна</Link>
+            <span aria-hidden="true">/</span>
+            <Link href="/blog">Блог</Link>
+            <span aria-hidden="true">/</span>
+            <span>Стаття</span>
+          </nav>
+          <h1 className="font-display">{post.title}</h1>
+          <p className="blog-article-deck">{post.excerpt}</p>
+          <div className="blog-article-byline">
+            <Link href="/authors/partson" rel="author">
+              <ShieldCheck size={18} aria-hidden="true" />
+              Редакція PartsON
+            </Link>
+            <time dateTime={published}>{formatBlogDate(published)}</time>
+            <span>
+              <Clock size={15} aria-hidden="true" />
+              {blogReadingMinutes(post.content)} хв читання
+            </span>
+            {updated !== published && (
+              <time dateTime={updated}>Оновлено {formatBlogDate(updated)}</time>
             )}
           </div>
+          {coverImageSrc && (
+            <figure className="blog-article-cover">
+              <Image
+                src={coverImageSrc}
+                alt={post.imageAlt || post.title}
+                width={1200}
+                height={675}
+                unoptimized
+                loading="eager"
+                fetchPriority="high"
+                className="blog-cover-image"
+              />
+            </figure>
+          )}
         </header>
-
-        {/* ── article body ── */}
-        <div className="page-shell-inline py-8 sm:py-11"
-          style={{ filter: "drop-shadow(0 -1px 0 rgba(14,80,128,0.08))" }}
+        <div
+          className={`page-shell-inline blog-reading-layout ${headings.length ? "blog-reading-layout--with-toc" : ""}`}
         >
-
-          {/* decorative header line */}
-          <div className="mb-7 flex items-center gap-3">
-            <div className="h-[2px] w-8 rounded-full bg-sky-400/60" />
-            <span className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-500/70">Матеріал</span>
-            <div className="h-px flex-1 bg-gradient-to-r from-sky-200/50 to-transparent" />
-          </div>
-
-          <aside className="mb-8 flex flex-col gap-3 rounded-[18px] border border-sky-100 bg-white/90 p-4 shadow-[0_12px_32px_rgba(14,116,184,0.08)] sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-md">
-                <ShieldCheck size={21} aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600">Автор і перевірка матеріалу</p>
-                <Link href="/authors/partson" rel="author" className="mt-0.5 inline-block text-[15px] font-black text-slate-950 hover:text-sky-700">
+          {headings.length > 0 && (
+            <aside className="blog-toc">
+              <nav className="blog-toc-desktop" aria-label="Зміст статті">
+                <h2>У цій статті</h2>
+                {contents}
+              </nav>
+              <details className="blog-toc-mobile">
+                <summary>Зміст статті</summary>
+                <nav aria-label="Зміст статті">{contents}</nav>
+              </details>
+            </aside>
+          )}
+          <div id="blog-reading-content" className="blog-reading-content">
+            <div className="blog-prose">
+              {(() => {
+                let pIdx = 0;
+                return contentBlocks.map((block, idx) => {
+                  if (block.type === "h2")
+                    return (
+                      <h2 key={idx} id={`section-${idx}`}>
+                        {applyInline(block.text)}
+                      </h2>
+                    );
+                  if (block.type === "h3")
+                    return (
+                      <h3 key={idx} id={`section-${idx}`}>
+                        {applyInline(block.text)}
+                      </h3>
+                    );
+                  if (block.type === "ul")
+                    return (
+                      <ul key={idx}>
+                        {block.items.map((item, index) => (
+                          <li key={index}>{applyInline(item)}</li>
+                        ))}
+                      </ul>
+                    );
+                  const img = extraImages[pIdx];
+                  pIdx++;
+                  return (
+                    <React.Fragment key={idx}>
+                      <p>
+                        {block.lines.map((line, index) => (
+                          <React.Fragment key={index}>
+                            {applyInline(line)}
+                            {index < block.lines.length - 1 && <br />}
+                          </React.Fragment>
+                        ))}
+                      </p>
+                      {img && (
+                        <figure className="blog-inline-figure">
+                          <Image
+                            src={img}
+                            alt={`${post.title} — фото ${pIdx}`}
+                            width={760}
+                            height={520}
+                            unoptimized
+                            loading="lazy"
+                          />
+                        </figure>
+                      )}
+                    </React.Fragment>
+                  );
+                });
+              })()}
+            </div>
+            {(videoEmbedUrl || videoFileUrl) && (
+              <section className="blog-article-video">
+                <h2>Відео до статті</h2>
+                <div>
+                  {videoEmbedUrl ? (
+                    <iframe
+                      src={videoEmbedUrl}
+                      title={post.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      loading="lazy"
+                    />
+                  ) : (
+                    <video
+                      src={videoFileUrl ?? undefined}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  )}
+                </div>
+              </section>
+            )}
+            <aside className="blog-author-note">
+              <ShieldCheck size={24} aria-hidden="true" />
+              <div>
+                <Link href="/authors/partson" rel="author">
                   Редакція PartsON
                 </Link>
-                <p className="mt-1 max-w-3xl text-[12.5px] font-medium leading-5 text-slate-600">
-                  Фахівці з практичним досвідом підбору автозапчастин, перевірки OEM-кодів і сумісності за VIN у магазині PartsON у Львові.
+                <p>
+                  Команда фахівців із підбору автозапчастин, перевірки OEM-кодів
+                  і сумісності за VIN у Львові.
                 </p>
+                <Link href="/editorial-policy" className="blog-policy-link">
+                  Як ми готуємо матеріали{" "}
+                  <ArrowUpRight size={14} aria-hidden="true" />
+                </Link>
               </div>
-            </div>
-          </aside>
-
-          {/* article content */}
-          <div className="space-y-6">
-            {(() => {
-              let pIdx = 0;
-              return contentBlocks.map((block, idx) => {
-                if (block.type === "h2") {
-                  return (
-                    <h2 key={idx} className="mt-9 mb-2.5 text-[1.2rem] font-black leading-tight tracking-[-0.03em] text-slate-950 sm:text-[1.35rem]">
-                      {applyInline(block.text)}
-                    </h2>
-                  );
-                }
-                if (block.type === "h3") {
-                  return (
-                    <h3 key={idx} className="mt-7 mb-1.5 text-[1rem] font-extrabold leading-tight tracking-[-0.02em] text-slate-800 sm:text-[1.08rem]">
-                      {applyInline(block.text)}
-                    </h3>
-                  );
-                }
-                if (block.type === "ul") {
-                  return (
-                    <ul key={idx} className="ml-4 space-y-2 list-disc marker:text-sky-400">
-                      {block.items.map((item, iIdx) => (
-                        <li key={iIdx} className="text-[15.5px] font-[440] leading-[1.8] text-slate-700 sm:text-[16px]">
-                          {applyInline(item)}
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }
-                // "p" block — keep image-interleave logic with pIdx
-                const img = extraImages[pIdx];
-                const isEven = pIdx % 2 === 0;
-                const isFirst = pIdx === 0;
-                pIdx++;
-
-                const paragraph = (
-                  <p className="text-[15.5px] font-[440] leading-[1.85] text-slate-700 sm:text-[16px]">
-                    {block.lines.map((line, lIdx) =>
-                      lIdx < block.lines.length - 1 ? (
-                        <span key={lIdx}>{applyInline(line)}<br /></span>
-                      ) : (
-                        <span key={lIdx}>{applyInline(line)}</span>
-                      )
-                    )}
-                  </p>
-                );
-
-                if (!img) {
-                  return (
-                    <div key={idx} className="relative">
-                      {isFirst && (
-                        <div className="absolute -left-4 top-1 bottom-1 w-[3px] rounded-full bg-gradient-to-b from-sky-400/70 to-sky-200/30 sm:-left-5" />
-                      )}
-                      {paragraph}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div
-                    key={idx}
-                    className={`flex flex-col gap-4 sm:items-center ${
-                      isEven ? "sm:flex-row" : "sm:flex-row-reverse"
-                    }`}
-                  >
-                    <div className="w-full shrink-0 sm:w-[30%] sm:max-w-[260px]">
-                      <Image
-                        src={img}
-                        alt={`${post.title} — фото ${pIdx}`}
-                        width={580}
-                        height={400}
-                        unoptimized
-                        className="h-auto w-full rounded-[14px] object-contain shadow-[0_10px_30px_rgba(15,23,42,0.16)]"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      {paragraph}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-
-          {/* ── video ── */}
-          {(videoEmbedUrl || videoFileUrl) && (
-            <div className="mt-8">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="h-[2px] w-8 rounded-full bg-sky-400/60" />
-                <span className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-500/70">Відео</span>
-                <div className="h-px flex-1 bg-gradient-to-r from-sky-200/50 to-transparent" />
-              </div>
-              <div
-                className="overflow-hidden rounded-[10px] border border-slate-200/60 bg-slate-950 shadow-[0_4px_18px_rgba(15,23,42,0.09)]"
-                style={{ aspectRatio: "16/9" }}
-              >
-                {videoEmbedUrl ? (
-                  <iframe
-                    src={videoEmbedUrl}
-                    title={post.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="h-full w-full"
-                    loading="lazy"
-                  />
-                ) : (
-                  <video
-                    src={videoFileUrl ?? undefined}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-contain"
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* bottom rule + editorial policy + back link */}
-          <div className="mt-10 border-t border-slate-200/70 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Link
-                href="/editorial-policy"
-                className="text-xs font-bold text-sky-700 underline decoration-sky-200 underline-offset-4 hover:text-sky-900"
-              >
-                Редакційна політика
+            </aside>
+            <div className="blog-article-next">
+              <Link href="/blog">
+                <ArrowLeft size={18} aria-hidden="true" />
+                Усі статті блогу
               </Link>
-              <Link
-                href="/blog"
-                className="inline-flex items-center gap-2 rounded-[7px] border border-slate-200/80 bg-white px-3.5 py-2 text-[12.5px] font-bold text-slate-600 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition hover:border-sky-200 hover:text-sky-700"
-              >
-                <ArrowLeft size={12} strokeWidth={2.2} /> Усі статті
+              <Link href="/katalog">
+                До каталогу запчастин{" "}
+                <ArrowUpRight size={18} aria-hidden="true" />
               </Link>
             </div>
           </div>
         </div>
       </article>
-
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}

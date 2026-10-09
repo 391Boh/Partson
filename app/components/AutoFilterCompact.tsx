@@ -841,6 +841,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                   </div>
                 ) : (
                   <HorizontalDirectoryRail
+                    mobileList
                     ariaLabel="Марки авто"
                     rows={2}
                     className="auto-cols-[100%] gap-2 sm:auto-cols-[calc((100%_-_1.5rem)/4)]"
@@ -851,6 +852,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
                         <button
                           key={brand.id}
                           type="button"
+                          aria-pressed={isActive}
                           onClick={() => handleBrandPick(brand)}
                           className={`catalog-filter-choice-card group/card flex h-[72px] w-full items-center gap-2.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left font-semibold transition-[border-color,background-color,box-shadow] duration-300 ${
                             isActive

@@ -115,10 +115,11 @@ const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
-// The first screen of cards (2 rows on desktop) loads its photos directly,
-// without waiting for the shared batch — the same 8 the catalog page
-// preloads in its HTML (app/katalog/page.tsx), so they come from cache.
+// Start visible grid photos directly: 2 on phones, up to 8 on desktops.
+// The catalog HTML uses matching media queries for its preload hints.
 const IMAGE_EAGER_ITEMS_COUNT = 8;
+const getGridImageEagerCount = (width: number) =>
+  width < 640 ? 2 : width < 1024 ? 4 : width < 1280 ? 6 : IMAGE_EAGER_ITEMS_COUNT;
 // List rows are much shorter than a grid card, so more of them sit in the
 // first viewport — list view eager-loads this many up front instead of
 // IMAGE_EAGER_ITEMS_COUNT. Every "how many images get to skip the shared
@@ -741,7 +742,9 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 };
 
 const CATALOG_GRID_CLASS =
-  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-4";
+  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
+const CATALOG_ADMIN_GRID_CLASS =
+  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
 const CATALOG_LIST_CLASS = "mx-auto mt-1 grid w-full grid-cols-1 gap-2 sm:mt-2";
 
 const CatalogTransitionLoader = ({
@@ -3537,7 +3540,7 @@ function useCatalogData(params: {
             page === 1
               ? viewMode === "list"
                 ? IMAGE_EAGER_ITEMS_COUNT_LIST
-                : IMAGE_EAGER_ITEMS_COUNT
+                : getGridImageEagerCount(window.innerWidth)
               : 0,
         });
         void fetchCatalogPagePrices(itemsForIncrementalWarmup, {
@@ -5492,11 +5495,11 @@ const Data: React.FC<DataProps> = ({
     if (catalogReadyQuerySignature !== catalogQuerySignature) return new Set<string>();
     const keys = visibleSortedData
       .filter((item) => item.hasPhoto !== false)
-      .slice(0, viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : IMAGE_EAGER_ITEMS_COUNT)
+      .slice(0, viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : getGridImageEagerCount(viewportWidth))
       .map((item) => buildProductImageBatchKey(item.code, item.article))
       .filter(Boolean);
     return new Set(keys);
-  }, [catalogQuerySignature, catalogReadyQuerySignature, viewMode, visibleSortedData]);
+  }, [catalogQuerySignature, catalogReadyQuerySignature, viewMode, viewportWidth, visibleSortedData]);
   const visibleCatalogImageCandidates = useMemo(
     () =>
       catalogReadyQuerySignature === catalogQuerySignature
@@ -5548,7 +5551,8 @@ const Data: React.FC<DataProps> = ({
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
   const gridColumnCount = useMemo(() => {
-    if (viewportWidth >= 1024) return 4;
+    if (viewportWidth >= 1280) return 4;
+    if (viewportWidth >= 1024) return 3;
     if (viewportWidth >= 640) return 2;
     return 1;
   }, [viewportWidth]);
@@ -5566,7 +5570,7 @@ const Data: React.FC<DataProps> = ({
   // high-priority thresholds tuned for a 2-4 column grid badly under-cover
   // list view's first screen (which fits 10+ rows), leaving genuinely
   // visible rows on lazy/auto priority instead of eager/high.
-  const imageEagerItemsCount = viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : IMAGE_EAGER_ITEMS_COUNT;
+  const imageEagerItemsCount = viewMode === "list" ? IMAGE_EAGER_ITEMS_COUNT_LIST : getGridImageEagerCount(viewportWidth);
   const imageHighPriorityItemsCount = viewMode === "list" ? 3 : IMAGE_HIGH_PRIORITY_ITEMS_COUNT;
   const virtualizedEntries = useMemo(() => {
     if (!shouldUseVirtualWindow) return visibleSortedEntries;
@@ -6012,7 +6016,7 @@ const Data: React.FC<DataProps> = ({
           <div className="relative">
             <div
               ref={catalogGridRef}
-              className={`${viewMode === "list" ? CATALOG_LIST_CLASS : CATALOG_GRID_CLASS} ${
+              className={`${viewMode === "list" ? CATALOG_LIST_CLASS : isAdmin ? CATALOG_ADMIN_GRID_CLASS : CATALOG_GRID_CLASS} ${
                 shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
               }`}
             >

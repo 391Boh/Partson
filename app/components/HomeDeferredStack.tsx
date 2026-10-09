@@ -74,6 +74,7 @@ function DeferredHomeSection({
     let cancelBackgroundTask: (() => void) | null = null;
     let nearObserver: IntersectionObserver | null = null;
     let visibleObserver: IntersectionObserver | null = null;
+    let nearViewport = false;
     let onScroll: (() => void) | null = null;
     const mountWhenScrollSettles = () => {
       if (cancelled) return;
@@ -152,15 +153,13 @@ function DeferredHomeSection({
     // brings it into view. Start promptly on that first real scroll, even
     // while an unrelated slow resource is holding window.load open.
     onScroll = () => {
-      const rect = section.getBoundingClientRect();
-      if (rect.bottom >= 0 && rect.top <= window.innerHeight + (conserveData ? 0 : 800)) {
-        requestMount();
-      }
+      if (nearViewport) requestMount();
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
     nearObserver = new IntersectionObserver(
       ([entry]) => {
+        nearViewport = Boolean(entry?.isIntersecting);
         if (!entry?.isIntersecting || mountRequested) return;
         nearObserver?.disconnect();
         // Only an actual scrolled/restored position means the visitor already
@@ -175,17 +174,8 @@ function DeferredHomeSection({
           requestMount();
           return;
         }
-        // At rest, load only sections actually visible below the hero.
-        // Offscreen modules in the generous prefetch margin wait for scroll
-        // intent instead of competing with visible content and auth setup.
-        if (section.getBoundingClientRect().top >= window.innerHeight) return;
-        // At the top of the page the 800px margin can include multiple
-        // sections. Their speculative work must wait for the hero resources,
-        // then start in separate idle slots instead of racing the LCP image.
-        const sectionIndex = tone === "auto" ? 0 : tone === "product" ? 1 : 2;
-        cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
-          delayMs: sectionIndex * MIN_SECTION_MOUNT_STAGGER_MS,
-        });
+        // The idle queue below prepares sections after the initial resources
+        // load. Intersection alone must not compete with the hero's LCP.
       },
       { rootMargin: conserveData ? "0px" : "800px 0px", threshold: 0 }
     );
@@ -211,6 +201,19 @@ function DeferredHomeSection({
     });
     nearObserver.observe(section);
     visibleObserver.observe(section);
+    // Prepare the three catalogue sections during quiet time, before the
+    // visitor scrolls into them. Waiting for the first gesture meant parsing
+    // chunks and mounting large trees during that same gesture. Save-data
+    // connections keep the existing demand-only loading behaviour.
+    if (!conserveData) {
+      const sectionIndex = tone === "auto" ? 0 : tone === "product" ? 1 : 2;
+      cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
+        // Code and data are warmed right after first paint (see
+        // HomeDeferredStack below), so each mount is short; a smaller gap
+        // brings the last section in well before a typical first scroll.
+        delayMs: sectionIndex * 250,
+      });
+    }
     return cleanup;
   }, [preload, tone]);
 
@@ -252,6 +255,30 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
   // Kept temporarily for the older HomeBelowFoldClient call site; the data is
   // no longer serialized into the active homepage route.
   void _legacyInitialData;
+
+  // Warm the three sections' code and the manufacturer data in the first idle
+  // slot after paint. Mounting still waits for window.load + idle (above), but
+  // that gate also held back these downloads: on a throttled phone the chunks
+  // only started ~1.4 s in and the data request only after its section had
+  // mounted, so visitors scrolled into skeletons. Network only — evaluation of
+  // the chunks happens in the idle callback, never during a gesture.
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
+    const warm = () => {
+      void loadAutoSection().catch(() => undefined);
+      void loadProductSection().catch(() => undefined);
+      void preloadBrandsSection().catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 1_500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(warm, 600);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <>

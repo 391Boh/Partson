@@ -45,6 +45,12 @@ export default function ScrollPerformanceGuard() {
   useEffect(() => {
     const root = document.documentElement;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // `next dev` renders far slower than production, so the sampler would
+    // flag almost any machine and hide the scroll effects for the session.
+    if (process.env.NODE_ENV !== "production") {
+      root.classList.remove("reduce-scroll-effects");
+      return;
+    }
 
     root.classList.remove("reduce-scroll-effects");
 
@@ -72,6 +78,14 @@ export default function ScrollPerformanceGuard() {
     let samples = 0;
     let sampling = false;
     let finished = false;
+    let classObserver: MutationObserver | null = null;
+
+    const reduceEffects = () => {
+      root.classList.add("reduce-scroll-effects");
+      try {
+        window.sessionStorage.setItem(STORAGE_KEY, "1");
+      } catch {}
+    };
 
     const finish = () => {
       if (finished) return;
@@ -81,10 +95,21 @@ export default function ScrollPerformanceGuard() {
       window.removeEventListener("scroll", startSampling);
 
       if (samples >= 10 && slowFrames >= SLOW_FRAME_LIMIT) {
-        root.classList.add("reduce-scroll-effects");
-        try {
-          window.sessionStorage.setItem(STORAGE_KEY, "1");
-        } catch {}
+        // The class restyles the whole document (~1300 elements, ~100 ms on
+        // a slow phone). Adding it while the sampled gesture is still moving
+        // put that stall into the very first scroll of the visit, so wait
+        // until LayoutHost clears html.is-scrolling at the end of the gesture.
+        if (!root.classList.contains("is-scrolling")) {
+          reduceEffects();
+          return;
+        }
+        classObserver = new MutationObserver(() => {
+          if (root.classList.contains("is-scrolling")) return;
+          classObserver?.disconnect();
+          classObserver = null;
+          reduceEffects();
+        });
+        classObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
       }
     };
 
@@ -121,6 +146,7 @@ export default function ScrollPerformanceGuard() {
       finished = true;
       sampling = false;
       if (raf) cancelAnimationFrame(raf);
+      classObserver?.disconnect();
       window.removeEventListener("scroll", startSampling);
     };
   }, []);

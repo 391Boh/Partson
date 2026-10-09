@@ -19,6 +19,7 @@ import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
+import { getMarketingAttribution } from "app/lib/marketing-attribution";
 
 type DeliveryMethodType = ComponentProps<typeof DeliveryMethod>["deliveryMethod"];
 type PaymentMethodType = ComponentProps<typeof PaymentMethod>["paymentMethod"];
@@ -288,7 +289,16 @@ const Zamovl: React.FC<ZamovlProps> = ({
           typeof paymentData?.liqpayPaymentId === "string" ? paymentData.liqpayPaymentId : null,
         paidAt: isCardPaid ? Timestamp.now() : null,
         updatedAt: Timestamp.now(),
-        ...(alreadyExists ? {} : { createdAt: Timestamp.now(), ga4PurchaseTracked: false }),
+        // Campaign that brought the visitor (utm_*, gclid/gbraid/wbraid, fbclid),
+        // written once on create: lets cash-on-delivery and phone-confirmed
+        // orders be imported into Google Ads as offline conversions.
+        ...(alreadyExists
+          ? {}
+          : {
+              createdAt: Timestamp.now(),
+              ga4PurchaseTracked: false,
+              marketingAttribution: getMarketingAttribution(),
+            }),
       },
       { merge: true }
     );

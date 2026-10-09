@@ -68,11 +68,21 @@ export default function DeferredFooter() {
       },
       { rootMargin: "400px 0px", threshold: 0.01 }
     );
+    // The sheen animates background-position, which restyles all ~35 blocks
+    // on the main thread every frame. The skeleton sits below the fold for
+    // the whole visit on long pages (the homepage), so a running sheen cost
+    // style work during every scroll frame without ever being seen. Play it
+    // only while the skeleton is actually on screen.
+    const shimmerObserver = new IntersectionObserver(([entry]) => {
+      anchor.toggleAttribute("data-shimmer", Boolean(entry?.isIntersecting));
+    });
 
     observer.observe(anchor);
+    shimmerObserver.observe(anchor);
     return () => {
       cancelled = true;
       observer.disconnect();
+      shimmerObserver.disconnect();
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
   }, [FooterComponent]);

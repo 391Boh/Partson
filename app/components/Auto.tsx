@@ -1512,7 +1512,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   narrow screens, order-1 restores it to the actual left
                   column from md up. */}
               <div className="reveal-search order-2 min-w-0 md:order-1">
-                <div className="relative flex h-full min-w-0 flex-col overflow-hidden rounded-[26px] border border-indigo-100 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.10),transparent_42%),radial-gradient(circle_at_96%_100%,rgba(56,189,248,0.10),transparent_44%),linear-gradient(150deg,#ffffff_0%,#f6f7ff_54%,#eef2ff_100%)] p-4 text-slate-800 shadow-[0_20px_48px_-26px_rgba(30,41,90,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
+                <div className="reveal-search-panel relative flex h-full min-w-0 flex-col overflow-hidden rounded-[26px] border border-indigo-100 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.10),transparent_42%),radial-gradient(circle_at_96%_100%,rgba(56,189,248,0.10),transparent_44%),linear-gradient(150deg,#ffffff_0%,#f6f7ff_54%,#eef2ff_100%)] p-4 text-slate-800 shadow-[0_20px_48px_-26px_rgba(30,41,90,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
                   <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/70 to-transparent" />
 
                   <div>
@@ -1757,7 +1757,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   so the list stacks above the search/nav panel instead of
                   under it — see the order-2/md:order-1 note on that panel. */}
               <div className="reveal-head order-1 min-w-0 md:order-2">
-                <div className="relative max-w-[580px]">
+                <div className="reveal-head-panel relative max-w-[580px]">
                   {/* Soft glow behind the heading — light, blurred wash
                       lifting the title off the section background, same
                       treatment as Brands/tovar's card headings. */}
@@ -1991,7 +1991,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       <Car size={16} strokeWidth={2.1} aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-                      <h2 className="font-display relative min-w-0 text-[17px] tracking-[-0.045em] text-slate-700 sm:text-[22px] leading-tight">
+                      <h2 className="font-display relative min-w-0 text-[17px] tracking-[-0.025em] text-slate-700 sm:text-[22px] leading-tight">
                         <span className="relative inline-block max-w-full truncate align-bottom">
                           {activeTab === "engine"
                             ? `Виберіть модифікацію ${selectedModel ?? ""}`
