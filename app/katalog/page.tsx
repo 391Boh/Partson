@@ -1380,6 +1380,15 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const initialPagePayload = rawInitialPagePayload
     ? {
       ...rawInitialPagePayload,
+        // This payload is serialized into the HTML for every visitor; the
+        // purchase price from 1C must not travel with it.
+        items: rawInitialPagePayload.items.map((item) => {
+          const { costPriceEuro: _costPriceEuro, ...publicItem } = item as typeof item & {
+            costPriceEuro?: number | null;
+          };
+          void _costPriceEuro;
+          return publicItem;
+        }),
         // Images warm up client-side in one shared batch. Avoid holding the
         // initial HTML response behind filesystem checks for every card.
         images: {},
