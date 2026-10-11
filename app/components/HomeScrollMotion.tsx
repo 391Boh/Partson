@@ -2,22 +2,12 @@
 
 import { useEffect } from "react";
 
-import { installHomeParallaxFallback } from "app/lib/home-parallax-fallback";
-
 const HOVER_SELECTOR = ".card-metal, .home-feature-card, .reveal-adv-cards > article";
 
 /** Pointer-follow data for the homepage hover signatures. Scroll motion
  * (parallax, sliding panels, stage transitions) is pure CSS scroll-driven
  * animation in globals.css, so this component never runs on scroll. */
 export default function HomeScrollMotion() {
-  // Parallax where CSS scroll timelines are unsupported (Safari, Firefox);
-  // a no-op where globals.css already runs it on the compositor.
-  useEffect(() => {
-    const home = document.querySelector<HTMLElement>(".home-static");
-    if (!home) return;
-    return installHomeParallaxFallback(home);
-  }, []);
-
   useEffect(() => {
     const home = document.querySelector<HTMLElement>(".home-static");
     if (!home || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;

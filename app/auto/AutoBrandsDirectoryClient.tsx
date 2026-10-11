@@ -18,7 +18,7 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
-import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
+import DirectoryGrid from "app/components/DirectoryGrid";
 import { buildAutoBrandPath } from "app/lib/catalog-links";
 import { pluralizeCarBrands as pluralizeBrands } from "app/lib/pluralize-uk";
 
@@ -64,9 +64,6 @@ function AutoBrandCard({
           />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
-            Марка авто
-          </span>
           <p itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
             {brand.name}
           </p>
@@ -114,7 +111,7 @@ export default function AutoBrandsDirectoryClient({
 
   return (
     <section
-      id="auto-featured-brands"
+      id="auto-brands-directory"
       className="relative pb-2 pt-0 sm:pb-3"
       style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 1500px" }}
     >
@@ -128,10 +125,10 @@ export default function AutoBrandsDirectoryClient({
                   Марки авто
                 </div>
                 <h2 className={directoryTitleClass}>
-                  Підбір автозапчастин за маркою авто
+                  Марки автомобілів
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Оберіть <strong className="font-bold text-slate-800">марку автомобіля</strong>, щоб відкрити каталог із готовим авто-фільтром і швидко перейти до <strong className="font-bold text-slate-800">моделей, модифікацій та сумісних запчастин</strong>.
+                  Знайдіть свою марку за назвою або логотипом. Натисніть, щоб переглянути моделі.
                 </p>
               </div>
 
@@ -161,9 +158,9 @@ export default function AutoBrandsDirectoryClient({
                   <span className={directoryMetricClass}>
                     Знайдено: {filteredItems.length.toLocaleString("uk-UA")} {pluralizeBrands(filteredItems.length)}
                   </span>
-                  <span className={directoryMetricAccentClass}>
+                  {normalizedQuery ? <span className={directoryMetricAccentClass}>
                     Усього: {deduplicatedItems.length.toLocaleString("uk-UA")} {pluralizeBrands(deduplicatedItems.length)}
-                  </span>
+                  </span> : null}
                 </div>
               </div>
             </div>
@@ -173,18 +170,16 @@ export default function AutoBrandsDirectoryClient({
             {filteredItems.length > 0 ? (
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                <HorizontalDirectoryRail
+                <DirectoryGrid
                   ariaLabel="Марки автомобілів"
-                  rows={2}
-                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:360px]"
                 >
                   {filteredItems.map((brand, index) => (
-                    <div key={brand.id} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <div key={brand.id} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(index + 1)} />
                       <AutoBrandCard brand={brand} prefetchOnViewport={index < 10} />
                     </div>
                   ))}
-                </HorizontalDirectoryRail>
+                </DirectoryGrid>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">

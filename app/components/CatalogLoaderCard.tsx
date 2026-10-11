@@ -8,6 +8,7 @@ type CatalogLoaderCardProps = {
   label?: string;
   kicker?: string;
   className?: string;
+  compact?: boolean;
 };
 
 const PHOTO_COUNT = 5;
@@ -17,6 +18,7 @@ export default function CatalogLoaderCard({
   label = "Завантажую каталог",
   kicker = "PartsON",
   className = "",
+  compact = false,
 }: CatalogLoaderCardProps) {
   // Empty on the server and on a first-ever visit (nothing cached yet) —
   // in both cases we fall back to the plain orbit spinner below, so there's
@@ -29,13 +31,22 @@ export default function CatalogLoaderCard({
   const [failedSrcs, setFailedSrcs] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
-    setPhotoSrcs(pickRandomCachedProductImageSrcs(PHOTO_COUNT));
-  }, []);
+    setPhotoSrcs(compact
+      ? ["/Parts/cutout/filtr.webp", "/Parts/cutout/kol.webp", "/Parts/cutout/amort.webp"]
+      : pickRandomCachedProductImageSrcs(PHOTO_COUNT));
+  }, [compact]);
+  const [activePhoto, setActivePhoto] = useState(0);
 
   const visibleSrcs = useMemo(
     () => photoSrcs.filter((src) => !failedSrcs.has(src)),
     [photoSrcs, failedSrcs]
   );
+
+  useEffect(() => {
+    if (!compact || visibleSrcs.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setActivePhoto((index) => (index + 1) % visibleSrcs.length), 700);
+    return () => window.clearInterval(timer);
+  }, [compact, visibleSrcs.length]);
 
   const handlePhotoError = (src: string) => {
     setFailedSrcs((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
@@ -49,7 +60,7 @@ export default function CatalogLoaderCard({
 
   return (
     <div
-      className={`catalog-page-loader-card relative inline-flex min-w-[280px] items-center gap-4 rounded-[22px] bg-white/96 px-5 py-4 shadow-[0_22px_60px_rgba(14,165,233,0.16)] ring-1 ring-white/90 ${className}`}
+      className={`catalog-page-loader-card relative inline-flex min-w-[280px] items-center gap-4 rounded-[22px] bg-white/96 px-5 py-4 shadow-[0_22px_60px_rgba(14,165,233,0.16)] ring-1 ring-white/90 ${compact ? "catalog-page-loader-compact" : ""} ${className}`}
     >
       <span className="catalog-page-loader-card-aurora" aria-hidden="true" />
       {hasPhotos ? (
@@ -68,8 +79,8 @@ export default function CatalogLoaderCard({
                 key={src}
                 src={src}
                 alt=""
-                className="catalog-page-loader-photo"
-                style={{
+                className={`catalog-page-loader-photo ${compact && index === activePhoto % visibleSrcs.length ? "is-active" : ""}`}
+                style={compact ? undefined : {
                   animationDuration: `${cycleDurationMs}ms`,
                   animationDelay: `${index * PHOTO_SLOT_MS}ms`,
                 }}
@@ -87,10 +98,10 @@ export default function CatalogLoaderCard({
         </span>
       )}
       <span className="relative z-10 min-w-0 flex-1">
-        <span className="catalog-page-loader-kicker block text-[10px] font-black uppercase tracking-[0.15em]">
+        {kicker && <span className="catalog-page-loader-kicker block text-[10px] font-black uppercase tracking-[0.15em]">
           {kicker}
-        </span>
-        <span className="mt-0.5 block text-sm font-black leading-tight text-slate-800">
+        </span>}
+        <span className="catalog-page-loader-label mt-0.5 block text-sm font-black leading-tight text-slate-800">
           {label}
           <span className="catalog-page-loader-dots" aria-hidden="true">
             <i />

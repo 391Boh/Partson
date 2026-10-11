@@ -903,15 +903,39 @@ export const fetchProductImageBase64BatchDetailed = async (
     };
   }
 
+  // Same positive cache the single-image lookup reads; it also holds photos
+  // seeded right after an admin upload.
+  const now = Date.now();
+  const cachedResolved: Record<string, string> = {};
+  const uncachedKeys: string[] = [];
+  for (const key of normalizedKeys) {
+    const cached = imageBase64Cache.get(key.toLowerCase());
+    if (cached && cached.expiresAt > now && cached.value) {
+      cachedResolved[key.toLowerCase()] = cached.value;
+    } else {
+      uncachedKeys.push(key);
+    }
+  }
+  if (uncachedKeys.length === 0) {
+    return {
+      resolved: cachedResolved,
+      handledKeys: new Set(Object.keys(cachedResolved)),
+      endpointAvailable: true,
+    };
+  }
+
   const batchResponse = await fetchProductImageBase64BatchFromEndpoint(
-    normalizedKeys,
+    uncachedKeys,
     options
   ).catch(() => null);
 
   return {
-    resolved: batchResponse?.resolved ?? {},
-    handledKeys: batchResponse?.handledKeys ?? new Set<string>(),
-    endpointAvailable: Boolean(batchResponse),
+    resolved: { ...cachedResolved, ...(batchResponse?.resolved ?? {}) },
+    handledKeys: new Set([
+      ...Object.keys(cachedResolved),
+      ...(batchResponse?.handledKeys ?? new Set<string>()),
+    ]),
+    endpointAvailable: Boolean(batchResponse) || Object.keys(cachedResolved).length > 0,
   };
 };
 
@@ -982,6 +1006,24 @@ export const fetchProductImageBase64Batch = async (
  * Evicts in-memory image caches for a given product code/article so that the
  * next lookup fetches a fresh copy from 1C (e.g. after an admin image upload).
  */
+// After an admin upload the server already holds the new photo's bytes.
+// Seeding them here lets the first catalog thumbnail and product-page request
+// skip a 1C round trip — which right after an upload may also still return
+// the previous photo while 1C finishes storing the new one.
+export const seedProductImageBase64Cache = (
+  lookupKeys: Array<string | null | undefined>,
+  imageBase64: string,
+  ttlMs = 1000 * 60 * 60
+) => {
+  const value = normalizeBase64(imageBase64 || "");
+  if (!value || !hasBinaryContent(value)) return;
+  for (const lookupKey of lookupKeys) {
+    const normalized = (lookupKey || "").trim().toLowerCase();
+    if (!normalized) continue;
+    setImageBase64Cache(normalized, { value, expiresAt: Date.now() + ttlMs });
+  }
+};
+
 export const clearProductImageCacheForProduct = (lookupKey: string) => {
   const normalized = (lookupKey || "").trim().toLowerCase();
   if (!normalized) return;

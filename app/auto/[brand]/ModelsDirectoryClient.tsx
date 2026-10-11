@@ -15,7 +15,8 @@ import {
   directorySearchInputClass,
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
-import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
+import { uniqueDirectoryItems } from "app/lib/directory-items";
+import DirectoryGrid from "app/components/DirectoryGrid";
 import SmartLink from "app/components/SmartLink";
 import { buildAutoModelPath } from "app/lib/catalog-links";
 import type { AutoModelListEntry } from "app/lib/auto-directory-data";
@@ -79,7 +80,7 @@ const ModelCard = memo(function ModelCard({
       href={modelHref}
       aria-label={`Відкрити групи запчастин для ${brand} ${model.name}`}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} min-h-[124px] animate-fadeIn`}
+      className={`${directoryCardClass} min-h-[100px]`}
     >
       <span
         aria-hidden="true"
@@ -119,13 +120,15 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = normalize(deferredQuery);
 
+  const uniqueModels = useMemo(() => uniqueDirectoryItems(models, model => buildAutoModelPath(brand, model.name)), [brand, models]);
+
   // Fetches year ranges in the background, chunk by chunk, so the list
   // renders immediately and year badges/sorting fill in progressively.
   useEffect(() => {
     let cancelled = false;
     setYearOverrides({});
 
-    const names = models.map((model) => model.name);
+    const names = uniqueModels.map((model) => model.name);
     if (!brand || names.length === 0) return;
 
     const chunks = chunkArray(names, YEAR_FETCH_CHUNK_SIZE);
@@ -157,15 +160,15 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
     return () => {
       cancelled = true;
     };
-  }, [brand, models]);
+  }, [brand, uniqueModels]);
 
   const modelsWithYears = useMemo(
     () =>
-      models.map((model) => {
+      uniqueModels.map((model) => {
         const override = yearOverrides[model.name];
         return override ? { ...model, ...override } : model;
       }),
-    [models, yearOverrides]
+    [uniqueModels, yearOverrides]
   );
 
   const filteredModels = useMemo(
@@ -247,10 +250,10 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
                     Знайдено: {filteredModels.length.toLocaleString("uk-UA")}{" "}
                     {pluralize(filteredModels.length, "модель", "моделі", "моделей")}
                   </span>
-                  <span className={directoryMetricAccentClass}>
-                    Усього: {models.length.toLocaleString("uk-UA")}{" "}
-                    {pluralize(models.length, "модель", "моделі", "моделей")}
-                  </span>
+                  {normalizedQuery ? <span className={directoryMetricAccentClass}>
+                    Усього: {uniqueModels.length.toLocaleString("uk-UA")}{" "}
+                    {pluralize(uniqueModels.length, "модель", "моделі", "моделей")}
+                  </span> : null}
                 </div>
               </div>
             </div>
@@ -286,17 +289,15 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {sortedModels.length > 0 ? (
-              <HorizontalDirectoryRail
+              <DirectoryGrid
                 ariaLabel={`Моделі ${brand}`}
-                rows={2}
-                className="[grid-auto-columns:100%] sm:[grid-auto-columns:340px]"
               >
                 {sortedModels.map((model, index) => (
-                  <div key={model.name} className="w-full shrink-0 snap-start snap-always">
+                  <div key={model.name} className="directory-result" role="listitem">
                     <ModelCard brand={brand} model={model} prefetchOnViewport={index < 10} />
                   </div>
                 ))}
-              </HorizontalDirectoryRail>
+              </DirectoryGrid>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
                 За цим запитом моделей не знайдено.

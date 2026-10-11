@@ -81,7 +81,7 @@ const Hero = () => {
       </HeroParallaxBackground>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-[1]"
+        className="hero-depth-background pointer-events-none absolute inset-0 z-[1]"
         style={{
           backgroundImage: depthBackgroundLayers,
           backgroundSize: depthBackgroundSize,

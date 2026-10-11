@@ -181,7 +181,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
           badge={`Марка: ${brand.name}`}
           icon={CarFront}
           title={title}
-          description={pageDescription}
+          description={`Оберіть модель ${brand.name}. На її сторінці ви знайдете групи запчастин і зможете перейти до товарів. Для остаточного підбору перевірте рік випуску, двигун та артикул деталі.`}
           breadcrumb={
             <nav aria-label="Навігаційні хлібні крихти">
               <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
@@ -222,6 +222,8 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
         </div>
       </div>
 
+      <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
+
       <CatalogSeoTextSection
         badge={`Запчастини для ${brand.name}`}
         title={`Як підібрати запчастини для ${brand.name} за моделлю`}
@@ -255,7 +257,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
         ]}
       />
 
-      <ModelsDirectoryClient brand={brand.name} brandLogo={brand.logo} models={models} />
+
     </main>
   );
 }

@@ -61,9 +61,9 @@ export default function ProductImageUploadFields({
   onCancelGallery,
 }: ProductImageUploadFieldsProps) {
   return (
-    <div>
-      <input ref={fileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onFileChange} />
-      <input ref={galleryFileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onGalleryFileChange} />
+    <div className="product-image-upload-fields">
+      <input ref={fileInputRef} aria-label="Основне фото товару" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onFileChange} />
+      <input ref={galleryFileInputRef} aria-label="Фото для галереї" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onGalleryFileChange} />
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex-1">
           {!imagePreview ? (
@@ -106,7 +106,7 @@ export default function ProductImageUploadFields({
                       {imageUploading
                         ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
                         : <Check size={12} />}
-                      {imageUploading ? "Завантаження..." : "Зберегти"}
+                      {imageUploading ? "Завантаження..." : "Зберегти фото"}
                     </button>
                     <button
                       type="button"
@@ -119,11 +119,11 @@ export default function ProductImageUploadFields({
                   </div>
                 </div>
               </div>
-              {imageError && <p className="text-[11px] font-semibold text-red-500">{imageError}</p>}
+              {imageError && <p role="alert" className="text-[11px] font-semibold text-red-500">{imageError}</p>}
             </div>
           )}
           {imageError && !imagePreview && (
-            <p className="mt-1.5 text-[11px] font-semibold text-red-500">{imageError}</p>
+            <p role="alert" className="mt-1.5 text-[11px] font-semibold text-red-500">{imageError}</p>
           )}
         </div>
 
@@ -181,11 +181,11 @@ export default function ProductImageUploadFields({
                   </div>
                 </div>
               </div>
-              {galleryError && <p className="text-[11px] font-semibold text-red-500">{galleryError}</p>}
+              {galleryError && <p role="alert" className="text-[11px] font-semibold text-red-500">{galleryError}</p>}
             </div>
           )}
           {galleryError && !galleryPreview && (
-            <p className="mt-1.5 text-[11px] font-semibold text-red-500">{galleryError}</p>
+            <p role="alert" className="mt-1.5 text-[11px] font-semibold text-red-500">{galleryError}</p>
           )}
         </div>
       </div>

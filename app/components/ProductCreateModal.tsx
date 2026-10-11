@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
-import { clearBrowserCatalogCache } from "app/components/Data";
+import { ProductEditorTabs, ProductEditorField as Field, productEditorFieldClass as fieldClass, useProductEditorPanel, type ProductEditorTab } from "./ProductEditorUI";
 import { QuantityStepper } from "app/components/QuantityStepper";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
@@ -37,6 +37,8 @@ type SuggestType = "category" | "group" | "subGroup";
 
 export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const router = useRouter();
+  const panelRef = useProductEditorPanel(isOpen);
+  const [tab, setTab] = useState<ProductEditorTab>("main");
   const [fields, setFields] = useState(EMPTY);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (isOpen) {
+      setTab("main");
       setFields(EMPTY);
       setImageFile(null);
       setImagePreview(null);
@@ -98,16 +101,26 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       setCreatedArticle("");
       setProducerSugg([]);
       setCatSugg([]); setGrpSugg([]); setSubSugg([]);
-      setTimeout(() => firstInputRef.current?.focus(), 50);
+      const timer = setTimeout(() => firstInputRef.current?.focus({ preventScroll: true }), 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !submitLock.current) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !submitLock.current && !imageProcessing && !extraPhotoProcessing && !producerSugg.length && !catSugg.length && !grpSugg.length && !subSugg.length) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, imageProcessing, extraPhotoProcessing, producerSugg.length, catSugg.length, grpSugg.length, subSugg.length]);
+
+  useEffect(() => () => {
+    producerAbort.current?.abort();
+    if (producerDebounce.current) clearTimeout(producerDebounce.current);
+    for (const type of ["category", "group", "subGroup"] as const) {
+      metaAbort.current[type]?.abort();
+      if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
+    }
+  }, [isOpen]);
 
   const set = (key: keyof typeof EMPTY, val: string) =>
     setFields((prev) => ({ ...prev, [key]: val }));
@@ -118,7 +131,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     producerAbort.current = ctrl;
     fetch(`/api/producers-suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
       .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
-      .then((d) => { setProducerSugg(d.suggestions ?? []); setProducerActive(-1); })
+      .then((d) => { if (ctrl.signal.aborted) return; setProducerSugg(d.suggestions ?? []); setProducerActive(-1); })
       .catch(() => {});
   };
 
@@ -126,6 +139,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   // keystroke sent its own request (aborting the previous one) — wasted
   // round-trips and a flickering dropdown while the user is still typing.
   const fetchProducerSugg = (q: string) => {
+    producerAbort.current?.abort();
     if (producerDebounce.current) clearTimeout(producerDebounce.current);
     producerDebounce.current = setTimeout(() => fetchProducerSuggNow(q), 200);
   };
@@ -140,6 +154,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
       .then((d) => {
+        if (ctrl.signal.aborted) return;
         const s = d.suggestions ?? [];
         if (type === "category") { setCatSugg(s); setCatActive(-1); }
         else if (type === "group") { setGrpSugg(s); setGrpActive(-1); }
@@ -150,6 +165,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 
   // Debounced counterpart of fetchMetaSuggNow, same rationale as producer above.
   const fetchMetaSugg = (type: SuggestType, q: string, parent?: string) => {
+    metaAbort.current[type]?.abort();
     if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
     metaDebounce.current[type] = setTimeout(() => fetchMetaSuggNow(type, q, parent), 200);
   };
@@ -215,7 +231,17 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
 
   const submitProduct = async () => {
     if (createdCode !== null) return;
-    if (!fields.name.trim()) { setError("Введіть назву товару"); return; }
+    if (!fields.name.trim()) { setTab("main"); setError("Введіть назву товару"); firstInputRef.current?.focus(); return; }
+
+    const price = parseProductFormPrice(fields.priceEuro);
+    const cost = parseProductFormPrice(fields.costPriceEuro);
+    if (price === null || cost === null) {
+      setTab("main"); setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return;
+    }
+    const quantity = parseProductFormQuantity(fields.quantity);
+    if (quantity === null) {
+      setTab("main"); setError("Введіть цілу кількість від 0"); return;
+    }
 
     const snapshot = await waitForFirebaseAuthReady();
     const user = snapshot.user as ({ getIdToken: () => Promise<string> } & object) | null;
@@ -232,15 +258,6 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     if (fields.category.trim()) body["Категория"] = fields.category.trim();
     if (fields.group.trim()) body["Группа"] = fields.group.trim();
     if (fields.subGroup.trim()) body["Подгруппа"] = fields.subGroup.trim();
-    const price = parseProductFormPrice(fields.priceEuro);
-    const cost = parseProductFormPrice(fields.costPriceEuro);
-    if (price === null || cost === null) {
-      setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return;
-    }
-    const quantity = parseProductFormQuantity(fields.quantity);
-    if (quantity === null) {
-      setError("Введіть цілу кількість від 0"); return;
-    }
     if (price !== undefined) body["ЦінаПрод"] = price;
     if (cost !== undefined) body["ЦінаЗакуп"] = cost;
     if (imagePreview) {
@@ -297,7 +314,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           setError("Товар створено, але не вдалося підтвердити збереження ціни та кількості. Відкрийте товар і перевірте ці значення.");
           return;
         } finally {
-          clearBrowserCatalogCache();
+          await import("app/components/Data").then((module) => module.clearBrowserCatalogCache());
           invalidateCatalogClientCache();
         }
       }
@@ -360,7 +377,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       }
 
       if (navParam) {
-        clearBrowserCatalogCache();
+        await import("app/components/Data").then((module) => module.clearBrowserCatalogCache());
         invalidateCatalogClientCache();
         setTimeout(() => {
           onClose();
@@ -395,14 +412,18 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     // overlap (e.g. a taller header state) instead of this panel painting
     // over it.
     <div
-      className="productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
+      ref={panelRef}
+      onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void handleSubmit(); } }}
+      className="product-editor productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
       aria-label="Створити товар"
+      aria-modal="false"
+      aria-busy={saving || imageProcessing || extraPhotoProcessing}
     >
       <div className="flex h-full min-h-0 flex-col">
         <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+        <div className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
               <PackagePlus size={14} />
@@ -411,8 +432,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </div>
           <button
             type="button"
-            onClick={() => { if (!submitLock.current) onClose(); }}
+            onClick={() => { if (!submitLock.current && !imageProcessing && !extraPhotoProcessing) onClose(); }}
             className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+            disabled={saving || imageProcessing || extraPhotoProcessing}
             aria-label="Закрити"
           >
             <X size={14} />
@@ -453,7 +475,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => { if (!submitLock.current) onClose(); }}
+                onClick={() => { if (!submitLock.current && !imageProcessing && !extraPhotoProcessing) onClose(); }}
                 className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-4 py-2 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50"
               >
                 Закрити
@@ -462,8 +484,10 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </div>
         ) : (
           <>
-          <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
-            <fieldset disabled={saving} className="space-y-3 disabled:opacity-70">
+          <ProductEditorTabs prefix="product-create" value={tab} onChange={(next) => { setTab(next); setProducerSugg([]); setCatSugg([]); setGrpSugg([]); setSubSugg([]); }} />
+          <div className="product-editor-body app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
+            <fieldset disabled={saving} className="space-y-3 disabled:opacity-70" onChange={() => setError(null)}>
+            <div role="tabpanel" id="product-create-panel-main" aria-labelledby="product-create-tab-main" hidden={tab !== "main"} className="space-y-3">
 
               {/* Назва — обов'язково */}
               <Field label="Назва" required>
@@ -496,13 +520,14 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                       value={fields.producer}
                       onChange={(e) => { set("producer", e.target.value); fetchProducerSugg(e.target.value); }}
                       onFocus={() => fetchProducerSuggNow(fields.producer)}
+                      onBlur={() => setTimeout(() => setProducerSugg([]), 150)}
                       onKeyDown={(e) => {
                         if (e.key === "ArrowDown") { e.preventDefault(); setProducerActive((p) => Math.min(p + 1, producerSugg.length - 1)); }
                         else if (e.key === "ArrowUp") { e.preventDefault(); setProducerActive((p) => Math.max(p - 1, -1)); }
                         else if (e.key === "Enter" && producerActive >= 0 && producerSugg[producerActive]) {
                           e.preventDefault(); set("producer", producerSugg[producerActive]); setProducerSugg([]); setProducerActive(-1);
                         }
-                        else if (e.key === "Escape") { setProducerSugg([]); }
+                        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setProducerSugg([]); }
                       }}
                       placeholder="Виробник"
                       className={fieldClass}
@@ -523,7 +548,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
               </div>
 
               {/* Ієрархія: Категорія → Група → Підгрупа */}
-              <div className="space-y-1.5">
+              <div className="grid grid-cols-1 gap-3">
                 {/* Категорія */}
                 <Field label="Категорія">
                   <div className="relative">
@@ -545,7 +570,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                           set("group", ""); set("subGroup", "");
                           fetchMetaSuggNow("group", "", v);
                         }
-                        else if (e.key === "Escape") { setCatSugg([]); }
+                        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setCatSugg([]); }
                       }}
                       placeholder="Запчастини"
                       className={`${fieldClass} border-teal-200 focus:border-teal-400 focus:ring-teal-200/50`}
@@ -587,7 +612,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                           set("group", v); setGrpSugg([]); setGrpActive(-1);
                           set("subGroup", ""); fetchMetaSuggNow("subGroup", "", v);
                         }
-                        else if (e.key === "Escape") { setGrpSugg([]); }
+                        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setGrpSugg([]); }
                       }}
                       placeholder="Гальмівна система"
                       className={`${fieldClass} border-violet-200 focus:border-violet-400 focus:ring-violet-200/50`}
@@ -624,7 +649,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                         else if (e.key === "Enter" && subActive >= 0 && subSugg[subActive]) {
                           e.preventDefault(); set("subGroup", subSugg[subActive]); setSubSugg([]); setSubActive(-1);
                         }
-                        else if (e.key === "Escape") { setSubSugg([]); }
+                        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setSubSugg([]); }
                       }}
                       placeholder="Гальмівні диски"
                       className={`${fieldClass} border-sky-200 focus:border-sky-400 focus:ring-sky-200/50`}
@@ -669,16 +694,23 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 />
               </div>
 
-              <Field label="Опис (необов'язково)">
+            </div>
+            <div role="tabpanel" id="product-create-panel-description" aria-labelledby="product-create-tab-description" hidden={tab !== "description"} className="space-y-3">
+              <Field label="Опис товару">
                 <textarea
                   value={fields.description}
                   onChange={(e) => set("description", e.target.value)}
                   placeholder="Короткий опис товару для картки на сайті"
-                  rows={3}
+                  rows={8}
+                  maxLength={10000}
                   className={`${fieldClass} resize-y`}
                 />
               </Field>
 
+              <p className="product-editor-hint">{fields.description.length.toLocaleString("uk-UA")} / 10 000 символів</p>
+            </div>
+            <div role="tabpanel" id="product-create-panel-photos" aria-labelledby="product-create-tab-photos" hidden={tab !== "photos"} className="space-y-4">
+              <p className="product-editor-hint">Фото збережуться разом із новим товаром. Основне фото показується в каталозі.</p>
               {/* Фото */}
               <Field label="Фото (необов'язково)">
                 <input ref={fileInputRef} type="file" accept={PRODUCT_IMAGE_ACCEPT}
@@ -695,7 +727,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                   <div className="flex items-center gap-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={imagePreview} alt="Попередній перегляд"
-                      className="h-12 w-12 shrink-0 rounded-[6px] border border-slate-200 object-contain" />
+                      className="product-editor-main-photo h-12 w-12 shrink-0 rounded-[6px] border border-slate-200 object-contain" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[10px] font-semibold text-slate-500">
                         {imageFile?.name}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
@@ -720,11 +752,11 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 {extraPhotos.length > 0 && (
                   <div className="mb-1.5 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
                     {extraPhotos.map((photo, index) => (
-                      <div key={`${photo.fileName}-${index}`} className="group relative h-12 w-12 shrink-0">
+                      <div key={`${photo.fileName}-${index}`} className="product-editor-photo group relative h-12 w-12 shrink-0">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={photo.dataUrl} alt="" className="h-full w-full rounded-[6px] border border-slate-200 object-contain" />
                         <button type="button" onClick={() => removeExtraPhoto(index)}
-                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+                          className="product-editor-remove-photo absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-red-500 text-white shadow-sm transition hover:bg-red-600"
                           aria-label="Видалити фото">
                           <X size={9} strokeWidth={3} />
                         </button>
@@ -743,10 +775,11 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 )}
                 {extraPhotoError && <p className="mt-1 text-[10px] font-semibold text-red-500">{extraPhotoError}</p>}
               </Field>
+            </div>
             </fieldset>
 
             {error && (
-              <div className="mt-3 rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
+              <div role="alert" className="product-editor-notice mt-3 rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
                 {error}
               </div>
             )}
@@ -755,8 +788,8 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           {/* Outside the scrollable area, its own shrink-0 row — stays
               visible at the bottom of the panel regardless of scroll
               position, instead of being buried below a long form. */}
-          <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
-            <button type="button" onClick={() => { if (!submitLock.current) onClose(); }} disabled={saving}
+          <div className="product-editor-footer flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+            <button type="button" onClick={() => { if (!submitLock.current && !imageProcessing && !extraPhotoProcessing) onClose(); }} disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
               Скасувати
             </button>
@@ -773,29 +806,6 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-const fieldClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-[16px] sm:text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
-
-function Field({
-  label,
-  children,
-  required,
-}: {
-  label: string;
-  children: React.ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-semibold text-slate-500">
-        {label}
-        {required && <span className="ml-0.5 text-red-400">*</span>}
-        {children}
-      </label>
     </div>
   );
 }

@@ -503,6 +503,11 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const strictMode = requestUrl.searchParams.get("strict") === "1";
   const catalogMode = requestUrl.searchParams.get("catalog") === "1";
   const noRedirectFallback = requestUrl.searchParams.get("fallback") === "404";
+  // `v` versions the URL after an admin photo upload so browsers can't reuse
+  // the previous photo. Server caches are already invalidated by the upload
+  // itself (clearRouteImageCacheForProduct), so a versioned request still uses
+  // them — bypassing them sent every later view of an edited product back to
+  // 1C and marked the response no-store. Only cached *misses* are skipped.
   const hasCacheBust = Boolean((requestUrl.searchParams.get("v") || "").trim());
   const retryAttempt = Math.min(
     2,
@@ -574,8 +579,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // (every popular product page) and costs more per miss (bigger lookup
   // budget, sharp resize at higher quality), so it benefits at least as much
   // from surviving process restarts and the 2h in-memory cache expiring.
-  const canUsePersistentImageCache =
-    !hasCacheBust && !strictMode && retryAttempt === 0;
+  const canUsePersistentImageCache = !strictMode && retryAttempt === 0;
   const routeCacheRevisionAtStart = getProductRouteImageCacheRevision(
     normalizedCode,
     articleHint
@@ -623,23 +627,23 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // A catalog page's server-side warm-up may already be fetching this photo
   // in its batch; wait for it (it fills routeImageHitCache) rather than
   // starting a parallel 1C lookup for the same thumbnail.
-  if (catalogMode && !hasCacheBust && !routeImageHitCache.get(routeHitCacheKey)) {
+  if (catalogMode && !routeImageHitCache.get(routeHitCacheKey)) {
     await awaitInFlightCatalogImage(normalizedCode, articleHint || undefined, 3000);
   }
 
   const cachedHit = routeImageHitCache.get(routeHitCacheKey);
-  if (!hasCacheBust && cachedHit && cachedHit.expiresAt > Date.now()) {
+  if (cachedHit && cachedHit.expiresAt > Date.now()) {
     return respondWithImage(cachedHit.value, { cacheBust: false });
   }
 
-  const existingInFlight = !hasCacheBust ? routeImageInFlight.get(routeHitCacheKey) : null;
+  const existingInFlight = routeImageInFlight.get(routeHitCacheKey);
   if (existingInFlight) {
     const optimizedImage = await existingInFlight.catch(() => null);
     if (optimizedImage) {
       return respondWithImage(optimizedImage, { cacheBust: false });
     }
 
-    if (routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
+    if (!hasCacheBust && routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
       return fallbackNotFound(catalogMissCacheControl);
     }
   }
@@ -774,7 +778,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
         acceptsAvif,
       });
 
-      if (!hasCacheBust && canWriteRouteCache()) {
+      if (canWriteRouteCache()) {
         routeImageHitCache.set(routeHitCacheKey, {
           expiresAt:
             Date.now() +
@@ -802,18 +806,16 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   };
 
   const imagePromise = resolveOptimizedImage();
-  if (!hasCacheBust) {
-    routeImageInFlight.set(routeHitCacheKey, imagePromise);
-  }
+  routeImageInFlight.set(routeHitCacheKey, imagePromise);
 
   const optimizedImage = await imagePromise.finally(() => {
-    if (!hasCacheBust && routeImageInFlight.get(routeHitCacheKey) === imagePromise) {
+    if (routeImageInFlight.get(routeHitCacheKey) === imagePromise) {
       routeImageInFlight.delete(routeHitCacheKey);
     }
   });
 
   if (optimizedImage) {
-    return respondWithImage(optimizedImage, { cacheBust: hasCacheBust });
+    return respondWithImage(optimizedImage, { cacheBust: false });
   }
 
   // Google-facing URLs: a 1C timeout is a temporary failure, not a missing

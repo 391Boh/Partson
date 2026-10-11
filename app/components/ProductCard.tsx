@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Info, ShoppingCart, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent, ArrowUpRight, RotateCcw } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
@@ -291,6 +291,29 @@ const ProductCard: React.FC<Props> = ({
 // card by a couple hundred ms or more — enough of a head start on 1C's
 // measured 1.9-3.7s description lookup to matter, so the lookup starts then.
 const [isHovered, setIsHovered] = useState(false);
+const [backMounted, setBackMounted] = useState(isFlipped);
+useEffect(() => {
+    if (isFlipped) setBackMounted(true);
+}, [isFlipped]);
+const hoverIntentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const clearHoverIntent = () => {
+    if (hoverIntentTimer.current !== null) clearTimeout(hoverIntentTimer.current);
+    hoverIntentTimer.current = null;
+};
+useEffect(() => () => {
+    if (hoverIntentTimer.current !== null) clearTimeout(hoverIntentTimer.current);
+}, []);
+const prepareDescriptionOnIntent = () => {
+    if (isHovered || hoverIntentTimer.current !== null || document.documentElement.classList.contains("is-scrolling")) return;
+    hoverIntentTimer.current = setTimeout(() => {
+        hoverIntentTimer.current = null;
+        if (!document.documentElement.classList.contains("is-scrolling")) {
+            // Keep the lookup enabled once requested; leaving a card should
+            // not render its entire front/back tree again just to clear hover.
+            startTransition(() => setIsHovered(true));
+        }
+    }, 160);
+};
 const {
     description,
     status: descriptionStatus,
@@ -576,8 +599,9 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
             className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[320px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
             itemScope={hasPrice ? true : undefined}
             itemType={hasPrice ? "https://schema.org/Product" : undefined}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={prepareDescriptionOnIntent}
+            onMouseMove={prepareDescriptionOnIntent}
+            onMouseLeave={clearHoverIntent}
         >
             {hasPrice ? (
                 <>
@@ -1224,7 +1248,9 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
 
                 </div>
 
-      {/* ---------- BACK ---------- */}
+      {/* Mount the hidden face only when needed; retain it after the first
+          flip so rotating back keeps the same content throughout the motion. */}
+{(isFlipped || backMounted) && (
 <div
     className={`
         catalog-card-face absolute inset-0 w-full h-full backface-hidden overflow-hidden
@@ -1470,7 +1496,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
         </button>
     </div>
 </div>
-
+)}
 
             </div>
         </article>

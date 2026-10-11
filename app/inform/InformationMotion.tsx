@@ -29,7 +29,7 @@ export default function InformationMotion({ children, className }: { children: R
       });
       artObserver.observe(art);
 
-      const items = CSS.supports("animation-timeline: view()") ? [] : Array.from(page.querySelectorAll<HTMLElement>(revealTargets));
+      const items = Array.from(page.querySelectorAll<HTMLElement>(revealTargets));
       const observer = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
@@ -38,7 +38,7 @@ export default function InformationMotion({ children, className }: { children: R
           if (!motion.matches) item.classList.add("info-motion-enter");
           observer.unobserve(item);
         });
-      }, { rootMargin: "0px 0px -20px 0px", threshold: .06 });
+      }, { rootMargin: "100px 0px", threshold: 0 });
       items.forEach((item) => {
         if (!motion.matches && item.getBoundingClientRect().top >= innerHeight) item.classList.add("info-motion-pending");
         observer.observe(item);

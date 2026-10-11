@@ -57,6 +57,7 @@ import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { shortenRevalidateForIncompleteRender } from "app/lib/isr-retry";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -70,7 +71,12 @@ const GROUP_ITEM_PRODUCER_SPLIT_PAGE_SIZE = 220;
 const GROUP_ITEM_PRODUCER_SPLIT_MAX_PAGES = 2;
 const GROUP_ITEM_PRODUCER_SPLIT_TIMEOUT_MS = 700;
 const CATEGORY_TOP_PRODUCTS_LIMIT = 10;
-const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 500;
+// ISR serves the previous HTML while a page regenerates, so this wait is
+// almost never on a visitor's critical path — but too short a wait is what
+// left category pages cached without products (and product photos) for
+// Googlebot.
+const CATEGORY_TOP_PRODUCTS_TIMEOUT_MS = 2600;
+const CATEGORY_TOP_PRODUCTS_FETCH_TIMEOUT_MS = 2400;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -363,13 +369,17 @@ const fetchCategoryTopProductsUncached = async (
     preferLegacySource: false,
     forceAllgoodsSource: true,
     expandHierarchy: true,
-    timeoutMs: 1400,
+    timeoutMs: CATEGORY_TOP_PRODUCTS_FETCH_TIMEOUT_MS,
     retries: 0,
     retryDelayMs: 100,
     cacheTtlMs: 1000 * 60 * 30,
-  }).catch(() => ({ items: [] as CatalogProduct[] }));
+  });
 
-  return result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+  const items = result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+  // A 1C timeout surfaces as an empty list. Throwing keeps unstable_cache from
+  // storing it for 30 minutes; the page falls back to [] and retries soon.
+  if (items.length === 0) throw new Error("Category top products unavailable");
+  return items;
 };
 
 const getCategoryTopProductsCached = unstable_cache(
@@ -830,6 +840,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
       );
   const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  // No productCount guard: during `next build` and on 1C timeouts the count
+  // can be missing too, so it can't tell a slow render from an empty category.
+  if (visibleProducts.length === 0) {
+    await shortenRevalidateForIncompleteRender();
+  }
   const euroRate = visibleProducts.some(
     (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
   )
@@ -991,7 +1006,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   return (
     <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
       <div key={`${item.groupSlug}/${item.itemSlug}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
-        <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
@@ -1025,7 +1040,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(20,184,166,0.06)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
                   src={primaryImagePath}
@@ -1040,19 +1055,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </div>
 
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
-                    {item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа"}
-                  </span>
-                  <span className={directoryCompactMetricClass}>
-                    {item.parentSubgroupLabel
-                      ? `Підгрупа ${visibleParentLabel}`
-                      : `Група ${visibleGroupLabel}`}
-                  </span>
-                  <span className={directoryCompactMetricAccentClass}>
-                    Пошук за брендом, артикулом і назвою
-                  </span>
-                </div>
+
 
                 <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                   {visibleLabel}
@@ -1098,71 +1101,6 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         </section>
       </div>
 
-      <CatalogSeoTextSection
-        contained={false}
-        badge={item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа товарів"}
-        title={`${visibleLabel}: товари, виробники та підбір`}
-        lead={seoCopy.intro}
-        topics={[
-          {
-            title: "Товари категорії",
-            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)} із цінами та актуальними характеристиками.`,
-            icon: PackageSearch,
-          },
-          {
-            title: "Виробники й аналоги",
-            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)} і переходьте одразу до відфільтрованого асортименту.`,
-            icon: Factory,
-          },
-          {
-            title: "Перевірка сумісності",
-            text: "Перед замовленням звірте артикул і параметри деталі; для точного результату скористайтеся підбором за авто або VIN.",
-            icon: CarFront,
-          },
-        ]}
-        paragraphs={seoCopy.paragraphs}
-        links={[
-          { href: item.catalogPath, label: `Товари ${visibleLabel}` },
-          { href: groupPagePath, label: `Група ${visibleGroupLabel}` },
-          { href: "/auto", label: "Підбір за авто" },
-        ]}
-      />
-
-      <section className={`${directoryPanelClass} mt-8`}>
-        <div className={directoryHeaderClass}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="directory-kicker text-[11px] uppercase text-teal-800">
-                Розподіл за виробниками
-              </p>
-              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
-                Виробники у категорії {visibleLabel}
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                На сторінці зібрані бренди, які реально зустрічаються в цій категорії. Це дає змогу перейти або на сторінку виробника, або одразу у вже відфільтрований каталог потрібного бренду.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className={directoryCompactMetricAccentClass}>
-                <span>{item.producersCount.toLocaleString("uk-UA")}</span>
-                <span className="font-semibold text-teal-700">{pluralizeManufacturers(item.producersCount)}</span>
-              </span>
-              <span className={directoryCompactMetricClass}>
-                <span>{(producerProductsTotal || item.productCount).toLocaleString("uk-UA")}</span>
-                <span className="font-semibold text-slate-500">{pluralizeProducts(producerProductsTotal || item.productCount)}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <GroupItemProducerList
-          initialItems={topProducerSplit}
-          groupLabel={item.groupLabel}
-          catalogGroupLabel={catalogGroupLabel}
-          categoryLabel={item.label}
-          catalogPath={item.catalogPath}
-        />
-      </section>
 
       {item.children.length > 0 ? (
         <section className={`${directoryPanelClass} mt-6`}>
@@ -1230,6 +1168,44 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                           <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
                         </span>
                       ) : null}
+
+      <section className={`${directoryPanelClass} mt-8`}>
+        <div className={directoryHeaderClass}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="directory-kicker text-[11px] uppercase text-teal-800">
+                Розподіл за виробниками
+              </p>
+              <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
+                Виробники у категорії {visibleLabel}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                На сторінці зібрані бренди, які реально зустрічаються в цій категорії. Це дає змогу перейти або на сторінку виробника, або одразу у вже відфільтрований каталог потрібного бренду.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <span className={directoryCompactMetricAccentClass}>
+                <span>{item.producersCount.toLocaleString("uk-UA")}</span>
+                <span className="font-semibold text-teal-700">{pluralizeManufacturers(item.producersCount)}</span>
+              </span>
+              <span className={directoryCompactMetricClass}>
+                <span>{(producerProductsTotal || item.productCount).toLocaleString("uk-UA")}</span>
+                <span className="font-semibold text-slate-500">{pluralizeProducts(producerProductsTotal || item.productCount)}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <GroupItemProducerList
+          initialItems={topProducerSplit}
+          groupLabel={item.groupLabel}
+          catalogGroupLabel={catalogGroupLabel}
+          categoryLabel={item.label}
+          catalogPath={item.catalogPath}
+        />
+      </section>
+
+
                       <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
                     </span>
                   </CatalogPrefetchLink>
@@ -1247,7 +1223,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               Товари категорії
             </p>
             <h2 className="directory-heading mt-1 text-xl text-slate-900 sm:text-2xl">
-              Популярні товари: {visibleLabel}
+              Товари категорії: {visibleLabel}
             </h2>
           </div>
           <div className="p-3 sm:p-4">
@@ -1258,6 +1234,36 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
         </section>
       )}
+
+      <CatalogSeoTextSection
+        contained={false}
+        badge={item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа товарів"}
+        title={`${visibleLabel}: товари, виробники та підбір`}
+        lead={seoCopy.intro}
+        topics={[
+          {
+            title: "Товари категорії",
+            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)} із цінами та актуальними характеристиками.`,
+            icon: PackageSearch,
+          },
+          {
+            title: "Виробники й аналоги",
+            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)} і переходьте одразу до відфільтрованого асортименту.`,
+            icon: Factory,
+          },
+          {
+            title: "Перевірка сумісності",
+            text: "Перед замовленням звірте артикул і параметри деталі; для точного результату скористайтеся підбором за авто або VIN.",
+            icon: CarFront,
+          },
+        ]}
+        paragraphs={seoCopy.paragraphs}
+        links={[
+          { href: item.catalogPath, label: `Товари ${visibleLabel}` },
+          { href: groupPagePath, label: `Група ${visibleGroupLabel}` },
+          { href: "/auto", label: "Підбір за авто" },
+        ]}
+      />
 
       <script
         type="application/ld+json"

@@ -9,8 +9,8 @@ import HomeSeoLinks from "./components/HomeSeoLinks";
 
 // The root page shares the root layout's segment, so the layout's
 // "%s | PartsON" title template doesn't apply here — name the brand directly.
-const homeTitle = "Автозапчастини у Львові — каталог і підбір за VIN | PartsON";
-const homeDescription = "Купити автозапчастини у PartsON: підбір за VIN та артикулом, оригінали й аналоги для ТО та ремонту. Самовивіз на Перфецького, 8 у Львові, доставка по Україні.";
+const homeTitle = "Автозапчастини у Львові — пошук деталей для авто | PartsON";
+const homeDescription = "Запчастини для авто у Львові: пошук деталей за маркою, виробником і VIN. Групи товарів для ТО, гальмівної системи та ремонту. PartsON, доставка по Україні.";
 
 export const revalidate = 86400;
 

@@ -8,7 +8,12 @@ export const PRODUCT_IMAGE_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
 // The API accepts a 3 MiB JSON body. Keeping the JPEG payload below 1.8 MiB
 // leaves enough room for base64 expansion (~4/3), metadata and JSON escaping.
 const PRODUCT_IMAGE_MAX_OUTPUT_BYTES = 1_800_000;
-const PRODUCT_IMAGE_MAX_EDGE = 1800;
+// The site never serves a product photo larger than 1400px
+// (FULL_IMAGE_MAX_WIDTH in app/product-image/[code]/route.ts), so uploading
+// more only made the request, 1C's storage and every later 1C photo lookup
+// heavier: ~40% fewer bytes for a typical phone photo at the same visible quality.
+const PRODUCT_IMAGE_MAX_EDGE = 1400;
+const PRODUCT_IMAGE_START_QUALITY = 0.82;
 const MIN_JPEG_QUALITY = 0.58;
 
 export type PreparedProductImage = {
@@ -94,7 +99,7 @@ export const prepareProductImage = async (file: File): Promise<PreparedProductIm
   }
 
   let scale = Math.min(1, PRODUCT_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
-  let quality = 0.86;
+  let quality = PRODUCT_IMAGE_START_QUALITY;
   let blob: Blob | null = null;
   let canvas = document.createElement("canvas");
 

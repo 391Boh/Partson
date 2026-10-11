@@ -28,7 +28,7 @@ const actionButtonBase = [
   "overflow-hidden",
   "rounded-[10px]",
   "border",
-  "px-5",
+  "px-3",
   "py-2.5",
   "font-ui",
   "text-[12px]",
@@ -511,7 +511,7 @@ export default function HeroAccountClient({
             <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
           </p>
         )}
-        <div className="flex min-h-[46px] w-full min-w-0 flex-wrap items-center justify-center gap-2 sm:min-h-[48px]">
+        <div className="hero-profile-actions">
         {user ? (
           <>
             <button type="button" onClick={openCarPicker} className={vinButton}>
@@ -523,7 +523,7 @@ export default function HeroAccountClient({
             <button type="button" onClick={() => window.dispatchEvent(new Event("openAccountVin"))} className={vinButton}>
               <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
                 <IdCard className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                Додати VIN номер
+                Додати VIN
               </span>
             </button>
           </>
@@ -564,17 +564,8 @@ export default function HeroAccountClient({
           </>
         )}
         </div>
-        {/* Fixed-size slot for saved cars/VINs/delivery, reserved the moment
-            a user is authorized — not only once `profile` itself loads —
-            so the panel's height never changes between "just logged in,
-            nothing loaded yet", "logged in, nothing saved" and "logged in,
-            one thing saved" (the common cases). h-20 here left a visibly
-            empty gap below a single saved chip — sized for two rows when
-            most authorized users only ever have zero or one. Snugged to fit
-            exactly one row; a user with two or more scrolls inside this box
-            instead of growing the panel. */}
         {user && (
-          <div className="app-panel-scroll flex h-10 w-full min-w-0 flex-col items-center justify-start gap-1.5 overflow-y-auto pr-0.5">
+          <div className="hero-profile-slot">
             {profile ? (
               <HeroSavedProfile
                 profile={profile}

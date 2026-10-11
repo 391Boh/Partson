@@ -6,6 +6,7 @@ import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
+import { buildAutoBrandPath } from "app/lib/catalog-links";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { pluralizeCarBrands } from "app/lib/pluralize-uk";
 import { getSiteUrl } from "app/lib/site-url";
@@ -77,7 +78,7 @@ export default function AutoPage() {
         position: index + 1,
         name: brand.name,
         description: `Підбір автозапчастин для ${brand.name} у каталозі PartsON.`,
-        url: `${siteUrl}/katalog?tab=auto&brand=${encodeURIComponent(brand.name)}`,
+        url: `${siteUrl}${buildAutoBrandPath(brand.name)}`,
       })),
     },
   };
@@ -123,7 +124,7 @@ export default function AutoPage() {
           badge="Підбір по авто"
           icon={CarFront}
           title={title}
-          description="Оберіть марку, перейдіть до моделей і відкрийте каталог із підготовленим авто-фільтром."
+          description="Почніть із марки свого автомобіля. Далі оберіть модель і потрібну систему — наприклад, гальма або підвіску. Рік випуску, двигун та артикул допоможуть уточнити потрібну деталь."
           highlights={[
             `${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)}`,
             "Швидкий перехід у каталог",
@@ -148,8 +149,8 @@ export default function AutoPage() {
           ]}
           quickLinks={[
             {
-              href: "#auto-featured-brands",
-              label: "Популярні марки",
+              href: "#auto-brands-directory",
+              label: "Усі марки",
               icon: CarFront,
               accent: true,
             },
@@ -175,11 +176,11 @@ export default function AutoPage() {
         numbered
         badge="Точний підбір автозапчастин"
         title="Як підібрати автозапчастини за маркою, моделлю та VIN"
-        lead="Правильно вибраний автомобіль звужує каталог до сумісних деталей і допомагає уникнути помилки ще до оформлення замовлення."
+        lead="Вибір автомобіля звужує пошук. Щоб замовити саме вашу деталь, додатково звірте покоління, двигун і каталожний номер."
         topics={[
           {
             title: "Оберіть марку і модель",
-            text: "Знайдіть автомобіль у списку або через пошук — каталог одразу звузиться до сумісних деталей замість усього асортименту.",
+            text: "Знайдіть автомобіль у списку або через пошук — ви побачите групи деталей, пов’язані з вибраною моделлю.",
             icon: CarFront,
           },
           {

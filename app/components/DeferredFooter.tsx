@@ -1,5 +1,7 @@
 "use client";
 
+import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+
 import { startTransition, useEffect, useRef, useState, type ComponentType } from "react";
 
 // Bounds how long a footer that has already scrolled into view can be left
@@ -23,14 +25,17 @@ export default function DeferredFooter() {
     let cancelled = false;
     let settleTimer: number | null = null;
     let loadRequestedAt = 0;
+    let requested = false;
+    let cancelMount: (() => void) | undefined;
     const loadFooter = () => {
+      if (cancelled || requested) return;
+      requested = true;
       void import("./footer").then((module) => {
-        // This mount is triggered by the user scrolling the footer into
-        // view — by construction it always lands mid-scroll, on every page
-        // (the footer is universal). startTransition lets React yield this
-        // commit to scroll-driven paint/input instead of blocking it, so the
-        // gesture that revealed the footer doesn't itself cause the freeze.
-        if (!cancelled) startTransition(() => setFooterComponent(() => module.default));
+        // Import completion can land during a later gesture. Schedule the
+        // commit independently so downloading early never forces a scroll hitch.
+        if (!cancelled) cancelMount = scheduleBackgroundTask(() => {
+          if (!cancelled) startTransition(() => setFooterComponent(() => module.default));
+        });
       });
     };
 
@@ -50,11 +55,17 @@ export default function DeferredFooter() {
       loadFooter();
     };
 
+    // Prepare the universal footer after initial resources, while idle.
+    // Intersection remains a fallback for visitors who scroll immediately.
+    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 250 });
+
     if (typeof IntersectionObserver === "undefined") {
       loadRequestedAt = performance.now();
       loadFooterWhenScrollSettles();
       return () => {
         cancelled = true;
+        cancelPreparation();
+        cancelMount?.();
         if (settleTimer !== null) window.clearTimeout(settleTimer);
       };
     }
@@ -68,21 +79,12 @@ export default function DeferredFooter() {
       },
       { rootMargin: "400px 0px", threshold: 0.01 }
     );
-    // The sheen animates background-position, which restyles all ~35 blocks
-    // on the main thread every frame. The skeleton sits below the fold for
-    // the whole visit on long pages (the homepage), so a running sheen cost
-    // style work during every scroll frame without ever being seen. Play it
-    // only while the skeleton is actually on screen.
-    const shimmerObserver = new IntersectionObserver(([entry]) => {
-      anchor.toggleAttribute("data-shimmer", Boolean(entry?.isIntersecting));
-    });
-
     observer.observe(anchor);
-    shimmerObserver.observe(anchor);
     return () => {
       cancelled = true;
+      cancelPreparation();
+      cancelMount?.();
       observer.disconnect();
-      shimmerObserver.disconnect();
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
   }, [FooterComponent]);

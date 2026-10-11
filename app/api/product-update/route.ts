@@ -12,7 +12,7 @@ import {
 } from "app/lib/catalog-server";
 import { setProductEditOverride } from "app/lib/product-edit-overrides";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
-import { clearProductImageCacheForProduct } from "app/lib/product-image";
+import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 
@@ -342,9 +342,14 @@ export async function POST(request: NextRequest) {
   clearAllOneCCache();
   clearCatalogPageRouteCache();
   invalidateFullCatalogSnapshot();
-  clearProductImageCacheForProduct(code);
-  if (article) clearProductImageCacheForProduct(article);
-  if (productCode) clearProductImageCacheForProduct(productCode);
+  // A price/name/stock edit doesn't change the photo; evicting it here only
+  // forced the next catalog/product view through a fresh 1C image lookup.
+  // Photo uploads and article renames (which re-key lookups) still evict.
+  if (image.imageBase64 || catalogNumber) {
+    clearProductImageCacheForProduct(code);
+    if (article) clearProductImageCacheForProduct(article);
+    if (productCode) clearProductImageCacheForProduct(productCode);
+  }
   if (image.imageBase64) {
     clearCatalogImageResultCacheForProduct(code, article || undefined);
     // /product-image/[code]/route.ts caches its final served response
@@ -354,6 +359,7 @@ export async function POST(request: NextRequest) {
     // serving the old bytes from that cache for up to 4h even though every
     // other image cache layer was correctly evicted above.
     await clearRouteImageCacheForProduct(code, article || undefined);
+    seedProductImageBase64Cache([code, article, productCode, catalogNumber], image.imageBase64);
   }
 
   // Bust ISR page cache so the next render fetches fresh data from 1C.

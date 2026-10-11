@@ -359,7 +359,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
         <div className="page-shell-inline">
           <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
-            <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
+            <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
               <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
               <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
@@ -395,7 +395,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
               <div className="relative grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
                 <div className="rounded-[24px] border border-white/85 bg-white/74 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.065)] ring-1 ring-sky-100/65 sm:p-7">
-                  <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                  <div className="directory-detail-identity grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
                     <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/95 bg-white/95 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                       <Image
                         src={brandEntry.logo}
@@ -501,7 +501,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
       <div className="page-shell-inline">
         <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
-          <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
             <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
             <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
@@ -536,7 +536,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </div>
 
             <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-              <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
                 <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
                   <Image
                     src={brandEntry.logo}
@@ -755,16 +755,37 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   <li key={product.href} className="min-w-0">
                     <SmartLink
                       href={product.href}
-                      className={`${directoryListCardClass} flex h-full min-w-0 flex-col gap-1 px-4 py-3 transition-colors duration-200 hover:border-sky-200`}
+                      className={`${directoryListCardClass} flex h-full min-w-0 items-center gap-3 px-3 py-3 transition-colors duration-200 hover:border-sky-200 sm:px-4`}
                     >
-                      <span className="text-[14px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
-                        {product.name}
-                      </span>
-                      {product.producer || product.article ? (
-                        <span className="text-[12px] font-medium text-slate-500 [overflow-wrap:anywhere]">
-                          {[product.producer, product.article].filter(Boolean).join(" · ")}
+                      {product.imageSrc ? (
+                        <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white">
+                          {/* Catalog thumbnail URL without fallback=404: a
+                              stale miss redirects to the placeholder image
+                              instead of rendering a broken icon. */}
+                          <Image
+                            src={product.imageSrc}
+                            alt={[product.name, product.producer, product.article]
+                              .filter(Boolean)
+                              .join(" — ")}
+                            width={64}
+                            height={64}
+                            sizes="64px"
+                            loading="lazy"
+                            unoptimized
+                            className="h-full w-full object-contain"
+                          />
                         </span>
                       ) : null}
+                      <span className="flex min-w-0 flex-col gap-1">
+                        <span className="text-[14px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                          {product.name}
+                        </span>
+                        {product.producer || product.article ? (
+                          <span className="text-[12px] font-medium text-slate-500 [overflow-wrap:anywhere]">
+                            {[product.producer, product.article].filter(Boolean).join(" · ")}
+                          </span>
+                        ) : null}
+                      </span>
                     </SmartLink>
                   </li>
                 ))}

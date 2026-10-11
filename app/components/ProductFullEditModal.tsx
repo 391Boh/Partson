@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, PenSquare, X, FileText, ImageIcon, Package } from "lucide-react";
+import { Check, PenSquare, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ProductEditorTabs, ProductEditorField as Field, productEditorFieldClass as fieldClass, useProductEditorPanel } from "./ProductEditorUI";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import { useRouter } from "next/navigation";
@@ -78,6 +79,7 @@ export default function ProductFullEditModal({
   description: initialDescription,
 }: Props) {
   const router = useRouter();
+  const panelRef = useProductEditorPanel(isOpen);
   const [tab, setTab] = useState<"main" | "description" | "photos">("main");
   const baseline = useRef({ name: initialName, article: initialArticle, producer: initialProducer,
     category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
@@ -98,6 +100,8 @@ export default function ProductFullEditModal({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const submitLock = useRef(false);
+  const imageUploadLock = useRef(false);
+  const galleryUploadLock = useRef(false);
 
   const [producerSugg, setProducerSugg] = useState<string[]>([]);
   const [producerActive, setProducerActive] = useState(-1);
@@ -157,7 +161,7 @@ export default function ProductFullEditModal({
     setCatSugg([]); setGrpSugg([]); setSubSugg([]);
     setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); setImageUploaded(false);
     setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); setGalleryUploaded(false);
-    const focusTimer = setTimeout(() => firstInputRef.current?.focus(), 50);
+    const focusTimer = setTimeout(() => firstInputRef.current?.focus({ preventScroll: true }), 50);
     // Only re-seed when the modal is (re-)opened — not on every keystroke,
     // which would fight the admin's own typing.
     return () => clearTimeout(focusTimer);
@@ -244,12 +248,13 @@ export default function ProductFullEditModal({
   };
 
   const uploadImage = async () => {
-    if (!imageFile || !imagePreview) return;
-    const token = await getAdminIdToken();
-    if (!token) { setImageError("Не авторизовано"); return; }
+    if (!imageFile || !imagePreview || imageUploadLock.current || submitLock.current) return;
+    imageUploadLock.current = true;
     setImageUploading(true);
     setImageError(null);
     try {
+      const token = await getAdminIdToken();
+      if (!token) { setImageError("Не авторизовано"); return; }
       const res = await fetch("/api/product-upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -267,7 +272,7 @@ export default function ProductFullEditModal({
       writeProductImageBustToken(code, articleVal || undefined);
       invalidateCatalogClientCache({ code });
       // Keep unsaved form fields when a photo finishes uploading.
-    } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
+    } catch { setImageError("Помилка мережі"); } finally { imageUploadLock.current = false; setImageUploading(false); }
   };
 
   const handleGalleryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,12 +298,13 @@ export default function ProductFullEditModal({
   };
 
   const uploadGalleryImage = async () => {
-    if (!galleryPreview) return;
-    const token = await getAdminIdToken();
-    if (!token) { setGalleryError("Не авторизовано"); return; }
+    if (!galleryPreview || galleryUploadLock.current || submitLock.current) return;
+    galleryUploadLock.current = true;
     setGalleryUploading(true);
     setGalleryError(null);
     try {
+      const token = await getAdminIdToken();
+      if (!token) { setGalleryError("Не авторизовано"); return; }
       const res = await fetch("/api/product-gallery", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -311,7 +317,7 @@ export default function ProductFullEditModal({
       setGalleryPreview(null);
       setGalleryUploadSize(0);
       // Gallery thumbnails update live via Firestore onSnapshot — no reload needed.
-    } catch { setGalleryError("Помилка мережі"); } finally { setGalleryUploading(false); }
+    } catch { setGalleryError("Помилка мережі"); } finally { galleryUploadLock.current = false; setGalleryUploading(false); }
   };
 
   const handleSubmit = async () => {
@@ -431,14 +437,16 @@ export default function ProductFullEditModal({
     // painting over it.
     <div
       onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void handleSubmit(); } }}
-      className="product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[480px] max-h-[760px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
+      ref={panelRef}
+      className="product-editor product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[480px] max-h-[760px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
+      aria-modal="false"
       aria-label="Редагувати товар"
-      aria-busy={saving}
+      aria-busy={saving || imageUploading || galleryUploading || imageProcessing || galleryProcessing}
     >
       <div className="flex h-full min-h-0 flex-col">
         <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
-        <div className="flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+        <div className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
               <PenSquare size={14} />
@@ -457,16 +465,9 @@ export default function ProductFullEditModal({
           </button>
         </div>
 
-        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-100 bg-slate-50/80 p-2" role="tablist" aria-label="Розділи редагування">
-          {([{ id: "main", label: "Основне", icon: Package }, { id: "description", label: "Опис", icon: FileText }, { id: "photos", label: "Фото", icon: ImageIcon }] as const).map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" role="tab" id={`product-edit-tab-${id}`} aria-selected={tab === id} aria-controls={`product-edit-panel-${id}`} onClick={() => setTab(id)}
-              className={`flex min-h-10 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${tab === id ? "bg-white text-violet-700 shadow-sm ring-1 ring-violet-100" : "text-slate-500 hover:bg-white/70"}`}>
-              <Icon size={14} />{label}
-            </button>
-          ))}
-        </div>
+        <ProductEditorTabs prefix="product-edit" value={tab} onChange={(next) => { setTab(next); setProducerSugg([]); setCatSugg([]); setGrpSugg([]); setSubSugg([]); }} />
 
-        <div className="app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
+        <div className="product-editor-body app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
           <fieldset disabled={saving} className="space-y-3 disabled:opacity-70" onChange={() => { setSaved(false); setError(null); }}>
             <div role="tabpanel" id="product-edit-panel-main" aria-labelledby="product-edit-tab-main" hidden={tab !== "main"} className="space-y-3">
             <Field label="Назва" required>
@@ -504,7 +505,7 @@ export default function ProductFullEditModal({
                       else if (e.key === "Enter" && producerActive >= 0 && producerSugg[producerActive]) {
                         e.preventDefault(); setProducer(producerSugg[producerActive]); setProducerSugg([]); setProducerActive(-1);
                       }
-                      else if (e.key === "Escape") { setProducerSugg([]); }
+                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setProducerSugg([]); }
                     }}
                     onBlur={() => setTimeout(() => setProducerSugg([]), 150)}
                     placeholder="Виробник"
@@ -548,7 +549,7 @@ export default function ProductFullEditModal({
                         setGroup(""); setSubGroup("");
                         fetchMetaSuggNow("group", "", v);
                       }
-                      else if (e.key === "Escape") { setCatSugg([]); }
+                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setCatSugg([]); }
                     }}
                     onBlur={() => setTimeout(() => setCatSugg([]), 150)}
                     placeholder="Запчастини"
@@ -590,7 +591,7 @@ export default function ProductFullEditModal({
                         setGroup(v); setGrpSugg([]); setGrpActive(-1);
                         setSubGroup(""); fetchMetaSuggNow("subGroup", "", v);
                       }
-                      else if (e.key === "Escape") { setGrpSugg([]); }
+                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setGrpSugg([]); }
                     }}
                     onBlur={() => setTimeout(() => setGrpSugg([]), 150)}
                     placeholder="Гальмівна система"
@@ -627,7 +628,7 @@ export default function ProductFullEditModal({
                       else if (e.key === "Enter" && subActive >= 0 && subSugg[subActive]) {
                         e.preventDefault(); setSubGroup(subSugg[subActive]); setSubSugg([]); setSubActive(-1);
                       }
-                      else if (e.key === "Escape") { setSubSugg([]); }
+                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setSubSugg([]); }
                     }}
                     onBlur={() => setTimeout(() => setSubSugg([]), 150)}
                     placeholder="Гальмівні диски"
@@ -731,7 +732,7 @@ export default function ProductFullEditModal({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+        <div className="product-editor-footer flex shrink-0 items-center justify-end gap-1.5 border-t border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.7),rgba(255,255,255,0.98))] px-3.5 py-2.5">
           <button type="button" onClick={() => { if (!submitLock.current && !imageUploading && !galleryUploading && !imageProcessing && !galleryProcessing) onClose(); }} disabled={saving || imageUploading || galleryUploading || imageProcessing || galleryProcessing}
             className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
             Готово
@@ -743,33 +744,10 @@ export default function ProductFullEditModal({
             ) : (
               <Check size={13} />
             )}
-            {saving ? "Збереження..." : "Зберегти"}
+            {saving ? "Збереження..." : tab === "photos" ? "Зберегти дані" : "Зберегти"}
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-const fieldClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-3 py-2 text-[16px] sm:text-sm text-slate-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200/50";
-
-function Field({
-  label,
-  children,
-  required,
-}: {
-  label: string;
-  children: React.ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-semibold text-slate-500">
-        {label}
-        {required && <span className="ml-0.5 text-red-400">*</span>}
-        {children}
-      </label>
     </div>
   );
 }

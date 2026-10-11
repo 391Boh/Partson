@@ -7,31 +7,19 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import { cleanCarModelForSearch } from 'app/lib/car-model-search';
+import {
+  CATALOG_RESTORE_STYLE_ID,
+  CATALOG_RESULTS_ATTRIBUTE,
+  CATALOG_VIEW_MODE_COOKIE,
+  detectCatalogRestoreOverride,
+} from 'app/lib/catalog-restore-override';
 import CatalogData from 'app/components/Data';
-import CatalogLoaderCard from 'app/components/CatalogLoaderCard';
 
 const MemoizedCatalogData = memo(CatalogData);
 
 const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
   ssr: false,
-  loading: () => (
-    <div className="catalog-card-skeleton catalog-filter-scroll rounded-[16px] border border-white/80 bg-white/78 p-2 shadow-[0_12px_28px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:p-3">
-      <div className="flex gap-2 overflow-hidden">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className="flex h-10 w-32 shrink-0 items-center gap-2 rounded-[14px] border border-slate-200/70 bg-white/82 px-2.5"
-          >
-            <span className="catalog-skeleton-block h-6 w-6 shrink-0 rounded-[9px] bg-sky-100/75" />
-            <span className="min-w-0 flex-1 space-y-1.5">
-              <span className="catalog-skeleton-block block h-2.5 w-4/5 rounded-full" />
-              <span className="catalog-skeleton-block block h-2 w-1/2 rounded-full opacity-70" />
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  ),
+  loading: () => <div className="h-12" aria-hidden="true" />,
 });
 
 type InitialCatalogPagePayload = {
@@ -73,22 +61,6 @@ const isCatalogViewMode = (value: unknown): value is 'grid' | 'list' =>
 const CATALOG_PAGE_BATCH_SIZE_OPTIONS = [16, 32, 48] as const;
 const isCatalogPageBatchSize = (value: unknown): value is number =>
   typeof value === 'number' && (CATALOG_PAGE_BATCH_SIZE_OPTIONS as readonly number[]).includes(value);
-
-// Same label (component default) and same box height as Data.tsx's own
-// initial skeleton (CatalogTransitionLoader, non-compact) — this loader
-// sits in that exact slot for the one tick before catalogStateReady flips
-// true, and briefly showing a differently-worded, differently-sized card
-// right before swapping to that one read as two loaders flashing in
-// sequence instead of one continuous load.
-const CatalogStateLoader = () => (
-  <div
-    className="col-span-full flex w-full items-start justify-center px-3 min-h-[240px] py-8 sm:min-h-[300px] sm:py-12"
-    role="status"
-    aria-label="Завантаження каталогу"
-  >
-    <CatalogLoaderCard />
-  </div>
-);
 
 // cleanCarModelForSearch (imported above) drops the "рестайлинг"/"рестайлінг"
 // word from a model like "A6 C4 рестайлинг" so the description search isn't
@@ -183,6 +155,7 @@ interface KatalogProps {
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
   initialProducerBrands?: InitialProducerBrand[];
+  initialViewMode?: 'grid' | 'list';
 }
 
 const Katalog: React.FC<KatalogProps> = ({
@@ -190,6 +163,7 @@ const Katalog: React.FC<KatalogProps> = ({
   initialQuerySignature = null,
   initialTotalCount = null,
   initialProducerBrands = [],
+  initialViewMode = 'grid',
 }) => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -197,7 +171,9 @@ const Katalog: React.FC<KatalogProps> = ({
   // Display preferences, not filters — deliberately kept out of the
   // filter-reset flow below (resetParam handling, STORAGE_KEYS.cars/sort
   // removal) so clearing filters never resets how the user likes to browse.
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Seeded from the view-mode cookie so the server renders the same layout;
+  // localStorage (read below) stays the source of truth.
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialViewMode);
   const [pageBatchSize, setPageBatchSize] = useState(16);
   const [pricedOnly, setPricedOnly] = useState(false);
   const [priceFrom, setPriceFrom] = useState<number | null>(null);
@@ -214,6 +190,12 @@ const Katalog: React.FC<KatalogProps> = ({
   const [isLikelyLoggedIn, setIsLikelyLoggedIn] = useState(false);
   const [carsLoaded, setCarsLoaded] = useState(false);
   const [localReady, setLocalReady] = useState(false);
+  // True when this browser's saved sort/car/reset state changes the request
+  // the server rendered its first page for. Decided once, before first paint.
+  const [restoreChangesQuery, setRestoreChangesQuery] = useState(false);
+  const hasServerFirstPage = Boolean(
+    initialPagePayload?.items?.length && initialQuerySignature
+  );
   const searchParams = useSearchParams();
   const currentSearchParams = searchParams ?? new URLSearchParams();
   const searchParamsKey = currentSearchParams.toString();
@@ -350,12 +332,26 @@ const Katalog: React.FC<KatalogProps> = ({
     sortOrder,
   ]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const target = window.sessionStorage.getItem('catalogScrollTarget');
-    if (target !== 'results') return;
-    window.sessionStorage.removeItem('catalogScrollTarget');
-    window.scrollTo({ top: 0, behavior: 'auto' });
+  // Catalog entry, reload and history navigation always begin at the top.
+  // Disable native restoration only while this route is mounted.
+  useLayoutEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    const resetTop = () => window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.addEventListener('pageshow', resetTop);
+    return () => {
+      window.history.scrollRestoration = previous;
+      window.removeEventListener('pageshow', resetTop);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    try { window.sessionStorage.removeItem('catalogScrollTarget'); } catch {}
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [searchParamsKey]);
 
   useEffect(() => {
@@ -396,6 +392,16 @@ const Katalog: React.FC<KatalogProps> = ({
     if (hasLoadedLocalRef.current) return;
     hasLoadedLocalRef.current = true;
     if (typeof window === 'undefined') return;
+    try {
+      setRestoreChangesQuery(
+        detectCatalogRestoreOverride(window.location.search, window.localStorage)
+      );
+    } catch {
+      setRestoreChangesQuery(false);
+    }
+    // The pre-paint script's job ends here: this same layout pass either keeps
+    // the server grid (nothing to restore) or swaps it before the next paint.
+    document.getElementById(CATALOG_RESTORE_STYLE_ID)?.remove();
     if (resetParam === '1' || resetParam === 'search') {
       setLocalReady(true);
       return;
@@ -729,6 +735,7 @@ const Katalog: React.FC<KatalogProps> = ({
     try {
       window.localStorage.setItem(STORAGE_KEYS.viewMode, viewMode);
       window.localStorage.setItem(STORAGE_KEYS.pageBatchSize, String(pageBatchSize));
+      document.cookie = `${CATALOG_VIEW_MODE_COOKIE}=${viewMode}; path=/; max-age=31536000; samesite=lax`;
     } catch (error) {
       console.error('Failed to save catalog view preferences to local storage:', error);
     }
@@ -872,6 +879,13 @@ const Katalog: React.FC<KatalogProps> = ({
       ? filterHeight + FILTER_TOP_GAP + FILTER_RESULTS_GAP
       : FILTER_RESULTS_FALLBACK_OFFSET;
 
+  // Reuse the filter's measured height; no geometry reads during a pull.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--catalog-refresh-top', `calc(var(--header-height, 4rem) + ${catalogTopOffset + 10}px)`);
+    return () => { root.style.removeProperty('--catalog-refresh-top'); };
+  }, [catalogTopOffset]);
+
   // When the filter panel collapses, catalogTopOffset decreases and catalog content
   // shifts up. Compensate the scroll position synchronously before the browser paints
   // so the user's viewed content stays at the same viewport position.
@@ -914,9 +928,16 @@ const Katalog: React.FC<KatalogProps> = ({
         style={{
           paddingTop: catalogTopOffset,
         }}
+        {...{ [CATALOG_RESULTS_ATTRIBUTE]: '' }}
       >
-        {catalogStateReady ? (
+        {catalogStateReady || (hasServerFirstPage && !localReady) ? (
           <MemoizedCatalogData
+            // SSR and hydration render the server's first page with default
+            // filters, so products and their preloaded photos paint without
+            // waiting for JS. When the restored state changes the request, a
+            // fresh instance replaces it without that payload — products for
+            // a different query are never shown, even for a frame.
+            key={restoreChangesQuery ? 'restored' : 'server'}
             selectedCars={selectedCars}
             selectedCategories={selectedCategories}
             sortOrder={sortOrder}
@@ -924,8 +945,8 @@ const Katalog: React.FC<KatalogProps> = ({
             priceFrom={priceFrom}
             priceTo={priceTo}
             inStock={inStock}
-            initialPagePayload={initialPagePayload}
-            initialQuerySignature={initialQuerySignature}
+            initialPagePayload={restoreChangesQuery ? null : initialPagePayload}
+            initialQuerySignature={restoreChangesQuery ? null : initialQuerySignature}
             initialTotalCount={initialTotalCount}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
@@ -933,7 +954,7 @@ const Katalog: React.FC<KatalogProps> = ({
             onPageBatchSizeChange={setPageBatchSize}
           />
         ) : (
-          <CatalogStateLoader />
+          <div className="min-h-[200px]" aria-hidden="true" />
         )}
       </div>
     </section>

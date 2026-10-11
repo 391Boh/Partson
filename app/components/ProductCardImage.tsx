@@ -1,7 +1,7 @@
 ﻿
 "use client";
 
-import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { ImageOff } from "lucide-react";
 
@@ -42,6 +42,12 @@ const NEAR_VIEWPORT_ROOT_MARGIN = "1200px";
 // Release it to its own direct request once this elapses instead of waiting
 // forever for the shared pipeline to finish.
 const DISABLE_DIRECT_LOAD_RELEASE_MS = 1400;
+
+const subscribeToNothing = () => () => {};
+// false while rendering on the server and hydrating that HTML, true for any
+// render after hydration (including cards first mounted on the client).
+const useIsPastHydration = () =>
+  useSyncExternalStore(subscribeToNothing, () => true, () => false);
 
 const normalizeSrcPath = (value: string) => {
   const trimmed = (value || "").trim();
@@ -136,6 +142,22 @@ const ProductCardImageContent: React.FC<Props> = ({
   const requestSrcRef = useRef("");
   const statusRef = useRef<ImageStatus>(status);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const imageElementRef = useRef<HTMLImageElement | null>(null);
+  // The <Image> is keyed by src, so re-selecting the src it already shows
+  // mounts no new element and fires no new load event. Resetting status to
+  // "loading" in that case left a fully decoded photo stuck at opacity 0
+  // (seen on repeat visits, when the session page cache supplies
+  // prefetchedSrc after the direct request has already finished).
+  const isMountedImageDecoded = useCallback((src: string) => {
+    const image = imageElementRef.current;
+    return Boolean(
+      image &&
+        image.isConnected &&
+        requestSrcRef.current === src &&
+        image.complete &&
+        image.naturalWidth > 0
+    );
+  }, []);
   const [isNearViewport, setIsNearViewport] = useState(loadingMode === "eager");
 
   useEffect(() => {
@@ -208,7 +230,9 @@ const ProductCardImageContent: React.FC<Props> = ({
       setRequestSrc((current) =>
         current === normalizedPrefetchedSrc ? current : normalizedPrefetchedSrc
       );
-      if (!isAlreadyShowingSameSrc) {
+      if (isMountedImageDecoded(normalizedPrefetchedSrc)) {
+        setStatus("loaded");
+      } else if (!isAlreadyShowingSameSrc) {
         setStatus("loading");
         setFinalRetryQueued(false);
       }
@@ -231,7 +255,9 @@ const ProductCardImageContent: React.FC<Props> = ({
 
       lastSuccessfulSrcRef.current = cachedSrc;
       setRequestSrc((current) => (current === cachedSrc ? current : cachedSrc));
-      if (!isAlreadyShowingSameSrc) {
+      if (isMountedImageDecoded(cachedSrc)) {
+        setStatus("loaded");
+      } else if (!isAlreadyShowingSameSrc) {
         setStatus("loading");
         setFinalRetryQueued(false);
       }
@@ -307,6 +333,7 @@ const ProductCardImageContent: React.FC<Props> = ({
     loadingMode,
     deferDirectLoad,
     disableDirectLoad,
+    isMountedImageDecoded,
   ]);
   useEffect(() => {
     if (!hasKnownPhoto) return;
@@ -426,6 +453,7 @@ const ProductCardImageContent: React.FC<Props> = ({
   // already decoded image cannot remain hidden behind the catalog skeleton.
   const handleImageRef = useCallback(
     (image: HTMLImageElement | null) => {
+      imageElementRef.current = image;
       if (!image || !requestSrc || !image.complete) return;
       if (image.naturalWidth > 0) {
         commitLoadedImage(image);
@@ -440,6 +468,11 @@ const ProductCardImageContent: React.FC<Props> = ({
   const canOpen = Boolean(onClick) && status === "loaded";
   const imageAlt = (alt || "Фото товару").trim();
   const showLoadingSkeleton = status === "loading" || status === "retrying";
+  // Server HTML must not hide its photos behind opacity-0 until JS hydrates:
+  // the image is already in the HTML (and preloaded) and an undecoded <img>
+  // paints nothing over the skeleton anyway. After hydration, status rules.
+  const isPastHydration = useIsPastHydration();
+  const hideImageWhileLoading = showLoadingSkeleton && isPastHydration;
   const showPlaceholder = status === "missing";
   const imageDecodingMode = "async";
   // A zero-duration "fade" is really an instant opacity snap the moment
@@ -516,7 +549,7 @@ const ProductCardImageContent: React.FC<Props> = ({
               draggable={false}
               onLoad={handleLoad}
               onError={handleError}
-              className={`object-contain transition-opacity ${imageFadeClass} ${showLoadingSkeleton ? 'opacity-0' : 'opacity-100'}`}
+              className={`object-contain transition-opacity ${imageFadeClass} ${hideImageWhileLoading ? 'opacity-0' : 'opacity-100'}`}
             />
           )}
         </>

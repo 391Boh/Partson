@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 // Versioned because the old mode completely froze component parallax. The
 // current mode keeps it visible at a capped cadence, so old measurements are
@@ -39,9 +40,11 @@ const isLikelyWeakDevice = () => {
 /**
  * Keeps the visual quality adaptive instead of assuming every desktop GPU can
  * composite the same number of masks, filters and transformed layers. The
- * check runs once, writes no React state and never touches layout.
+ * check runs once per route, writes no React state and never touches layout.
  */
 export default function ScrollPerformanceGuard() {
+  // A smooth first route cannot establish the budget for a later product grid.
+  const pathname = usePathname();
   useEffect(() => {
     const root = document.documentElement;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -149,7 +152,7 @@ export default function ScrollPerformanceGuard() {
       classObserver?.disconnect();
       window.removeEventListener("scroll", startSampling);
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }

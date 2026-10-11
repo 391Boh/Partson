@@ -6,7 +6,7 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
-import { clearProductImageCacheForProduct } from "app/lib/product-image";
+import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 
@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
   // clearCatalogImageResultCacheForProduct above.
   await clearRouteImageCacheForProduct(code, article || undefined);
   if (article) clearProductImageCacheForProduct(article);
+  seedProductImageBase64Cache([code, article], base64Data);
   try {
     revalidateTag("product-page-data", "max");
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");

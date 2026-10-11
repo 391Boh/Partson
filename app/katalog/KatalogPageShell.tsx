@@ -32,6 +32,7 @@ export default function KatalogPageShell(props: {
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
   initialProducerBrands?: InitialProducerBrand[];
+  initialViewMode?: "grid" | "list";
 }) {
   return <KatalogClientPage {...props} />;
 }

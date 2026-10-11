@@ -5,6 +5,9 @@ import { Suspense, startTransition, useCallback, useEffect, useRef, useState } f
 import dynamic from "next/dynamic";
 import type { LayoutAccountRuntimeProps } from "./LayoutAccountRuntime";
 import Header from "./Header";
+import PageScrollMotion from "./PageScrollMotion";
+import PullToRefresh from "./PullToRefresh";
+import ScrollPerformanceGuard from "./ScrollPerformanceGuard";
 import NavigationProgress from "./NavigationProgress";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronUp, MessageCircle, Plus, Shield } from "lucide-react";
@@ -141,6 +144,54 @@ function RouteViewStateSync({
   return null;
 }
 
+// Keep visibility updates local: crossing the sentinel must not render the
+// account runtime, chat controls and navigation on every page.
+function ScrollToTopButton({ sentinelRef }: { sentinelRef: { current: HTMLSpanElement | null } }) {
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowScrollTop(!entry?.isIntersecting),
+      { rootMargin: "300px 0px 0px 0px", threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [sentinelRef]);
+  return (
+    <button
+      type="button"
+      aria-label="Вгору"
+      tabIndex={showScrollTop ? 0 : -1}
+      aria-hidden={!showScrollTop}
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className={[
+        "group relative isolate z-20 flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] sm:h-[60px] sm:w-[60px] sm:rounded-[20px]",
+        "border transition-[box-shadow,border-color,transform,opacity] duration-300 ease-out",
+        "hover:scale-[1.018] active:scale-[0.97]",
+        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45",
+        "border-cyan-100/25 shadow-[0_16px_38px_rgba(8,47,73,0.22)] hover:border-cyan-100/45 hover:shadow-[0_22px_46px_rgba(14,116,144,0.28)]",
+        showScrollTop
+          ? "opacity-100 translate-y-0 pointer-events-auto"
+          : "opacity-0 translate-y-3 pointer-events-none",
+      ].join(" ")}
+    >
+      <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,#0f172a,#0369a1_52%,#14b8a6)]" />
+      <span className="pointer-events-none absolute inset-x-2 top-1 h-5 rounded-full bg-gradient-to-b from-white/22 to-transparent" />
+      <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08]">
+        <ChevronUp
+          className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
+          size={30}
+          strokeWidth={2.4}
+          aria-hidden="true"
+        />
+      </span>
+    </button>
+  );
+}
+
 export default function LayoutHost({ children }: LayoutHostProps) {
   const { user: firebaseUser } = useFirebaseAuthState();
   const [AdminChatPanelComponent, setAdminChatPanelComponent] =
@@ -163,7 +214,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
     isEmbeddedProductView: false,
   });
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [isPageAtTop, setIsPageAtTop] = useState(true);
 
   const router = useRouter();
@@ -173,6 +223,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const primaryRoutePrefetchStartedRef = useRef(false);
   const previousPathnameRef = useRef(pathname);
   const adminPanelPathnameRef = useRef(pathname);
+  const pageContentRef = useRef<HTMLElement | null>(null);
   const scrollTopSentinelRef = useRef<HTMLSpanElement | null>(null);
   const isPageAtTopRef = useRef(true);
   const isDevelopment = process.env.NODE_ENV !== "production";
@@ -220,18 +271,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     };
   }, [pathname]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sentinel = scrollTopSentinelRef.current;
-    if (!sentinel || typeof IntersectionObserver === "undefined") return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowScrollTop(!entry?.isIntersecting),
-      { rootMargin: "300px 0px 0px 0px", threshold: 0 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
 
   // Large homepage sections have decorative hover gradients and shadows. As
   // the page moves underneath a stationary pointer, those hovers can fire in
@@ -1045,6 +1085,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       )}
 
       <NavigationProgress />
+      <ScrollPerformanceGuard />
+      <PageScrollMotion rootRef={pageContentRef} />
+      {!isEmbeddedProductView && (pathname === "/" || pathname === "/katalog") && <PullToRefresh key={pathname} contentRef={pageContentRef} dark={pathname === "/"} />}
 
       {!isEmbeddedProductView && (
         <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)]">
@@ -1053,6 +1096,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       )}
 
       <main
+        ref={pageContentRef}
         className={
           isEmbeddedProductView || pathname === "/"
             ? "min-h-screen"
@@ -1067,32 +1111,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       {!isEmbeddedProductView && (
         <div className="site-floating-actions fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6 sm:gap-4 lg:right-7">
           <div className="flex items-end gap-2 sm:gap-3">
-            <button
-              type="button"
-              aria-label="Вгору"
-              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className={[
-                "group relative isolate z-20 flex h-14 w-14 items-center justify-center overflow-hidden rounded-[18px] sm:h-[60px] sm:w-[60px] sm:rounded-[20px]",
-                "border transition-[box-shadow,border-color,transform,opacity] duration-300 ease-out",
-                "hover:scale-[1.018] active:scale-[0.97]",
-                "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/45",
-                "border-cyan-100/25 shadow-[0_16px_38px_rgba(8,47,73,0.22)] hover:border-cyan-100/45 hover:shadow-[0_22px_46px_rgba(14,116,144,0.28)]",
-                showScrollTop
-                  ? "opacity-100 translate-y-0 pointer-events-auto"
-                  : "opacity-0 translate-y-3 pointer-events-none",
-              ].join(" ")}
-            >
-              <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,#0f172a,#0369a1_52%,#14b8a6)]" />
-              <span className="pointer-events-none absolute inset-x-2 top-1 h-5 rounded-full bg-gradient-to-b from-white/22 to-transparent" />
-              <span className="relative z-10 flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-[1.08]">
-                <ChevronUp
-                  className="text-white drop-shadow-[0_8px_18px_rgba(15,23,42,0.32)]"
-                  size={30}
-                  strokeWidth={2.4}
-                  aria-hidden="true"
-                />
-              </span>
-            </button>
+            <ScrollToTopButton sentinelRef={scrollTopSentinelRef} />
 
             <div className="flex flex-col items-center gap-2 sm:gap-3">
               {isAdmin && !isAdminPanelOpen && (

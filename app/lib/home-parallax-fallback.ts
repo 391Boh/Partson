@@ -1,14 +1,14 @@
 // Homepage parallax for browsers without CSS scroll timelines (Safari before
 // scroll-driven animations, Firefox). Mirrors the compositor version in
-// globals.css ("Homepage parallax and block drift"): each visible section
-// backdrop moves as one layer, its depth planes ([data-plx-drift], amplitude
-// in --plx-drift) travel further, and the hero photo drifts as the hero
-// leaves. Same budget as /partnership's drift: one passive scroll listener,
+// globals.css ("Homepage parallax and block drift"): the depth planes of each
+// visible section backdrop ([data-plx-drift], amplitude in --plx-drift) travel
+// against the static field, and the hero photo drifts as the hero leaves. Same budget as /partnership's drift: one passive scroll listener,
 // one rAF, geometry read from the (untranslated) section boxes first, then
 // `translate` writes on a handful of elements in visible sections only.
 
-const BACKDROP_SHIFT_DESKTOP = 60;
-const BACKDROP_SHIFT_MOBILE = 30;
+// Matches --home-depth-gain in globals.css.
+const DEPTH_GAIN_DESKTOP = 1.5;
+const DEPTH_GAIN_MOBILE = 1.2;
 const HERO_SHIFT_DESKTOP = 0.09;
 const HERO_SHIFT_MOBILE = 0.05;
 
@@ -49,7 +49,7 @@ export function installHomeParallaxFallback(home: HTMLElement): () => void {
     }
     const vh = window.innerHeight || 1;
     const mobile = window.innerWidth < 768;
-    const shift = mobile ? BACKDROP_SHIFT_MOBILE : BACKDROP_SHIFT_DESKTOP;
+    const gain = mobile ? DEPTH_GAIN_MOBILE : DEPTH_GAIN_DESKTOP;
 
     // Reads first (section boxes are never translated themselves).
     const progress = Array.from(visible, (b) => {
@@ -65,10 +65,9 @@ export function installHomeParallaxFallback(home: HTMLElement): () => void {
 
     // Then writes.
     for (const { b, p } of progress) {
-      b.el.style.translate = `0 ${(p * shift).toFixed(1)}px`;
       for (const plane of b.planes) {
         const drift = parseFloat(plane.style.getPropertyValue("--plx-drift")) || 0;
-        plane.style.translate = `0 ${(p * drift).toFixed(1)}px`;
+        plane.style.translate = `0 ${(p * drift * gain).toFixed(1)}px`;
       }
     }
     if (heroPhoto && heroVisible) {

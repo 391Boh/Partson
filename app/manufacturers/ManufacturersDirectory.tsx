@@ -25,7 +25,8 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
-import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
+import { uniqueDirectoryItems } from "app/lib/directory-items";
+import DirectoryGrid from "app/components/DirectoryGrid";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
@@ -78,7 +79,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={manufacturerHref}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} card-metal h-[112px] animate-fadeIn`}
+      className={`${directoryCardClass} min-h-[100px]`}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -157,7 +158,7 @@ export default function ManufacturersDirectory({
   const autoLoadAttemptedRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = normalize(deferredQuery);
-  const directoryItems = directoryData.items;
+  const directoryItems = useMemo(() => uniqueDirectoryItems(directoryData.items, item => item.slug), [directoryData.items]);
 
   const loadFullDirectory = useCallback(async () => {
     if (directoryData.items.length >= totalItems) {
@@ -190,8 +191,7 @@ export default function ManufacturersDirectory({
 
   // The server only ships the first 32 manufacturers for a fast first paint
   // (see manufacturers/page.tsx). Always fetch the rest right away — the
-  // directory shows every manufacturer at once now, paged only by the rail's
-  // own arrows/scroll, with no separate "load more" step for the user.
+  // directory uses one responsive grid; no destinations are cloned.
   useEffect(() => {
     if (autoLoadAttemptedRef.current) return;
     autoLoadAttemptedRef.current = true;
@@ -232,10 +232,10 @@ export default function ManufacturersDirectory({
                     Каталог брендів
                   </div>
                   <h2 className={directoryTitleClass}>
-                    Виробники автозапчастин у каталозі PartsON
+                    Оберіть виробника
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    Введіть <strong className="font-bold text-slate-800">назву бренду</strong> або оберіть виробника зі списку — перейдіть на його сторінку й перегляньте <strong className="font-bold text-slate-800">товари, групи й категорії</strong> без повторного налаштування фільтрів каталогу.
+                    Шукайте за назвою бренду. На сторінці виробника можна обрати тип деталі та порівняти товари.
                   </p>
                 </div>
               </div>
@@ -293,13 +293,11 @@ export default function ManufacturersDirectory({
             {filteredItems.length > 0 ? (
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
-                <HorizontalDirectoryRail
+                <DirectoryGrid
                   ariaLabel="Виробники автозапчастин"
-                  rows={2}
-                  className="[grid-auto-columns:100%] sm:[grid-auto-columns:300px]"
                 >
                   {filteredItems.map((item, index) => (
-                    <div key={item.slug} className="w-full shrink-0 snap-start snap-always" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <div key={item.slug} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(index + 1)} />
                       <ManufacturerCard
                         item={item}
@@ -309,7 +307,7 @@ export default function ManufacturersDirectory({
                       />
                     </div>
                   ))}
-                </HorizontalDirectoryRail>
+                </DirectoryGrid>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">

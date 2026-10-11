@@ -202,17 +202,17 @@ const buildGroupDescription = (
 const buildGroupHeroDescription = (
   label: string,
   productCount: number,
-  subgroupsCount: number,
+  _subgroupsCount: number,
   hasSubgroups: boolean
 ) => {
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `У групі ${visibleLabel} зібрано ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)} і ${subgroupsCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupsCount)} каталогу. Оберіть напрямок, щоб перейти до запчастин з актуальною ціною, брендами й доставкою по Україні.`;
+    return `Оберіть потрібний тип деталі у розділі «${visibleLabel}». Далі можна переглянути товари, порівняти виробників, ціну та наявність.`;
   }
 
   if (productCount > 0) {
-    return `У групі ${visibleLabel} доступний прямий перехід до каталогу з ${productCount.toLocaleString("uk-UA")} ${pluralizeUk(productCount, "товарною позицією", "товарними позиціями", "товарними позиціями")}, підбором за артикулом і перевіркою сумісності.`;
+    return `Відкрийте товари розділу «${visibleLabel}», щоб порівняти характеристики та обрати потрібну запчастину.`;
   }
 
   return `Сторінка групи ${visibleLabel} веде у відповідний розділ каталогу PartsON і допомагає швидко знайти потрібні автозапчастини у Львові з доставкою по Україні.`;
@@ -225,18 +225,10 @@ const buildGroupHeroDetails = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `Оберіть підгрупу для точнішого підбору або відкрийте весь каталог групи ${visibleLabel}, щоб порівняти товари, бренди, наявність і аналоги.`;
+    return "Перед замовленням перевірте артикул, сторону встановлення та застосування до вашої модифікації автомобіля.";
   }
 
-  return `Цей розділ зібраний як окрема сторінка групи ${visibleLabel}, щоб каталог відкривався напряму за зрозумілим посиланням.`;
-};
-
-const buildGroupHeroSupportLabel = (label: string, hasSubgroups: boolean) => {
-  const visibleLabel = buildVisibleProductName(label);
-
-  return hasSubgroups
-    ? `${visibleLabel}: назви підгруп і кінцевих категорій`
-    : `${visibleLabel}: прямий перехід у каталог групи`;
+  return `Перегляньте ${visibleLabel.toLocaleLowerCase("uk-UA")} у каталозі, порівняйте ціни та виробників. Звірте артикул і характеристики перед замовленням.`;
 };
 
 const buildSubgroupLead = (options: {
@@ -482,7 +474,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   return (
     <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
       <div key={group.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
-        <section className="card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
@@ -512,7 +504,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </div>
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(20,184,166,0.06)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
                   src={primaryImagePath}
@@ -527,17 +519,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               </div>
 
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="directory-kicker inline-flex rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] uppercase text-teal-800">
-                    {pageBadge}
-                  </span>
-                  <span className={directoryCompactMetricClass}>
-                    {buildGroupHeroSupportLabel(group.label, hasSubgroups)}
-                  </span>
-                  <span className={directoryCompactMetricAccentClass}>
-                    Пошук за назвою, брендом і артикулом
-                  </span>
-                </div>
+
 
                 <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                   {pageTitle}
@@ -585,6 +567,152 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           </div>
         </section>
       </div>
+
+      {group.subgroups.length > 0 && (
+        <section className="mt-6 space-y-3" aria-labelledby="group-sections-title">
+          <header className="pb-2">
+            <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Оберіть тип деталі</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Підгрупи допоможуть перейти від системи автомобіля до потрібної запчастини.</p>
+          </header>
+          {group.subgroups.map((subgroup) =>
+            subgroup.children.length > 0 ? (
+              <div key={subgroup.slug} className={directoryPanelClass}>
+                <div className={`${directoryHeaderClass} flex items-center justify-between gap-3`}>
+                  <div className="min-w-0">
+                    <p className="directory-kicker text-[10px] uppercase text-teal-800">
+                      Підгрупа
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold leading-snug tracking-[-0.01em] text-slate-900">
+                      {buildVisibleProductName(subgroup.label)}
+                    </h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                      {buildSubgroupLead({
+                        groupLabel: group.label,
+                        subgroupLabel: subgroup.label,
+                        productCount: subgroup.productCount,
+                        childCount: subgroup.children.length,
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                    {subgroup.productCount > 0 ? (
+                      <span className={directoryCompactMetricClass}>
+                        <span>{formatCount(subgroup.productCount)}</span>
+                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
+                      </span>
+                    ) : null}
+                    <span className={directoryCompactMetricAccentClass}>
+                      {formatCount(subgroup.children.length)} {pluralizeCategories(subgroup.children.length)}
+                    </span>
+                  </div>
+                </div>
+                <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
+                  {subgroup.children.map((child) => {
+                    const childPreview = getGroupProductPreview({
+                      categoryLabel: group.label,
+                      itemLabel: child.label,
+                      parentLabel: subgroup.label,
+                    });
+
+                    return (
+                      <li key={child.slug}>
+                        <CatalogPrefetchLink
+                          href={buildGroupItemPath(group.slug, child.slug)}
+                          className={`${directoryListCardClass} group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                        >
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
+                            {childPreview ? (
+                              <Image
+                                src={childPreview.url}
+                                alt=""
+                                aria-hidden
+                                width={44}
+                                height={44}
+                                sizes="44px"
+                                className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                              />
+                            ) : (
+                              <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
+                            )}
+
+
+
+
+
+                          </span>
+                          <span className="min-w-0 flex-1 font-semibold leading-snug">
+                            {buildVisibleProductName(child.label)}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            {child.productCount > 0 ? (
+                              <span className={directoryCompactMetricClass}>
+                                <span>{formatCount(child.productCount)}</span>
+                                <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
+                              </span>
+                            ) : null}
+                            <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
+                          </span>
+                        </CatalogPrefetchLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <div key={subgroup.slug} className={`${directoryListCardClass} group/row`}>
+                <CatalogPrefetchLink
+                  href={buildGroupItemPath(group.slug, subgroup.slug)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
+                    {(() => {
+                      const subgroupPreview = getGroupProductPreview({
+                        categoryLabel: group.label,
+                        itemLabel: subgroup.label,
+                      });
+                      return subgroupPreview ? (
+                        <Image
+                          src={subgroupPreview.url}
+                          alt=""
+                          aria-hidden
+                          width={44}
+                          height={44}
+                          sizes="44px"
+                          className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                        />
+                      ) : (
+                        <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
+                      );
+                    })()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block font-semibold leading-snug">
+                      {buildVisibleProductName(subgroup.label)}
+                    </span>
+                    <span className="mt-1 block text-[13px] leading-5 text-slate-500">
+                      {buildSubgroupLead({
+                        groupLabel: group.label,
+                        subgroupLabel: subgroup.label,
+                        productCount: subgroup.productCount,
+                        childCount: subgroup.children.length,
+                      })}
+                    </span>
+                  </div>
+                  <span className="flex shrink-0 items-center gap-1.5 self-start">
+                    {subgroup.productCount > 0 ? (
+                      <span className={directoryCompactMetricClass}>
+                        <span>{formatCount(subgroup.productCount)}</span>
+                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
+                      </span>
+                    ) : null}
+                    <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
+                  </span>
+                </CatalogPrefetchLink>
+              </div>
+            )
+          )}
+        </section>
+      )}
 
       {producersWithLogos.length > 0 && (
         <section className="mt-6 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/96 shadow-[0_8px_28px_rgba(15,23,42,0.06)]">
@@ -669,143 +797,6 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           { href: "/auto", label: "Підбір за авто" },
         ]}
       />
-
-      {group.subgroups.length > 0 && (
-        <section className="mt-6 space-y-3">
-          {group.subgroups.map((subgroup) =>
-            subgroup.children.length > 0 ? (
-              <div key={subgroup.slug} className={directoryPanelClass}>
-                <div className={`${directoryHeaderClass} flex items-center justify-between gap-3`}>
-                  <div className="min-w-0">
-                    <p className="directory-kicker text-[10px] uppercase text-teal-800">
-                      Підгрупа
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold leading-snug tracking-[-0.01em] text-slate-900">
-                      {buildVisibleProductName(subgroup.label)}
-                    </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                      {buildSubgroupLead({
-                        groupLabel: group.label,
-                        subgroupLabel: subgroup.label,
-                        productCount: subgroup.productCount,
-                        childCount: subgroup.children.length,
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                    {subgroup.productCount > 0 ? (
-                      <span className={directoryCompactMetricClass}>
-                        <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
-                      </span>
-                    ) : null}
-                    <span className={directoryCompactMetricAccentClass}>
-                      {formatCount(subgroup.children.length)} {pluralizeCategories(subgroup.children.length)}
-                    </span>
-                  </div>
-                </div>
-                <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
-                  {subgroup.children.map((child) => {
-                    const childPreview = getGroupProductPreview({
-                      categoryLabel: group.label,
-                      itemLabel: child.label,
-                      parentLabel: subgroup.label,
-                    });
-
-                    return (
-                      <li key={child.slug}>
-                        <CatalogPrefetchLink
-                          href={buildGroupItemPath(group.slug, child.slug)}
-                          className={`${directoryListCardClass} group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
-                        >
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
-                            {childPreview ? (
-                              <Image
-                                src={childPreview.url}
-                                alt=""
-                                aria-hidden
-                                width={44}
-                                height={44}
-                                sizes="44px"
-                                className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
-                              />
-                            ) : (
-                              <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1 font-semibold leading-snug">
-                            {buildVisibleProductName(child.label)}
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            {child.productCount > 0 ? (
-                              <span className={directoryCompactMetricClass}>
-                                <span>{formatCount(child.productCount)}</span>
-                                <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
-                              </span>
-                            ) : null}
-                            <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
-                          </span>
-                        </CatalogPrefetchLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : (
-              <div key={subgroup.slug} className={`${directoryListCardClass} group/row`}>
-                <CatalogPrefetchLink
-                  href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
-                    {(() => {
-                      const subgroupPreview = getGroupProductPreview({
-                        categoryLabel: group.label,
-                        itemLabel: subgroup.label,
-                      });
-                      return subgroupPreview ? (
-                        <Image
-                          src={subgroupPreview.url}
-                          alt=""
-                          aria-hidden
-                          width={44}
-                          height={44}
-                          sizes="44px"
-                          className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
-                        />
-                      ) : (
-                        <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
-                      );
-                    })()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="block font-semibold leading-snug">
-                      {buildVisibleProductName(subgroup.label)}
-                    </span>
-                    <span className="mt-1 block text-[13px] leading-5 text-slate-500">
-                      {buildSubgroupLead({
-                        groupLabel: group.label,
-                        subgroupLabel: subgroup.label,
-                        productCount: subgroup.productCount,
-                        childCount: subgroup.children.length,
-                      })}
-                    </span>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-1.5 self-start">
-                    {subgroup.productCount > 0 ? (
-                      <span className={directoryCompactMetricClass}>
-                        <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
-                      </span>
-                    ) : null}
-                    <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
-                  </span>
-                </CatalogPrefetchLink>
-              </div>
-            )
-          )}
-        </section>
-      )}
 
       <script
         type="application/ld+json"

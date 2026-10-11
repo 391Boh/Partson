@@ -1,32 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
-
-import CatalogSectionNav, {
-  type CatalogSectionId,
-} from "app/components/CatalogSectionNav";
-import { directoryPanelClass } from "app/components/catalog-directory-styles";
+import { ArrowRight } from "lucide-react";
+import CatalogSectionNav, { type CatalogSectionId } from "app/components/CatalogSectionNav";
 import SmartLink from "app/components/SmartLink";
-
-interface CatalogHubStat {
-  label: string;
-  value: string;
-  icon: LucideIcon;
-}
-
-const STAT_GRADIENTS: Array<[string, string]> = [
-  ["from-sky-500", "to-cyan-500"],
-  ["from-cyan-500", "to-teal-500"],
-  ["from-teal-500", "to-emerald-500"],
-];
-
-interface CatalogHubQuickLink {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  accent?: boolean;
-  prefetchOnViewport?: boolean;
-}
 
 interface CatalogHubHeroProps {
   current: CatalogSectionId;
@@ -34,127 +10,38 @@ interface CatalogHubHeroProps {
   title: string;
   description: string;
   icon: LucideIcon;
-  stats?: CatalogHubStat[];
-  quickLinks?: CatalogHubQuickLink[];
+  stats?: Array<{ label: string; value: string; icon: LucideIcon }>;
+  quickLinks?: Array<{ href: string; label: string; icon: LucideIcon; accent?: boolean; prefetchOnViewport?: boolean }>;
   highlights?: string[];
   breadcrumb?: ReactNode;
 }
 
-export default function CatalogHubHero({
-  current,
-  badge,
-  title,
-  description,
-  icon: Icon,
-  stats = [],
-  quickLinks = [],
-  highlights = [],
-  breadcrumb,
-}: CatalogHubHeroProps) {
+export default function CatalogHubHero({ current, title, description, icon: Icon, stats = [], quickLinks = [], breadcrumb }: CatalogHubHeroProps) {
+  const uniqueLinks = quickLinks.filter((link, index, links) => link.href.startsWith("#") && links.findIndex(item => item.href === link.href) === index);
+  const factualStats = stats.filter(stat => !["Наступний крок", "Результат", "Марка"].includes(stat.label));
   return (
-    <section className={`${directoryPanelClass} card-metal group relative overflow-hidden select-none`}>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_6%_0%,rgba(20,184,166,0.14),transparent_34%),radial-gradient(circle_at_94%_8%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_68%_108%,rgba(99,102,241,0.055),transparent_42%),linear-gradient(128deg,rgba(255,255,255,0.72)_0%,rgba(248,251,255,0.18)_48%,rgba(239,248,250,0.68)_100%)]" />
-      <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/40 to-transparent blur-xl" />
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
-
-      <div className="relative px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
-        {breadcrumb ? <div className="mb-3.5">{breadcrumb}</div> : null}
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_480px] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_520px]">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="directory-kicker inline-flex items-center gap-2 rounded-md border border-teal-200/80 bg-teal-50 px-3 py-1 text-[10px] uppercase text-teal-900 shadow-[0_8px_18px_rgba(13,148,136,0.06)]">
-                <Sparkles size={14} strokeWidth={2.1} />
-                {badge}
-              </span>
-            </div>
-
-            <div className="mt-3 flex min-w-0 items-start gap-3">
-              <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-cyan-200/75 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_34%),linear-gradient(145deg,#fafdff_0%,#e6f5fb_50%,#dff8f2_100%)] text-sky-800 shadow-[0_14px_30px_rgba(14,165,233,0.14),0_0_0_6px_rgba(20,184,166,0.06),inset_0_1px_0_rgba(255,255,255,0.98)]">
-                <Icon size={26} strokeWidth={2.15} />
-              </div>
-
-              <div className="min-w-0">
-                <h1 className="directory-heading-hero text-[1.65rem] leading-[1.1] text-slate-950 sm:text-[2rem] lg:text-[2.2rem]">
-                  {title}
-                </h1>
-                <p className="mt-2.5 max-w-[760px] text-[14px] font-normal leading-6 text-slate-600 sm:text-[15px]">
-                  {description}
-                </p>
-              </div>
-            </div>
-
-            {highlights.length > 0 && (
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {highlights.map((highlight) => (
-                  <span
-                    key={highlight}
-                    className="inline-flex rounded-full border border-white/90 bg-white/84 px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-[0_10px_22px_rgba(15,23,42,0.05)]"
-                  >
-                    {highlight}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {quickLinks.length > 0 && (
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {quickLinks.map((link) => {
-                  const LinkIcon = link.icon;
-
-                  return (
-                    <SmartLink
-                      key={`${link.href}:${link.label}`}
-                      href={link.href}
-                      prefetchOnViewport={link.prefetchOnViewport}
-                      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3.5 text-[13px] font-semibold tracking-[0.005em] transition-[transform,box-shadow,filter,border-color,background-color] duration-300 ease-out ${
-                        link.accent
-                          ? "border-teal-300/70 bg-[linear-gradient(135deg,#0d9488_0%,#0891b2_60%,#0284c7_100%)] text-white shadow-[0_10px_22px_rgba(13,148,136,0.24),inset_0_1px_0_rgba(255,255,255,0.3)] hover:-translate-y-0.5 hover:brightness-[1.05]"
-                          : "border-slate-200 bg-white/90 text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
-                      }`}
-                    >
-                      <LinkIcon size={16} strokeWidth={2.1} />
-                      <span>{link.label}</span>
-                      <ArrowRight size={14} strokeWidth={2.2} />
-                    </SmartLink>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3 xl:w-full xl:max-w-[480px] xl:justify-self-end 2xl:max-w-[520px]">
-            <div className="rounded-lg border border-slate-200/80 bg-white/82 p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-              <CatalogSectionNav current={current} />
-              {stats.length > 0 && (
-                <div className="mt-3 grid grid-cols-1 gap-2 min-[430px]:grid-cols-3">
-                  {stats.map((stat, statIndex) => {
-                    const StatIcon = stat.icon;
-                    const [from, to] = STAT_GRADIENTS[statIndex % STAT_GRADIENTS.length];
-
-                    return (
-                      <div
-                        key={`${stat.label}:${stat.value}`}
-                        className="group/stat relative min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white/90 px-3 py-2.5 shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(15,23,42,0.08)]"
-                      >
-                        <span className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${from} ${to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
-                        <div className="directory-counter-label flex min-w-0 flex-col items-start gap-1 text-[8px] uppercase text-slate-500 min-[430px]:flex-row min-[430px]:items-center min-[430px]:gap-2 min-[430px]:text-[10px]">
-                          <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] border border-white/70 bg-gradient-to-br ${from} ${to} text-white shadow-[0_6px_14px_rgba(13,148,136,0.18),inset_0_1px_0_rgba(255,255,255,0.4)]`}>
-                            <StatIcon size={13} strokeWidth={2.1} />
-                          </span>
-                          <span>{stat.label}</span>
-                        </div>
-                        <p className={`directory-counter mt-1.5 break-words bg-gradient-to-br ${from} ${to} bg-clip-text text-[12px] leading-4 text-transparent min-[430px]:text-[14px] min-[430px]:leading-5 sm:text-[15px]`}>
-                          {stat.value}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+    <section className="directory-intro">
+      <CatalogSectionNav current={current} />
+      {breadcrumb ? <div className="directory-intro-breadcrumb">{breadcrumb}</div> : null}
+      <div className="directory-intro-body">
+        <div className="directory-intro-copy">
+          <span className="directory-intro-icon" aria-hidden="true"><Icon size={28} strokeWidth={1.8} /></span>
+          <div>
+            <h1 className="directory-heading-hero">{title}</h1>
+            <p>{description}</p>
           </div>
         </div>
+        {factualStats.length ? (
+          <dl className="directory-intro-facts">
+            {factualStats.map(stat => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}
+          </dl>
+        ) : null}
       </div>
+      {uniqueLinks.length ? (
+        <nav className="directory-intro-links" aria-label="Швидкі переходи">
+          {uniqueLinks.map(link => <SmartLink key={link.href} href={link.href} prefetchOnViewport={link.prefetchOnViewport} className={link.accent ? "directory-intro-link directory-intro-link--primary" : "directory-intro-link"}>{link.label}<ArrowRight size={16} aria-hidden="true" /></SmartLink>)}
+        </nav>
+      ) : null}
     </section>
   );
 }

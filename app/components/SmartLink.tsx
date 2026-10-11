@@ -61,7 +61,8 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
 
   const handleMouseEnter = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      warmRoute();
+      // Passing links under a stationary pointer is not navigation intent.
+      if (!document.documentElement.classList.contains("is-scrolling")) warmRoute();
       onMouseEnter?.(event);
     },
     [onMouseEnter, warmRoute]

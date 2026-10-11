@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
 import {
   ArrowUpRight,
@@ -55,8 +56,17 @@ import { homeSeoContent } from "app/lib/seo-copy";
 import { getCategoryIconPath, inferCategoryForGroupLabel } from "app/lib/category-icons";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import {
+  CATALOG_RESTORE_STYLE_ID,
+  CATALOG_RESULTS_ATTRIBUTE,
+  CATALOG_VIEW_MODE_COOKIE,
+  detectCatalogRestoreOverride,
+} from "app/lib/catalog-restore-override";
 
 export const revalidate = 900;
+
+// Runs during HTML parsing, before the server-rendered grid is painted.
+const CATALOG_RESTORE_INLINE_SCRIPT = `(function(){try{if((${detectCatalogRestoreOverride.toString()})(location.search,window.localStorage)){var s=document.createElement("style");s.id=${JSON.stringify(CATALOG_RESTORE_STYLE_ID)};s.textContent=${JSON.stringify(`[${CATALOG_RESULTS_ATTRIBUTE}]{visibility:hidden}`)};document.head.appendChild(s)}}catch(e){}})()`;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 16;
 // Measured against real (not degraded) 1C: the plain unfiltered "browse
@@ -1307,6 +1317,8 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const resolvedSearchParams = await (
     searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>)
   );
+  const initialViewMode =
+    (await cookies()).get(CATALOG_VIEW_MODE_COOKIE)?.value === "list" ? "list" : "grid";
   const siteUrl = getSiteUrl();
   const state = resolveCatalogSeoState(resolvedSearchParams);
   const promoOnly = normalizeValue(resolvedSearchParams.promo) === "1";
@@ -1437,6 +1449,15 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
 
   return (
     <>
+      {initialPagePayload?.items?.length ? (
+        // The first page is server-rendered with default filters. If this
+        // browser's saved sort/car/reset state will change the request, hide
+        // those products before first paint; KatalogClientPage then remounts
+        // the grid for the restored query (see detectCatalogRestoreOverride).
+        <script
+          dangerouslySetInnerHTML={{ __html: CATALOG_RESTORE_INLINE_SCRIPT }}
+        />
+      ) : null}
       {firstScreenImageHrefs.map((href, index) => (
         <link
           key={href}
@@ -1457,6 +1478,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         initialQuerySignature={initialQuerySignature}
         initialTotalCount={seoTotalCount ?? null}
         initialProducerBrands={initialProducerBrands}
+        initialViewMode={initialViewMode}
       />
       <CatalogSeoSnapshot
         state={state}

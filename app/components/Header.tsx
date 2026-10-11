@@ -798,4 +798,5 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   );
 };
 
-export default Header;
+// Scroll affordances in LayoutHost must not re-render the navigation tree.
+export default React.memo(Header);

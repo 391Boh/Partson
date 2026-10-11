@@ -15,6 +15,7 @@ import {
 } from "app/lib/car-model-search";
 import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -196,6 +197,10 @@ export interface AutoModelProductLink {
   href: string;
   producer: string;
   article: string;
+  // Same thumbnail URL the catalog cards request, so the model page exposes
+  // the product photo to image search without minting another URL for it.
+  // Optional: breakdown snapshots saved before this field existed lack it.
+  imageSrc?: string;
 }
 
 export interface AutoModelGroupBreakdown {
@@ -545,6 +550,7 @@ const collectModelGroupBreakdown = async (
       }),
       producer: (item.producer || "").trim(),
       article: (item.article || "").trim(),
+      imageSrc: buildProductImagePath(item.code, item.article, { catalog: true }),
     }))
     .filter((item) => item.name);
 

@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { CheckCircle2, Info, Layers3, PackageSearch, Search, ShoppingBag, Tag, Truck } from "lucide-react";
+import { Info, Layers3, PackageSearch, Search, ShoppingBag } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
@@ -53,6 +53,7 @@ import {
 } from "app/lib/product-sitemap";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { shortenRevalidateForIncompleteRender } from "app/lib/isr-retry";
 import { fetchProductImageBase64Batch } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
@@ -82,7 +83,11 @@ const MANUFACTURER_FALLBACK_MAX_PAGES_DEFAULT = 40;
 const MANUFACTURER_FALLBACK_MAX_ITEMS_DEFAULT = 4800;
 const MANUFACTURER_TOP_PRODUCTS_LIMIT = 48;
 const MANUFACTURER_VISIBLE_PRODUCTS_LIMIT = 6;
-const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 550;
+// ISR serves the previous HTML while a page regenerates, so this wait is
+// almost never on a visitor's critical path — but too short a wait is what
+// left brand pages cached without products (and product photos) for Googlebot.
+const MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS = 2600;
+const MANUFACTURER_TOP_PRODUCTS_FETCH_TIMEOUT_MS = 2400;
 const MANUFACTURER_GROUP_SAMPLE_LIMIT = 2;
 const MANUFACTURER_GROUP_SAMPLE_CANDIDATE_LIMIT = 24;
 const MANUFACTURER_GROUP_SAMPLE_FETCH_CONCURRENCY = 4;
@@ -708,13 +713,17 @@ const fetchManufacturerTopProductsUncached = async (
     includePriceEnrichment: false,
     preferLegacySource: true,
     forceAllgoodsSource: false,
-    timeoutMs: 1400,
+    timeoutMs: MANUFACTURER_TOP_PRODUCTS_FETCH_TIMEOUT_MS,
     retries: 0,
     retryDelayMs: 100,
     cacheTtlMs: 1000 * 60 * 30,
-  }).catch(() => ({ items: [] as CatalogProduct[] }));
+  });
 
-  return result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+  const items = result.items.filter((item) => Boolean(item.code) && Boolean(item.name));
+  // A 1C timeout surfaces as an empty list. Throwing keeps unstable_cache from
+  // storing it for 30 minutes; the page falls back to [] and retries soon.
+  if (items.length === 0) throw new Error("Manufacturer top products unavailable");
+  return items;
 };
 
 const getManufacturerTopProductsCached = unstable_cache(
@@ -1214,6 +1223,11 @@ export default async function ManufacturerDetailPage({
         MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
       );
   const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  // No productCount guard: during `next build` and on 1C timeouts the count
+  // can be missing too, so it can't tell a slow render from an empty brand.
+  if (manufacturerProducts.length === 0) {
+    await shortenRevalidateForIncompleteRender();
+  }
   const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
   // These two only depend on topProducts/visibleProducts above, not on each
   // other — group sampling and image resolution used to run back-to-back,
@@ -1339,7 +1353,7 @@ export default async function ManufacturerDetailPage({
         "@context": "https://schema.org",
         "@type": "ItemList",
         "@id": `${canonicalPageUrl}#product-list`,
-        name: `Популярні товари бренду ${producer.label}`,
+        name: `Товари бренду ${producer.label}`,
         numberOfItems: schemaProducts.length,
         itemListElement: schemaProducts.map((product, index) => ({
           "@type": "ListItem",
@@ -1525,7 +1539,7 @@ export default async function ManufacturerDetailPage({
     <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
       <div className="page-shell-inline">
       <div key={producer.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
-        <section className="manufacturer-hero-section card-metal relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+        <section className="manufacturer-hero-section directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <div className="manufacturer-hero-aurora" aria-hidden="true" />
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
@@ -1550,7 +1564,7 @@ export default async function ManufacturerDetailPage({
           </nav>
 
           <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="manufacturer-logo-frame flex h-28 w-28 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-32 sm:w-32 lg:h-36 lg:w-36">
                 {producer.logoPath ? (
                   <Image
@@ -1581,30 +1595,8 @@ export default async function ManufacturerDetailPage({
                   {h1Title}
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                  {pageDescription}
+                  Оберіть потрібний тип запчастини {producer.label}, щоб переглянути товари з цінами й наявністю. Для підбору конкретної деталі звірте артикул, характеристики та застосування до вашого автомобіля.
                 </p>
-
-                {/* Same four selling points the SEO sentence above already
-                    makes ("цінами, наявністю, підбором за артикулом, VIN і
-                    доставкою") repeated as scannable icon chips — a visitor
-                    skimming the hero catches them in half a second instead
-                    of having to read the full sentence. */}
-                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-                  {[
-                    { icon: Tag, label: "Актуальні ціни" },
-                    { icon: CheckCircle2, label: "Наявність на складі" },
-                    { icon: Search, label: "Підбір за артикулом і VIN" },
-                    { icon: Truck, label: "Доставка по Україні" },
-                  ].map(({ icon: FeatureIcon, label }) => (
-                    <li
-                      key={label}
-                      className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-slate-500"
-                    >
-                      <FeatureIcon size={14} strokeWidth={2.2} className="shrink-0 text-teal-600" aria-hidden />
-                      {label}
-                    </li>
-                  ))}
-                </ul>
 
                 {/* In-page quick nav — replaces two purely decorative
                     badges ("Фільтр виробника вже готовий" restated nothing
@@ -1616,10 +1608,6 @@ export default async function ManufacturerDetailPage({
                   aria-label="Швидкий перехід по сторінці"
                   className="mt-4 flex flex-wrap gap-2"
                 >
-                  <a href="#manufacturer-about" className="manufacturer-quicknav-pill">
-                    <Info size={13} strokeWidth={2.4} aria-hidden />
-                    Про бренд
-                  </a>
                   <a href="#manufacturer-groups" className="manufacturer-quicknav-pill">
                     <Layers3 size={13} strokeWidth={2.4} aria-hidden />
                     Структура каталогу
@@ -1627,9 +1615,13 @@ export default async function ManufacturerDetailPage({
                   {visibleProducts.length > 0 ? (
                     <a href="#manufacturer-products" className="manufacturer-quicknav-pill">
                       <PackageSearch size={13} strokeWidth={2.4} aria-hidden />
-                      Популярні товари
+                      Товари бренду
                     </a>
                   ) : null}
+                  <a href="#manufacturer-about" className="manufacturer-quicknav-pill">
+                    <Info size={13} strokeWidth={2.4} aria-hidden />
+                    Про бренд і підбір
+                  </a>
                 </nav>
 
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -1641,13 +1633,6 @@ export default async function ManufacturerDetailPage({
                     <ShoppingBag size={16} strokeWidth={2.3} aria-hidden />
                     Товари бренду
                   </CatalogPrefetchLink>
-                  <a
-                    href="#manufacturer-groups"
-                    className={`${directorySecondaryButtonClass} gap-1.5`}
-                  >
-                    <Layers3 size={16} strokeWidth={2.3} aria-hidden />
-                    Групи товарів
-                  </a>
                 </div>
               </div>
             </div>
@@ -1675,41 +1660,6 @@ export default async function ManufacturerDetailPage({
           </div>
         </section>
 
-        <div id="manufacturer-about" className="scroll-mt-24">
-        <CatalogSeoTextSection
-          contained={false}
-          badge="Про виробника"
-          title={seoCopy.title}
-          lead={seoCopy.intro}
-          topics={[
-            {
-              // Fallback text intentionally names no counts — the exact
-              // numbers already live in the hero's stat tiles two sections
-              // up; repeating them here read as the same fact stated a
-              // second time instead of new information.
-              title: "Асортимент бренду",
-              text: seoHighlights[0] || `Оригінальні запчастини та перевірені аналоги ${producer.label} — обирайте за ціною, характеристиками й наявністю на складі.`,
-              icon: PackageSearch,
-            },
-            {
-              title: "Групи й підгрупи",
-              text: seoHighlights[1] || "Каталог розбитий за типом деталі, щоб знайти потрібний розділ без ручного перегляду всього асортименту.",
-              icon: Layers3,
-            },
-            {
-              title: "Пошук і порівняння",
-              text: seoHighlights[2] || "Скористайтеся готовим фільтром виробника, а далі уточнюйте за групою, артикулом чи кодом деталі.",
-              icon: Search,
-            },
-          ]}
-          paragraphs={seoTextBlocks}
-          // No links row here — every destination it could offer (товари
-          // бренду, групи товарів, усі виробники) is already one of the
-          // hero's own CTA buttons, quick-nav pills or breadcrumb, a few
-          // hundred pixels above this section.
-          links={[]}
-        />
-        </div>
 
         <section id="manufacturer-groups" className={`${directoryPanelClass} scroll-mt-24`}>
           <div className={directoryHeaderClass}>
@@ -1863,7 +1813,7 @@ export default async function ManufacturerDetailPage({
             <div className={directoryHeaderClass}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className={directoryBadgeClass}>Популярні товари бренду</p>
+                  <p className={directoryBadgeClass}>Товари бренду</p>
                   <h2 className={directoryTitleClass}>
                     Товари {producer.label} у каталозі
                   </h2>
@@ -1886,6 +1836,42 @@ export default async function ManufacturerDetailPage({
             />
           </section>
         )}
+        <div id="manufacturer-about" className="scroll-mt-24">
+        <CatalogSeoTextSection
+          contained={false}
+          badge="Про виробника"
+          title={seoCopy.title}
+          lead={seoCopy.intro}
+          topics={[
+            {
+              // Fallback text intentionally names no counts — the exact
+              // numbers already live in the hero's stat tiles two sections
+              // up; repeating them here read as the same fact stated a
+              // second time instead of new information.
+              title: "Асортимент бренду",
+              text: seoHighlights[0] || `Оригінальні запчастини та перевірені аналоги ${producer.label} — обирайте за ціною, характеристиками й наявністю на складі.`,
+              icon: PackageSearch,
+            },
+            {
+              title: "Групи й підгрупи",
+              text: seoHighlights[1] || "Каталог розбитий за типом деталі, щоб знайти потрібний розділ без ручного перегляду всього асортименту.",
+              icon: Layers3,
+            },
+            {
+              title: "Пошук і порівняння",
+              text: seoHighlights[2] || "Скористайтеся готовим фільтром виробника, а далі уточнюйте за групою, артикулом чи кодом деталі.",
+              icon: Search,
+            },
+          ]}
+          paragraphs={seoTextBlocks}
+          // No links row here — every destination it could offer (товари
+          // бренду, групи товарів, усі виробники) is already one of the
+          // hero's own CTA buttons, quick-nav pills or breadcrumb, a few
+          // hundred pixels above this section.
+          links={[]}
+        />
+        </div>
+
       </div>
       </div>
 

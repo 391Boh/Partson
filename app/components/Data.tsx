@@ -27,7 +27,6 @@ import { useCart } from "app/context/CartContext";
 import ImageModal from "app/components/ImageModal";
 import ProductCard from "app/components/ProductCard";
 import ProductListRow from "app/components/ProductListRow";
-import CatalogLoaderCard from "app/components/CatalogLoaderCard";
 import {
   CATALOG_PAGE_CACHE_VERSION,
   invalidateCatalogClientCache,
@@ -112,6 +111,21 @@ const PAGE_SESSION_CACHE_INDEX_KEY = `${CATALOG_PAGE_CACHE_VERSION}:index`;
 // instant across a wider range instead of only the very next page.
 const BACKGROUND_PAGE_PREFETCH_DEPTH = 2;
 const BACKGROUND_PAGE_PREFETCH_DELAY_MS = 220;
+const BACKGROUND_PAGE_PREFETCH_MAX_LOAD_WAIT_MS = 4000;
+// Each prefetched page also pulls 16 thumbnails and a price batch. On a
+// data-saver or 2G-class connection that traffic delays what the user is
+// actually looking at, so prefetch less (or nothing) there.
+const getBackgroundPagePrefetchDepth = () => {
+  if (typeof navigator === "undefined") return BACKGROUND_PAGE_PREFETCH_DEPTH;
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  if (!connection) return BACKGROUND_PAGE_PREFETCH_DEPTH;
+  if (connection.saveData) return 0;
+  if (connection.effectiveType === "slow-2g" || connection.effectiveType === "2g") return 0;
+  if (connection.effectiveType === "3g") return 1;
+  return BACKGROUND_PAGE_PREFETCH_DEPTH;
+};
 // Start only the actual LCP candidate at high priority. A small first row may
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
@@ -746,44 +760,6 @@ const CATALOG_GRID_CLASS =
 const CATALOG_ADMIN_GRID_CLASS =
   "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
 const CATALOG_LIST_CLASS = "mx-auto mt-1 grid w-full grid-cols-1 gap-2 sm:mt-2";
-
-const CatalogTransitionLoader = ({
-  label = "Оновлюю каталог",
-  compact = false,
-}: {
-  label?: string;
-  compact?: boolean;
-}) => {
-  return (
-    <div
-      className={`col-span-full flex w-full items-start justify-center px-3 ${compact ? "min-h-20 py-2" : "min-h-[240px] py-8 sm:min-h-[300px] sm:py-12"}`}
-      role="status"
-      aria-label={label}
-    >
-      {compact ? (
-        <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/95 px-4 py-3.5 shadow-[0_16px_38px_rgba(14,165,233,0.12)] ring-1 ring-white/90">
-          <div className="shrink-0">
-            <div className="loader scale-[0.62]" aria-hidden="true" />
-          </div>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black leading-tight text-slate-700">{label}</span>
-            <div className="loader-dots mt-2" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <span
-                  key={`catalog-transition-dot-${index}`}
-                  className="loader-dot"
-                  style={{ animationDelay: `${index * 0.16}s` }}
-                />
-              ))}
-            </div>
-          </span>
-        </div>
-      ) : (
-        <CatalogLoaderCard label={label} />
-      )}
-    </div>
-  );
-};
 
 type CatalogPagePayload = {
   items: Product[];
@@ -1506,6 +1482,9 @@ function useCatalogData(params: {
   // once set to querySignature post-priming, it correctly blocks
   // re-priming on subsequent runs with the same signature.
   const primedInitialPayloadSignatureRef = useRef<string | null>(null);
+  // Cache key of the page-1 entry primed from the server payload, so the
+  // loading effect doesn't re-fetch what the server just rendered.
+  const serverPrimedCacheKeyRef = useRef<string | null>(null);
   const firstPageReadySignatureRef = useRef<string | null>(
     hasInitialPage ? initialQuerySignature ?? null : null
   );
@@ -3149,7 +3128,36 @@ function useCatalogData(params: {
 
   useEffect(() => () => { directRequestRef.current?.abort(); }, []);
 
+  // The reset below must run when the query changes, not whenever one of these
+  // helpers gets a new identity — euroRate arriving or auth resolving used to
+  // re-run the whole reset, re-requesting page 1 and its prices and restarting
+  // next-page prefetch. Partner/cost price changes have their own effects.
+  const resetEffectHelpers = {
+    applyResolvedPagePrices,
+    fetchCatalogPagePrices,
+    clearTransientPageImageState,
+    buildCacheKey,
+    hideNextPageLoader,
+    revalidateCachedPagePayload,
+    replacePageImages,
+    scheduleCatalogBackgroundTask,
+  };
+  const resetEffectHelpersRef = useRef(resetEffectHelpers);
+  useLayoutEffect(() => {
+    resetEffectHelpersRef.current = resetEffectHelpers;
+  });
+
   useEffect(() => {
+    const {
+      applyResolvedPagePrices,
+      fetchCatalogPagePrices,
+      clearTransientPageImageState,
+      buildCacheKey,
+      hideNextPageLoader,
+      revalidateCachedPagePayload,
+      replacePageImages,
+      scheduleCatalogBackgroundTask,
+    } = resetEffectHelpersRef.current;
     const isSortOnlyChange =
       !isInitialResetRunRef.current &&
       prevFiltersSignatureExcludingSortRef.current === filtersSignatureExcludingSort &&
@@ -3185,6 +3193,8 @@ function useCatalogData(params: {
     const trimmed = normalizedSearch;
     if (typeof window !== "undefined") {
       const cacheKey = buildCacheKey(1, trimmed);
+      let primedFromServerPayload = false;
+      serverPrimedCacheKeyRef.current = null;
 
       if (
         hasInitialPage &&
@@ -3199,6 +3209,8 @@ function useCatalogData(params: {
           MEMORY_CACHE_TTL_MS_FIRST_PAGE
         );
         primedInitialPayloadSignatureRef.current = querySignature;
+        primedFromServerPayload = true;
+        serverPrimedCacheKeyRef.current = cacheKey;
       }
 
       const memoryHit = readPageFromMemory(cacheKey);
@@ -3235,12 +3247,16 @@ function useCatalogData(params: {
         firstPageReadySignatureRef.current = querySignature;
         setCatalogReadyQuerySignature(querySignature);
         hideNextPageLoader(true);
-        const cancelRevalidate = revalidateCachedPagePayload({
-          pageNum: 1,
-          cacheKey,
-          querySignatureSnapshot: querySignature,
-          ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
-        });
+        // A payload the server rendered for this very request needs no
+        // background re-fetch; the price warmup above refreshes its prices.
+        const cancelRevalidate = primedFromServerPayload
+          ? () => {}
+          : revalidateCachedPagePayload({
+              pageNum: 1,
+              cacheKey,
+              querySignatureSnapshot: querySignature,
+              ttlMs: MEMORY_CACHE_TTL_MS_FIRST_PAGE,
+            });
         return () => {
           cancelWarmup();
           cancelRevalidate();
@@ -3322,24 +3338,40 @@ function useCatalogData(params: {
     // Без cache показуємо чистий стан, щоб не змішувати товари старого та нового фільтра.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    applyResolvedPagePrices,
-    fetchCatalogPagePrices,
-    clearTransientPageImageState,
     shouldAllowCatalogDirectPriceLookup,
     querySignature,
     initialPagePayload,
     initialQuerySignature,
     normalizedSearch,
-    buildCacheKey,
-    hideNextPageLoader,
-    revalidateCachedPagePayload,
-    replacePageImages,
-    scheduleCatalogBackgroundTask,
   ]);
 
   // --- Завантаження списку товарів ---
+  // Same reasoning as resetEffectHelpersRef: page loading reacts to page and
+  // query changes, not to euroRate/auth giving these helpers a new identity.
+  const loadEffectHelpers = {
+    buildCacheKey,
+    applyResolvedPagePrices,
+    fetchCatalogPagePrices,
+    fetchCatalogPagePayload,
+    fetchCatalogPageImages,
+    hideNextPageLoader,
+    revalidateCachedPagePayload,
+  };
+  const loadEffectHelpersRef = useRef(loadEffectHelpers);
+  useLayoutEffect(() => {
+    loadEffectHelpersRef.current = loadEffectHelpers;
+  });
   useEffect(() => {
     if (directMode) return;
+    const {
+      buildCacheKey,
+      applyResolvedPagePrices,
+      fetchCatalogPagePrices,
+      fetchCatalogPagePayload,
+      fetchCatalogPageImages,
+      hideNextPageLoader,
+      revalidateCachedPagePayload,
+    } = loadEffectHelpersRef.current;
     const currentQuerySignature = querySignature;
     if (
       page > 1 &&
@@ -3561,14 +3593,18 @@ function useCatalogData(params: {
       const ttl =
         page === 1 ? MEMORY_CACHE_TTL_MS_FIRST_PAGE : MEMORY_CACHE_TTL_MS_NEXT_PAGES;
       applyCachedItems(memoryHit);
-      const cancelRevalidate = revalidateCachedPagePayload({
-        pageNum: page,
-        cacheKey,
-        cursor: requestCursor,
-        cursorField: requestCursorField,
-        querySignatureSnapshot: currentQuerySignature,
-        ttlMs: ttl,
-      });
+      // The server-rendered first page was fetched for this request moments
+      // ago; re-requesting it only duplicates the 1C query.
+      const cancelRevalidate = page === 1 && serverPrimedCacheKeyRef.current === cacheKey
+        ? () => {}
+        : revalidateCachedPagePayload({
+            pageNum: page,
+            cacheKey,
+            cursor: requestCursor,
+            cursorField: requestCursorField,
+            querySignatureSnapshot: currentQuerySignature,
+            ttlMs: ttl,
+          });
       return () => {
         cancelled = true;
         cancelRevalidate();
@@ -3712,13 +3748,6 @@ function useCatalogData(params: {
     groupFromURL,
     subcategoryFromURL,
     producerFromURL,
-    buildCacheKey,
-    applyResolvedPagePrices,
-    fetchCatalogPagePrices,
-    fetchCatalogPagePayload,
-    fetchCatalogPageImages,
-    hideNextPageLoader,
-    revalidateCachedPagePayload,
     shouldAllowCatalogDirectPriceLookup,
     sortOrder,
   ]);
@@ -3796,12 +3825,34 @@ function useCatalogData(params: {
     inStock,
   ]);
 
+  // Same reasoning as resetEffectHelpersRef: prefetch restarts on page/query
+  // changes, not when euroRate or auth give these helpers a new identity —
+  // that aborted and re-issued the next pages' price and photo lookups.
+  const prefetchEffectHelpers = {
+    applyResolvedPagePrices,
+    buildCacheKey,
+    fetchCatalogPageImages,
+    fetchCatalogPagePayload,
+    fetchCatalogPagePrices,
+  };
+  const prefetchEffectHelpersRef = useRef(prefetchEffectHelpers);
+  useLayoutEffect(() => {
+    prefetchEffectHelpersRef.current = prefetchEffectHelpers;
+  });
+
   useEffect(() => {
     if (directMode || loading || !hasMore || safeData.length === 0) return;
 
-    const prefetchDepth = BACKGROUND_PAGE_PREFETCH_DEPTH;
+    const prefetchDepth = getBackgroundPagePrefetchDepth();
     if (prefetchDepth < 1) return;
 
+    const {
+      applyResolvedPagePrices,
+      buildCacheKey,
+      fetchCatalogPageImages,
+      fetchCatalogPagePayload,
+      fetchCatalogPagePrices,
+    } = prefetchEffectHelpersRef.current;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -3907,23 +3958,37 @@ function useCatalogData(params: {
     prefetchNextPageTriggerRef.current = () =>
       void prefetchUpcomingPages().catch(handleCatalogBackgroundError);
 
-    const timerId = window.setTimeout(() => {
-      prefetchNextPageTriggerRef.current?.();
-    }, BACKGROUND_PAGE_PREFETCH_DELAY_MS);
+    // Upcoming pages pull their own photo and price lookups through the same
+    // 1C connection as the first screen. Hold them until the document's load
+    // event (first-screen photos are part of it) so they never compete.
+    // A photo stuck on a slow 1C lookup must not hold prefetch forever.
+    let timerId: number | null = null;
+    let loadCapTimerId: number | null = null;
+    const startAfterDelay = () => {
+      if (timerId !== null) return;
+      if (loadCapTimerId !== null) window.clearTimeout(loadCapTimerId);
+      window.removeEventListener("load", startAfterDelay);
+      timerId = window.setTimeout(() => {
+        prefetchNextPageTriggerRef.current?.();
+      }, BACKGROUND_PAGE_PREFETCH_DELAY_MS);
+    };
+    if (document.readyState !== "complete") {
+      window.addEventListener("load", startAfterDelay, { once: true });
+      loadCapTimerId = window.setTimeout(startAfterDelay, BACKGROUND_PAGE_PREFETCH_MAX_LOAD_WAIT_MS);
+    } else {
+      startAfterDelay();
+    }
 
     return () => {
       cancelled = true;
       prefetchNextPageTriggerRef.current = null;
-      window.clearTimeout(timerId);
+      window.removeEventListener("load", startAfterDelay);
+      if (loadCapTimerId !== null) window.clearTimeout(loadCapTimerId);
+      if (timerId !== null) window.clearTimeout(timerId);
       abortControllerSafely(controller);
     };
   }, [
-    applyResolvedPagePrices,
-    buildCacheKey,
     canUseCursorPagination,
-    fetchCatalogPageImages,
-    fetchCatalogPagePayload,
-    fetchCatalogPagePrices,
     hasMore,
     directMode,
     loading,
@@ -4486,10 +4551,7 @@ const Data: React.FC<DataProps> = ({
   const lastStableSortedSignatureRef = useRef("");
   const selectedCarsRef = useRef(selectedCars);
   useEffect(() => { selectedCarsRef.current = selectedCars; }, [selectedCars]);
-  const softTransitionStartedAtRef = useRef(0);
-  const softTransitionHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastStableSortedEntries, setLastStableSortedEntries] = useState<CatalogSortedEntry[]>([]);
-  const [isSoftTransitioning, setIsSoftTransitioning] = useState(false);
   const [virtualWindowRange, setVirtualWindowRange] = useState({
     startIndex: 0,
     endIndex: 0,
@@ -5546,8 +5608,6 @@ const Data: React.FC<DataProps> = ({
     sortedData.length === 0 &&
     !error;
   const showEmptyState = isEmptyState && !isRefetching;
-  const showInlineLoader =
-    visibleSortedData.length > 0 && loading && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
   const gridColumnCount = useMemo(() => {
@@ -5591,63 +5651,7 @@ const Data: React.FC<DataProps> = ({
     : shouldUseVirtualWindow
       ? Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length))
       : 0;
-  // Appending a page must never start the full-grid transition. Previously
-  // `isLoadingNextPage` enabled `isSoftTransitioning`; when the request ended,
-  // the `!isLoadingNextPage` overlay condition became true for the remainder
-  // of its minimum display time and produced a brief white flash over every
-  // existing card. Keep the current grid fully stable and use only the compact
-  // loader inside the "more products" button while a page is appended.
-  const shouldUseSoftTransition = filterLoading || isRefetching;
-  const showFilterTransitionOverlay =
-    isSoftTransitioning && visibleSortedData.length > 0 && !isLoadingNextPage;
   const shouldDimCatalogGrid = false;
-  const filterTransitionLabel = useMemo(() => {
-    if (isLoadingNextPage) return "Підвантажую наступну сторінку";
-    if (sortOrder === "asc") return "Сортую: спочатку дешевші";
-    if (sortOrder === "desc") return "Сортую: спочатку дорожчі";
-    if (subcategoryFromURL) return `Оновлюю підгрупу: ${subcategoryFromURL}`;
-    if (groupFromURL) return `Оновлюю групу: ${groupFromURL}`;
-    if (producerFromURL) return `Оновлюю виробника: ${producerFromURL}`;
-    if (rawSearchQuery.trim()) return `Оновлюю результати для: ${rawSearchQuery.trim()}`;
-    return "Оновлюю каталог";
-  }, [groupFromURL, isLoadingNextPage, producerFromURL, rawSearchQuery, sortOrder, subcategoryFromURL]);
-
-  useEffect(() => {
-    if (shouldUseSoftTransition) {
-      if (softTransitionHideTimerRef.current) {
-        clearTimeout(softTransitionHideTimerRef.current);
-        softTransitionHideTimerRef.current = null;
-      }
-
-      if (!isSoftTransitioning) {
-        softTransitionStartedAtRef.current = Date.now();
-        setIsSoftTransitioning(true);
-      }
-      return;
-    }
-
-    if (!isSoftTransitioning) return;
-
-    const elapsedMs = Date.now() - softTransitionStartedAtRef.current;
-    // Cached sorting can resolve in one frame. Keep only the visual indicator
-    // around briefly so the action still has clear feedback; products beneath
-    // it are updated immediately and are not artificially delayed.
-    const minVisibleMs = 420;
-    const hideDelayMs = Math.max(0, minVisibleMs - elapsedMs);
-
-    softTransitionHideTimerRef.current = setTimeout(() => {
-      setIsSoftTransitioning(false);
-      softTransitionHideTimerRef.current = null;
-    }, hideDelayMs);
-  }, [isSoftTransitioning, shouldUseSoftTransition]);
-
-  useEffect(() => {
-    return () => {
-      if (softTransitionHideTimerRef.current) {
-        clearTimeout(softTransitionHideTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (visibleCatalogPriceCandidates.length === 0) return;
@@ -6227,47 +6231,9 @@ const Data: React.FC<DataProps> = ({
                 />
               )}
 
-              {shouldShowInitialSkeleton && (
-                // Before the very first successful fetch, this slot picks up
-                // right after KatalogClientPage's own CatalogStateLoader (same
-                // "Завантажую каталог" wording, same box height) — matching
-                // both keeps that handoff from reading as two different
-                // loaders flashing in sequence. Once real data has loaded at
-                // least once, a filter/sort change re-showing this skeleton
-                // switches to the specific filterTransitionLabel instead,
-                // since that's a status update for an action the user just
-                // took, not part of the initial-load handoff.
-                <CatalogTransitionLoader
-                  label={hasLoadedOnce ? filterTransitionLabel : "Завантажую каталог"}
-                />
-              )}
-
-              {showInlineLoader && (
-                <CatalogTransitionLoader label="Підвантажую товари" compact />
-              )}
             </div>
 
-            {showFilterTransitionOverlay && (
-              <div className="catalog-transition-overlay pointer-events-none absolute inset-0 z-20 flex items-start justify-center rounded-[24px] bg-white/46 px-4 py-5 backdrop-blur-[1px]">
-                <div className="catalog-loader-card inline-flex min-w-[250px] items-center gap-3.5 rounded-[19px] border border-sky-100/90 bg-white/96 px-4 py-3.5 shadow-[0_18px_46px_rgba(14,165,233,0.16)] ring-1 ring-white/90">
-                  <div className="shrink-0">
-                    <div className="loader scale-[0.62]" aria-hidden="true" />
-                  </div>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black leading-tight text-slate-700">{filterTransitionLabel}</span>
-                    <div className="loader-dots mt-2" aria-hidden="true">
-                      {Array.from({ length: 3 }).map((_, index) => (
-                        <span
-                          key={`filter-transition-dot-${index}`}
-                          className="loader-dot"
-                          style={{ animationDelay: `${index * 0.16}s` }}
-                        />
-                      ))}
-                    </div>
-                  </span>
-                </div>
-              </div>
-            )}
+
           </div>
         )}
 
@@ -6390,14 +6356,7 @@ const Data: React.FC<DataProps> = ({
               </div>
             )}
 
-            {(jumpTargetPage !== null || isLoadingNextPage) && (
-              <span role="status" className="inline-flex items-center gap-2 text-xs font-semibold text-sky-700">
-                <span className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600" aria-hidden="true" />
-                {jumpTargetPage !== null
-                  ? `Завантажую сторінку ${jumpTargetPage} · отримано ${loadedPageCount} стор.`
-                  : "Завантажую товари…"}
-              </span>
-            )}
+
 
             {hasMore && (
               <button
@@ -6408,8 +6367,7 @@ const Data: React.FC<DataProps> = ({
               >
                 {isLoadingNextPage ? (
                   <>
-                    <span className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />
-                    <span>Готую наступні товари</span>
+                    <span>Більше товарів</span>
                   </>
                 ) : (
                   <>
