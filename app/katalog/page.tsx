@@ -47,7 +47,7 @@ import {
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
+import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
@@ -1382,13 +1382,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       ...rawInitialPagePayload,
         // This payload is serialized into the HTML for every visitor; the
         // purchase price from 1C must not travel with it.
-        items: rawInitialPagePayload.items.map((item) => {
-          const { costPriceEuro: _costPriceEuro, ...publicItem } = item as typeof item & {
-            costPriceEuro?: number | null;
-          };
-          void _costPriceEuro;
-          return publicItem;
-        }),
+        items: rawInitialPagePayload.items.map(withoutCostPrice),
         // Images warm up client-side in one shared batch. Avoid holding the
         // initial HTML response behind filesystem checks for every card.
         images: {},

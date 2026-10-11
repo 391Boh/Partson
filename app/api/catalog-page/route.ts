@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withoutCostPrice } from "app/lib/public-catalog-product";
 
 import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
@@ -183,21 +184,16 @@ function buildInlinePrices(
   return prices;
 }
 
-// costPriceEuro is the purchase price from 1C. Catalog queries keep it
-// internally (admin price lookups), but this route answers anonymous
-// visitors, so it must never leave the server here. Admins get cost prices
-// from the authenticated /api/catalog-prices instead.
+// This route answers anonymous visitors: never send the 1C purchase price.
+// Admins read cost prices from the authenticated /api/catalog-prices.
 const withoutCostPrices = <T,>(payload: T): T => {
   const items = (payload as { items?: unknown } | null)?.items;
   if (!Array.isArray(items)) return payload;
   return {
     ...payload,
-    items: items.map((item) => {
-      if (!item || typeof item !== "object" || !("costPriceEuro" in item)) return item;
-      const { costPriceEuro: _costPriceEuro, ...rest } = item as Record<string, unknown>;
-      void _costPriceEuro;
-      return rest;
-    }),
+    items: items.map((item) =>
+      item && typeof item === "object" ? withoutCostPrice(item as object) : item
+    ),
   };
 };
 

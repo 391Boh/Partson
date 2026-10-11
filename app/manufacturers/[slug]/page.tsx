@@ -60,7 +60,7 @@ import {
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
+import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getProducerSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -1831,7 +1831,7 @@ export default async function ManufacturerDetailPage({
               </div>
             </div>
             <ManufacturerCatalogProducts
-              products={visibleProducts}
+              products={visibleProducts.map(withoutCostPrice)}
               images={visibleProductImagePayload}
             />
           </section>

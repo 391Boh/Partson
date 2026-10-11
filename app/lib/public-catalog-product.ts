@@ -18,3 +18,17 @@ export const isPublicCatalogProduct = (
   product: PublicCatalogProductCandidate | null | undefined
 ) => hasPublicCatalogPrice(product) && product?.hasPhoto === true;
 
+
+/**
+ * costPriceEuro is the 1C purchase price. Catalog queries keep it for admin
+ * price lookups, but anything serialized to the browser — API responses and
+ * props passed to client components — must drop it first.
+ */
+export const withoutCostPrice = <T extends object>(product: T): Omit<T, "costPriceEuro"> => {
+  if (!("costPriceEuro" in product)) return product;
+  const { costPriceEuro: _costPriceEuro, ...publicProduct } = product as T & {
+    costPriceEuro?: unknown;
+  };
+  void _costPriceEuro;
+  return publicProduct;
+};

@@ -50,7 +50,7 @@ import { getGroupProductPreview } from "app/lib/group-product-image";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
+import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
@@ -1228,7 +1228,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
           </div>
           <div className="p-3 sm:p-4">
             <ManufacturerCatalogProducts
-              products={visibleProducts}
+              products={visibleProducts.map(withoutCostPrice)}
               euroRate={euroRate ?? undefined}
             />
           </div>
