@@ -669,7 +669,12 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
           {/* CART */}
           <button
             data-overlay-toggle="order"
-            aria-label="Замовлення"
+            // The badge count is visual only; put it in the accessible name.
+            aria-label={
+              hasMounted && cartItems.length > 0
+                ? `Замовлення, у кошику: ${cartItems.length}`
+                : "Замовлення"
+            }
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();

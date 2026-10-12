@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ArrowLeft, ChevronRight, Percent } from 'lucide-react';
 import { User } from 'firebase/auth';
 
@@ -32,6 +33,11 @@ const CustomerDetails: React.FC<Props> = ({
   onNext,
   onBack,
 }) => {
+  // Phone and email errors wait until the field is left: the phone field is
+  // prefilled with "+380", and an email is invalid after its first keystroke,
+  // so validating on every change showed red errors before any real input.
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const isNameValid = name.trim().length >= 2;
   const isPhoneValid = PHONE_PATTERN.test(phone.trim());
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -103,11 +109,13 @@ const CustomerDetails: React.FC<Props> = ({
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            onBlur={() => setPhoneTouched(true)}
             placeholder="+380XXXXXXXXX"
             autoComplete="tel"
+            aria-invalid={phoneTouched && !isPhoneValid ? true : undefined}
             className="soft-field px-4 py-2.5"
           />
-          {!isPhoneValid && phone.length > 0 && (
+          {!isPhoneValid && phoneTouched && phone.replace(/\s/g, '') !== '+380' && (
             <p className="mt-1 text-xs font-semibold text-rose-200">Використайте формат +380XXXXXXXXX.</p>
           )}
         </div>
@@ -120,12 +128,14 @@ const CustomerDetails: React.FC<Props> = ({
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            onBlur={() => setEmailTouched(true)}
             placeholder="name@example.com"
             autoComplete="email"
             inputMode="email"
+            aria-invalid={emailTouched && !isEmailValid && email.length > 0 ? true : undefined}
             className="soft-field px-4 py-2.5"
           />
-          {!isEmailValid && email.length > 0 && (
+          {!isEmailValid && emailTouched && email.length > 0 && (
             <p className="mt-1 text-xs font-semibold text-rose-200">Введіть коректну email-адресу.</p>
           )}
           <p className="mt-1 text-[11px] font-medium leading-4 text-sky-100/80">

@@ -786,7 +786,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               </div>
               <div className="soft-panel-stat-card">
                 <span className="soft-panel-stat-label">До оплати</span>
-                <span className="soft-panel-stat-value">{currencyFormatter.format(payableAmount)}</span>
+                <span className="soft-panel-stat-value">{currencyFormatter.format(payableAmount)} грн</span>
               </div>
             </div>
           </section>

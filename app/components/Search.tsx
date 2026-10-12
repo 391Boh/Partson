@@ -14,6 +14,7 @@ import {
   safeSetStorageItem,
 } from "app/lib/safe-storage";
 import { buildProductImagePath } from "app/lib/product-image-path";
+import { loadEuroRate, readCachedEuroRate } from "app/lib/euro-rate-client";
 import { buildProductPath } from "app/lib/product-url";
 import { normalizeSearchQuery, suggestionDisplayName } from "app/lib/catalog-search";
 import {
@@ -52,8 +53,6 @@ const MAX_HISTORY          = 8;
 const SEARCH_PAGE_SIZE = 16;
 const SUGGESTION_MIN_CHARS = 2;
 const DEBOUNCE_MS          = 120;
-const DEFAULT_EURO_RATE    = 50;
-const EURO_RATE_CACHE_KEY  = "partson:v1:euro-rate";
 
 type SearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -94,20 +93,12 @@ const cSet = (key: string, val: SuggestionResult) => {
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
-const readEuroRate = (): number => {
-  if (typeof window === "undefined") return DEFAULT_EURO_RATE;
-  for (const st of [window.sessionStorage, window.localStorage]) {
-    try {
-      const raw = st.getItem(EURO_RATE_CACHE_KEY);
-      if (!raw) continue;
-      const p = JSON.parse(raw) as { v?: number };
-      if (typeof p?.v === "number" && p.v > 0) return p.v;
-    } catch { /* ignore */ }
-  }
-  return DEFAULT_EURO_RATE;
-};
-
-const formatUAH = (eur: number | null | undefined, rate: number): string | null => {
+// The rate comes from the shared cache the catalog fills ({ rate, t }). This
+// used to read a `v` field that was never written, so suggestions always
+// priced at a hard-coded 50 UAH/EUR — below the catalog price for the same
+// item. Until the real rate is known, show no price rather than a wrong one.
+const formatUAH = (eur: number | null | undefined, rate: number | null): string | null => {
+  if (rate == null) return null;
   if (typeof eur !== "number" || !Number.isFinite(eur) || eur <= 0) return null;
   return Math.round(eur * rate).toLocaleString("uk-UA") + " ₴";
 };
@@ -181,7 +172,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [moreError, setMoreError] = useState<string | null>(null);
   const moreRequestRef = useRef<AbortController | null>(null);
   const [fallback,    setFallback]    = useState<string | null>(null);
-  const [euroRate,    setEuroRate]    = useState(DEFAULT_EURO_RATE);
+  const [euroRate,    setEuroRate]    = useState<number | null>(null);
 
   const [searchError, setSearchError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -193,7 +184,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
   // init
   useEffect(() => {
-    setEuroRate(readEuroRate());
+    const cachedRate = readCachedEuroRate();
+    if (cachedRate != null) {
+      setEuroRate(cachedRate);
+    } else {
+      void loadEuroRate().then((rate) => {
+        if (rate != null) setEuroRate(rate);
+      });
+    }
     if (typeof window === "undefined") return;
     try {
       const raw = safeGetStorageItem(window.localStorage, "searchHistory");
@@ -556,7 +554,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                   const price =
                     typeof p.priceEuro === "number" &&
                     Number.isFinite(p.priceEuro) &&
-                    p.priceEuro > 0
+                    p.priceEuro > 0 &&
+                    euroRate != null
                       ? Math.round(p.priceEuro * euroRate)
                       : null;
                   pushEcommerceEvent("select_item", {

@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { pluralizeProducts } from 'app/lib/pluralize-uk';
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -880,7 +881,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                         </span>
                         {typeof b.productCount === 'number' && b.productCount > 0 ? (
                           <span className="mt-0.5 block text-[10px] font-semibold leading-none text-slate-500">
-                            {b.productCount.toLocaleString('uk-UA')} товарів
+                            {b.productCount.toLocaleString('uk-UA')} {pluralizeProducts(b.productCount)}
                           </span>
                         ) : null}
                       </span>
