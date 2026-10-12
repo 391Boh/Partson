@@ -233,6 +233,7 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "Provide price, cost price, promo price, image, name, catalog number, producer, group, category, or quantity" }, 400);
   }
 
+  const editStartedAt = Date.now();
   const result = await oneCRequest(ONEC_PRODUCT_UPDATE_ENDPOINT, {
     method: "POST",
     body: oneCBody,
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
     cacheTtlMs: 0,
   });
 
+  const editMs = Date.now() - editStartedAt;
   if (result.status < 200 || result.status >= 300) {
     let oneCError: string | undefined;
     try {
@@ -379,6 +381,7 @@ export async function POST(request: NextRequest) {
     parsed.Кількість ??
     parsed.quantity ??
     (quantity !== undefined ? parsed.quantity_result?.Кількість : undefined);
+  let stockRereads = 0;
   let confirmedQuantity = typeof rawQuantity === "number"
     ? rawQuantity
     : typeof rawQuantity === "string" && rawQuantity.trim()
@@ -389,7 +392,9 @@ export async function POST(request: NextRequest) {
     // A movement echo is not the remaining balance. Read the committed stock
     // without cache rather than repeating a write that may already have succeeded.
     confirmedQuantity = undefined;
+    stockRereads = 0;
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      stockRereads += 1;
       if (attempt) await new Promise((resolve) => setTimeout(resolve, attempt * 200));
       const fresh = await fetchExactCatalogProductByLookup(code, {
         cacheTtlMs: 0, retries: 0, timeoutMs: 3_500,
@@ -400,6 +405,11 @@ export async function POST(request: NextRequest) {
       }
     }
   }
+  console.info(
+    `[admin-timing] product-update 1C ${ONEC_PRODUCT_UPDATE_ENDPOINT} ${editMs}ms` +
+      (stockRereads ? ` +${stockRereads} stock re-read(s), total ${Date.now() - editStartedAt}ms` : "") +
+      ` fields=${Object.keys(oneCBody).filter((key) => key !== "Код" && key !== "image_base64").join(",")}`
+  );
   if (stockValues.length && !validStock(confirmedQuantity)) {
     return json({ ok: false, error: "Не вдалося підтвердити залишок після запиту до 1С. Перевірте товар перед повторним поступленням або продажем." }, 502);
   }

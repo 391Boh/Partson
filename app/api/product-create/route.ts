@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
   if (fileName) oneCBody.file_name = fileName;
   if (base64Data) oneCBody.image_base64 = base64Data;
 
+  const startedAt = Date.now();
   const result = await oneCRequest(ONEC_CREATE_ENDPOINT, {
     method: "POST",
     body: oneCBody,
@@ -145,6 +146,11 @@ export async function POST(request: NextRequest) {
     retries: 0,
     cacheTtlMs: 0,
   });
+  // Admins report creation is sometimes slow; log 1C's share of it so the
+  // slow step is visible in `pm2 logs` (no product data, just timing).
+  console.info(
+    `[admin-timing] product-create 1C ${ONEC_CREATE_ENDPOINT} ${Date.now() - startedAt}ms status=${result.status} image=${base64Data ? Math.round(base64Data.length / 1024) + "KB" : "none"}`
+  );
 
   if (result.status < 200 || result.status >= 300) {
     let oneCError: string | undefined;

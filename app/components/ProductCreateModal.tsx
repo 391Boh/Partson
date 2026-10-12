@@ -59,6 +59,9 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const [extraPhotoError, setExtraPhotoError] = useState<string | null>(null);
   const submitLock = useRef(false);
   const [saving, setSaving] = useState(false);
+  // Which step of the post-create chain is running, shown instead of a
+  // single static "saving price" line while 1C works through each step.
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [createdArticle, setCreatedArticle] = useState<string>("");
@@ -281,6 +284,33 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       setCreatedCode(code);
       setCreatedArticle(article);
 
+      // Extra/gallery photos go to Firebase, not 1C, so they don't need to
+      // wait for the 1C price/description steps below — start them now and
+      // collect the outcome at the end. Sequential among themselves:
+      // /api/product-gallery rate-limits at 20/min per admin.
+      let galleryDone = 0;
+      const galleryUpload: Promise<number> =
+        code && extraPhotos.length > 0
+          ? (async () => {
+              let failed = 0;
+              for (const photo of extraPhotos) {
+                try {
+                  const galleryRes = await fetch("/api/product-gallery", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ code, imageDataUrl: photo.dataUrl }),
+                  });
+                  const galleryResult = await galleryRes.json();
+                  if (!galleryRes.ok || !galleryResult.ok) failed += 1;
+                } catch {
+                  failed += 1;
+                }
+                galleryDone += 1;
+              }
+              return failed;
+            })()
+          : Promise.resolve(0);
+
       // Article before ~: getCatalogProduct() searches by НомерПоКаталогу first,
       // which reliably finds a product just created in 1C. Always include ~ to
       // force canUseDirectFallbackCode=true on the product page.
@@ -291,6 +321,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       // Wait for prices and opening stock before showing the product page.
       // Product lookup uses the code; the price directory uses the article.
       if (price !== undefined || cost !== undefined || quantity > 0) {
+        setProgress(quantity > 0 ? "Зберігаємо ціну та кількість у 1С…" : "Зберігаємо ціну в 1С…");
         if (!code) {
           setError("Товар створено, але 1С не повернула код для збереження ціни та кількості.");
           return;
@@ -323,6 +354,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       // product-admin-mutations.ts's saveProductAdminFields), not the
       // product-update body above.
       if (fields.description.trim()) {
+        setProgress("Зберігаємо опис…");
         if (!article) {
           setError("Товар створено, але немає артикулу для збереження опису.");
           return;
@@ -344,30 +376,15 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
         }
       }
 
-      // Extra/gallery photos — uploaded one by one now that `code` exists
-      // (see extraPhotos' own comment above for why they couldn't go out
-      // with the main /api/product-create call). Sequential, not
-      // Promise.all: /api/product-gallery rate-limits at 20/min per admin,
-      // and this keeps that budget for the admin's next actions too.
       if (extraPhotos.length > 0) {
         if (!code) {
           setError("Товар створено, але немає коду для збереження додаткових фото.");
           return;
         }
-        let failedCount = 0;
-        for (const photo of extraPhotos) {
-          try {
-            const galleryRes = await fetch("/api/product-gallery", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ code, imageDataUrl: photo.dataUrl }),
-            });
-            const galleryResult = await galleryRes.json();
-            if (!galleryRes.ok || !galleryResult.ok) failedCount += 1;
-          } catch {
-            failedCount += 1;
-          }
+        if (galleryDone < extraPhotos.length) {
+          setProgress(`Завантажуємо додаткові фото (${galleryDone} з ${extraPhotos.length})…`);
         }
+        const failedCount = await galleryUpload;
         if (failedCount > 0) {
           setError(
             `Товар створено, але ${failedCount} з ${extraPhotos.length} додаткових фото не завантажено. Додайте їх вручну на сторінці товару.`
@@ -377,6 +394,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       }
 
       if (navParam) {
+        setProgress("Відкриваємо сторінку товару…");
         await import("app/components/Data").then((module) => module.clearBrowserCatalogCache());
         invalidateCatalogClientCache();
         setTimeout(() => {
@@ -452,7 +470,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 Код в 1С: <span className="font-mono font-bold text-slate-700">{createdCode}</span>
               </p>
             )}
-            <p role={error ? "alert" : "status"} className="text-xs text-slate-600">{error || (saving ? "Зберігаємо ціну та кількість…" : "Перехід відбудеться автоматично…")}</p>
+            <p role={error ? "alert" : "status"} className="text-xs text-slate-600">{error || (saving ? progress ?? "Створюємо товар у 1С…" : "Перехід відбудеться автоматично…")}</p>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
