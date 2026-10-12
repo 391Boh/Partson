@@ -87,7 +87,7 @@ export default async function BlogPage() {
     );
 
   return (
-    <main className="blog-page font-ui">
+    <div className="blog-page font-ui">
       <BlogAdminComposer />
       <header className="blog-masthead">
         <div className="page-shell-inline">
@@ -256,6 +256,6 @@ export default async function BlogPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(blogJsonLd) }}
       />
-    </main>
+    </div>
   );
 }

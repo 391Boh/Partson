@@ -910,7 +910,11 @@ const Katalog: React.FC<KatalogProps> = ({
   }, [catalogTopOffset]);
 
   const fixedFilterLayer = (
+    // Portaled into <body>, outside the layout's <main>: name it so assistive
+    // tech still lists the filters as a page region.
     <div
+      role="region"
+      aria-label="Фільтри каталогу"
       className="catalog-page catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
       style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
     >

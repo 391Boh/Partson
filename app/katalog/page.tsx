@@ -1004,11 +1004,12 @@ const CatalogSeoSnapshot = async ({
                 {seoHeading}
               </h1>
 
-              {/* H3 — підзаголовок з ключовими словами (не дублює h1) */}
+              {/* Підзаголовок з ключовими словами (не дублює h1). Абзац, а не
+                  h3: між h1 і розділами нижче не має бути пропущеного рівня. */}
               {seoSubheading && (
-                <h3 className="catalog-seo-subtitle mt-1.5 max-w-3xl text-sky-700">
+                <p className="catalog-seo-subtitle mt-1.5 max-w-3xl text-sky-700">
                   {seoSubheading}
-                </h3>
+                </p>
               )}
             </div>
 
@@ -1016,15 +1017,15 @@ const CatalogSeoSnapshot = async ({
               {/* Основний SEO-текст */}
               <div className="catalog-seo-copy-grid">
                 <section className="catalog-seo-copy-primary" aria-labelledby="catalog-selection-copy-title">
-                  <h4 id="catalog-selection-copy-title" className="catalog-seo-copy-heading">
+                  <h2 id="catalog-selection-copy-title" className="catalog-seo-copy-heading">
                     Підбір запчастин
-                  </h4>
+                  </h2>
                   <p>{seoText}</p>
                 </section>
                 <section className="catalog-seo-copy-secondary" aria-labelledby="catalog-service-copy-title">
-                  <h4 id="catalog-service-copy-title" className="catalog-seo-copy-heading">
+                  <h2 id="catalog-service-copy-title" className="catalog-seo-copy-heading">
                     Магазин та доставка
-                  </h4>
+                  </h2>
                   <p>{seoText2}</p>
                   <ul className="catalog-seo-copy-links">
                     {catalogSeoServiceLinks.map(({ href, label, icon: LinkIcon }) => (

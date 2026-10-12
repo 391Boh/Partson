@@ -310,7 +310,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   );
 
   return (
-    <main className="blog-page blog-article-page font-ui">
+    <div className="blog-page blog-article-page font-ui">
       <ArticleReadingProgress />
       <BlogAdminActions
         slug={post.slug}
@@ -491,6 +491,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
-    </main>
+    </div>
   );
 }

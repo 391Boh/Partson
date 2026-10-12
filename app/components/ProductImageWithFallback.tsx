@@ -382,17 +382,11 @@ export default function ProductImageWithFallback({
 
   return (
     <>
+      {/* A click anywhere on the photo opens it; keyboard and screen-reader
+          users get the real "Фото" button below. Making this wrapper a
+          role="button" too nested one control inside another. */}
       <div
         onClick={openLightbox}
-        role={canOpen ? "button" : undefined}
-        tabIndex={canOpen ? 0 : undefined}
-        aria-label={canOpen ? `Збільшити фото: ${alt}` : undefined}
-        onKeyDown={(event) => {
-          if (canOpen && (event.key === "Enter" || event.key === " ")) {
-            event.preventDefault();
-            openLightbox();
-          }
-        }}
         className={`${className ?? ""} group relative overflow-hidden rounded-xl bg-[image:linear-gradient(160deg,#f8fafc,#f1f5f9)] ${
           canOpen ? "cursor-zoom-in" : ""
         }`}

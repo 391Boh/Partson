@@ -12,10 +12,10 @@ export const metadata = buildPageMetadata({
 
 export default function ResetPasswordPage() {
   return (
-    <main className="mx-auto flex min-h-[70svh] w-full max-w-md items-center px-4 py-12 sm:px-6">
+    <div className="mx-auto flex min-h-[70svh] w-full max-w-md items-center px-4 py-12 sm:px-6">
       <Suspense fallback={null}>
         <ResetPasswordClient />
       </Suspense>
-    </main>
+    </div>
   );
 }

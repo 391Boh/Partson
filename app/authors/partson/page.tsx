@@ -24,10 +24,10 @@ export default function PartsOnAuthorPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 to-white py-10 sm:py-16">
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white py-10 sm:py-16">
       <article className="page-shell-inline max-w-4xl">
         <div className="rounded-[26px] border border-sky-100 bg-white p-5 shadow-[0_20px_55px_rgba(15,78,130,0.10)] sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-600">Автор матеріалів</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-700">Автор матеріалів</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Редакція PartsON</h1>
           <p className="mt-4 text-base leading-7 text-slate-600">Команда магазину автозапчастин PartsON у Львові. Ми щодня працюємо з каталогами виробників, OEM-артикулами, аналогами та запитами на підбір деталей за VIN.</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -43,6 +43,6 @@ export default function PartsOnAuthorPage() {
         </div>
       </article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(schema) }} />
-    </main>
+    </div>
   );
 }

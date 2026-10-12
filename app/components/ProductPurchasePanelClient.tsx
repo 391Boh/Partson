@@ -631,9 +631,9 @@ export default function ProductPurchasePanelClient(
       <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(190px,0.72fr)_minmax(290px,1.28fr)] xl:items-center xl:gap-6">
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
               {hasPromoPrice ? "Акційна ціна партнера" : "Ціна товару"}
-            </h3>
+            </p>
             {hasCostPrice ? (
               <div className="flex rounded-[8px] border border-slate-200 bg-slate-100 p-[2px]">
                 <button

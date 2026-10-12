@@ -72,7 +72,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
   const ActiveIcon = SECTION_ICONS[section.key];
 
   return (
-    <main
+    <div
       className="info-page relative min-h-screen py-5 text-slate-900 sm:py-7"
       style={{ '--info-a': accentA, '--info-b': accentB } as CSSProperties}
     >
@@ -327,6 +327,6 @@ export default function InformationPageClient({ initialSectionKey }: Information
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

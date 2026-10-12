@@ -1452,7 +1452,7 @@ export default function AdminChatPanel({
         />
       </div>
 
-      <main className="admin-panel-scroll app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] px-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-0 text-slate-100 [touch-action:pan-y] sm:px-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0">
+      <div className="admin-panel-scroll app-panel-scroll flex-1 min-h-0 overflow-y-auto bg-[image:linear-gradient(180deg,rgba(15,23,42,0.5),rgba(2,6,23,0.56))] px-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-0 text-slate-100 [touch-action:pan-y] sm:px-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0">
         {tab === 'messages' && (
           <>
             {!selectedUserId ? (
@@ -2554,7 +2554,7 @@ export default function AdminChatPanel({
           })}
           </div>
           )}
-      </main>
+      </div>
     </div>
   );
 }

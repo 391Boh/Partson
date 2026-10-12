@@ -99,7 +99,13 @@ export const Block = ({
     <div className="info-section-body min-w-0">
       <header className="info-section-heading mb-8 max-w-[46rem]">
         {kicker ? (
-          <p className="info-read info-section-kicker mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] info-read-accent">
+          <p
+            className="info-read info-section-kicker mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[12px] info-read-accent"
+            // 12px text on the tinted pill: the shared 70/30 accent mix fell to
+            // 4.27:1 for the lightest section accent; 55/45 keeps the hue and
+            // clears WCAG AA (4.5:1).
+            style={{ color: "color-mix(in srgb, var(--info-a) 55%, #13202f)" }}
+          >
             {kicker}
           </p>
         ) : null}
