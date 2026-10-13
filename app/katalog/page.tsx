@@ -21,7 +21,9 @@ import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
 import CatalogSeoFilterSummaryClient from "app/katalog/CatalogSeoFilterSummaryClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
+import CatalogRestoreInlineScript from "app/katalog/CatalogRestoreInlineScript";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
+import { PRODUCT_PARAMS_QUERY_KEY } from "app/lib/product-params";
 import {
   buildAutoBrandPath,
   buildAutoModelPath,
@@ -1323,6 +1325,10 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   const siteUrl = getSiteUrl();
   const state = resolveCatalogSeoState(resolvedSearchParams);
   const promoOnly = normalizeValue(resolvedSearchParams.promo) === "1";
+  // The "Параметри" filter (?params=) needs the whole category loaded and
+  // parsed; the SEO snapshot below is unfiltered, so the client fetches the
+  // filtered list itself instead of flashing products that don't match.
+  const hasParamFilters = Boolean(normalizeValue(resolvedSearchParams[PRODUCT_PARAMS_QUERY_KEY]));
   const initialQuerySignature = buildCatalogQuerySignature({
     normalizedSearch: state.searchQuery,
     searchFilter: state.searchFilter || "all",
@@ -1359,7 +1365,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const [rawInitialPagePayload, seoFacets, productTreeDataset, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
-      () => promoOnly
+      () => hasParamFilters
+        ? Promise.resolve(null)
+        : promoOnly
         ? fetchPromoCatalogPayload()
         : state.searchQuery
         ? fetchCatalogSeoSnapshotPayload(snapshotCacheKey)
@@ -1458,9 +1466,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         // browser's saved sort/car/reset state will change the request, hide
         // those products before first paint; KatalogClientPage then remounts
         // the grid for the restored query (see detectCatalogRestoreOverride).
-        <script
-          dangerouslySetInnerHTML={{ __html: CATALOG_RESTORE_INLINE_SCRIPT }}
-        />
+        <CatalogRestoreInlineScript html={CATALOG_RESTORE_INLINE_SCRIPT} />
       ) : null}
       {firstScreenImageHrefs.map((href, index) => (
         <link

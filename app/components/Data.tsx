@@ -41,6 +41,11 @@ import {
   buildProductImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
+import {
+  decodeProductParamFilters,
+  encodeProductParamFilters,
+  PRODUCT_PARAMS_QUERY_KEY,
+} from "app/lib/product-params";
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields } from "app/lib/product-admin-mutations";
 import {
@@ -1248,6 +1253,9 @@ function useCatalogData(params: {
   producerFromURL: string | null;
   expandHierarchyFromURL: boolean;
   promoOnly?: boolean;
+  // Encoded ?params= selection of the "Параметри" filter tab (see
+  // app/lib/product-params.ts); "" when none.
+  paramFilters?: string;
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
   priceFrom?: number | null;
@@ -1280,6 +1288,7 @@ function useCatalogData(params: {
     producerFromURL,
     expandHierarchyFromURL,
     promoOnly = false,
+    paramFilters = "",
     sortOrder,
     pricedOnly = false,
     priceFrom = null,
@@ -1398,6 +1407,7 @@ function useCatalogData(params: {
         producer: producerFromURL,
         expandHierarchy: expandHierarchyFromURL,
         promoOnly,
+        paramFilters,
         sortOrder: effectiveServerSortOrder,
         pricedOnly,
         priceFrom,
@@ -1416,6 +1426,7 @@ function useCatalogData(params: {
       producerFromURL,
       expandHierarchyFromURL,
       promoOnly,
+      paramFilters,
       effectiveServerSortOrder,
       pricedOnly,
       priceFrom,
@@ -1440,6 +1451,7 @@ function useCatalogData(params: {
         producer: producerFromURL,
         expandHierarchy: expandHierarchyFromURL,
         promoOnly,
+        paramFilters,
         sortOrder: "none",
         pricedOnly,
         priceFrom,
@@ -1458,6 +1470,7 @@ function useCatalogData(params: {
       producerFromURL,
       expandHierarchyFromURL,
       promoOnly,
+      paramFilters,
       pricedOnly,
       priceFrom,
       priceTo,
@@ -2820,6 +2833,7 @@ function useCatalogData(params: {
         producer: normalizeOptionalCacheString(producerFromURL),
         hierarchy: expandHierarchyFromURL,
         promoOnly,
+        params: paramFilters,
         sort: effectiveServerSortOrder || "none",
         pricedOnly,
         priceFrom,
@@ -2837,6 +2851,7 @@ function useCatalogData(params: {
       producerFromURL,
       expandHierarchyFromURL,
       promoOnly,
+      paramFilters,
       effectiveServerSortOrder,
       pricedOnly,
       priceFrom,
@@ -2901,6 +2916,7 @@ function useCatalogData(params: {
             producer: producerFromURL,
             expandHierarchy: expandHierarchyFromURL,
             promoOnly,
+            paramFilters,
             sortOrder: effectiveServerSortOrder,
             pricedOnly,
             priceFrom: priceFrom != null ? Math.round((priceFrom / euroRate) * 100) / 100 : null,
@@ -2991,6 +3007,7 @@ function useCatalogData(params: {
       searchFilter,
       selectedCars,
       promoOnly,
+      paramFilters,
       effectiveServerSortOrder,
       subcategoryFromURL,
       pricedOnly,
@@ -3074,7 +3091,7 @@ function useCatalogData(params: {
           selectedCars, selectedCategories: effectiveSelectedCategories,
           searchQuery: correctedQuery || normalizedSearch, searchFilter,
           group: groupFromURL, subcategory: subcategoryFromURL, producer: producerFromURL,
-          expandHierarchy: expandHierarchyFromURL, promoOnly,
+          expandHierarchy: expandHierarchyFromURL, promoOnly, paramFilters,
           sortOrder: effectiveServerSortOrder, pricedOnly,
           priceFrom: priceFrom != null ? Math.round(priceFrom / euroRate * 100) / 100 : null,
           priceTo: priceTo != null ? Math.round(priceTo / euroRate * 100) / 100 : null,
@@ -3123,7 +3140,7 @@ function useCatalogData(params: {
     }
   }, [dataStartIndex, selectedCars, effectiveSelectedCategories, correctedQuery, normalizedSearch,
     searchFilter, groupFromURL, subcategoryFromURL, producerFromURL, expandHierarchyFromURL,
-    promoOnly, effectiveServerSortOrder, pricedOnly, priceFrom, priceTo, euroRate, inStock,
+    promoOnly, paramFilters, effectiveServerSortOrder, pricedOnly, priceFrom, priceTo, euroRate, inStock,
     showNextPageLoader, hideNextPageLoader, applyResolvedPagePrices]);
 
   useEffect(() => () => { directRequestRef.current?.abort(); }, []);
@@ -4547,6 +4564,10 @@ const Data: React.FC<DataProps> = ({
   const producerFromURL = (currentSearchParams.get("producer") || "").trim() || null;
   const expandHierarchyFromURL = currentSearchParams.get("scope") === "hierarchy";
   const promoOnlyFromURL = currentSearchParams.get("promo") === "1";
+  // Canonical form, so "b;a" and "a;b" share one cache entry.
+  const paramFiltersFromURL = encodeProductParamFilters(
+    decodeProductParamFilters(currentSearchParams.get(PRODUCT_PARAMS_QUERY_KEY))
+  );
   const lastFilterSignatureRef = useRef<string | null>(null);
   const lastStableSortedSignatureRef = useRef("");
   const selectedCarsRef = useRef(selectedCars);
@@ -4707,6 +4728,7 @@ const Data: React.FC<DataProps> = ({
     producerFromURL,
     expandHierarchyFromURL,
     promoOnly: promoOnlyFromURL,
+    paramFilters: paramFiltersFromURL,
     sortOrder,
     pricedOnly,
     priceFrom,
@@ -4922,6 +4944,7 @@ const Data: React.FC<DataProps> = ({
         subcategoryFromURL,
         producerFromURL,
         promoOnlyFromURL,
+        paramFiltersFromURL,
         selectedCategories,
         selectedCars,
         sortOrder,
@@ -4937,6 +4960,7 @@ const Data: React.FC<DataProps> = ({
       subcategoryFromURL,
       producerFromURL,
       promoOnlyFromURL,
+      paramFiltersFromURL,
       selectedCategories,
       selectedCars,
       sortOrder,
@@ -5644,8 +5668,17 @@ const Data: React.FC<DataProps> = ({
     visibleSortedEntries.length > 0 &&
     virtualizedEntries.length === 0;
   const entriesToRender = hasVirtualWindowMiss
-    ? visibleSortedEntries
+    ? visibleSortedEntries.slice(0, Math.max(1, gridColumnCount) * (VIRTUAL_OVERSCAN_ROWS * 2 + 4))
     : virtualizedEntries;
+  // A newly filtered/appended list can briefly outlive its cached range.
+  // Keep a bounded first window plus the missing rows' footprint instead of
+  // mounting every product for that recovery frame.
+  const effectiveVirtualBottomSpacerPx = hasVirtualWindowMiss
+    ? Math.max(0, Math.ceil(visibleSortedEntries.length / Math.max(1, gridColumnCount)) - Math.ceil(entriesToRender.length / Math.max(1, gridColumnCount))) * virtualRowHeightPx
+    : virtualWindowRange.bottomSpacerPx;
+  // A spacer is itself a CSS grid row. Subtract its extra gap so moving the
+  // virtual window does not add/remove 12–20px from the document height.
+  const virtualGridGapPx = viewportWidth >= 1024 ? 16 : viewportWidth >= 640 ? 20 : 12;
   const effectiveVirtualWindowStartIndex = hasVirtualWindowMiss
     ? 0
     : shouldUseVirtualWindow
@@ -6029,7 +6062,7 @@ const Data: React.FC<DataProps> = ({
                   aria-hidden="true"
                   style={{
                     gridColumn: "1 / -1",
-                    height: `${virtualWindowRange.topSpacerPx}px`,
+                    height: `${Math.max(0, virtualWindowRange.topSpacerPx - virtualGridGapPx)}px`,
                   }}
                 />
               )}
@@ -6221,12 +6254,12 @@ const Data: React.FC<DataProps> = ({
                 );
               })}
 
-              {!hasVirtualWindowMiss && shouldUseVirtualWindow && virtualWindowRange.bottomSpacerPx > 0 && (
+              {shouldUseVirtualWindow && effectiveVirtualBottomSpacerPx > 0 && (
                 <div
                   aria-hidden="true"
                   style={{
                     gridColumn: "1 / -1",
-                    height: `${virtualWindowRange.bottomSpacerPx}px`,
+                    height: `${Math.max(0, effectiveVirtualBottomSpacerPx - virtualGridGapPx)}px`,
                   }}
                 />
               )}

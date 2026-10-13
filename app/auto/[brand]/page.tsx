@@ -10,9 +10,10 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import { carBrands } from "app/components/carBrands";
 import { findCarBrandBySlug, getModelsForBrand } from "app/lib/auto-directory-data";
 import { buildCarBrandInfoParagraph } from "app/lib/car-brand-info";
+import { formatCarBrandWithCyrillic, getCarBrandCyrillicName } from "app/lib/car-brand-cyrillic";
 import { buildAutoBrandPath, buildAutoModelPath } from "app/lib/catalog-links";
 import { pluralizeModels } from "app/lib/pluralize-uk";
-import { appendSeoContact, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildFirstFittingSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
@@ -56,7 +57,7 @@ interface AutoBrandPageProps {
 // generateMetadata below) already owns that claim — so the two read as
 // distinct sentences instead of echoing each other.
 const buildBrandModelsDescription = (brandName: string) =>
-  `Оберіть модель ${brandName} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні.`;
+  `Оберіть модель ${formatCarBrandWithCyrillic(brandName)} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні.`;
 
 export async function generateMetadata({ params }: AutoBrandPageProps): Promise<Metadata> {
   const { brand: brandSlug } = await params;
@@ -72,19 +73,23 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
   const modelsData = await getModelsForBrand(brand.name);
   const modelsCount = modelsData?.models.length ?? 0;
   const brandLower = brand.name.toLowerCase();
-  // "Перевірена наявність" names the actual differentiator (hasAnyModelProducts
-  // filters the sitemap to only verified-in-stock models) instead of the
-  // generic "запчастини за роком випуску" every brand page used to share —
-  // no metaphor to clash with any brand name, works the same for every one.
-  // buildAdaptiveSeoTitle drops the suffix rather than risk a
-  // Google-truncated title for a long brand name + large model count.
-  const title =
+  // Shoppers search both "запчастини skoda" and "запчастини шкода", so the
+  // title carries the Ukrainian spelling when it fits. Tails go from most to
+  // least descriptive; buildFirstFittingSeoTitle keeps the longest one that
+  // stays clear of Google truncation.
+  const modelsTail =
     modelsCount > 0
-      ? buildAdaptiveSeoTitle(
-          `Запчастини ${brand.name}: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`,
-          ", перевірена наявність"
-        )
-      : buildAdaptiveSeoTitle(`Запчастини ${brand.name} за моделлю`, ", перевірена наявність");
+      ? `: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`
+      : " за моделлю";
+  const titleTails = [`${modelsTail}, купити у Львові`, modelsTail, ""];
+  const cyrillicName = getCarBrandCyrillicName(brand.name);
+  const cyrillicTitle = cyrillicName
+    ? buildFirstFittingSeoTitle(`Запчастини ${brand.name} (${cyrillicName})`, titleTails)
+    : "";
+  const title =
+    cyrillicTitle && cyrillicTitle !== `Запчастини ${brand.name} (${cyrillicName})`
+      ? cyrillicTitle
+      : buildFirstFittingSeoTitle(`Запчастини ${brand.name}`, titleTails);
   const description = appendSeoContact(buildBrandModelsDescription(brand.name));
 
   return buildPageMetadata({
@@ -93,6 +98,9 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
     canonicalPath: buildAutoBrandPath(brand.name),
     keywords: [
       `моделі ${brandLower}`,
+      ...(cyrillicName
+        ? [`запчастини ${cyrillicName.toLocaleLowerCase("uk-UA")}`, `${cyrillicName.toLocaleLowerCase("uk-UA")} запчастини`]
+        : []),
       `${brandLower} модельний ряд`,
       `${brandLower} роки випуску`,
       `запчастини ${brandLower}`,
@@ -123,7 +131,9 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
   const brandInfoParagraph = buildCarBrandInfoParagraph(brand.name);
 
   const siteUrl = getSiteUrl();
-  const title = `Моделі ${brand.name}`;
+  // The heading names the search intent ("запчастини …"), the model list
+  // below it already says "моделі".
+  const title = `Запчастини ${brand.name} за моделлю`;
   const brandPath = buildAutoBrandPath(brand.name);
   const pageDescription = buildBrandModelsDescription(brand.name);
 

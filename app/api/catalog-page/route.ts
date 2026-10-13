@@ -10,6 +10,13 @@ import {
 import type { CatalogProduct } from "app/lib/catalog-server";
 import { encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import {
+  canUseProductParams,
+  getCatalogProductsMatchingParams,
+  readCatalogParamsListOptions,
+  readCatalogParamsQuery,
+} from "app/lib/catalog-params-server";
+import { decodeProductParamFilters } from "app/lib/product-params";
+import {
   routeSuccessCache,
   type CatalogPageApiPayload,
 } from "app/lib/catalog-page-route-cache";
@@ -228,6 +235,41 @@ export async function POST(request: Request) {
         }),
         { headers: { "cache-control": "no-store" } }
       );
+    }
+
+    // "Параметри" tab — 1C cannot filter by description lines, so the whole
+    // category is loaded once (catalog-params-server keeps it for a few
+    // minutes) and filtered here, then paged the same way as the promo list.
+    const paramFilters = decodeProductParamFilters(
+      typeof body.paramFilters === "string" ? body.paramFilters : ""
+    );
+    if (paramFilters.length > 0) {
+      const paramsQuery = readCatalogParamsQuery(body);
+      if (canUseProductParams(paramsQuery)) {
+        const products = await getCatalogProductsMatchingParams(
+          paramsQuery,
+          paramFilters,
+          readCatalogParamsListOptions(body)
+        );
+        const page = toPositiveInt(body.page, 1);
+        const limit = toPositiveInt(body.limit, 10);
+        const start = body.directPage === true ? Math.floor(toNonNegativeNumber(body.offset) ?? 0) : (page - 1) * limit;
+        const items = products.slice(start, start + limit);
+
+        return NextResponse.json(
+          withoutCostPrices({
+            items,
+            prices: buildInlinePrices(items),
+            images: {},
+            hasMore: start + limit < products.length,
+            nextCursor: "",
+            cursorField: "",
+            totalCount: products.length,
+            ...(body.directPage === true ? { directOffset: start } : {}),
+          }),
+          { headers: { "cache-control": "no-store" } }
+        );
+      }
     }
 
     routeCacheKey = buildRouteCacheKey(body);
@@ -624,7 +666,11 @@ export async function POST(request: Request) {
         .then((payload) => {
           // Start this page's 1C photo lookup now instead of after the browser
           // has received, rendered and idle-scheduled its own batch request.
-          warmCatalogImages(payload.items ?? []);
+          // Header suggestions fetch visible photos themselves. Warming every
+          // intermediate query competes with the next lookup for 1C capacity.
+          if (body.purpose !== "suggestions" && !request.signal.aborted) {
+            warmCatalogImages(payload.items ?? []);
+          }
           if (routeCacheKey) {
             routeSuccessCache.set(routeCacheKey, {
               freshUntil: Date.now() + freshTtlMs,

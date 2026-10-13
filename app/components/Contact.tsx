@@ -12,9 +12,7 @@ import {
   Phone,
   PhoneCall,
   Send,
-  Signal,
   Store,
-  User,
   X,
 } from "lucide-react";
 import Zvyaz from "app/components/zvyaz";
@@ -310,62 +308,57 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                       const operator = getOperatorInfo(c.phone);
 
                       return (
-                        <div
-                          key={c.phone}
-                          className="customer-contact-card soft-surface-card group relative w-full overflow-hidden rounded-[18px] px-2.5 py-2.5 text-left text-slate-700 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(2,6,23,0.18),0_6px_14px_rgba(14,165,233,0.09)] sm:rounded-[20px] sm:px-3 sm:py-3"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="relative shrink-0">
-                              <span className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-[0_10px_22px_rgba(14,165,233,0.28),0_3px_7px_rgba(14,165,233,0.18)] sm:h-10 sm:w-10 sm:rounded-[15px]">
-                                <User size={15} />
-                              </span>
-                              {openStatus?.open && (
-                                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[15px] font-bold text-slate-900">{c.name}</p>
-                              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                                {c.role}
-                              </p>
-                              <div className="mt-1 flex min-w-0 items-center gap-1.5">
-                                <p className="min-w-0 truncate text-[14px] font-semibold text-slate-600">{c.phone}</p>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyPhone(c.phone)}
-                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-white/90 text-slate-400 shadow-[0_4px_10px_rgba(148,163,184,0.16)] transition hover:bg-sky-50 hover:border-sky-200 hover:text-sky-500"
-                                  aria-label={`Скопіювати номер ${c.phone}`}
-                                  title="Скопіювати номер"
-                                  data-contact-copy
-                                >
-                                  {copiedPhone === c.phone ? <Check size={11} /> : <Copy size={11} />}
-                                </button>
-                              </div>
-                            </div>
-                            <span
-                              className={`inline-flex min-h-6 shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${operator.chipClass}`}
-                              title={operator.label}
-                            >
-                              <Signal size={10} />
-                              <span className="truncate">{operator.label}</span>
+                        <div key={c.phone} className="customer-contact-card cw-contact-card">
+                          <div className="cw-contact-person">
+                            <span className="cw-contact-avatar" aria-hidden="true">
+                              {c.name.charAt(0)}
+                              {openStatus?.open && <span className="cw-contact-online" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="cw-contact-name">{c.name}</span>
+                              <span className="cw-contact-role">{c.role}</span>
+                            </span>
+                            <span className="cw-contact-operator" title={`Оператор: ${operator.label}`}>
+                              {operator.label}
                             </span>
                           </div>
 
-                          <div className="customer-contact-actions mt-4 grid grid-cols-2 gap-2">
+                          <div className="cw-contact-phone-row">
+                            <a
+                              href={`tel:+${c.phone.replace(/\D/g, "")}`}
+                              className="cw-contact-phone"
+                              onClick={() =>
+                                pushAnalyticsEvent("contact_click", {
+                                  contact_method: "call",
+                                  placement: "contacts_modal",
+                                  contact_role: c.role,
+                                })
+                              }
+                            >
+                              {c.phone}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPhone(c.phone)}
+                              className="cw-contact-copy"
+                              aria-label={`Скопіювати номер ${c.phone}`}
+                              title="Скопіювати номер"
+                              data-contact-copy
+                            >
+                              {copiedPhone === c.phone ? <Check size={15} /> : <Copy size={15} />}
+                              <span className="sr-only" aria-live="polite">
+                                {copiedPhone === c.phone ? "Скопійовано" : ""}
+                              </span>
+                            </button>
+                          </div>
+
+                          <div className="customer-contact-actions cw-contact-actions">
                             {c.actions.map((action) => (
                               <button
                                 key={action}
                                 type="button"
                                 onClick={() => handleContactAction(c.phone, action, c.role)}
-                                className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-[12px] border px-2 py-1.5 text-[11px] font-bold shadow-[0_8px_18px_rgba(2,6,23,0.12)] transition-[border-color,background-color,box-shadow] ${
-                                  c.actions.length === 1 ? "col-span-2" : ""
-                                } ${
-                                  action === "viber"
-                                    ? "border-violet-200 bg-gradient-to-b from-violet-50 to-violet-100/60 text-violet-700 hover:border-violet-300 hover:shadow-[0_12px_24px_rgba(167,139,250,0.22)]"
-                                    : action === "telegram"
-                                      ? "border-cyan-200 bg-gradient-to-b from-cyan-50 to-cyan-100/60 text-cyan-700 hover:border-cyan-300 hover:shadow-[0_12px_24px_rgba(34,211,238,0.22)]"
-                                    : "border-sky-200 bg-gradient-to-b from-sky-50 to-sky-100/60 text-sky-700 hover:border-sky-300 hover:shadow-[0_12px_24px_rgba(125,211,252,0.22)]"
-                                }`}
+                                className={`cw-contact-action cw-contact-action--${action}${c.actions.length === 1 ? " col-span-2" : ""}`}
                               >
                                 {action === "viber" ? <MessageCircle size={13} /> : action === "telegram" ? <Send size={13} /> : <Phone size={13} />}
                                 {action === "viber" ? "Viber" : action === "telegram" ? "Telegram" : "Дзвінок"}

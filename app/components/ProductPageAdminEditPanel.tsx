@@ -9,8 +9,7 @@ import { AdminStockStepper, type StockMovement } from "app/components/QuantitySt
 import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
-import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
-import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import { notifyProductImageUpdated } from "app/lib/product-image-updates";
 import { prepareProductImage } from "app/lib/product-image-upload-client";
 import type { ProductFullEditTarget } from "app/components/ProductFullEditModal";
 import ProductImageUploadFields from "app/components/ProductImageUploadFields";
@@ -47,7 +46,6 @@ const fmt = (v: number | null) =>
 
 const DESCRIPTION_CACHE_PREFIX = "partson:v2:product-description:";
 const PRODUCT_PRICE_CACHE_PREFIX = "partson:v4:product-page-price:";
-const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
 
 
 const SECTIONS: {
@@ -126,15 +124,7 @@ const clearProductPriceBrowserCache = () => {
   } catch {}
 };
 
-const writeProductImageBustToken = (code: string, article?: string) => {
-  if (typeof window === "undefined") return;
-  const key = buildProductImageBatchKey(code, article);
-  if (!key) return;
 
-  try {
-    window.localStorage.setItem(`${PRODUCT_IMAGE_BUST_PREFIX}${key}`, String(Date.now()));
-  } catch {}
-};
 
 export default function ProductPageAdminEditPanel({
   code,
@@ -638,9 +628,7 @@ export default function ProductPageAdminEditPanel({
       setImagePreview(null);
       setImageUploadName("");
       setImageUploadSize(0);
-      clearProductImageSuccess(code, values.article || undefined);
-      clearProductImageMissing(code, values.article || undefined);
-      writeProductImageBustToken(code, values.article || undefined);
+      notifyProductImageUpdated(code, values.article || undefined, imagePreview);
       invalidateCatalogClientCache();
       refreshPage();
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }

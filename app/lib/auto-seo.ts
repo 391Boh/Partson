@@ -159,7 +159,7 @@ const parseAutoResponse = (text: string) => {
   }
 };
 
-export const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null> => {
+const fetchBrandModelsUncached = async (brand: string): Promise<AutoSeoBrandGroup | null> => {
   const response = await oneCRequest("getauto", {
     method: "POST",
     body: { [AUTO_FIELDS.brand]: brand },
@@ -206,6 +206,20 @@ export const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup
     models,
     resultCount: rows.length,
   };
+};
+
+// Persist the parsed directory too, so separate page renders and metadata
+// reuse one result. Revalidation serves the previous list while refreshing;
+// upstream failures throw and never replace a good cached list with emptiness.
+const fetchBrandModelsCached = unstable_cache(
+  fetchBrandModelsUncached,
+  ["auto-brand-models-v1"],
+  { revalidate: AUTO_CACHE_TTL_MS / 1000, tags: ["auto-brand-models"] }
+);
+
+export const fetchBrandModels = (brand: string): Promise<AutoSeoBrandGroup | null> => {
+  const normalized = normalizeValue(brand);
+  return normalized ? fetchBrandModelsCached(normalized) : Promise.resolve(null);
 };
 
 // Only {Марка, Модель} together return year fields — {Марка} alone (used by

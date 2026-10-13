@@ -15,6 +15,7 @@ import {
   clearProductImageSuccess,
   clearProductImageMissing
 } from "app/lib/product-image-client";
+import { useProductImageUpdate } from "app/lib/product-image-updates";
 import { observeNearViewport } from "app/lib/shared-intersection-observer";
 
 
@@ -86,7 +87,7 @@ type ImageStatus = "loading" | "retrying" | "loaded" | "missing";
 const ProductCardImageContent: React.FC<Props> = ({
   productCode,
   articleHint,
-  hasKnownPhoto = true,
+  hasKnownPhoto: knownPhoto = true,
   prefetchedSrc,
   alt,
   className = "",
@@ -106,11 +107,13 @@ const ProductCardImageContent: React.FC<Props> = ({
 }) => {
   const normalizedCode = (productCode || "").trim();
   const normalizedArticle = (articleHint || "").trim();
-  const normalizedPrefetchedSrc = (prefetchedSrc || "").trim();
+  const imageUpdate = useProductImageUpdate(normalizedCode, normalizedArticle);
+  const hasKnownPhoto = knownPhoto || Boolean(imageUpdate.token);
+  const normalizedPrefetchedSrc = (imageUpdate.previewSrc || (!imageUpdate.token ? prefetchedSrc : "") || "").trim();
 
   const primarySrc = useMemo(
-    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true }),
-    [normalizedArticle, normalizedCode]
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, cacheBust: imageUpdate.token || undefined }),
+    [normalizedArticle, normalizedCode, imageUpdate.token]
   );
   const [requestSrc, setRequestSrc] = useState<string>(() => {
     if (!hasKnownPhoto || !normalizedCode) return "";
@@ -129,12 +132,12 @@ const ProductCardImageContent: React.FC<Props> = ({
   });
 
   const recoverySrc = useMemo(
-    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 1 }),
-    [normalizedArticle, normalizedCode]
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 1, cacheBust: imageUpdate.token || undefined }),
+    [normalizedArticle, normalizedCode, imageUpdate.token]
   );
   const finalRetrySrc = useMemo(
-    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 2 }),
-    [normalizedArticle, normalizedCode]
+    () => buildProductImagePath(normalizedCode, normalizedArticle, { catalog: true, retryToken: 2, cacheBust: imageUpdate.token || undefined }),
+    [normalizedArticle, normalizedCode, imageUpdate.token]
   );
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const [lateRecoveryAttempts, setLateRecoveryAttempts] = useState(0);
@@ -314,7 +317,7 @@ const ProductCardImageContent: React.FC<Props> = ({
     // by product, so a loaded src always belongs to this product.
     const alreadyLoaded =
       statusRef.current === "loaded" && Boolean(requestSrcRef.current);
-    if (alreadyLoaded) return () => {};
+    if (alreadyLoaded && (!imageUpdate.token || [primarySrc, recoverySrc, finalRetrySrc].includes(requestSrcRef.current))) return () => {};
 
     setRequestSrc(primarySrc);
     setStatus("loading");
@@ -328,6 +331,7 @@ const ProductCardImageContent: React.FC<Props> = ({
     primarySrc,
     recoverySrc,
     finalRetrySrc,
+    imageUpdate.token,
     batchImageMissing,
     isNearViewport,
     loadingMode,

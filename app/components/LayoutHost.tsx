@@ -329,7 +329,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     // wheel/touchmove fires before the browser applies the next scroll delta.
     // Arming the lightweight CSS state here prevents one expensive first frame
     // from slipping through — especially visible on battery-throttled Macs.
-    const handleScrollIntent = () => {
+    const handleScrollIntent = (event: WheelEvent | TouchEvent) => {
+      if (event instanceof WheelEvent && (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY))) return;
+      // Inner panels own their scroll. Do not restyle the entire underlying
+      // page or pause its background work while an editor/dropdown moves.
+      if (event.target instanceof Element && event.target.closest("[role='dialog'],.app-panel-scroll,.product-editor-body")) return;
       beginScroll();
       if (endTimer !== null) window.clearTimeout(endTimer);
       // Native scrollend remains the primary signal. This longer timer only

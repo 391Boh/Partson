@@ -17,6 +17,7 @@ import {
 } from "app/components/catalog-directory-styles";
 import { uniqueDirectoryItems } from "app/lib/directory-items";
 import DirectoryGrid from "app/components/DirectoryGrid";
+import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import SmartLink from "app/components/SmartLink";
 import { buildAutoModelPath } from "app/lib/catalog-links";
 import type { AutoModelListEntry } from "app/lib/auto-directory-data";
@@ -96,12 +97,14 @@ const ModelCard = memo(function ModelCard({
           <p className="directory-card-title line-clamp-2 break-words text-[16px] leading-snug text-slate-900">
             {model.name}
           </p>
+          <span className="directory-model-year">
           {yearLabel ? (
-            <span className="mt-1.5 inline-flex items-center gap-1 rounded-[9px] border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+            <span className="inline-flex items-center gap-1 rounded-[9px] border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
               <Calendar size={10} strokeWidth={2.2} />
               {yearLabel}
             </span>
           ) : null}
+          </span>
         </div>
 
         <span className={`${directoryActionIconClass} h-8 w-8 shrink-0 rounded-md`}>
@@ -189,10 +192,11 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
     return [...filteredModels].sort((a, b) => direction * (sortWeight(a) - sortWeight(b)));
   }, [filteredModels, sortMode]);
 
+  const pagination = useDirectoryPagination(sortedModels, `${brand}:${normalizedQuery}:${sortMode}`, 12);
+
   return (
     <section
       className="relative pb-2 pt-0.5 sm:pb-3"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 1200px" }}
     >
       <div className="page-shell-inline">
         <div id="auto-models-directory" className={directoryPanelClass}>
@@ -224,7 +228,9 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
               </div>
 
               <div className="w-full max-w-md">
-                <label className="relative block">
+                <label className="directory-search-field relative block">
+                  <span className="directory-search-label">Моделі авто</span>
+                  <span className="directory-search-control relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600" />
                   <input
                     type="text"
@@ -244,6 +250,7 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
                       <X size={14} />
                     </button>
                   ) : null}
+                </span>
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
@@ -289,15 +296,19 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {sortedModels.length > 0 ? (
+              <>
               <DirectoryGrid
+                  page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange}
                 ariaLabel={`Моделі ${brand}`}
               >
-                {sortedModels.map((model, index) => (
+                {pagination.items.map((model, index) => (
                   <div key={model.name} className="directory-result" role="listitem">
                     <ModelCard brand={brand} model={model} prefetchOnViewport={index < 10} />
                   </div>
                 ))}
               </DirectoryGrid>
+                <DirectoryPagination {...pagination} />
+              </>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
                 За цим запитом моделей не знайдено.

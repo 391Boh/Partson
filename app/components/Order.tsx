@@ -2,8 +2,12 @@
 
 import { fetchPartnerStatus } from 'app/lib/partner-status-client';
 import {
+  ArrowLeft,
+  ChevronDown,
+  CircleDot,
+  Clock3,
   ArrowRight,
-  BadgeCheck,
+  LogIn,
   Boxes,
   CalendarClock,
   ShoppingCart,
@@ -15,10 +19,12 @@ import {
   Gift,
   Percent,
   Handshake,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getNovaPoshtaTrackingUrl, isNovaPoshtaDelivery } from 'app/lib/order-tracking';
 import { useCart } from 'app/context/CartContext';
+import { pluralizePositions, pluralizeUk } from 'app/lib/pluralize-uk';
 import { pushEcommerceEvent } from 'app/lib/gtm';
 import {
   calculateFirstOrderDiscount,
@@ -434,76 +440,43 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               </span>
               <h3 id="past-orders-modal-title" className="soft-panel-title">Історія замовлень</h3>
               <p className="soft-panel-subtitle">
-                Перегляд попередніх оформлень, сум, способу доставки та оплати.
+                {user && pastOrders.length > 0
+                  ? `${pastOrders.length} ${pluralizeUk(pastOrders.length, 'замовлення', 'замовлення', 'замовлень')} на ${currencyFormatter.format(totalPastOrdersAmount)} грн`
+                  : 'Дата, сума, доставка, склад і статус кожного замовлення.'}
               </p>
             </div>
-            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
-              <X size={22} strokeWidth={2.5} />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <button
-              onClick={() => setShowPastOrders(false)}
-              className="soft-secondary-button w-full px-3 py-2 text-sm font-semibold sm:w-auto sm:px-4 sm:py-2.5"
-            >
-              Назад
-            </button>
-            {user && (
-              <span className="soft-chip self-start px-2.5 py-0.75 text-[11px] font-medium text-slate-600 sm:self-auto sm:px-3 sm:py-1 sm:text-xs">
-                {pastOrders.length} замовл.
-              </span>
-            )}
+            <div className="cw-head-actions">
+              <button
+                type="button"
+                onClick={() => setShowPastOrders(false)}
+                className="cw-head-link"
+              >
+                <ArrowLeft size={16} aria-hidden="true" />
+                Кошик
+              </button>
+              <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+                <X size={22} strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
 
           <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
-            <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
-              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-                <div className="max-w-2xl">
-                  <h4 className="soft-panel-section-heading">Ваші попередні оформлення</h4>
-                  <p className="soft-panel-section-text">
-                    Усі завершені й актуальні замовлення в одному місці: дата, сума, доставка та склад.
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 sm:px-3 sm:py-1.5 sm:text-xs">
-                  <BadgeCheck size={14} />
-                  {user ? "Історія синхронізована" : "Потрібен вхід"}
-                </div>
-              </div>
-
-              <div className="soft-panel-stat-grid mt-2.5">
-                <div className="soft-panel-stat-card">
-                  <span className="soft-panel-stat-label">Замовлень</span>
-                  <span className="soft-panel-stat-value">{pastOrders.length}</span>
-                </div>
-                <div className="soft-panel-stat-card">
-                  <span className="soft-panel-stat-label">На суму</span>
-                  <span className="soft-panel-stat-value">
-                    {currencyFormatter.format(totalPastOrdersAmount)}
-                  </span>
-                </div>
-                <div className="soft-panel-stat-card">
-                  <span className="soft-panel-stat-label">Статус</span>
-                  <span className="soft-panel-stat-value">{loadingOrders ? 'Оновлення' : 'Готово'}</span>
-                </div>
-                <div className="soft-panel-stat-card">
-                  <span className="soft-panel-stat-label">Поточний режим</span>
-                  <span className="soft-panel-stat-value">Історія</span>
-                </div>
-              </div>
-            </section>
-
-            <div className="mt-2 space-y-2 pb-1">
+            <div className="space-y-2 pb-1">
           {!user ? (
-            <div className="soft-note rounded-[16px] px-3.5 py-3.5 text-center text-slate-700">
-              <p>
-                Щоб переглянути свої замовлення, будь ласка, увійдіть у свій обліковий запис.
+            <div className="cw-empty">
+              <span className="cw-empty-icon" aria-hidden="true">
+                <LogIn size={24} />
+              </span>
+              <p className="cw-empty-title">Увійдіть, щоб побачити замовлення</p>
+              <p className="cw-empty-text">
+                Історія зберігається у вашому акаунті: статус, ТТН Нової Пошти і склад кожного замовлення.
               </p>
               <button
                 type="button"
                 onClick={openAuthModal}
-                className="soft-primary-button mt-3 inline-flex px-3.5 py-2 text-sm font-semibold sm:mt-4 sm:px-4 sm:py-2.5"
+                className="soft-primary-button inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold"
               >
+                <LogIn size={17} aria-hidden="true" />
                 Увійти
               </button>
             </div>
@@ -525,94 +498,61 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 const hasOrderDiscount =
                   Number.isFinite(orderDiscountAmount) && orderDiscountAmount > 0;
 
+                const status = order.completed
+                  ? { label: 'Виконано', tone: 'done', Icon: PackageCheck }
+                  : order.shipped
+                    ? { label: 'Відправлено', tone: 'shipped', Icon: Truck }
+                    : order.read
+                      ? { label: 'Опрацьовується', tone: 'progress', Icon: Clock3 }
+                      : { label: 'Нове', tone: 'new', Icon: CircleDot };
+                const StatusIcon = status.Icon;
+
                 return (
                   <div
                     key={order.id}
-                    className={`soft-surface-card app-panel-card-hover w-full rounded-[18px] border p-3 text-slate-700 transition-[box-shadow,border-color,background-color] duration-200 sm:rounded-[20px] sm:p-3.5 ${
-                      isExpanded
-                        ? 'border-sky-200 bg-white/95 shadow-[0_18px_36px_rgba(14,165,233,0.1)]'
-                        : 'border-sky-100/70 hover:border-sky-200/90 hover:bg-white/95'
-                    }`}
+                    className={`cw-order-card${isExpanded ? ' is-expanded' : ''}`}
                   >
                     <button
                       type="button"
-                      className="w-full text-left"
+                      className="cw-order-summary"
+                      aria-expanded={isExpanded}
                       onClick={() => toggleExpandOrder(order.id)}
                     >
-                      <div className="grid w-full gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/70 bg-sky-50/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700">
-                              <CalendarClock size={13} />
-                              {orderDateLabel}
-                            </span>
-                            {order.completed ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                Виконано
-                              </span>
-                            ) : order.shipped ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200/70 bg-blue-50/80 px-2.5 py-1 text-[11px] font-bold text-blue-700">
-                                <Truck size={11} />
-                                Відправлено
-                              </span>
-                            ) : order.read ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/70 bg-amber-50/80 px-2.5 py-1 text-[11px] font-bold text-amber-700">
-                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                Опрацьовується
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/85 px-2.5 py-1 text-[11px] font-bold text-slate-500">
-                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                Нове замовлення
-                              </span>
-                            )}
-                            {hasOrderDiscount && (
-                              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                                <Percent size={13} />
-                                -{currencyFormatter.format(orderDiscountAmount)} грн
-                              </span>
-                            )}
-                          </div>
-
-                          <h4 className="mt-2 break-words text-[15px] font-bold leading-5 text-slate-900 sm:text-base">
-                            Замовлення №{orderNumber}
-                          </h4>
-
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 sm:gap-2 sm:text-xs">
-                            <span className="soft-chip min-h-7 px-2.5 py-1">
-                              <Boxes size={13} className="mr-1.5" />
-                              {orderItems.length} позицій
-                            </span>
-                            {order.deliveryMethod && (
-                              <span className="soft-chip min-h-7 px-2.5 py-1">
-                                <Truck size={13} className="mr-1.5" />
-                                {order.deliveryMethod}
-                              </span>
-                            )}
-                            {order.paymentMethod && (
-                              <span className="soft-chip min-h-7 px-2.5 py-1">
-                                <CreditCard size={13} className="mr-1.5" />
-                                {order.paymentMethod}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <span className="inline-flex w-full flex-row items-center justify-between rounded-[14px] border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-left shadow-[0_8px_16px_rgba(16,185,129,0.06)] sm:min-w-[132px] sm:flex-col sm:items-end sm:text-right">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-600/80">
-                            Сума
-                          </span>
-                          <span className="text-sm font-extrabold text-emerald-700">
-                            {currencyFormatter.format(orderTotalAmount)} грн
+                      <span className="min-w-0">
+                        <span className="cw-order-title">
+                          <span className="cw-order-number">№{orderNumber}</span>
+                          <span className={`cw-status cw-status--${status.tone}`}>
+                            <StatusIcon size={13} aria-hidden="true" />
+                            {status.label}
                           </span>
                         </span>
-                      </div>
+                        <span className="cw-order-meta">
+                          <span><CalendarClock size={13} aria-hidden="true" />{orderDateLabel}</span>
+                          <span><Boxes size={13} aria-hidden="true" />{orderItems.length} {pluralizePositions(orderItems.length)}</span>
+                          {order.deliveryMethod && (
+                            <span><Truck size={13} aria-hidden="true" />{order.deliveryMethod}</span>
+                          )}
+                          {order.paymentMethod && (
+                            <span><CreditCard size={13} aria-hidden="true" />{order.paymentMethod}</span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="cw-order-amount">
+                        <span className="cw-order-sum">
+                          {currencyFormatter.format(orderTotalAmount)} <small>грн</small>
+                        </span>
+                        {hasOrderDiscount && (
+                          <span className="cw-order-discount">
+                            −{currencyFormatter.format(orderDiscountAmount)} грн
+                          </span>
+                        )}
+                        <ChevronDown size={18} className="cw-order-chevron" aria-hidden="true" />
+                      </span>
                     </button>
 
                     {isExpanded && (
-                      <div className="mt-2.5 border-t border-sky-100/80 pt-2.5">
-                        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      <div className="cw-order-details">
+                        <div className="cw-order-details-head">
                           <span>Склад замовлення</span>
                           <span>{orderItems.length} поз.</span>
                         </div>
@@ -630,9 +570,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 	                              return (
 	                                <li
 	                                  key={item.code || item.article || item.name || idx}
-	                                  className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-[13px] bg-slate-50/90 px-2.5 py-2 text-left sm:grid-cols-[28px_minmax(0,1fr)_minmax(90px,auto)] sm:gap-2.5 sm:rounded-[14px] sm:px-3"
+	                                  className="cw-order-line"
 	                                >
-	                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-[10px] font-bold text-sky-700 shadow-[0_4px_10px_rgba(14,165,233,0.08)] sm:h-7 sm:w-7">
+	                                  <span className="cw-order-line-index">
 	                                    {idx + 1}
 	                                  </span>
 	                                  <span className="min-w-0">
@@ -701,8 +641,16 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               })}
             </div>
           ) : (
-            <div className="soft-note rounded-[16px] px-3.5 py-4 text-center text-slate-600">
-              <p>У вас ще немає замовлень.</p>
+            <div className="cw-empty">
+              <span className="cw-empty-icon" aria-hidden="true">
+                <ClipboardList size={24} />
+              </span>
+              <p className="cw-empty-title">Замовлень ще немає</p>
+              <p className="cw-empty-text">Оформлені замовлення з&apos;являться тут разом зі статусом доставки.</p>
+              <Link href="/katalog" className="soft-primary-button inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold">
+                Перейти в каталог
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
             </div>
           )}
             </div>
@@ -731,67 +679,28 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             </span>
             <h3 id="my-order-modal-title" className="soft-panel-title">Моє замовлення</h3>
             <p className="soft-panel-subtitle">
-              Перевірте товари, суму та перейдіть до оформлення без зайвих кроків.
+              {hasItems
+                ? `${cartItems.length} ${pluralizePositions(cartItems.length)} · ${totalUnits} шт.`
+                : 'Перевірте товари, суму та перейдіть до оформлення.'}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
-            <X size={22} strokeWidth={2.5} />
-          </button>
-        </div>
-
-        <div className="soft-panel-tabs">
-          <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">
+          <div className="cw-head-actions">
             <button
+              type="button"
               onClick={() => setShowPastOrders(true)}
-              className="soft-segment flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-sm font-semibold sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5"
+              className="cw-head-link"
             >
-              <ClipboardList size={16} />
+              <ClipboardList size={16} aria-hidden="true" />
               Історія
             </button>
-
-            <button
-              onClick={handleBeginCheckout}
-              className={`flex items-center justify-center gap-1.5 rounded-[14px] border px-2.5 py-2 text-[13px] font-semibold transition-[transform,box-shadow,filter,background-color,border-color] duration-200 sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
-                hasItems && !isDiscountCheckPending
-                  ? 'border-sky-300/50 bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-[0_8px_20px_rgba(14,165,233,0.30)] hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_14px_28px_rgba(37,99,235,0.34)]'
-                  : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-70'
-              }`}
-              disabled={!hasItems || isDiscountCheckPending}
-            >
-              <BadgeCheck size={16} />
-              {isDiscountCheckPending ? 'Перевірка' : 'Оформити'}
+            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+              <X size={22} strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
-          <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="max-w-2xl">
-                <h4 className="soft-panel-section-heading">Підсумок замовлення</h4>
-                <p className="soft-panel-section-text">
-                  Ваші товари, кількість і сума до оплати.
-                </p>
-              </div>
-            </div>
-
-            <div className="soft-panel-stat-grid mt-2.5">
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Позицій</span>
-                <span className="soft-panel-stat-value">{cartItems.length}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">Одиниць</span>
-                <span className="soft-panel-stat-value">{totalUnits}</span>
-              </div>
-              <div className="soft-panel-stat-card">
-                <span className="soft-panel-stat-label">До оплати</span>
-                <span className="soft-panel-stat-value">{currencyFormatter.format(payableAmount)} грн</span>
-              </div>
-            </div>
-          </section>
-
-          <div className="mt-2 space-y-2 pb-1">
+          <div className="space-y-2 pb-1">
         {hasItems ? (
           <>
             {shouldShowPartnerPanel && (
@@ -929,13 +838,10 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                 const itemSearchHref = `/katalog?search=${encodeURIComponent(itemName)}&filter=all`;
 
                   return (
-                    <div
-                      key={item.code || index}
-                      className="soft-surface-card app-panel-card-hover group relative grid grid-cols-[64px_minmax(0,1fr)] items-start gap-2.5 rounded-[16px] p-2.5 pr-11 sm:grid-cols-[72px_minmax(0,1fr)] sm:gap-3 sm:rounded-[20px] sm:p-3 sm:pr-12"
-                    >
+                    <div key={item.code || index} className="cw-cart-item">
                       <Link
                         href={itemSearchHref}
-                        className="relative h-[64px] w-[64px] shrink-0 overflow-hidden rounded-[15px] border border-slate-200 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.07)] transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_16px_28px_rgba(14,165,233,0.13)] sm:h-[72px] sm:w-[72px]"
+                        className="cw-cart-thumb"
                         aria-label={`Переглянути ${itemName}`}
                       >
                         <ProductCardImage
@@ -944,90 +850,88 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                           alt={itemName}
                           loadingMode={index < 2 ? 'eager' : 'lazy'}
                           fetchPriority={index < 2 ? 'high' : 'low'}
-                          className="rounded-[14px] bg-white [&_span]:hidden"
+                          className="rounded-[10px] bg-white [&_span]:hidden"
                         />
                       </Link>
-  
-                      <div className="min-w-0 pr-1 sm:pr-0">
-                        <Link
-                          href={itemSearchHref}
-                          className="line-clamp-2 text-[13px] font-bold leading-5 text-slate-900 transition hover:text-sky-700 sm:text-[15px]"
-                        >
+
+                      <div className="min-w-0">
+                        <Link href={itemSearchHref} className="cw-cart-name">
                           {itemName}
                         </Link>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          <span className="soft-chip px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
-                            #{index + 1}
-                          </span>
-                          {item.article && (
-                            <span className="soft-chip max-w-full px-2 py-0.75 text-[10px] font-semibold text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]">
-                              <span className="truncate">Арт. {item.article}</span>
-                            </span>
-                          )}
-                          {item.isPromoPrice && (
-                            <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.75 text-[9px] font-black uppercase tracking-[0.06em] text-rose-700 sm:px-2.5 sm:py-1">
-                              Акційна ціна
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1.5">
-                            <span className="font-semibold text-slate-500">Ціна</span>
-                            <span className="font-bold text-slate-900">
-                              {item.isPromoPrice && item.originalPrice ? (
-                                <span className="mr-1.5 text-slate-400 line-through decoration-rose-400">
-                                  {currencyFormatter.format(item.originalPrice)}
-                                </span>
-                              ) : null}
-                              {currencyFormatter.format(item.price || 0)} грн
-                            </span>
-                          </span>
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1.5">
-                            <span className="font-semibold text-slate-500">К-сть</span>
-                            <span className="font-bold text-sky-700">{item.quantity} шт.</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1.5">
-                            <span className="font-semibold text-slate-500">Разом</span>
-                            <span className="font-bold text-emerald-700">
-                              {currencyFormatter.format(lineTotal)} грн
-                            </span>
-                          </span>
-                        </div>
+                        <p className="cw-cart-meta">
+                          {item.article && <span>Арт. {item.article}</span>}
+                          {item.producer && <span>{item.producer}</span>}
+                          {item.isPromoPrice && <span className="cw-cart-promo">Акція</span>}
+                        </p>
+                        <p className="cw-cart-unit">
+                          {item.isPromoPrice && item.originalPrice ? (
+                            <s>{currencyFormatter.format(item.originalPrice)}</s>
+                          ) : null}
+                          {currencyFormatter.format(item.price || 0)} грн × {item.quantity} шт.
+                        </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeFromCart(item.code)}
-                        className="absolute right-2 top-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-rose-200/70 bg-rose-50/80 text-rose-500 transition hover:bg-rose-100 hover:text-rose-600 hover:border-rose-300/70 sm:right-2.5 sm:top-2.5 sm:h-8 sm:w-8"
-                        aria-label={`Видалити ${itemName}`}
-                      >
-                        <X size={14} strokeWidth={2} />
-                      </button>
-                  </div>
-                );
+                      <div className="cw-cart-side">
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.code)}
+                          className="cw-cart-remove"
+                          aria-label={`Видалити ${itemName}`}
+                          title="Видалити з кошика"
+                        >
+                          <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+                        </button>
+                        <span className="cw-cart-total">
+                          {currencyFormatter.format(lineTotal)} <small>грн</small>
+                        </span>
+                      </div>
+                    </div>
+                  );
               })}
             </div>
           </>
         ) : (
-          <div className="soft-panel-hero mt-1 flex flex-col items-center gap-2 rounded-[18px] px-3.5 py-4 text-center sm:gap-2.5 sm:rounded-[20px] sm:px-4 sm:py-5">
-            <div className="flex items-center gap-2 text-base font-bold tracking-wide text-slate-900">
-              <ShoppingCart size={20} className="text-sky-700" />
-              <span>Кошик порожній</span>
-            </div>
-            <p className="max-w-xs text-sm font-medium leading-relaxed text-slate-600">
-              Додайте товари до кошика, щоб оформити замовлення.
+          <div className="cw-empty">
+            <span className="cw-empty-icon" aria-hidden="true">
+              <ShoppingCart size={24} />
+            </span>
+            <p className="cw-empty-title">Кошик порожній</p>
+            <p className="cw-empty-text">
+              Додайте товари з каталогу — тут з&apos;явиться сума і кнопка оформлення.
             </p>
-            <Link
-              href="/katalog"
-              className="soft-primary-button inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold sm:px-4 sm:py-2.5"
-            >
+            <Link href="/katalog" className="soft-primary-button inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold">
               Перейти в каталог
-              <ArrowRight size={18} />
+              <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
         )}
           </div>
         </div>
+
+        {hasItems && (
+          <div className="cw-checkout-bar">
+            <div className="cw-checkout-sum">
+              <span className="cw-checkout-label">До оплати</span>
+              <span className="cw-checkout-value">
+                {currencyFormatter.format(payableAmount)} <small>грн</small>
+              </span>
+              {effectiveDiscountTotals.discountAmount > 0 && (
+                <span className="cw-checkout-note">
+                  <s>{currencyFormatter.format(totalAmount)} грн</s> · знижка −{currencyFormatter.format(effectiveDiscountTotals.discountAmount)} грн
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleBeginCheckout}
+              disabled={isDiscountCheckPending}
+              className="soft-primary-button cw-checkout-button"
+            >
+              {isDiscountCheckPending ? 'Перевіряємо знижку…' : 'Оформити замовлення'}
+              {!isDiscountCheckPending && <ArrowRight size={18} aria-hidden="true" />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

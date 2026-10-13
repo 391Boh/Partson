@@ -55,6 +55,30 @@ export const buildAdaptiveSeoTitle = (
   return full.length <= budget ? full : base;
 };
 
+// Like buildAdaptiveSeoTitle, but tries several tails from most to least
+// descriptive (e.g. " — купити, ціни у Львові", then " — купити, ціни") so a
+// long name loses only part of its commercial tail instead of all of it.
+export const buildFirstFittingSeoTitle = (
+  base: string,
+  suffixes: readonly string[],
+  maxLength: number = SEO_TITLE_MAX_LENGTH
+) => {
+  const budget = maxLength - TITLE_TEMPLATE_SUFFIX_LENGTH;
+  return suffixes.map((suffix) => `${base}${suffix}`).find((title) => title.length <= budget) ?? base;
+};
+
+// Lower-cases only the leading letter so a catalog label reads naturally
+// mid-sentence ("Гальмівні колодки" → "гальмівні колодки") while acronyms
+// survive ("ГРМ комплект" stays as is, "Датчик ABS" → "датчик ABS").
+export const lowerFirstSeoWord = (value: string) => {
+  const [first = "", second = ""] = Array.from(value);
+  const secondIsCapital =
+    second.toLocaleUpperCase("uk-UA") === second &&
+    second.toLocaleLowerCase("uk-UA") !== second;
+  if (!first || secondIsCapital) return value;
+  return first.toLocaleLowerCase("uk-UA") + value.slice(first.length);
+};
+
 const buildSocialTitle = (title: string) =>
   titleIncludesBrand(title) ? title : `${title} | PartsON`;
 
@@ -88,6 +112,21 @@ export const trimSeoDescription = (
     .trim();
 
   return `${content}…`;
+};
+
+// Returns the first candidate that fits the description budget whole, so a
+// long variant can give up a list item or a tail clause instead of being cut
+// mid-sentence with "…". Candidates go from richest to plainest; when none
+// fits, the last one is trimmed as usual.
+export const pickFittingSeoDescription = (
+  candidates: readonly string[],
+  maxLength = SEO_DESCRIPTION_MAX_LENGTH
+) => {
+  const normalized = candidates.map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean);
+  return (
+    normalized.find((value) => value.length <= maxLength) ??
+    trimSeoDescription(normalized[normalized.length - 1] ?? "", maxLength)
+  );
 };
 
 // Every meta description used to lead (appendSeoContact) or close

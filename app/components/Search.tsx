@@ -52,7 +52,7 @@ const MAX_HISTORY          = 8;
 // Warm the same first page the catalog will request after Enter.
 const SEARCH_PAGE_SIZE = 16;
 const SUGGESTION_MIN_CHARS = 2;
-const DEBOUNCE_MS          = 120;
+const DEBOUNCE_MS          = 80;
 
 type SearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -73,6 +73,7 @@ const CACHE_MAX   = 60;
 const CACHE_TTL   = 60_000;
 const sCache      = new Map<string, SuggestionResult>();
 const sCacheTimes = new Map<string, number>();
+const pendingSuggestions = new Map<string, { controller: AbortController; promise: Promise<SuggestionResult> }>();
 
 
 const normalizeSearchKey = (value: string) =>
@@ -109,7 +110,7 @@ const fetchSuggestions = async (
   const request = fetch("/api/catalog-page", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SEARCH_PAGE_SIZE, ...(cursor ? { cursor } : {}) }),
+    body: JSON.stringify({ searchQuery: query, searchFilter: filter, page: 1, limit: SEARCH_PAGE_SIZE, purpose: "suggestions", ...(cursor ? { cursor } : {}) }),
     signal,
     cache: "no-store",
   }).then(async (res) => {
@@ -133,6 +134,33 @@ const fetchSuggestions = async (
     };
   });
   return request;
+};
+
+// Keep a bounded number of started lookups alive: returning to a prefix or
+// reopening the search can reuse its result instead of querying 1C again.
+const requestSuggestions = (query: string, filter: SearchFilter) => {
+  const key = ck(query, filter);
+  const pending = pendingSuggestions.get(key);
+  if (pending) return pending.promise;
+  if (pendingSuggestions.size >= 4) {
+    const oldest = pendingSuggestions.entries().next().value;
+    if (oldest) { oldest[1].controller.abort(); pendingSuggestions.delete(oldest[0]); }
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const entry = {
+    controller,
+    promise: fetchSuggestions(query, filter, controller.signal).then((result) => {
+      // Invalidation must also prevent an older response from refilling cache.
+      if (pendingSuggestions.get(key) === entry) cSet(key, result);
+      return result;
+    }).finally(() => {
+      clearTimeout(timeout);
+      if (pendingSuggestions.get(key) === entry) pendingSuggestions.delete(key);
+    }),
+  };
+  pendingSuggestions.set(key, entry);
+  return entry.promise;
 };
 
 // ── SuggestionImage ─────────────────────────────────────────────────────────
@@ -180,6 +208,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const listId = useId();
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const inputRef    = useRef<HTMLInputElement>(null);
+  const previousSearchRef = useRef({ query: "", filter: "all" as SearchFilter });
   const router = useRouter();
 
   // init
@@ -209,6 +238,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const invalidate = () => {
       sCache.clear();
       sCacheTimes.clear();
+      pendingSuggestions.forEach(({ controller }) => controller.abort());
+      pendingSuggestions.clear();
       setRetry((value) => value + 1);
     };
     window.addEventListener("partson:catalog-invalidated", invalidate);
@@ -227,7 +258,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  // Each input owns its request, so obsolete queries can be cancelled safely.
+  // Only the current input may display a response, even when lookups are shared.
   useEffect(() => {
     let current = true;
     moreRequestRef.current?.abort();
@@ -236,6 +267,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     setMoreError(null);
     setNextCursor("");
     const trimmed = normalizeSearchQuery(query);
+    const previous = previousSearchRef.current;
+    previousSearchRef.current = { query: trimmed, filter };
     setActiveIndex(-1);
     setSearchError(null);
     setSuggestions([]);
@@ -256,20 +289,18 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const cached = cGet(key);
     if (cached) { apply(cached); return; }
     setLoading(true);
-    const controller = new AbortController();
-    let timeout: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
-      timeout = setTimeout(() => controller.abort(), 12_000);
-      fetchSuggestions(trimmed, filter, controller.signal).then((result) => {
-        if (current) { cSet(key, result); apply(result); }
+      requestSuggestions(trimmed, filter).then((result) => {
+        if (current) apply(result);
       }).catch(() => {
         if (current) {
           setSearchError("Пошук тимчасово недоступний. Спробуйте ще раз.");
           setLoading(false);
         }
-      }).finally(() => clearTimeout(timeout));
-    }, DEBOUNCE_MS);
-    return () => { current = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); moreRequestRef.current?.abort(); };
+      });
+    }, pendingSuggestions.has(key) || previous.filter !== filter ||
+      Math.abs(trimmed.length - previous.query.length) > 1 ? 0 : DEBOUNCE_MS);
+    return () => { current = false; clearTimeout(timer); moreRequestRef.current?.abort(); };
   }, [query, filter, dropdown, retry, isComposing]);
 
   const loadMoreSuggestions = async () => {

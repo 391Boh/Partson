@@ -32,6 +32,9 @@ export const CRITICAL_TARGETS = {
     // Client-only (ssr: false) but visible in the header on first paint, so
     // it must not wait for the full stylesheet if JS hydrates first.
     "app/components/Search.tsx",
+    // A cached authenticated profile can appear before the deferred full
+    // stylesheet. Its above-the-fold rows must already have their layout.
+    "app/components/HeroSavedProfile.tsx",
   ],
   inform: [
     "app/layout.tsx",

@@ -189,6 +189,18 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Critical styles use the same content hash as the complete sheet.
+        // Reuse them across visits instead of revalidating the first-paint CSS.
+        source: "/styles/critical-:target(home|inform|product).:hash([0-9a-f]{10}).css",
+        headers: [
+          ...securityHeaders,
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
         source: "/:file((?!_next)[^?#]*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
         headers: [
           ...securityHeaders,

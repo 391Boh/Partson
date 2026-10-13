@@ -9,7 +9,7 @@ import StoreOpenStatus from "./StoreOpenStatus";
 import Link from "next/link";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
-const STORE_MAP_EMBED_URL = "https://www.google.com/maps?q=PartsON,+вул.+Перфецького,+8,+Львів&output=embed";
+const STORE_MAP_EMBED_URL = "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk";
 
 // One quiet, keyword-rich list of what the catalog covers — replaces the
 // old three mini-cards that visually duplicated the service cards below.

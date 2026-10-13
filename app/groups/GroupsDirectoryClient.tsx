@@ -6,10 +6,10 @@ import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import { uniqueDirectoryItems } from "app/lib/directory-items";
 import DirectoryGrid from "app/components/DirectoryGrid";
+import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import {
   directoryBadgeClass,
   directoryCardClass,
-  directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
@@ -126,7 +126,6 @@ function GroupCategoryCard({
   group: GroupsDirectoryItem;
   prefetchOnViewport?: boolean;
 }) {
-  const hasSubgroups = group.subgroups.length > 0;
   const visibleGroupLabel = buildVisibleProductName(group.label);
 
   return (
@@ -151,9 +150,6 @@ function GroupCategoryCard({
           />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="directory-kicker inline-flex rounded-[9px] border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] uppercase text-sky-800">
-            Група каталогу
-          </span>
           <h3 itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
             {visibleGroupLabel}
           </h3>
@@ -164,16 +160,9 @@ function GroupCategoryCard({
       </div>
 
       <div className="mt-auto flex flex-wrap gap-1.5 border-t border-slate-100 pt-2.5">
-        {group.productCount > 0 ? (
-          <span className={directoryCompactMetricClass}>
+        <span className={directoryCompactMetricClass}>
             {formatCount(group.productCount, "товар", "товари", "товарів")}
           </span>
-        ) : null}
-        <span className={directoryCompactMetricAccentClass}>
-          {hasSubgroups
-            ? formatCount(group.subgroupsCount, "підгрупа", "підгрупи", "підгруп")
-            : "відкрити каталог"}
-        </span>
       </div>
     </SmartLink>
   );
@@ -255,11 +244,12 @@ export default function GroupsDirectoryClient({
     () => filteredGroups.reduce((sum, group) => sum + group.productCount, 0),
     [filteredGroups]
   );
+  const pagination = useDirectoryPagination(filteredGroups, normalizedQuery, 6);
+
   return (
     <section className="relative pb-2 pt-0 sm:pb-3">
       <div
         className="page-shell-inline"
-        style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 2200px" }}
       >
         <div id="groups-directory" className="space-y-4">
           <div className={directoryPanelClass}>
@@ -274,12 +264,14 @@ export default function GroupsDirectoryClient({
                   Оберіть систему автомобіля
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Оберіть <strong className="font-bold text-slate-800">групу або кінцеву категорію запчастин</strong> — від підвіски й гальмівної системи до двигуна, охолодження та електрики — і перейдіть у каталог із готовим фільтром.
+                  Оберіть <strong className="font-bold text-slate-800">категорію запчастин</strong> — від підвіски й гальмівної системи до двигуна, охолодження та електрики — і перейдіть у каталог із готовим фільтром.
                 </p>
               </div>
 
               <div className="min-w-0">
-                <label className="relative block">
+                <label className="directory-search-field relative block">
+                  <span className="directory-search-label">Категорії запчастин</span>
+                  <span className="directory-search-control relative block">
                   <Search
                     size={16}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-teal-600"
@@ -291,7 +283,7 @@ export default function GroupsDirectoryClient({
                     onTouchStart={(event) => {
                       event.currentTarget.focus();
                     }}
-                    placeholder="Група або категорія"
+                    placeholder="Категорія, група або підгрупа"
                     aria-label="Пошук по групах і категоріях"
                     className={directorySearchInputClass}
                     data-search="true"
@@ -306,23 +298,24 @@ export default function GroupsDirectoryClient({
                       <X size={16} />
                     </button>
                   ) : null}
+                </span>
                 </label>
 
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
                   <span className={directoryMetricClass}>
                     Знайдено: {formatCount(
                       normalizedQuery ? filteredGroups.length : directoryItems.length,
-                      "група",
-                      "групи",
-                      "груп"
+                      "категорія",
+                      "категорії",
+                      "категорій"
                     )}
                   </span>
                   <span className={directoryMetricAccentClass}>
                     {formatCount(
                       normalizedQuery ? visibleSubgroups : directoryData.totalSubgroups,
-                      "підгрупа",
-                      "підгрупи",
-                      "підгруп"
+                      "група",
+                      "групи",
+                      "груп"
                     )}
                   </span>
                   {directoryData.hasProductCounts ? (
@@ -350,15 +343,17 @@ export default function GroupsDirectoryClient({
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
                 <DirectoryGrid
+                  page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange}
                   ariaLabel="Групи та категорії каталогу" variant="groups"
                 >
-                  {filteredGroups.map((group, index) => (
+                  {pagination.items.map((group, index) => (
                     <div key={group.slug} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                      <meta itemProp="position" content={String(index + 1)} />
+                      <meta itemProp="position" content={String(pagination.offset + index + 1)} />
                       <GroupCategoryCard group={group} prefetchOnViewport={index < 6} />
                     </div>
                   ))}
                 </DirectoryGrid>
+                <DirectoryPagination {...pagination} />
               </div>
             </>
           ) : (

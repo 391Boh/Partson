@@ -134,18 +134,44 @@ export default function DeferredSeoPhotosBackdrop() {
   );
 }
 
-/** Keep the third-party iframe close to the viewport so it does not compete
- * with catalogue modules while the visitor is still browsing earlier sections. */
+/** Prepare the map after initial resources, or well before it enters view. */
 export function DeferredStoreMap({ src, title }: { src: string; title: string }) {
-  const { ref, ready } = useDeferredNearViewport<HTMLDivElement>("300px 0px");
+  const ref = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || ready) return;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const conserveData = connection?.saveData || ["2g", "slow-2g"].includes(connection?.effectiveType ?? "");
+    // A map is content, not decoration: don't gate it on window.load or an
+    // idle slot, which slow/blocked third-party requests can postpone forever.
+    let cancelled = false;
+    const reveal = () => { if (!cancelled) setReady(true); };
+    const preparation = conserveData ? undefined : window.setTimeout(reveal, 1500);
+    const cancelPreparation = () => window.clearTimeout(preparation);
+    if (typeof IntersectionObserver === "undefined") {
+      reveal();
+      return () => { cancelled = true; cancelPreparation(); };
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      observer.disconnect();
+      cancelPreparation();
+      reveal();
+    }, { rootMargin: conserveData ? "600px 0px" : "1800px 0px" });
+    observer.observe(node);
+    return () => { cancelled = true; observer.disconnect(); cancelPreparation(); };
+  }, [ready]);
 
   return (
     <div ref={ref} className="absolute inset-0">
+      <link rel="preconnect" href="https://www.google.com" />
       {ready ? (
         <iframe
           src={src}
           title={title}
-          loading="lazy"
+          loading="eager"
           referrerPolicy="no-referrer-when-downgrade"
           className="absolute inset-0 h-full w-full border-0"
         />

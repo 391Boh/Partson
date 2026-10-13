@@ -6,11 +6,11 @@ import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContact, buildPageMetadata, pickFittingSeoDescription } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import ManufacturersDirectory from "app/manufacturers/ManufacturersDirectory";
-import { pluralizeBrandsWord, pluralizeManufacturers, pluralizeUk } from "app/lib/pluralize-uk";
+import { pluralizeBrandsWord, pluralizeUk } from "app/lib/pluralize-uk";
 
 export const revalidate = 21600;
 
@@ -29,17 +29,19 @@ const buildManufacturersPageDescription = (
     totalBrands > 0
       ? `${totalBrands.toLocaleString("uk-UA")} ${pluralizeBrandsWord(totalBrands)}`
       : "бренди та виробники автозапчастин";
-  const coverageSummary =
-    indexedBrands > 0
-      ? ` Окремими сторінками вже охоплено ${indexedBrands.toLocaleString("uk-UA")} ${pluralizeManufacturers(indexedBrands)}${
-          indexedProducts > 0
-            ? ` і щонайменше ${indexedProducts.toLocaleString("uk-UA")} ${pluralizeUk(indexedProducts, "товарну позицію", "товарні позиції", "товарних позицій")} за брендами`
-            : ""
-        }.`
-      : ".";
+  const productSummary =
+    indexedBrands > 0 && indexedProducts > 0
+      ? ` і ${indexedProducts.toLocaleString("uk-UA")}+ ${pluralizeUk(indexedProducts, "товар", "товари", "товарів")}`
+      : "";
 
+  // Richest variant first; pickFittingSeoDescription keeps the first one that
+  // fits whole instead of cutting a sentence off with "…".
   return appendSeoContact(
-    `Виробники автозапчастин PartsON: ${brandSummary} з окремими сторінками брендів, товарами, групами і підбором за виробником. Самовивіз у Львові та доставка по Україні.${coverageSummary}`
+    pickFittingSeoDescription([
+      `Виробники автозапчастин PartsON: ${brandSummary}${productSummary}. Сторінка кожного бренду — групи товарів, ціни й наявність у Львові, доставка по Україні.`,
+      `Виробники автозапчастин PartsON: ${brandSummary}${productSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
+      `Виробники автозапчастин PartsON: ${brandSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
+    ])
   );
 };
 

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Check, ImagePlus, Loader2, X } from "lucide-react";
 
+import { useProductImageUpdate } from "app/lib/product-image-updates";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { prepareProductImage, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 import {
   PRODUCT_GALLERY_SELECTION_EVENT,
@@ -30,6 +32,9 @@ export default function ProductGallery({
   // strip of only the additional ones.
   mainImageSrc?: string | null;
 }) {
+  const imageUpdate = useProductImageUpdate(code);
+  const currentMainImageSrc = imageUpdate.previewSrc || (imageUpdate.token
+    ? buildProductImagePath(code, undefined, { cacheBust: imageUpdate.token }) : mainImageSrc);
   const [images, setImages] = useState<GalleryImage[]>(() =>
     initialImages.map((url, index) => ({ id: `server-${index}`, url }))
   );
@@ -142,6 +147,10 @@ export default function ProductGallery({
   }, [code]);
 
   useEffect(() => {
+    if (imageUpdate.token) setSelectedImageUrl(null);
+  }, [imageUpdate.token]);
+
+  useEffect(() => {
     if (!selectedImageUrl) return;
     if (images.some((image) => image.url === selectedImageUrl)) return;
     selectImage(null);
@@ -205,12 +214,12 @@ export default function ProductGallery({
   return (
     <div className="relative z-20 shrink-0 border-t border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:px-4 sm:py-3">
       <p className="mb-2 text-[9px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
-        Фото · {images.length + (mainImageSrc ? 1 : 0)}
+        Фото · {images.length + (currentMainImageSrc ? 1 : 0)}
       </p>
       {/* Wraps onto as many rows as needed instead of scrolling sideways —
           every photo (main + additional) stays visible at once. */}
       <div className="flex flex-wrap gap-2">
-        {mainImageSrc ? (
+        {currentMainImageSrc ? (
           <div className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
             <button
               type="button"
@@ -224,7 +233,7 @@ export default function ProductGallery({
               }`}
             >
               <Image
-                src={mainImageSrc}
+                src={currentMainImageSrc}
                 alt={`${productName} — основне фото`}
                 fill
                 sizes="72px"

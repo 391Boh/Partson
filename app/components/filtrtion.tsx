@@ -5,7 +5,7 @@ import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import CatalogLoaderCard from 'app/components/CatalogLoaderCard';
+import FilterLoadingState from 'app/components/FilterLoadingState';
 import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
 import {
   Car,
@@ -22,11 +22,14 @@ import {
   Package,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { brands } from 'app/components/brandsData';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
+import type { ProductParamsQuery } from 'app/components/ProductParamsFilter';
+import { decodeProductParamFilters, PRODUCT_PARAMS_QUERY_KEY } from 'app/lib/product-params';
 
 type ProducerFilterBrand = {
   name: string;
@@ -87,18 +90,24 @@ interface CategoryProps {
   resetViewSignal?: number;
 }
 
-// Same image-cycling loader card the catalog grid itself uses on first load
-// (Data.tsx via CatalogLoaderCard) — was a bare, unlabeled spinner here, so
-// the filter's own "still loading" moment looked like a different, less-
-// finished product than the grid it filters. One spinner design for the
-// whole filter, not several competing ones.
+// One loading design for every filter tab (FilterLoadingState): a labelled
+// spinner over placeholders shaped like the tab's cards, without a card of
+// its own nested inside the filter panel.
 const Auto = dynamic<AutoProps>(() => import('app/components/AutoFilterCompact'), {
   ssr: false,
-  loading: () => <CatalogLoaderCard label="Завантаження підбору за авто" />,
+  loading: () => <FilterLoadingState label="Завантажуємо підбір за авто" />,
 });
 const Category = dynamic<CategoryProps>(() => import('app/components/katkomp'), {
   ssr: false,
-  loading: () => <CatalogLoaderCard label="Завантаження категорій" />,
+  loading: () => <FilterLoadingState label="Завантажуємо категорії" />,
+});
+const ProductParamsFilter = dynamic<{
+  query: ProductParamsQuery;
+  value: string;
+  onChange: (encoded: string) => void;
+}>(() => import('app/components/ProductParamsFilter'), {
+  ssr: false,
+  loading: () => <FilterLoadingState label="Завантажуємо параметри" variant="chips" />,
 });
 
 const stripParentheticalMeta = (value: string) => {
@@ -168,7 +177,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     }
     router.replace(nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname);
   }, [pathname, promoOnlyParam, router, searchParamsKey]);
-  const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price'>('auto');
+  const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price' | 'params'>('auto');
   const formatPriceInput = (value: number | null | undefined) =>
     typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
   const parsePriceInput = (value: string) => {
@@ -260,6 +269,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [collapsed, setCollapsed] = useState(true);
+  const ignoreScrollCloseUntilRef = useRef(0);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const handleHeaderToggle = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
@@ -339,7 +349,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   }, [activeComponent, producerParam, initialProducerBrands]);
 
   useEffect(() => {
-    if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer') {
+    if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer' || tabParam === 'params') {
       setActiveComponent(tabParam);
       setCollapsed(false);
     }
@@ -391,6 +401,27 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
   const isPriceTabActive = activeComponent === 'price';
+  const isParamsTabActive = activeComponent === 'params';
+  // "Параметри" (?params=) — parameters parsed from the selected category's
+  // 1C descriptions. Only meaningful once a category is chosen.
+  const paramsParam = (currentSearchParams.get(PRODUCT_PARAMS_QUERY_KEY) || '').trim();
+  const activeParamCount = useMemo(() => decodeProductParamFilters(paramsParam).length, [paramsParam]);
+  const isParamsSelected = activeParamCount > 0;
+  const productParamsQuery = useMemo<ProductParamsQuery>(
+    () => ({
+      group: (groupParam || '').trim(),
+      subcategory: (subcategoryParam || '').trim(),
+      producer: producerParam,
+      selectedCars,
+      selectedCategories,
+      searchQuery,
+      searchFilter,
+      expandHierarchy: currentSearchParams.get('scope') === 'hierarchy',
+    }),
+    // currentSearchParams is covered by searchParamsKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groupParam, subcategoryParam, producerParam, selectedCars, selectedCategories, searchQuery, searchFilter, searchParamsKey]
+  );
   // Previously only reflected sort order — turning on "Акційні товари" (or,
   // pre-existing, "З ціною"/"В наявності"/a price range) left the outer
   // "Ціна" summary chip looking completely idle despite a real filter from
@@ -424,6 +455,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
+    isParamsSelected ||
     promoOnlyParam ||
     pricedOnly ||
     localPriceFrom != null ||
@@ -528,7 +560,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     // One scroll event is enough. Keeping the listener mounted only while the
     // panel is open avoids frame-by-frame work and makes both scroll directions
     // close it immediately, including short trackpad gestures near page top.
-    const handleScroll = () => setCollapsed(true);
+    const handleScroll = () => {
+      // The catalog jumps to the top on every URL change; that jump must not
+      // close a panel this component just opened on purpose (see below).
+      if (Date.now() < ignoreScrollCloseUntilRef.current) return;
+      setCollapsed(true);
+    };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -601,6 +638,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('carSearch');
     nextParams.delete('reset');
     nextParams.delete('promo');
+    nextParams.delete(PRODUCT_PARAMS_QUERY_KEY);
     const nextQuery = nextParams.toString();
     if (nextQuery !== searchParamsKey) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -652,6 +690,57 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setCollapsed(false);
   }, [collapsed, isProducerTabActive]);
 
+  const handleOpenParamsTab = useCallback(() => {
+    if (isParamsTabActive && !collapsed) {
+      setCollapsed(true);
+      return;
+    }
+    setActiveComponent('params');
+    setCollapsed(false);
+  }, [collapsed, isParamsTabActive]);
+
+  const handleParamsChange = useCallback(
+    (encoded: string) => {
+      const nextParams = new URLSearchParams(searchParamsKey);
+      if (encoded) nextParams.set(PRODUCT_PARAMS_QUERY_KEY, encoded);
+      else nextParams.delete(PRODUCT_PARAMS_QUERY_KEY);
+      nextParams.set('tab', 'params');
+      nextParams.delete('reset');
+      const nextQuery = nextParams.toString();
+      if (nextQuery !== searchParamsKey) {
+        ignoreScrollCloseUntilRef.current = Date.now() + 800;
+        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+      }
+    },
+    [pathname, router, searchParamsKey]
+  );
+
+  // Parameter ids belong to one category ("Ширина" of pads ≠ of wipers), so
+  // a category change drops the old selection instead of filtering the new
+  // category by values it may not even have.
+  const paramsCategoryKey = `${groupParam || ''}|${subcategoryParam || ''}|${selectedCategories.join(',')}`;
+  const lastParamsCategoryKeyRef = useRef(paramsCategoryKey);
+  useEffect(() => {
+    if (lastParamsCategoryKeyRef.current === paramsCategoryKey) return;
+    lastParamsCategoryKeyRef.current = paramsCategoryKey;
+    // A final group picked in the category tab (katkomp adds tab=params):
+    // go straight to its parameters — position, sizes, type.
+    if (subcategoryParam && tabParam === 'params') {
+      ignoreScrollCloseUntilRef.current = Date.now() + 800;
+      setActiveComponent('params');
+      setCollapsed(false);
+    }
+    if (!paramsParam) return;
+    const nextParams = new URLSearchParams(searchParamsKey);
+    nextParams.delete(PRODUCT_PARAMS_QUERY_KEY);
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [paramsCategoryKey, paramsParam, pathname, router, searchParamsKey, subcategoryParam, tabParam]);
+
+  useEffect(() => {
+    if (activeComponent === 'params' && !hasCategorySelection) setActiveComponent('category');
+  }, [activeComponent, hasCategorySelection]);
+
   const handleOpenAutoTab = useCallback(() => {
     if (isAutoTabActive && !collapsed) {
       setCollapsed(true);
@@ -691,6 +780,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     `${filterChipBase} border border-sky-400/90 bg-white text-sky-700 shadow-[0_0_0_3px_rgba(14,165,233,0.12),0_8px_18px_rgba(14,165,233,0.10)] hover:border-sky-500 hover:bg-sky-50/60`;
   const filterChipEmeraldOutline =
     `${filterChipBase} border border-emerald-400/90 bg-white text-emerald-700 shadow-[0_0_0_3px_rgba(16,185,129,0.12),0_8px_18px_rgba(16,185,129,0.10)] hover:border-emerald-500 hover:bg-emerald-50/60`;
+  const filterChipAmber =
+    `${filterChipBase} border border-amber-300/90 bg-[linear-gradient(135deg,#fffbeb,#fde68a)] text-amber-900 shadow-[0_10px_22px_rgba(217,119,6,0.16)] ring-1 ring-amber-100/90 backdrop-blur-md hover:border-amber-400 hover:shadow-[0_12px_26px_rgba(217,119,6,0.2)]`;
+  const filterChipAmberOutline =
+    `${filterChipBase} border border-amber-400/90 bg-white text-amber-800 shadow-[0_0_0_3px_rgba(245,158,11,0.14),0_8px_18px_rgba(217,119,6,0.10)] hover:border-amber-500 hover:bg-amber-50/60`;
   const filterChipPurpleOutline =
     `${filterChipBase} border border-violet-400/90 bg-white text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.12),0_8px_18px_rgba(139,92,246,0.10)] hover:border-violet-500 hover:bg-violet-50/60`;
 
@@ -698,6 +791,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isCategoryTabOpen = isCategoryTabActive && !collapsed;
   const isProducerTabOpen = isProducerTabActive && !collapsed;
   const isPriceTabOpen = isPriceTabActive && !collapsed;
+  const isParamsTabOpen = isParamsTabActive && !collapsed;
+  const paramsButtonClass = isParamsSelected
+    ? filterChipAmber
+    : isParamsTabOpen
+      ? filterChipAmberOutline
+      : filterChipIdle;
 
   const autoButtonClass = isAutoSelected
     ? filterChipBlue
@@ -896,6 +995,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </HorizontalDirectoryRail>
             </div>
           </div>
+        );
+      case 'params':
+        return (
+          <ProductParamsFilter
+            query={productParamsQuery}
+            value={paramsParam}
+            onChange={handleParamsChange}
+          />
         );
       case 'price':
         return (
@@ -1189,6 +1296,25 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 </span>
               )}
             </button>
+            {hasCategorySelection && (
+              <button
+                type="button"
+                onClick={handleOpenParamsTab}
+                className={paramsButtonClass}
+                aria-label="Відкрити вкладку параметрів товару"
+                aria-pressed={isParamsSelected}
+                title="Параметри: позиція, розміри, тип"
+              >
+                <SlidersHorizontal size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
+                <span className="filter-tab-label sm:hidden">Параметри</span>
+                <span className="hidden sm:inline">Параметри</span>
+                {activeParamCount > 0 && (
+                  <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-amber-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-amber-800 sm:ring-0">
+                    {activeParamCount}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleOpenProducerTab}

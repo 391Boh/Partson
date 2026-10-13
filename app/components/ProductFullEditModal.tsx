@@ -10,8 +10,7 @@ import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { QuantityStepper } from "app/components/QuantityStepper";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
-import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
-import { buildProductImageBatchKey } from "app/lib/product-image-path";
+import { notifyProductImageUpdated } from "app/lib/product-image-updates";
 import { prepareProductImage } from "app/lib/product-image-upload-client";
 import ProductImageUploadFields from "app/components/ProductImageUploadFields";
 
@@ -40,15 +39,6 @@ interface Props extends ProductFullEditTarget {
 type SuggestType = "category" | "group" | "subGroup";
 
 const numToStr = (v: number | null) => (v != null && Number.isFinite(v) ? String(v) : "");
-
-const writeProductImageBustToken = (code: string, article?: string) => {
-  if (typeof window === "undefined") return;
-  const key = buildProductImageBatchKey(code, article);
-  if (!key) return;
-  try {
-    window.localStorage.setItem(`partson:product-image-bust:${key}`, String(Date.now()));
-  } catch {}
-};
 
 // Mirrors ProductCreateModal.tsx's form fields/layout (name, article+producer,
 // category→group→subGroup hierarchy with cascading suggestions, price/cost,
@@ -267,9 +257,7 @@ export default function ProductFullEditModal({
       setImagePreview(null);
       setImageUploadName("");
       setImageUploadSize(0);
-      clearProductImageSuccess(code, articleVal || undefined);
-      clearProductImageMissing(code, articleVal || undefined);
-      writeProductImageBustToken(code, articleVal || undefined);
+      notifyProductImageUpdated(code, initialArticle || undefined, imagePreview);
       invalidateCatalogClientCache({ code });
       // Keep unsaved form fields when a photo finishes uploading.
     } catch { setImageError("Помилка мережі"); } finally { imageUploadLock.current = false; setImageUploading(false); }

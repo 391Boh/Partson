@@ -11,7 +11,8 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { ShoppingBag, X } from "lucide-react";
+import { Check, ShoppingBag, X } from "lucide-react";
+import { pluralizePositions } from "app/lib/pluralize-uk";
 
 import CustomerDetails from "./CustomerDetails";
 import DeliveryMethod from "./DeliveryMethod";
@@ -510,7 +511,16 @@ const Zamovl: React.FC<ZamovlProps> = ({
             </span>
             <h3 className="soft-panel-title">Оформлення замовлення</h3>
             <p className="soft-panel-subtitle">
-              Дані покупця, доставка, оплата та підтвердження в кілька кроків.
+              {currentStep === 3 ? (
+                "Замовлення прийнято — деталі нижче."
+              ) : (
+                <>
+                  {cartItems.length} {pluralizePositions(cartItems.length)} · до оплати{" "}
+                  <strong className="cw-subtitle-amount">
+                    {new Intl.NumberFormat("uk-UA").format(payableAmount)} грн
+                  </strong>
+                </>
+              )}
             </p>
           </div>
           <button
@@ -521,30 +531,23 @@ const Zamovl: React.FC<ZamovlProps> = ({
             <X size={18} />
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-4 gap-1.5">
-        {steps.map((step, index) => {
-          const isActive = currentStep === index;
-          const isDone = currentStep > index;
-
-          return (
-            <div
-              key={step}
-              className={`relative rounded-[14px] px-1.5 py-2 text-center text-xs font-semibold transition sm:rounded-[16px] sm:px-2.5 ${
-                isActive
-                  ? "soft-segment soft-segment--active"
-                  : isDone
-                  ? "soft-surface-card border-emerald-200/70 bg-gradient-to-b from-emerald-50 to-emerald-100/40 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
-                  : "soft-segment opacity-70"
-              }`}
-            >
-              <span className="block text-[9px] font-bold uppercase tracking-[0.12em] opacity-60">
-                {isDone ? "✓" : index + 1}
-              </span>
-              <span className="mt-0.5 block text-[11px] font-bold sm:text-xs">{step}</span>
-            </div>
-          );
-        })}
-        </div>
+        <ol className="cw-stepper" aria-label="Кроки оформлення">
+          {steps.map((step, index) => {
+            const state = currentStep === index ? "active" : currentStep > index ? "done" : "todo";
+            return (
+              <li
+                key={step}
+                className={`cw-step cw-step--${state}`}
+                aria-current={state === "active" ? "step" : undefined}
+              >
+                <span className="cw-step-dot" aria-hidden="true">
+                  {state === "done" ? <Check size={14} strokeWidth={3} /> : index + 1}
+                </span>
+                <span className="cw-step-label">{step}</span>
+              </li>
+            );
+          })}
+        </ol>
 
         <div className="app-panel-scroll mt-3 min-h-0 flex-1 overflow-y-auto sm:pr-1">
           {renderStep()}

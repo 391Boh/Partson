@@ -1,3 +1,5 @@
+import CatalogSectionNav from "app/components/CatalogSectionNav";
+import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -29,17 +31,22 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
 import {
-  pluralizeCategories,
   pluralizeManufacturers,
   pluralizeProducts,
-  pluralizeSubgroups,
   pluralizeUk,
 } from "app/lib/pluralize-uk";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { getGroupSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
+import {
+  appendSeoContactLast,
+  buildAdaptiveSeoTitle,
+  buildFirstFittingSeoTitle,
+  buildPageMetadata,
+  lowerFirstSeoWord,
+  pickFittingSeoDescription,
+} from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -179,23 +186,59 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 const buildGroupTitle = (label: string) =>
   buildAdaptiveSeoTitle(buildVisibleProductName(label), " — каталог запчастин");
 
+// The <title> targets the commercial query ("амортизація купити", "… ціна",
+// "… львів"); the on-page H1 keeps the calmer buildGroupTitle wording.
+const buildGroupSeoTitle = (label: string) =>
+  buildFirstFittingSeoTitle(buildVisibleProductName(label), [
+    " — купити запчастини, ціни у Львові",
+    " — купити запчастини, ціни",
+    " — запчастини, ціни",
+    " — каталог запчастин",
+  ]);
+
+const SEO_DESCRIPTION_TAILS = [
+  ". Ціни, наявність у Львові, підбір за артикулом і VIN, доставка по Україні.",
+  ". Ціни, наявність у Львові, підбір за VIN, доставка по Україні.",
+  ". Ціни й наявність у Львові, доставка по Україні.",
+  ". Ціни й наявність у Львові.",
+] as const;
+
+type GroupDescriptionSubgroup = { label: string; productCount: number };
+
+// Names the biggest subgroups so the snippet carries the part names people
+// actually search for ("амортизатор підвіски", "опора амортизатора") instead
+// of only the umbrella category.
 const buildGroupDescription = (
   label: string,
   productCount: number,
-  subgroupsCount: number
+  subgroups: GroupDescriptionSubgroup[]
 ) => {
   const visibleLabel = buildVisibleProductName(label);
   const productLabel =
     productCount > 0
-      ? `${productCount.toLocaleString("uk-UA")} ${pluralizeUk(productCount, "товарну позицію", "товарні позиції", "товарних позицій")}`
-      : "товари групи";
-  const subgroupLabel =
-    subgroupsCount > 0
-      ? ` і ${subgroupsCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupsCount)} каталогу`
-      : "";
+      ? `${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}`
+      : "актуальні товари";
+  const rankedSubgroups = subgroups
+    .filter((subgroup) => subgroup.productCount > 0)
+    .sort((a, b) => b.productCount - a.productCount)
+    .map((subgroup) => lowerFirstSeoWord(buildVisibleProductName(subgroup.label)));
+  const buildSubgroupClause = (namedCount: number) => {
+    const named = rankedSubgroups.slice(0, namedCount);
+    if (!named.length) return "";
+    const restCount = rankedSubgroups.length - named.length;
+    return ` — ${named.join(", ")}${restCount > 0 ? ` та ще ${restCount.toLocaleString("uk-UA")} ${pluralizeUk(restCount, "група", "групи", "груп")}` : ""}`;
+  };
 
+  // Richest first: up to three named subgroups with the full service tail,
+  // then fewer names / shorter tails until the snippet fits uncut.
   return appendSeoContactLast(
-    `${visibleLabel} у PartsON: ${productLabel}${subgroupLabel}. Каталог із цінами, наявністю, підбором за назвою, артикулом і VIN.`
+    pickFittingSeoDescription(
+      [3, 2, 1, 0].flatMap((namedCount) =>
+        SEO_DESCRIPTION_TAILS.map(
+          (tail) => `${visibleLabel} у PartsON: ${productLabel}${buildSubgroupClause(namedCount)}${tail}`
+        )
+      )
+    )
   );
 };
 
@@ -208,7 +251,7 @@ const buildGroupHeroDescription = (
   const visibleLabel = buildVisibleProductName(label);
 
   if (hasSubgroups) {
-    return `Оберіть потрібний тип деталі у розділі «${visibleLabel}». Далі можна переглянути товари, порівняти виробників, ціну та наявність.`;
+    return `Оберіть групу запчастин у категорії «${visibleLabel}». Далі можна переглянути товари, порівняти виробників, ціну та наявність.`;
   }
 
   if (productCount > 0) {
@@ -229,26 +272,6 @@ const buildGroupHeroDetails = (
   }
 
   return `Перегляньте ${visibleLabel.toLocaleLowerCase("uk-UA")} у каталозі, порівняйте ціни та виробників. Звірте артикул і характеристики перед замовленням.`;
-};
-
-const buildSubgroupLead = (options: {
-  groupLabel: string;
-  subgroupLabel: string;
-  productCount: number;
-  childCount: number;
-}) => {
-  const visibleSubgroupLabel = buildVisibleProductName(options.subgroupLabel);
-  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
-  const productCountLabel =
-    options.productCount > 0
-      ? `${options.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(options.productCount)}`
-      : "актуальні позиції каталогу";
-
-  if (options.childCount > 0) {
-    return `Підгрупа ${visibleSubgroupLabel} у групі ${visibleGroupLabel} об'єднує ${productCountLabel} і ${options.childCount.toLocaleString("uk-UA")} ${pluralizeUk(options.childCount, "кінцеву категорію", "кінцеві категорії", "кінцевих категорій")} для точнішого підбору автозапчастин.`;
-  }
-
-  return `Розділ ${visibleSubgroupLabel} веде прямо до каталогу товарів групи ${visibleGroupLabel} і допомагає швидко знайти потрібні автозапчастини за назвою, артикулом або брендом.`;
 };
 
 const buildGroupPagePath = (slug: string) => `/groups/${encodeURIComponent(slug)}`;
@@ -324,12 +347,12 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
   const description = buildGroupDescription(
     group.label,
     group.productCount,
-    group.subgroupsCount
+    group.subgroups
   );
   const canonicalPath = buildGroupPagePath(group.slug);
 
   return buildPageMetadata({
-    title: buildGroupTitle(group.label),
+    title: buildGroupSeoTitle(group.label),
     description,
     canonicalPath,
     keywords: [
@@ -389,7 +412,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const description = buildGroupDescription(
     group.label,
     group.productCount,
-    group.subgroupsCount
+    group.subgroups
   );
   const pageTitle = buildGroupTitle(group.label);
   const pageDescription = buildGroupHeroDescription(
@@ -399,7 +422,6 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     hasSubgroups
   );
   const pageDetails = buildGroupHeroDetails(group.label, hasSubgroups);
-  const pageBadge = hasSubgroups ? "Група каталогу" : "Окрема група";
   const seoCopy = getGroupSeoCopy(group.label, group.productCount);
 
   const jsonLd = {
@@ -472,9 +494,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   };
 
   return (
-    <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
+    <main className="catalog-directory-page directory-detail-page directory-detail-shell py-5 sm:py-7">
       <div key={group.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
         <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <DirectoryHeroBackdrop tone="groups" />
+          <CatalogSectionNav current="groups" />
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
@@ -486,7 +510,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true">/</span>
-                  <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+                  <Link href="/groups" className="transition hover:text-slate-800">Категорії</Link>
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true">/</span>
@@ -548,11 +572,11 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
             <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-teal-100/70 sm:grid-cols-2 xl:grid-cols-1">
               {[
                 { label: "товарів у групі", value: formatCount(group.productCount), from: "from-teal-500", to: "to-cyan-500" },
-                { label: "підгруп", value: formatCount(group.subgroupsCount), from: "from-cyan-500", to: "to-sky-500" },
+                { label: "груп", value: formatCount(group.subgroupsCount), from: "from-cyan-500", to: "to-sky-500" },
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
+                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
                 >
                   <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
                   <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
@@ -571,42 +595,33 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       {group.subgroups.length > 0 && (
         <section className="mt-6 space-y-3" aria-labelledby="group-sections-title">
           <header className="pb-2">
-            <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Оберіть тип деталі</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Підгрупи допоможуть перейти від системи автомобіля до потрібної запчастини.</p>
+            <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Групи запчастин</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Оберіть групу, а за потреби уточніть підгрупу.</p>
           </header>
+          <div className="category-card-grid">
           {group.subgroups.map((subgroup) =>
             subgroup.children.length > 0 ? (
-              <div key={subgroup.slug} className={directoryPanelClass}>
+              <div key={subgroup.slug} className={`${directoryPanelClass} category-group-card`}>
                 <div className={`${directoryHeaderClass} flex items-center justify-between gap-3`}>
                   <div className="min-w-0">
                     <p className="directory-kicker text-[10px] uppercase text-teal-800">
-                      Підгрупа
+                      Група
                     </p>
                     <h3 className="mt-1 text-base font-semibold leading-snug tracking-[-0.01em] text-slate-900">
                       {buildVisibleProductName(subgroup.label)}
                     </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                      {buildSubgroupLead({
-                        groupLabel: group.label,
-                        subgroupLabel: subgroup.label,
-                        productCount: subgroup.productCount,
-                        childCount: subgroup.children.length,
-                      })}
-                    </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                    {subgroup.productCount > 0 ? (
-                      <span className={directoryCompactMetricClass}>
+                    <span className={directoryCompactMetricClass}>
                         <span>{formatCount(subgroup.productCount)}</span>
                         <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
                       </span>
-                    ) : null}
-                    <span className={directoryCompactMetricAccentClass}>
-                      {formatCount(subgroup.children.length)} {pluralizeCategories(subgroup.children.length)}
-                    </span>
+
                   </div>
                 </div>
-                <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
+                <details className="category-card-details">
+                  <summary>Підгрупи</summary>
+                  <ul className="category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
                   {subgroup.children.map((child) => {
                     const childPreview = getGroupProductPreview({
                       categoryLabel: group.label,
@@ -618,7 +633,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                       <li key={child.slug}>
                         <CatalogPrefetchLink
                           href={buildGroupItemPath(group.slug, child.slug)}
-                          className={`${directoryListCardClass} group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                          className={`${directoryListCardClass} category-tile group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
                         >
                           <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
                             {childPreview ? (
@@ -629,7 +644,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                                 width={44}
                                 height={44}
                                 sizes="44px"
-                                className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                                className="h-full w-full object-cover transition duration-300"
                               />
                             ) : (
                               <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
@@ -644,25 +659,24 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                             {buildVisibleProductName(child.label)}
                           </span>
                           <span className="flex shrink-0 items-center gap-1.5">
-                            {child.productCount > 0 ? (
-                              <span className={directoryCompactMetricClass}>
+                            <span className={directoryCompactMetricClass}>
                                 <span>{formatCount(child.productCount)}</span>
                                 <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
                               </span>
-                            ) : null}
-                            <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
+                            <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
                           </span>
                         </CatalogPrefetchLink>
                       </li>
                     );
                   })}
                 </ul>
+                </details>
               </div>
             ) : (
-              <div key={subgroup.slug} className={`${directoryListCardClass} group/row`}>
+              <div key={subgroup.slug} className={`${directoryListCardClass} category-tile group/row`}>
                 <CatalogPrefetchLink
                   href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
+                  className="category-tile-link flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
                     {(() => {
@@ -678,7 +692,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                           width={44}
                           height={44}
                           sizes="44px"
-                          className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                          className="h-full w-full object-cover transition duration-300"
                         />
                       ) : (
                         <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
@@ -689,28 +703,19 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     <span className="block font-semibold leading-snug">
                       {buildVisibleProductName(subgroup.label)}
                     </span>
-                    <span className="mt-1 block text-[13px] leading-5 text-slate-500">
-                      {buildSubgroupLead({
-                        groupLabel: group.label,
-                        subgroupLabel: subgroup.label,
-                        productCount: subgroup.productCount,
-                        childCount: subgroup.children.length,
-                      })}
-                    </span>
                   </div>
                   <span className="flex shrink-0 items-center gap-1.5 self-start">
-                    {subgroup.productCount > 0 ? (
-                      <span className={directoryCompactMetricClass}>
+                    <span className={directoryCompactMetricClass}>
                         <span>{formatCount(subgroup.productCount)}</span>
                         <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
                       </span>
-                    ) : null}
-                    <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
+                    <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
                   </span>
                 </CatalogPrefetchLink>
               </div>
             )
           )}
+          </div>
         </section>
       )}
 

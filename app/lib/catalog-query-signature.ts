@@ -8,6 +8,7 @@ export type CatalogQuerySignatureInput = {
   producer: string | null;
   expandHierarchy?: boolean;
   promoOnly?: boolean;
+  paramFilters?: string;
   sortOrder: "none" | "asc" | "desc";
   pricedOnly?: boolean;
   priceFrom?: number | null;
@@ -26,6 +27,7 @@ export const buildCatalogQuerySignature = ({
   producer,
   expandHierarchy = false,
   promoOnly = false,
+  paramFilters = "",
   sortOrder,
   pricedOnly = false,
   priceFrom = null,
@@ -49,4 +51,7 @@ export const buildCatalogQuerySignature = ({
     priceTo,
     priceRate,
     inStock,
+    // Only present when set, so signatures without the "Параметри" filter
+    // stay byte-identical to the server-rendered initial payload's.
+    ...(paramFilters ? { params: paramFilters } : {}),
   });

@@ -1,3 +1,5 @@
+import CatalogSectionNav from "app/components/CatalogSectionNav";
+import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,6 +38,7 @@ import {
   buildAutoModelPath,
   buildCatalogCarSearchPath,
 } from "app/lib/catalog-links";
+import { formatCarBrandWithCyrillic } from "app/lib/car-brand-cyrillic";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -113,12 +116,12 @@ const formatCount = (value: number) => value.toLocaleString("uk-UA");
 // promise.
 const buildModelGroupsDescription = (brand: string, model: string, groupsCount: number) =>
   groupsCount > 0
-    ? `Оригінали та аналоги для ${brand} ${model} у наявності: фото, ціни, підбір за моделлю в каталозі PartsON. Доставка по Україні.`
-    : `Оригінали та аналоги для ${brand} ${model} у каталозі PartsON — підбір деталей за моделлю. Доставка по Україні.`;
+    ? `Оригінали та аналоги для ${formatCarBrandWithCyrillic(brand)} ${model} у наявності: фото, ціни, підбір за моделлю в каталозі PartsON. Доставка по Україні.`
+    : `Оригінали та аналоги для ${formatCarBrandWithCyrillic(brand)} ${model} у каталозі PartsON — підбір деталей за моделлю. Доставка по Україні.`;
 
 const buildModelTitle = (brand: string, model: string, groupsCount: number) =>
   groupsCount > 0
-    ? `${brand} ${model} — ${groupsCount.toLocaleString("uk-UA")} груп запчастин, ціна і підбір`
+    ? `${brand} ${model} — ${groupsCount.toLocaleString("uk-UA")} ${pluralize(groupsCount, "група", "групи", "груп")} запчастин, ціна і підбір`
     : `${brand} ${model} — запчастини, ціна і підбір`;
 
 async function resolveBrandAndModel(params: Promise<AutoModelPageParams>) {
@@ -290,17 +293,12 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               {formatCount(group.productCount)}{" "}
               {pluralize(group.productCount, "товар", "товари", "товарів")}
             </span>
-            {hasSubgroups ? (
-              <span className="whitespace-nowrap rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-bold text-sky-700">
-                {formatCount(group.subgroups.length)}{" "}
-                {pluralize(group.subgroups.length, "підгрупа", "підгрупи", "підгруп")}
-              </span>
-            ) : null}
           </div>
         </div>
 
         {hasSubgroups ? (
           <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+            <span className="category-level-caption">Підгрупи</span>
             {group.subgroups.map((subgroup) => (
               <SmartLink
                 key={subgroup.slug}
@@ -329,7 +327,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   const brandPath = buildAutoBrandPath(brand);
   const modelPath = buildAutoModelPath(brand, model);
   const allProductsPath = buildCatalogCarSearchPath(searchTerm);
-  const title = `${brand} ${model}`;
+  // Matches the query shape ("запчастини audi a4"), same as the empty-state heading.
+  const title = `Запчастини ${brand} ${model}`;
   const pageDescription = buildModelGroupsDescription(brand, model, groups.length);
 
   const breadcrumbJsonLd = {
@@ -350,16 +349,18 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   // items isn't useful structured data.
   if (groups.length === 0) {
     return (
-      <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
+      <main className={`${catalogPageBackgroundClass} directory-detail-page min-h-screen py-5 sm:py-7`}>
         <script
           id="auto-model-page-breadcrumb-jsonld"
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
         />
 
-        <div className="page-shell-inline">
+        <div className="directory-detail-shell">
           <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
             <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
+          <DirectoryHeroBackdrop tone="auto" />
+          <CatalogSectionNav current="auto" />
               <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
               <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
@@ -487,7 +488,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   };
 
   return (
-    <main className={`${catalogPageBackgroundClass} min-h-screen py-5 sm:py-7`}>
+    <main className={`${catalogPageBackgroundClass} directory-detail-page min-h-screen py-5 sm:py-7`}>
       <script
         id="auto-model-page-breadcrumb-jsonld"
         type="application/ld+json"
@@ -499,9 +500,11 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
         dangerouslySetInnerHTML={{ __html: safeJsonLd(collectionJsonLd) }}
       />
 
-      <div className="page-shell-inline">
+      <div className="directory-detail-shell">
         <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
           <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <DirectoryHeroBackdrop tone="auto" />
+          <CatalogSectionNav current="auto" />
             <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
             <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
@@ -594,7 +597,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 ].map((metric) => (
                   <div
                     key={metric.label}
-                    className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
+                    className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
                   >
                     <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
                     <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
@@ -623,7 +626,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </div>
 
             {categories.length > 0 ? (
-              <div className="space-y-5 px-4 py-4 sm:px-5 sm:py-5">
+              <div className="category-card-grid category-hierarchy-grid px-4 py-4 sm:px-5 sm:py-5">
                 {categories.map((category, categoryIndex) => (
                   <article
                     key={`${category.slug}:${categoryIndex}`}
@@ -650,15 +653,9 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                             <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
                               {category.label}
                             </h3>
-                            <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                              Запчастини для {model} у категорії «{category.label}»: оберіть групу нижче.
-                            </p>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <span className={directoryCompactMetricClass}>
-                            {pluralize(category.groups.length, "група", "групи", "груп")}
-                          </span>
                           <span className={directoryCompactMetricAccentClass}>
                             {formatCount(category.productCount)}{" "}
                             {pluralize(category.productCount, "товар", "товари", "товарів")}
@@ -668,6 +665,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 p-2.5 sm:grid-cols-2 sm:p-3 xl:grid-cols-3">
+                      <h4 className="category-level-heading">Групи</h4>
                       {category.groups.map((group) => renderModelGroupCard(group, category.label))}
                     </div>
                   </article>
@@ -696,9 +694,6 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                             <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
                               Інше
                             </h3>
-                            <p className="mt-1 text-[13px] leading-5 text-slate-500">
-                              Запчастини для {model} без окремої категорії: оберіть групу нижче.
-                            </p>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -723,7 +718,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               // categories.length === 0 here always implies groups.length > 0
               // — the groups.length === 0 case returns early above, before
               // this JSX is ever built.
-              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+              <div className="category-card-grid grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
                 {groups.map((group) =>
                   renderModelGroupCard(
                     group,

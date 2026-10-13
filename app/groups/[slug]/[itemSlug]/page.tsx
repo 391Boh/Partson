@@ -1,3 +1,5 @@
+import CatalogSectionNav from "app/components/CatalogSectionNav";
+import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -44,7 +46,7 @@ import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallb
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { getCategoryIconPath } from "app/lib/category-icons";
-import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts } from "app/lib/pluralize-uk";
+import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
@@ -52,7 +54,14 @@ import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
-import { appendSeoContactLast, buildAdaptiveSeoTitle, buildPageMetadata } from "app/lib/seo-metadata";
+import {
+  appendSeoContactLast,
+  buildFirstFittingSeoTitle,
+  buildPageMetadata,
+  lowerFirstSeoWord,
+  pickFittingSeoDescription,
+  SEO_TITLE_MAX_LENGTH,
+} from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -620,27 +629,49 @@ const getGroupItemBySlugs = cache(
   }
 );
 
+const SEO_DESCRIPTION_TAILS = [
+  ". Ціни, наявність у Львові, підбір за артикулом і VIN, доставка по Україні.",
+  ". Ціни, наявність у Львові, підбір за VIN, доставка по Україні.",
+  ". Ціни й наявність у Львові, доставка по Україні.",
+  ". Ціни й наявність у Львові.",
+] as const;
+
+// Names the leading brands so the snippet answers "which makers?" and
+// matches brand-qualified queries ("масляний фільтр bosch").
 const buildGroupItemDescription = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
-  const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
-  const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
+  // buildVisibleProductName("") returns the generic "Товар" placeholder.
+  const visibleParentLabel = item.parentSubgroupLabel
+    ? buildVisibleProductName(item.parentSubgroupLabel)
+    : "";
+  const subject =
+    visibleParentLabel &&
+    visibleParentLabel.toLocaleLowerCase("uk-UA") !== visibleLabel.toLocaleLowerCase("uk-UA")
+      ? `${visibleLabel} (${lowerFirstSeoWord(visibleParentLabel)})`
+      : visibleLabel;
   const productCountLabel =
     item.productCount > 0
       ? `${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)}`
       : "актуальні товари";
   const producersLabel =
-    item.producersCount > 0
-      ? `${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)}`
-      : "бренди й аналоги";
-
-  if (item.parentSubgroupLabel) {
-    return appendSeoContactLast(
-      `${visibleLabel} у PartsON: ${productCountLabel}, ${producersLabel}, група ${visibleGroupLabel}${visibleParentLabel ? `, підгрупа ${visibleParentLabel}` : ""}. Підбір за артикулом, VIN і доставка по Україні.`
-    );
-  }
+    item.producersCount > 1
+      ? ` від ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeUk(item.producersCount, "виробника", "виробників", "виробників")}`
+      : "";
+  const leadingBrands = [...item.producerSplit]
+    .filter((producer) => producer.productCount > 0 && producer.label.trim())
+    .sort((a, b) => b.productCount - a.productCount)
+    .map((producer) => producer.label.trim());
+  const buildBrandsClause = (count: number) =>
+    count > 0 && leadingBrands.length ? ` — ${leadingBrands.slice(0, count).join(", ")}` : "";
 
   return appendSeoContactLast(
-    `Автозапчастини ${visibleLabel} у групі ${visibleGroupLabel}: ${productCountLabel}, ${producersLabel}, підбір за назвою, кодом і VIN, самовивіз у Львові та доставка по Україні.`
+    pickFittingSeoDescription(
+      [3, 2, 1, 0].flatMap((brandCount) =>
+        SEO_DESCRIPTION_TAILS.map(
+          (tail) => `${subject} у PartsON: ${productCountLabel}${producersLabel}${buildBrandsClause(brandCount)}${tail}`
+        )
+      )
+    )
   );
 };
 
@@ -665,45 +696,29 @@ const buildStaticSlugCandidates = (
     new Set(values.map((value) => normalizeValue(value)).filter(Boolean))
   );
 
-// Some category labels run long even after buildVisibleProductName strips
-// the parenthetical alt-name — buildAdaptiveSeoTitle drops the decorative
-// suffix rather than risk a Google-truncated title once the layout's
-// " | PartsON" template is added.
+// The <title> targets the commercial query ("масляний фільтр купити",
+// "… ціна", "… львів"). Third-level items keep their parent as context —
+// "Ремонтні комплекти" alone is ambiguous, "— Гальмівний супорт" is not.
+// buildFirstFittingSeoTitle drops tail words before Google would truncate.
+const GROUP_ITEM_TITLE_TAILS = [" — купити, ціни у Львові", " — купити, ціни", " — ціни"] as const;
+
 const buildGroupItemTitle = (item: GroupItemPageData) => {
   const visibleLabel = buildVisibleProductName(item.label);
-  const visibleContext = buildVisibleProductName(
-    item.parentSubgroupLabel || item.groupLabel
-  );
+  const visibleContext = item.parentSubgroupLabel
+    ? buildVisibleProductName(item.parentSubgroupLabel)
+    : "";
   const hasDistinctContext =
+    Boolean(visibleContext) &&
     visibleContext.toLocaleLowerCase("uk-UA") !==
-    visibleLabel.toLocaleLowerCase("uk-UA");
+      visibleLabel.toLocaleLowerCase("uk-UA");
 
   if (hasDistinctContext) {
-    const contextualTitle = buildAdaptiveSeoTitle(
-      visibleLabel,
-      ` — ${visibleContext}`
-    );
-    if (contextualTitle !== visibleLabel) return contextualTitle;
+    const contextualBase = `${visibleLabel} — ${visibleContext}`;
+    const contextualTitle = buildFirstFittingSeoTitle(contextualBase, [": купити, ціни", ": ціни", ""]);
+    if (contextualTitle.length <= SEO_TITLE_MAX_LENGTH - " | PartsON".length) return contextualTitle;
   }
 
-  return buildAdaptiveSeoTitle(visibleLabel, " — купити запчастини");
-};
-
-const buildChildCategoryLead = (options: {
-  groupLabel: string;
-  parentLabel: string;
-  label: string;
-  productCount: number;
-}) => {
-  const visibleLabel = buildVisibleProductName(options.label);
-  const visibleParentLabel = buildVisibleProductName(options.parentLabel);
-  const visibleGroupLabel = buildVisibleProductName(options.groupLabel);
-  const productCountLabel =
-    options.productCount > 0
-      ? `${options.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(options.productCount)}`
-      : "товари каталогу";
-
-  return `Категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel} відкриває ${productCountLabel} і веде до точнішого підбору автозапчастин за брендом, назвою або артикулом.`;
+  return buildFirstFittingSeoTitle(visibleLabel, GROUP_ITEM_TITLE_TAILS);
 };
 
 export async function generateStaticParams() {
@@ -869,8 +884,8 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const primaryImageAlt =
     productPreview?.alt || `Категорія автозапчастин «${visibleLabel}»`;
   const pageDescription = item.parentSubgroupLabel
-    ? `Кінцева категорія ${visibleLabel} у підгрупі ${visibleParentLabel} групи ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
-    : `Підгрупа ${visibleLabel} у групі ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
+    ? `Підгрупа ${visibleLabel} у групі ${visibleParentLabel} категорії ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
+    : `Група ${visibleLabel} у категорії ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
   const producerProductsTotal = item.producerSplit.reduce(
     (sum, producer) => sum + producer.productCount,
     0
@@ -1004,9 +1019,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   }
 
   return (
-    <main className="catalog-directory-page page-shell-inline py-5 sm:py-7">
+    <main className="catalog-directory-page directory-detail-page directory-detail-shell py-5 sm:py-7">
       <div key={`${item.groupSlug}/${item.itemSlug}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
         <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <DirectoryHeroBackdrop tone="groups" />
+          <CatalogSectionNav current="groups" />
           <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-teal-300/45 to-transparent blur-xl" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/80 to-transparent" />
 
@@ -1018,7 +1035,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true">/</span>
-                  <Link href="/groups" className="transition hover:text-slate-800">Групи товарів</Link>
+                  <Link href="/groups" className="transition hover:text-slate-800">Категорії</Link>
                 </li>
                 <li className="inline-flex items-center gap-2">
                   <span aria-hidden="true">/</span>
@@ -1085,7 +1102,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               ].map((metric) => (
                 <div
                   key={metric.label}
-                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
+                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
                 >
                   <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
                   <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
@@ -1111,7 +1128,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   Навігація
                 </p>
                 <h2 className="mt-1 text-lg font-semibold tracking-[-0.01em] text-slate-900">
-                  Підкатегорії та типи
+                  Підгрупи запчастин
                 </h2>
               </div>
               <span className={directoryCompactMetricAccentClass}>
@@ -1119,7 +1136,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </span>
             </div>
           </div>
-          <ul className="grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
+          <ul className="category-card-grid category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
             {item.children.map((child) => {
               const childPreview = getGroupProductPreview({
                 categoryLabel: item.groupLabel,
@@ -1131,7 +1148,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 <li key={child.slug}>
                   <CatalogPrefetchLink
                     href={buildGroupItemPath(item.groupSlug, child.slug)}
-                    className={`${directoryListCardClass} group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                    className={`${directoryListCardClass} category-tile group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
                       {childPreview ? (
@@ -1142,7 +1159,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                           width={44}
                           height={44}
                           sizes="44px"
-                          className="h-full w-full object-cover transition duration-300 group-hover/row:scale-105"
+                          className="h-full w-full object-cover transition duration-300"
                         />
                       ) : (
                         <PackageSearch className="h-4 w-4 text-teal-600/70" aria-hidden />
@@ -1152,22 +1169,25 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                       <span className="block font-semibold leading-snug">
                         {buildVisibleProductName(child.label)}
                       </span>
-                      <span className="mt-1 block text-[13px] leading-5 text-slate-500">
-                        {buildChildCategoryLead({
-                          groupLabel: item.groupLabel,
-                          parentLabel: item.label,
-                          label: child.label,
-                          productCount: child.productCount,
-                        })}
-                      </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1.5 self-start">
-                      {child.productCount > 0 ? (
-                        <span className={directoryCompactMetricClass}>
+                      <span className={directoryCompactMetricClass}>
                           <span>{formatCount(child.productCount)}</span>
                           <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
                         </span>
-                      ) : null}
+
+
+
+
+                      <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
+                    </span>
+                  </CatalogPrefetchLink>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <section className={`${directoryPanelClass} mt-8`}>
         <div className={directoryHeaderClass}>
@@ -1205,17 +1225,6 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         />
       </section>
 
-
-                      <span className="text-teal-700 transition-transform duration-300 group-hover/row:translate-x-0.5">&rarr;</span>
-                    </span>
-                  </CatalogPrefetchLink>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-
       {visibleProducts.length > 0 && (
         <section className={`${directoryPanelClass} mt-6`}>
           <div className={directoryHeaderClass}>
@@ -1237,7 +1246,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
 
       <CatalogSeoTextSection
         contained={false}
-        badge={item.parentSubgroupLabel ? "Кінцева категорія" : "Підгрупа товарів"}
+        badge={item.parentSubgroupLabel ? "Підгрупа запчастин" : "Група запчастин"}
         title={`${visibleLabel}: товари, виробники та підбір`}
         lead={seoCopy.intro}
         topics={[

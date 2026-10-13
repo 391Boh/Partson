@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import PartTypeIcon from "app/components/PartTypeIcon";
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ProductNode } from "app/components/FlipCard";
@@ -13,7 +14,7 @@ import {
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
-import CatalogLoaderCard from "app/components/CatalogLoaderCard";
+import FilterLoadingState from "app/components/FilterLoadingState";
 
 interface CategoryProps {
   selectedCategories: string[];
@@ -682,9 +683,15 @@ const Category: React.FC<CategoryProps> = ({
     nextParams.set("group", group);
     if (subcategory) {
       nextParams.set("subcategory", subcategory);
+      // A final group is chosen — the filter opens its "Параметри" tab next
+      // (filtrtion.tsx watches for a new category arriving with tab=params).
+      nextParams.set("tab", "params");
     } else {
       nextParams.delete("subcategory");
+      if (nextParams.get("tab") === "params") nextParams.delete("tab");
     }
+    // Parameter ids belong to the previous category.
+    nextParams.delete("params");
     nextParams.delete("reset");
     const preservesCarSearch =
       nextParams.get("carSearch") === "1" &&
@@ -851,9 +858,7 @@ const Category: React.FC<CategoryProps> = ({
         className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white"
       >
         {loading && (
-          <div className="flex justify-center py-6">
-            <CatalogLoaderCard label="\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0439" />
-          </div>
+          <FilterLoadingState label="Завантажуємо категорії" />
         )}
 
         {!loading && error && (
@@ -972,17 +977,20 @@ const Category: React.FC<CategoryProps> = ({
                         key={name}
                         type="button"
                         onClick={() => handleGroupSelect(group)}
-                        className={`catalog-filter-choice-card flex h-[72px] w-full items-center justify-between overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
+                        className={`catalog-filter-choice-card group/card flex h-[72px] w-full items-center justify-between gap-2.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
                         }`}
                       >
+                        <span className="catalog-filter-part-icon">
+                          <PartTypeIcon label={name} parents={[activeCategory]} size={20} />
+                        </span>
                         <span className="line-clamp-2 min-w-0 flex-1 text-[12px] font-bold leading-tight text-slate-800 sm:text-sm">
                           {getCompactDisplayLabel(name)}
                         </span>
                         {hasChildren && (
-                          <span className="shrink-0 text-slate-400">{">"}</span>
+                          <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
                         )}
                       </button>
                     );
@@ -1012,27 +1020,36 @@ const Category: React.FC<CategoryProps> = ({
                         type="button"
                         aria-pressed={isSelected}
                         onClick={() => handleSubgroupSelect(item)}
-                        className={`catalog-filter-choice-card flex h-[72px] w-full flex-col justify-center gap-0.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
+                        className={`catalog-filter-choice-card group/card flex h-[72px] w-full items-center gap-2.5 overflow-hidden rounded-[14px] border px-3 py-2 text-left text-[10px] transition-[border-color,background-color,box-shadow] duration-300 shadow-sm ${
                           isSelected
                             ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
                             : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/40"
                         }`}
                       >
-                        <div className="text-[12px] font-bold leading-tight text-slate-800 line-clamp-2 sm:text-sm">
+                        <span className="catalog-filter-part-icon">
+                          <PartTypeIcon
+                            label={item.label}
+                            parents={[...(item.trail ? item.trail.split(" / ").reverse() : []), activeGroup, activeCategory]}
+                            size={20}
+                          />
+                        </span>
+                        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+                        <span className="line-clamp-2 text-[12px] font-bold leading-tight text-slate-800 sm:text-sm">
                           {getCompactDisplayLabel(item.label)}
-                        </div>
+                        </span>
                         {item.trail ? (
-                          <div className="text-[10px] text-slate-500 line-clamp-1">
+                          <span className="line-clamp-1 text-[10px] text-slate-500">
                             {item.trail
                               .split(" / ")
                               .map(getCompactDisplayLabel)
                               .join(" / ")}
-                          </div>
+                          </span>
                         ) : item.depth === 1 ? (
-                          <div className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-400">
                             {"\u0411\u0435\u0437 \u043f\u0456\u0434\u0433\u0440\u0443\u043f\u0438"}
-                          </div>
+                          </span>
                         ) : null}
+                        </span>
                       </button>
                     );
                   })

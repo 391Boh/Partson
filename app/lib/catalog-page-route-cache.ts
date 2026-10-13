@@ -35,8 +35,14 @@ export type RouteSuccessCacheEntry = {
 // failed — after clearAllOneCCache() had already cleared the 1C layer.
 export const routeSuccessCache = new Map<string, RouteSuccessCacheEntry>();
 
+// Other derived catalog caches (e.g. the parameter-filter base in
+// catalog-params-server.ts) register here so the same admin-write clear
+// reaches them without this module importing them.
+export const catalogRouteCacheClearHooks = new Set<() => void>();
+
 export const clearCatalogPageRouteCache = () => {
   const size = routeSuccessCache.size;
   routeSuccessCache.clear();
+  for (const hook of catalogRouteCacheClearHooks) hook();
   return size;
 };

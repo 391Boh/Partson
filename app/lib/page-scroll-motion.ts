@@ -1,7 +1,7 @@
 import { canUseTimelineParallax, registerParallax, type ParallaxHandle } from "./parallax-controller";
 
-const BACKGROUNDS = ".home-backdrop, .hero-photo, .info-hero-art-frame";
-const BLOCKS = ".home-auto-grid > .reveal-head, .home-category-grid > :first-child, .home-brands-grid > .reveal-head, .home-story-grid > .reveal-adv-copy, .directory-intro-copy, .directory-detail-identity, .directory-guide-copy, .directory-guide-notes, .info-content-card, .info-step-card, .info-cta, .catalog-seo-title, .catalog-seo-copy-primary, .catalog-seo-copy-secondary";
+const BACKGROUNDS = ".directory-hero-backdrop, .home-popular-photo, .home-backdrop [data-plx-drift], .hero-photo, .info-hero-art-frame";
+const BLOCKS = ".home-auto-grid > .reveal-head, .home-category-grid > :first-child, .home-brands-grid > .reveal-head, .home-story-grid > .reveal-adv-copy, .directory-intro-copy, .directory-intro-facts, .directory-detail-hero > .relative.grid > aside, .directory-detail-identity, .directory-guide-copy, .directory-guide-notes, .info-content-card, .info-step-card, .info-cta, .catalog-seo-title, .catalog-seo-copy-primary, .catalog-seo-copy-secondary";
 const SELECTOR = `${BACKGROUNDS}, ${BLOCKS}`;
 type Effect = { el: HTMLElement; scene: HTMLElement; amplitude: number; axis: "x" | "y"; hero: boolean; lastShift?: number };
 
@@ -55,7 +55,7 @@ export function installPageScrollMotion(root: HTMLElement) {
       group.handle = registerParallax({
         el: effect.scene,
         ease: false,
-        heavy: true,
+        heavy: false,
         compute: (scrollY, viewportH, top, height) => effect.hero
           ? Math.max(0, Math.min(1, (scrollY - top) / height))
           : Math.max(-1, Math.min(1, (scrollY + viewportH / 2 - top - height / 2) / ((viewportH + height) / 2))),
@@ -78,11 +78,17 @@ export function installPageScrollMotion(root: HTMLElement) {
       delete el.dataset.pageMotionNative;
       effects.delete(el);
     }
-    // Move each composed homepage backdrop as one texture. The logo masks
-    // and photos retain their static poses inside it, avoiding an animated
-    // GPU layer per decoration while preserving background parallax.
+    // One small depth anchor per homepage backdrop. Moving the entire section
+    // field promoted a large transparent texture containing all of its masks;
+    // one compact plane keeps the depth cue without that raster/memory cost.
     const allowed = new Set<HTMLElement>();
+    const homeBackdrops = new Set<Element>();
     for (const el of root.querySelectorAll<HTMLElement>(SELECTOR)) {
+      const backdrop = el.closest(".home-backdrop");
+      if (backdrop) {
+        if (homeBackdrops.has(backdrop)) continue;
+        homeBackdrops.add(backdrop);
+      }
       allowed.add(el);
     }
     for (const [el, effect] of effects) {
@@ -97,10 +103,10 @@ export function installPageScrollMotion(root: HTMLElement) {
       if (effects.has(el) || el.closest(".partner-page")) continue;
       const background = el.matches(BACKGROUNDS);
       const hero = el.matches(".hero-photo");
-      const scene = el.parentElement?.closest<HTMLElement>("section") ?? el.parentElement;
+      const scene = el.matches(".home-popular-photo") ? el.closest<HTMLElement>(".home-popular-nav") : el.parentElement?.closest<HTMLElement>("section") ?? el.parentElement;
       if (!scene || scene === el) continue;
       const drift = Number.parseFloat(el.style.getPropertyValue("--plx-drift"));
-      const amplitude = hero ? 56 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
+      const amplitude = hero ? 56 : el.matches(".directory-hero-backdrop") ? -72 : el.matches(".directory-intro-facts,.directory-detail-hero aside") ? -14 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
       const axis = !background && el.matches(".home-auto-grid > .reveal-head,.directory-intro-copy,.directory-detail-identity,.directory-guide-copy,.catalog-seo-title") ? "x" : "y";
       const effect: Effect = { el, scene, amplitude, axis, hero };
       effects.set(el, effect);
@@ -116,7 +122,21 @@ export function installPageScrollMotion(root: HTMLElement) {
     }
   };
   const changes = new MutationObserver(records => {
-    if (records.every(record => record.type === "childList" && record.target instanceof Element && record.target.closest(".catalog-product-card"))) return;
+    // Prices, counters, model years and loader text do not add motion targets.
+    // Inspect only the changed subtrees instead of rescanning the entire page
+    // after every asynchronous text/card update.
+    const relevant = records.some(record => {
+      if (record.type === "attributes") return true;
+      for (const node of record.addedNodes) {
+        if (node instanceof Element && (node.matches(SELECTOR) || node.querySelector(SELECTOR))) return true;
+      }
+      for (const node of record.removedNodes) {
+        if (!(node instanceof Element)) continue;
+        for (const el of effects.keys()) if (node === el || node.contains(el)) return true;
+      }
+      return false;
+    });
+    if (!relevant) return;
     if (!timer) timer = window.setTimeout(scan, 100);
   });
   changes.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-plx-drift"] });

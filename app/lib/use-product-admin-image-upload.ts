@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { prepareProductImage } from "app/lib/product-image-upload-client";
-import { clearProductImageMissing, clearProductImageSuccess } from "app/lib/product-image-client";
+import { notifyProductImageUpdated } from "./product-image-updates";
 
 type AdminEditResult = { ok: boolean; error?: string };
 
@@ -36,8 +36,7 @@ export function useProductAdminImageUpload(params: {
         // The card displays the prepared image immediately, while clearing
         // both browser-side outcomes ensures a later remount revalidates
         // the freshly uploaded image instead of restoring an old hit/miss.
-        clearProductImageSuccess(code, article || undefined);
-        clearProductImageMissing(code, article || undefined);
+        notifyProductImageUpdated(code, article || undefined, prepared.dataUrl);
         setLocalImageSrc(prepared.dataUrl);
       } else {
         setError(result?.error ?? "Помилка завантаження");

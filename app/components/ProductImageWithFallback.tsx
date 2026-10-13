@@ -5,9 +5,10 @@ import Image from "next/image";
 import { ImageOff, Maximize2 } from "lucide-react";
 
 import dynamic from "next/dynamic";
+import { useProductImageUpdate } from "app/lib/product-image-updates";
 
 const ImageModal = dynamic(() => import("app/components/ImageModal"), { ssr: false });
-import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import {
   clearProductImageMissing,
   clearProductImageSuccess,
@@ -43,7 +44,6 @@ const BLUR_DATA_URL =
   "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiNmMWY1ZjkiLz48L3N2Zz4=";
 
 const FINAL_RETRY_DELAY_MS = 180;
-const PRODUCT_IMAGE_BUST_PREFIX = "partson:product-image-bust:";
 
 type ImageStatus = "loading" | "loaded" | "missing";
 
@@ -78,28 +78,12 @@ export default function ProductImageWithFallback({
 
   const normalizedProductCode = (productCode || "").trim();
   const normalizedArticleHint = (articleHint || "").trim();
-  const imageBatchKey = useMemo(
-    () => buildProductImageBatchKey(normalizedProductCode, normalizedArticleHint || undefined),
-    [normalizedProductCode, normalizedArticleHint]
-  );
-  const [cacheBustToken, setCacheBustToken] = useState("");
-
-  useEffect(() => {
-    if (!imageBatchKey || typeof window === "undefined") {
-      setCacheBustToken("");
-      return;
-    }
-
-    try {
-      setCacheBustToken(window.localStorage.getItem(`${PRODUCT_IMAGE_BUST_PREFIX}${imageBatchKey}`) || "");
-    } catch {
-      setCacheBustToken("");
-    }
-  }, [imageBatchKey]);
+  const imageUpdate = useProductImageUpdate(normalizedProductCode, normalizedArticleHint);
+  const cacheBustToken = imageUpdate.token;
 
   const primarySrc = useMemo(
     () =>
-      hasKnownPhoto && normalizedProductCode
+      (hasKnownPhoto || cacheBustToken) && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             noFallback: true,
@@ -110,7 +94,7 @@ export default function ProductImageWithFallback({
   );
   const recoverySrc = useMemo(
     () =>
-      hasKnownPhoto && normalizedProductCode
+      (hasKnownPhoto || cacheBustToken) && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             retryToken: 1,
@@ -121,7 +105,7 @@ export default function ProductImageWithFallback({
   );
   const finalRetrySrc = useMemo(
     () =>
-      hasKnownPhoto && normalizedProductCode
+      (hasKnownPhoto || cacheBustToken) && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             retryToken: 2,
@@ -186,7 +170,13 @@ export default function ProductImageWithFallback({
     setSelectedGallerySrc("");
     setCachedPreviewSrc("");
 
-    if (!hasKnownPhoto) {
+    if (imageUpdate.previewSrc) {
+      const alreadyDecoded = requestSrcRef.current === imageUpdate.previewSrc && statusRef.current === "loaded";
+      setRequestSrc(imageUpdate.previewSrc);
+      setStatus(alreadyDecoded ? "loaded" : "loading");
+      return;
+    }
+    if (!hasKnownPhoto && !cacheBustToken) {
       if (normalizedProductCode) {
         writeProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
       }
@@ -233,6 +223,7 @@ export default function ProductImageWithFallback({
     setStatus("loading");
   }, [
     hasKnownPhoto,
+    imageUpdate.previewSrc,
     cacheBustToken,
     normalizedArticleHint,
     normalizedProductCode,

@@ -572,7 +572,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           }`}
         >
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+            <span className="cw-field-icon">
               <UserRound size={18} />
             </span>
             <div className="min-w-0">
@@ -619,7 +619,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingName ? (
               <button
                 onClick={handleSaveName}
-                className="inline-flex items-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="cw-field-action cw-field-action--save"
                 aria-label="Зберегти ім'я"
               >
                 <Check size={13} strokeWidth={2.5} />
@@ -631,7 +631,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setTempName(name);
                   setIsEditingName(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+                className="cw-field-action"
                 aria-label="Редагувати ім'я"
               >
                 <Pencil size={13} strokeWidth={2} />
@@ -647,7 +647,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           } ${successField === "phone" ? "border-emerald-300/70 bg-emerald-50/70" : ""}`}
         >
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+            <span className="cw-field-icon">
               <Phone size={18} />
             </span>
             <div className="min-w-0">
@@ -698,7 +698,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             {isEditingPhone ? (
               <button
                 onClick={handleSavePhone}
-                className="inline-flex items-center gap-1.5 rounded-[11px] border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 transition hover:bg-emerald-100 cursor-pointer"
+                className="cw-field-action cw-field-action--save"
                 aria-label="Зберегти телефон"
               >
                 <Check size={13} strokeWidth={2.5} />
@@ -711,7 +711,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                   setPhoneError(null);
                   setIsEditingPhone(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+                className="cw-field-action"
                 aria-label="Редагувати телефон"
               >
                 <Pencil size={13} strokeWidth={2} />
@@ -727,7 +727,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           }`}
         >
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+            <span className="cw-field-icon">
               <Mail size={18} />
             </span>
             <div className="min-w-0">
@@ -741,7 +741,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           <div className="flex items-center gap-2 self-end shrink-0 sm:self-auto">
             <button
               onClick={handleSignOut}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-rose-500 to-red-500 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(239,68,68,0.28)] transition hover:brightness-110 cursor-pointer"
+              className="cw-field-action cw-field-action--danger"
               aria-label="Вийти з акаунту"
             >
               <LogOut size={13} strokeWidth={2} />
@@ -757,7 +757,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         >
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+              <span className="cw-field-icon">
                 <CarFront size={18} />
               </span>
               <div>
@@ -772,7 +772,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             <button
               aria-pressed={activeTab === "vins"}
             onClick={() => setActiveTab("vins")}
-              className="inline-flex items-center gap-1.5 self-end rounded-[11px] border border-sky-200 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer sm:self-auto"
+              className="cw-field-action self-end sm:self-auto"
             >
               Керувати
               <ArrowRight size={12} strokeWidth={2.2} />
@@ -806,7 +806,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           }`}
         >
           <div className="mb-2.5 flex items-start gap-2.5 sm:mb-3.5 sm:gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+            <span className="cw-field-icon">
               <CarFront size={18} />
             </span>
             <div>
@@ -887,7 +887,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 setActiveTab("vins");
                 setIsVinFieldVisible(true);
               }}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+              className="mt-2 cw-field-action"
               aria-label="Додати VIN"
             >
               <Plus size={13} strokeWidth={2.5} />
@@ -903,7 +903,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           }`}
         >
           <div className="flex items-start gap-2.5 sm:gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-sky-200/70 bg-white/85 text-sky-700 shadow-[0_10px_22px_rgba(56,189,248,0.12)] sm:h-11 sm:w-11 sm:rounded-[16px]">
+            <span className="cw-field-icon">
               <ShieldCheck size={18} />
             </span>
             <div className="min-w-0 flex-1">
@@ -984,7 +984,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
           ) : (
             <button
               onClick={() => setShowPasswordField(true)}
-              className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200/80 bg-sky-50 px-3 py-1.5 text-[12px] font-semibold text-sky-700 transition hover:bg-sky-100 cursor-pointer"
+              className="cw-field-action"
               aria-label="Змінити пароль"
             >
               <Key size={14} strokeWidth={2} />

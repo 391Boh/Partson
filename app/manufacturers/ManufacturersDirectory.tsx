@@ -27,6 +27,7 @@ import {
 import SmartLink from "app/components/SmartLink";
 import { uniqueDirectoryItems } from "app/lib/directory-items";
 import DirectoryGrid from "app/components/DirectoryGrid";
+import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import { buildManufacturerPath } from "app/lib/catalog-links";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
@@ -210,10 +211,11 @@ export default function ManufacturersDirectory({
   );
   const advertisedTotalItems = Math.max(totalItems, directoryItems.length);
 
+  const pagination = useDirectoryPagination(filteredItems, normalizedQuery, 12);
+
   return (
     <section
       className="relative pb-2 pt-0.5 sm:pb-3"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 1600px" }}
     >
       <div className="page-shell-inline">
         <div
@@ -241,7 +243,9 @@ export default function ManufacturersDirectory({
               </div>
 
               <div className="w-full max-w-md">
-                <label className="relative block">
+                <label className="directory-search-field relative block">
+                  <span className="directory-search-label">Виробники запчастин</span>
+                  <span className="directory-search-control relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600" />
                   <input
                     type="text"
@@ -265,6 +269,7 @@ export default function ManufacturersDirectory({
                       <X size={14} />
                     </button>
                   ) : null}
+                </span>
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
@@ -294,11 +299,12 @@ export default function ManufacturersDirectory({
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
                 <DirectoryGrid
+                  page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange}
                   ariaLabel="Виробники автозапчастин"
                 >
-                  {filteredItems.map((item, index) => (
+                  {pagination.items.map((item, index) => (
                     <div key={item.slug} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                      <meta itemProp="position" content={String(index + 1)} />
+                      <meta itemProp="position" content={String(pagination.offset + index + 1)} />
                       <ManufacturerCard
                         item={item}
                         showCounts={directoryData.hasIndexedCounts}
@@ -308,6 +314,7 @@ export default function ManufacturersDirectory({
                     </div>
                   ))}
                 </DirectoryGrid>
+                <DirectoryPagination {...pagination} />
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">

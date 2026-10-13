@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, CarFront, Factory, Layers3, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, CarFront, Factory, Layers3, PackageCheck, Truck, Wrench, type LucideIcon } from "lucide-react";
 
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 
@@ -110,32 +110,47 @@ function LinkList({ title, icon: Icon, items, directoryHref, directoryLabel, var
 
 export default function HomeSeoLinks() {
   return (
-    <nav aria-labelledby="home-seo-links-title" className="home-popular-nav font-ui page-shell-inline relative z-10 py-8 sm:py-10">
-      <div className="home-popular-surface">
-        <svg className="home-popular-blueprint" viewBox="0 0 360 200" fill="none" aria-hidden="true" focusable="false">
-          <g stroke="currentColor" strokeWidth="1">
-            <circle cx="250" cy="94" r="68" />
-            <circle cx="250" cy="94" r="48" />
-            <circle cx="250" cy="94" r="15" />
-            <path d="M250 16v156M172 94h156M202 46l96 96M202 142l96-96" />
-            <path d="M0 36h126l36 36h27M32 154h100l28-28h29M285 34h51M302 154h58" />
-            <path d="M102 36v118M94 44l8-8 8 8M94 146l8 8 8-8" />
-          </g>
-          <g fill="currentColor">
-            <circle cx="126" cy="36" r="3" /><circle cx="132" cy="154" r="3" />
-            <circle cx="336" cy="34" r="3" />
-          </g>
-        </svg>
-        <div className="home-popular-intro">
-          <h2 id="home-seo-links-title" className="font-display font-display-readable">
-            Популярні розділи <span>автозапчастин</span>
-          </h2>
-          <p>
-            Автозапчастини за системою автомобіля, підбір за маркою авто та деталі
-            виробників Bosch, Febi, TRW, SKF й інших. Самовивіз у Львові на
-            Перфецького, 8, або доставка по Україні.
-          </p>
-        </div>
+    <nav aria-labelledby="home-seo-links-title" className="home-popular-nav font-ui relative z-10 py-8 sm:py-10">
+      <div className="home-popular-photo" aria-hidden="true">
+        <Image src="/images/home/popular-sections-workshop-v1.webp" alt="" fill sizes="100vw" unoptimized loading="lazy" />
+      </div>
+      <div className="home-popular-content page-shell-inline">
+        <header className="home-popular-intro home-popular-hero">
+          <div className="home-popular-hero-photo" aria-hidden="true">
+            <Image src="/images/directories/parts-workbench-v1.webp" alt="" fill sizes="(min-width: 1280px) 1200px, 100vw" unoptimized loading="lazy" />
+          </div>
+          <div className="home-popular-hero-body">
+            <span className="home-popular-hero-eyebrow">
+              <span className="home-popular-hero-icon" aria-hidden="true">
+                <Wrench size={20} strokeWidth={2} />
+              </span>
+              Каталог PartsON
+            </span>
+            <h2 id="home-seo-links-title" className="font-display font-display-readable">
+              Популярні розділи <span>автозапчастин</span>
+            </h2>
+            <p>
+              Купити автозапчастини у Львові можна за трьома шляхами: за{" "}
+              <Link href="/groups" prefetch={false}>категорією запчастин</Link>{" "}
+              (деталі для ТО, гальмівна система, підвіска, двигун, охолодження),
+              за <Link href="/auto" prefetch={false}>маркою та моделлю авто</Link>{" "}
+              або за <Link href="/manufacturers" prefetch={false}>виробником</Link>{" "}
+              — Bosch, Febi, TRW, SKF, Sachs, KYB та інших.
+            </p>
+            <p>
+              У кожному розділі — актуальні ціни, наявність на складі й аналоги за
+              артикулом. Не впевнені в сумісності? Підберемо деталь за VIN-кодом.
+              Самовивіз у Львові на вул. Перфецького, 8, або доставка Новою Поштою
+              по всій Україні.
+            </p>
+            <ul className="home-popular-hero-facts" aria-label="PartsON у цифрах">
+              <li><PackageCheck size={16} aria-hidden="true" /><strong>10 000+</strong> товарів</li>
+              <li><Factory size={16} aria-hidden="true" /><strong>130+</strong> виробників</li>
+              <li><CarFront size={16} aria-hidden="true" /><strong>60+</strong> марок авто</li>
+              <li><Truck size={16} aria-hidden="true" />Самовивіз і доставка по Україні</li>
+            </ul>
+          </div>
+        </header>
         <div className="home-popular-groups">
           <LinkList
             title="Категорії запчастин" icon={Layers3} variant="categories"

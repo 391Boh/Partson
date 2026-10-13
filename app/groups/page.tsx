@@ -7,7 +7,7 @@ import { catalogPageBackgroundClass } from "app/components/catalog-directory-sty
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
 import { buildVisibleProductName } from "app/lib/product-url";
-import { appendSeoContactLast, buildPageMetadata } from "app/lib/seo-metadata";
+import { appendSeoContactLast, buildPageMetadata, pickFittingSeoDescription } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { pluralizeGroups, pluralizeSubgroups, pluralizeUk } from "app/lib/pluralize-uk";
@@ -31,13 +31,20 @@ const buildGroupsPageDescription = (
       ? `${groupCount.toLocaleString("uk-UA")} ${pluralizeGroups(groupCount)}, ${subgroupCount.toLocaleString("uk-UA")} ${pluralizeSubgroups(subgroupCount)} і ${leafCount.toLocaleString("uk-UA")} ${pluralizeUk(leafCount, "кінцева категорія", "кінцеві категорії", "кінцевих категорій")}`
       : "групи, підгрупи та кінцеві категорії";
 
-  const indexedSummary =
+  const productSummary =
     indexedProductCount > 0
-      ? ` Каталог охоплює щонайменше ${indexedProductCount.toLocaleString("uk-UA")} ${pluralizeUk(indexedProductCount, "проіндексовану товарну позицію", "проіндексовані товарні позиції", "проіндексованих товарних позицій")}.`
+      ? `, ${indexedProductCount.toLocaleString("uk-UA")}+ ${pluralizeUk(indexedProductCount, "товар", "товари", "товарів")}`
       : "";
 
+  // Richest variant first; pickFittingSeoDescription keeps the first one that
+  // fits whole instead of cutting a sentence off with "…".
   return appendSeoContactLast(
-    `Категорії автозапчастин PartsON: ${countSummary} для підбору деталей за групою, назвою, артикулом або VIN. Самовивіз у Львові й доставка по Україні.${indexedSummary}`
+    pickFittingSeoDescription([
+      `Категорії автозапчастин PartsON: ${countSummary}${productSummary}. Підбір за назвою, артикулом або VIN, самовивіз у Львові й доставка по Україні.`,
+      `Категорії автозапчастин PartsON: ${countSummary}${productSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
+      `Категорії автозапчастин PartsON: ${countSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
+      `Категорії автозапчастин PartsON: ${countSummary}. Доставка по Україні.`,
+    ])
   );
 };
 
@@ -76,7 +83,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "амортизатори",
       "автозапчастини львів",
     ],
-    openGraphTitle: "Категорії автозапчастин і групи товарів | PartsON",
+    openGraphTitle: "Категорії автозапчастин, групи та підгрупи | PartsON",
     image: {
       url: "/opengraph-partson-v3.png",
       alt: "PartsON - категорії автозапчастин",
@@ -105,7 +112,7 @@ export default async function GroupsPage() {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/groups#collection-page`,
-    name: "Категорії автозапчастин і групи товарів PartsON",
+    name: "Категорії автозапчастин, групи та підгрупи PartsON",
     description: groupsDescription,
     url: `${siteUrl}/groups`,
     inLanguage: "uk-UA",
@@ -170,8 +177,8 @@ export default async function GroupsPage() {
             current="groups"
             badge="Сітка каталогу"
             icon={Layers3}
-            title="Категорії автозапчастин і групи товарів"
-            description="Знаєте, що потрібно замінити? Оберіть систему автомобіля, потім тип деталі. У кожному розділі можна порівняти виробників, ціни й наявність та уточнити автомобіль."
+            title="Категорії автозапчастин, групи та підгрупи"
+            description="Знаєте, що потрібно замінити? Оберіть систему автомобіля, потім групу та підгрупу. У кожному розділі можна порівняти виробників, ціни й наявність та уточнити автомобіль."
             highlights={[
               "Навігація по групах, підгрупах і кінцевих категоріях",
               "Підбір за вузлом автомобіля, назвою, артикулом або VIN",
@@ -181,17 +188,17 @@ export default async function GroupsPage() {
             ]}
             stats={[
               {
-                label: "Груп",
+                label: "Категорій",
                 value: totalGroups.toLocaleString("uk-UA"),
                 icon: Layers3,
               },
               {
-                label: "Підгруп",
+                label: "Груп",
                 value: totalSubgroups.toLocaleString("uk-UA"),
                 icon: FolderTree,
               },
               {
-                label: "Кінцевих категорій",
+                label: "Підгруп",
                 value: totalThirdLevelItems.toLocaleString("uk-UA"),
                 icon: ChevronRight,
               },

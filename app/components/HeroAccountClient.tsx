@@ -496,9 +496,9 @@ export default function HeroAccountClient({
           <p className="font-display max-w-[30ch] text-[20px] font-semibold italic leading-snug text-sky-100/95 [text-shadow:0_2px_10px_rgba(2,6,23,0.92)] after:mx-auto after:mt-2.5 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-transparent after:via-sky-300/80 after:to-transparent sm:text-[23px]">
             <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
           </p>
-          <div className="flex min-h-[46px] w-full min-w-0 items-center justify-center gap-2 sm:min-h-[48px]">
-            <span className="h-[46px] w-[126px] animate-pulse rounded-[10px] bg-white/10 sm:h-[48px] sm:w-[134px]" />
-            <span className="h-[46px] w-[126px] animate-pulse rounded-[10px] bg-white/10 sm:h-[48px] sm:w-[134px]" />
+          <div className="hero-profile-actions">
+            <span className="h-11 w-full min-w-0 animate-pulse rounded-[10px] bg-white/10" />
+            <span className="h-11 w-full min-w-0 animate-pulse rounded-[10px] bg-white/10" />
           </div>
         </>
       );

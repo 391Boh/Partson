@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Cookie, Settings2 } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -324,105 +325,115 @@ function AnalyticsConsentBanner({
 
   if (!isOpen) return null;
 
+  const toggles = [
+    {
+      key: "analytics",
+      label: "Аналітика",
+      hint: "Відвідуваність, пошук, кроки замовлення",
+      checked: analyticsGranted,
+      onChange: setAnalyticsGranted,
+    },
+    {
+      key: "advertising",
+      label: "Рекламні дані",
+      hint: "Ефективність і персоналізація реклами",
+      checked: advertisingGranted,
+      onChange: setAdvertisingGranted,
+    },
+  ];
+
   return (
     <aside
       role="region"
       aria-labelledby="analytics-consent-title"
-      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] mx-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl overflow-y-auto overscroll-contain rounded-[16px] border border-slate-200/90 bg-white p-3.5 shadow-[0_20px_54px_rgba(15,23,42,0.2)] ring-1 ring-white sm:bottom-5 sm:p-4"
+      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-white/10 bg-[#0f1f33]/95 p-4 text-white shadow-[0_18px_44px_rgba(2,6,23,0.42)] backdrop-blur-md sm:inset-x-auto sm:bottom-5 sm:left-5 sm:w-[380px]"
     >
-      <div className="grid gap-3">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-sky-400/15 text-sky-300" aria-hidden="true">
+          <Cookie size={18} strokeWidth={2} />
+        </span>
         <div className="min-w-0">
-          <p
-            id="analytics-consent-title"
-            className="text-sm font-extrabold tracking-tight text-slate-950"
-          >
-            Налаштування cookies
+          <p id="analytics-consent-title" className="text-[14px] font-bold leading-5 text-white">
+            {hasStoredChoice ? "Налаштування cookies" : "Ми використовуємо cookies"}
           </p>
-          <p className="mt-1 text-[11.5px] font-medium leading-4 text-slate-600 sm:text-[12px]">
-            Аналітика й рекламні технології вимкнені до вашого вибору. Деталі — у{" "}
+          <p className="mt-0.5 text-[12.5px] leading-[1.45] text-slate-300">
+            Аналітика й реклама вимкнені до вашого вибору.{" "}
             <Link
               href="/inform/privacy"
               prefetch={false}
-              className="font-bold text-sky-700 underline decoration-sky-200 underline-offset-2 hover:text-sky-900"
+              className="font-semibold text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:text-sky-200"
             >
-              політиці конфіденційності
+              Детальніше
             </Link>
-            .
           </p>
-          {hasStoredChoice ? (
-            <p className="mt-1 text-[10.5px] font-semibold text-slate-400">
-              Поточний вибір можна змінити й зберегти повторно.
-            </p>
-          ) : null}
-        </div>
-
-        {showDetails ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-sky-100 bg-sky-50/70 p-3">
-              <input
-                type="checkbox"
-                checked={analyticsGranted}
-                onChange={(event) => setAnalyticsGranted(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-sky-700"
-              />
-              <span>
-                <span className="block text-[12px] font-extrabold text-slate-900">Аналітика</span>
-                <span className="mt-0.5 block text-[11px] font-medium leading-4 text-slate-600">
-                  Відвідуваність, пошук і кроки оформлення замовлення.
-                </span>
-              </span>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-violet-100 bg-violet-50/70 p-3">
-              <input
-                type="checkbox"
-                checked={advertisingGranted}
-                onChange={(event) => setAdvertisingGranted(event.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-violet-700"
-              />
-              <span>
-                <span className="block text-[12px] font-extrabold text-slate-900">Рекламні дані</span>
-                <span className="mt-0.5 block text-[11px] font-medium leading-4 text-slate-600">
-                  Оцінка ефективності реклами та, за згодою, персоналізація.
-                </span>
-              </span>
-            </label>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <button
-            type="button"
-            onClick={() =>
-              saveSelection({ analyticsGranted: false, advertisingGranted: false })
-            }
-            className="inline-flex min-h-11 items-center justify-center rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2"
-          >
-            Лише необхідні
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (showDetails) {
-                saveSelection({ analyticsGranted, advertisingGranted });
-                return;
-              }
-              setShowDetails(true);
-            }}
-            className="inline-flex min-h-11 items-center justify-center rounded-[13px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-800 transition hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2"
-          >
-            {showDetails ? "Зберегти вибір" : "Налаштувати"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              saveSelection({ analyticsGranted: true, advertisingGranted: true })
-            }
-            className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-[13px] border border-sky-700 bg-sky-700 px-3 text-[12px] font-extrabold text-white shadow-[0_10px_24px_rgba(2,132,199,0.24)] transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2 sm:col-span-1"
-          >
-            Дозволити все
-          </button>
         </div>
       </div>
+
+      {showDetails ? (
+        <div className="mt-3 divide-y divide-white/10 rounded-[13px] bg-white/[0.05]">
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-semibold text-white">Необхідні</span>
+              <span className="block text-[11.5px] leading-4 text-slate-400">Кошик, вхід, безпека</span>
+            </span>
+            <span className="shrink-0 text-[11.5px] font-semibold text-slate-400">Завжди</span>
+          </div>
+          {toggles.map((toggle) => (
+            <label key={toggle.key} className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5">
+              <span className="min-w-0">
+                <span className="block text-[12.5px] font-semibold text-white">{toggle.label}</span>
+                <span className="block text-[11.5px] leading-4 text-slate-400">{toggle.hint}</span>
+              </span>
+              <span className="relative inline-flex shrink-0">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={toggle.checked}
+                  onChange={(event) => toggle.onChange(event.target.checked)}
+                  className="peer h-6 w-10 cursor-pointer appearance-none rounded-full bg-slate-600 transition-colors checked:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1f33]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4 motion-reduce:transition-none"
+                />
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            showDetails
+              ? saveSelection({ analyticsGranted, advertisingGranted })
+              : saveSelection({ analyticsGranted: false, advertisingGranted: false })
+          }
+          className="inline-flex min-h-10 items-center justify-center rounded-[11px] border border-white/15 bg-white/[0.06] px-3 text-[12.5px] font-semibold text-slate-100 transition hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+        >
+          {showDetails ? "Зберегти вибір" : "Лише необхідні"}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            saveSelection({ analyticsGranted: true, advertisingGranted: true })
+          }
+          className="inline-flex min-h-10 items-center justify-center rounded-[11px] bg-sky-500 px-3 text-[12.5px] font-bold text-white transition hover:bg-sky-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+        >
+          Дозволити все
+        </button>
+      </div>
+      {!showDetails ? (
+        <button
+          type="button"
+          onClick={() => setShowDetails(true)}
+          className="mx-auto mt-2 flex min-h-8 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-slate-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+        >
+          <Settings2 size={13} aria-hidden="true" />
+          Налаштувати
+        </button>
+      ) : null}
     </aside>
   );
 }

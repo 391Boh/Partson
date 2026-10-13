@@ -19,6 +19,7 @@ import {
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
 import DirectoryGrid from "app/components/DirectoryGrid";
+import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import { buildAutoBrandPath } from "app/lib/catalog-links";
 import { pluralizeCarBrands as pluralizeBrands } from "app/lib/pluralize-uk";
 
@@ -45,6 +46,7 @@ function AutoBrandCard({
       href={brandHref}
       className={`${directoryCardClass} group flex min-h-[96px] flex-col justify-center p-3.5`}
       prefetchOnViewport={prefetchOnViewport}
+      prefetch={null}
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -109,11 +111,12 @@ export default function AutoBrandsDirectoryClient({
     [deduplicatedItems, normalizedQuery]
   );
 
+  const pagination = useDirectoryPagination(filteredItems, normalizedQuery, 12);
+
   return (
     <section
       id="auto-brands-directory"
       className="relative pb-2 pt-0 sm:pb-3"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "1280px 1500px" }}
     >
       <div className="page-shell-inline">
         <div className={directoryPanelClass}>
@@ -133,7 +136,9 @@ export default function AutoBrandsDirectoryClient({
               </div>
 
               <div className="min-w-0">
-                <label className="relative block">
+                <label className="directory-search-field relative block">
+                  <span className="directory-search-label">Марки авто</span>
+                  <span className="directory-search-control relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-600" />
                   <input
                     type="text"
@@ -153,6 +158,7 @@ export default function AutoBrandsDirectoryClient({
                       <X size={14} />
                     </button>
                   ) : null}
+                </span>
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
@@ -171,15 +177,17 @@ export default function AutoBrandsDirectoryClient({
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredItems.length)} />
                 <DirectoryGrid
+                  page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange}
                   ariaLabel="Марки автомобілів"
                 >
-                  {filteredItems.map((brand, index) => (
+                  {pagination.items.map((brand, index) => (
                     <div key={brand.id} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                      <meta itemProp="position" content={String(index + 1)} />
+                      <meta itemProp="position" content={String(pagination.offset + index + 1)} />
                       <AutoBrandCard brand={brand} prefetchOnViewport={index < 10} />
                     </div>
                   ))}
                 </DirectoryGrid>
+                <DirectoryPagination {...pagination} />
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
