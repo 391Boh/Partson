@@ -38,7 +38,8 @@
     "pm2:delete": "pm2 delete ecosystem.config.js",
     "pm2:logs": "pm2 logs --lines 100",
     "pm2:monit": "pm2 monit",
-    "memory:monitor": "bash scripts/memory-monitor.sh"
+    "memory:monitor": "bash scripts/memory-monitor.sh",
+    "generate:home-popular-icons": "tsx --require ./scripts/preload.cjs scripts/generate-home-popular-icons.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

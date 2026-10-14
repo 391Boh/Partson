@@ -5,8 +5,8 @@ import { ArrowUpRight, CarFront, Factory, Layers3, PackageCheck, Truck, Wrench, 
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 
 import { getCategoryIconPath } from "app/lib/category-icons";
-import { carBrands } from "./carBrands";
-import { brands } from "./brandsData";
+import { CAR_BRANDS, GROUPS, PRODUCERS, carLogos, producerLogos } from "app/lib/home-popular-links";
+import { HOME_POPULAR_ICONS } from "app/generated/home-popular-icons";
 
 // Server-rendered, crawlable links from the homepage into the catalogue.
 // The interactive car picker, category browser and manufacturer carousel
@@ -14,59 +14,7 @@ import { brands } from "./brandsData";
 // homepage HTML linked to none of them. Static lists on purpose: no 1C call
 // on the homepage render, and every URL here is one the sitemaps publish.
 
-const GROUPS = [
-  "Деталі для ТО",
-  "Гальмівна система",
-  "Деталі підвіски",
-  "Амортизація",
-  "Деталі двигуна",
-  "Рульова система",
-  "Система охолодження",
-  "Освітлення",
-  "Паливна система",
-  "Привід та коробка передач",
-  "Датчики та електроніка",
-  "Кузовні елементи",
-];
 
-const CAR_BRANDS = [
-  ["VOLKSWAGEN", "Volkswagen"],
-  ["SKODA", "Škoda"],
-  ["RENAULT", "Renault"],
-  ["TOYOTA", "Toyota"],
-  ["OPEL", "Opel"],
-  ["AUDI", "Audi"],
-  ["BMW", "BMW"],
-  ["MERCEDES-BENZ", "Mercedes-Benz"],
-  ["FORD", "Ford"],
-  ["HYUNDAI", "Hyundai"],
-  ["KIA", "Kia"],
-  ["NISSAN", "Nissan"],
-  ["PEUGEOT", "Peugeot"],
-  ["CITROEN", "Citroën"],
-  ["MITSUBISHI", "Mitsubishi"],
-  ["CHEVROLET", "Chevrolet"],
-] as const;
-
-const PRODUCERS = [
-  ["BOSCH", "Bosch"],
-  ["FEBI", "Febi"],
-  ["TRW", "TRW"],
-  ["LEMFORDER", "Lemförder"],
-  ["SACHS", "Sachs"],
-  ["SKF", "SKF"],
-  ["KYB", "KYB"],
-  ["ELRING", "Elring"],
-  ["CORTECO", "Corteco"],
-  ["DELPHI", "Delphi"],
-  ["KNECHT", "Knecht"],
-  ["MAGNETI MARELLI", "Magneti Marelli"],
-] as const;
-
-const carLogos = new Map(carBrands.map(({ name, logo }) => [name.toUpperCase(), logo]));
-const producerLogos = new Map(brands.map(({ name, logo }) => [name.toUpperCase(), logo]));
-// The shared KNECHT entry currently points to MANN-FILTER; use its own asset here.
-producerLogos.set("KNECHT", "/Brands/MahleKnecht.png");
 
 type SectionLink = { href: string; label: string; image?: string };
 
@@ -93,7 +41,9 @@ function LinkList({ title, icon: Icon, items, directoryHref, directoryLabel, var
             <Link href={href} prefetch={false} className={categories ? "home-popular-category-link" : "home-popular-brand-link"}>
               {image && (
                 <span className={categories ? "home-popular-category-image" : "home-popular-logo"}>
-                  <Image src={image} alt="" width={36} height={36} unoptimized loading="lazy" />
+                  {/* 72px webp thumbnails (scripts/generate-home-popular-icons.ts):
+                      the originals added up to ~400 KB for 36px icons. */}
+                  <Image src={HOME_POPULAR_ICONS[image] ?? image} alt="" width={36} height={36} unoptimized loading="lazy" />
                 </span>
               )}
               <span>{label}</span>

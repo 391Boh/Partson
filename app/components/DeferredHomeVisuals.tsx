@@ -181,10 +181,12 @@ export function DeferredStoreMap({ src, title }: { src: string; title: string })
     const conserveData = connection?.saveData || ["2g", "slow-2g"].includes(connection?.effectiveType ?? "");
     // A map is content, not decoration: don't gate it on window.load or an
     // idle slot, which slow/blocked third-party requests can postpone forever.
+    // It used to also load on a 1.5s timer for every visitor: the Google Maps
+    // embed (a dozen scripts) then competed with the car-brand and catalog
+    // sections still mounting above. Proximity alone, with a wide margin.
     let cancelled = false;
     const reveal = () => { if (!cancelled) setReady(true); };
-    const preparation = conserveData ? undefined : window.setTimeout(reveal, 1500);
-    const cancelPreparation = () => window.clearTimeout(preparation);
+    const cancelPreparation = () => undefined;
     if (typeof IntersectionObserver === "undefined") {
       reveal();
       return () => { cancelled = true; cancelPreparation(); };
