@@ -15,9 +15,49 @@ const SeoPhotosBackdrop = dynamic(() => import("./SeoPhotosBackdrop"), {
   loading: () => null,
 });
 
-const AutoBackdrop = dynamic(() => import("./AutoLogosBackdrop"), { ssr: false });
-const CategoryBackdrop = dynamic(() => import("./TovarPartsBackdrop"), { ssr: false });
-const BrandsBackdrop = dynamic(() => import("./BrandsLogosBackdrop"), { ssr: false });
+const loadAutoBackdrop = () => import("./AutoLogosBackdrop");
+const loadCategoryBackdrop = () => import("./TovarPartsBackdrop");
+const loadBrandsBackdrop = () => import("./BrandsLogosBackdrop");
+const AutoBackdrop = dynamic(loadAutoBackdrop, { ssr: false });
+const CategoryBackdrop = dynamic(loadCategoryBackdrop, { ssr: false });
+const BrandsBackdrop = dynamic(loadBrandsBackdrop, { ssr: false });
+
+// Mirrors TovarPartsBackdrop's cut-out photos (~200 KB), listed here for the
+// same reason as SEO_BACKDROP_PHOTO_SRCS: warming them must not pull that
+// component's chunk into this one.
+const CATEGORY_CUTOUT_SRCS = [
+  "/Parts/cutout/filtr.webp",
+  "/Parts/cutout/amort.webp",
+  "/Parts/cutout/podush.webp",
+  "/Parts/cutout/grm.webp",
+  "/Parts/cutout/masl.webp",
+  "/Parts/cutout/nakon.webp",
+  "/Parts/cutout/kol.webp",
+];
+
+let catalogBackdropsWarmed = false;
+/** Once the page has loaded and gone idle, fetch the three section backdrops'
+ *  code and the cut-out photos at low priority. Revealing a backdrop then
+ *  only mounts it: before, each one waited for idle time, then its chunk,
+ *  then its images, so the sections stood without their background for a
+ *  second or more (longer on phones). */
+const warmCatalogBackdrops = () => {
+  if (catalogBackdropsWarmed) return;
+  catalogBackdropsWarmed = true;
+  void loadAutoBackdrop().catch(() => undefined);
+  void loadCategoryBackdrop().catch(() => undefined);
+  void loadBrandsBackdrop().catch(() => undefined);
+  for (const src of CATEGORY_CUTOUT_SRCS) {
+    const image = new window.Image();
+    image.fetchPriority = "low";
+    image.src = src;
+  }
+};
+
+const conservesData = () => {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  return Boolean(connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g");
+};
 
 const SCROLL_SETTLE_RETRY_MS = 80;
 
@@ -189,15 +229,12 @@ export function DeferredStoreMap({ src, title }: { src: string; title: string })
  * scrolled into view, gated only by an idle callback, not by window "load". */
 function DeferredCatalogBackdrop({ kind }: { kind: "auto" | "category" | "brands" }) {
   const { ref, ready: near } = useDeferredNearViewport<HTMLDivElement>("900px 0px");
-  const [ready, setReady] = useState(false);
+  const ready = near && !conservesData();
 
   useEffect(() => {
-    if (!near || ready) return;
-    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    if (connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g") return;
-    const reveal = () => startTransition(() => setReady(true));
-    return scheduleBackgroundTask(reveal, { waitForLoad: false });
-  }, [near, ready]);
+    if (conservesData()) return;
+    return scheduleBackgroundTask(warmCatalogBackdrops);
+  }, []);
 
   return (
     <div ref={ref} aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">

@@ -6,7 +6,10 @@ import { usePathname } from "next/navigation";
 // Versioned because the old mode completely froze component parallax. The
 // current mode keeps it visible at a capped cadence, so old measurements are
 // no longer representative after the lighter transform tuning.
-const STORAGE_KEY = "partson:reduced-scroll-effects:v2";
+// v3: v2 sessions were flagged by one-off main-thread stalls (sections
+// mounting during the first scroll), which hid the homepage scroll effects on
+// fast machines for the rest of the session.
+const STORAGE_KEY = "partson:reduced-scroll-effects:v3";
 // Was 1400ms: on genuinely weak hardware the first scroll gesture of the
 // session always ran at full quality for the whole sampling window before
 // this could react — the very stutters it exists to prevent. Shortened so
@@ -17,6 +20,11 @@ const STORAGE_KEY = "partson:reduced-scroll-effects:v2";
 const SAMPLE_DURATION_MS = 900;
 const SLOW_FRAME_MS = 28;
 const SLOW_FRAME_LIMIT = 4;
+// A real budget problem drops frames throughout the gesture, not in a burst.
+const SLOW_FRAME_SHARE = 0.25;
+// Longer gaps are main-thread work (a section mounting, a chunk evaluating),
+// which the reduced mode cannot fix — not evidence of a weak GPU.
+const MAX_SAMPLED_FRAME_MS = 150;
 // Cheap, synchronous, no-scroll-needed pre-check for hardware that's all but
 // certain to struggle: low core count or low RAM. Catches the case the frame
 // sampler structurally can't — a weak device's *first* scroll of the session,
@@ -92,7 +100,7 @@ export default function ScrollPerformanceGuard() {
       sampling = false;
       if (raf) cancelAnimationFrame(raf);
 
-      if (samples >= 10 && slowFrames >= SLOW_FRAME_LIMIT) {
+      if (samples >= 10 && slowFrames >= Math.max(SLOW_FRAME_LIMIT, samples * SLOW_FRAME_SHARE)) {
         finished = true;
         window.removeEventListener("scroll", startSampling);
         // The class restyles the whole document (~1300 elements, ~100 ms on
@@ -117,9 +125,9 @@ export default function ScrollPerformanceGuard() {
       if (!sampling) return;
       if (previousFrame > 0) {
         const delta = now - previousFrame;
-        // A visible 150–1000ms stall is real lost responsiveness, not evidence
-        // of a fast device. Exclude hidden tabs and very long debugger pauses.
-        if (document.visibilityState === "visible" && delta < 1_000) {
+        // Hidden tabs and long one-off stalls say nothing about the
+        // compositing budget the reduced mode trades away.
+        if (document.visibilityState === "visible" && delta < MAX_SAMPLED_FRAME_MS) {
           samples += 1;
           if (delta > SLOW_FRAME_MS) slowFrames += 1;
         }
