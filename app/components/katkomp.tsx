@@ -13,6 +13,7 @@ import {
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
+import { replaceCatalogUrl } from "app/lib/catalog-navigation";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import FilterLoadingState from "app/components/FilterLoadingState";
 
@@ -22,6 +23,8 @@ interface CategoryProps {
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
   resetViewSignal?: number;
+  selectedCars?: string[];
+  sortOrder?: string;
 }
 
 interface SubgroupItem {
@@ -339,6 +342,8 @@ const Category: React.FC<CategoryProps> = ({
   searchTerm: controlledSearchTerm,
   onSearchTermChange,
   resetViewSignal,
+  selectedCars,
+  sortOrder,
 }) => {
   const [localSearchTerm, setLocalSearchTerm] = useState("");
   const searchTerm = controlledSearchTerm ?? localSearchTerm;
@@ -676,19 +681,30 @@ const Category: React.FC<CategoryProps> = ({
     selectedCategories.forEach((existing) => handleCategoryChange(existing));
   };
 
-  const buildSelectionHref = (group: string, subcategory?: string | null) => {
-    if (!group) return null;
-
+  // `final`: a leaf group was picked. Otherwise the panel only opened a
+  // category or a group with children: the results already show everything
+  // inside it (scope=hierarchy for a group), the panel stays on that level.
+  const buildSelectionHref = (
+    group: string | null,
+    subcategory?: string | null,
+    { final = true }: { final?: boolean } = {}
+  ) => {
     const nextParams = new URLSearchParams(currentSearchParams.toString());
-    nextParams.set("group", group);
-    if (subcategory) {
+    if (group) nextParams.set("group", group);
+    else nextParams.delete("group");
+    if (group && subcategory) {
       nextParams.set("subcategory", subcategory);
+    } else {
+      nextParams.delete("subcategory");
+    }
+    if (!final && group && subcategory) nextParams.set("scope", "hierarchy");
+    else nextParams.delete("scope");
+    if (final && group && subcategory) {
       // A final group is chosen — the filter opens its "Параметри" tab next
       // (filtrtion.tsx watches for a new category arriving with tab=params).
       nextParams.set("tab", "params");
-    } else {
-      nextParams.delete("subcategory");
-      if (nextParams.get("tab") === "params") nextParams.delete("tab");
+    } else if (nextParams.get("tab") === "params") {
+      nextParams.delete("tab");
     }
     // Parameter ids belong to the previous category.
     nextParams.delete("params");
@@ -703,18 +719,28 @@ const Category: React.FC<CategoryProps> = ({
       nextParams.delete("carSearch");
     }
 
-    return `/katalog?${nextParams.toString()}`;
+    const query = nextParams.toString();
+    return query ? `/katalog?${query}` : "/katalog";
   };
+
+  const navigateToSelection = (href: string) =>
+    replaceCatalogUrl(router, href, { selectedCars, sortOrder });
 
   const pushSelection = (group: string, subcategory?: string | null) => {
     if (!group) return;
     clearSelectedCategories();
     const href = buildSelectionHref(group, subcategory);
-    if (!href) return;
     if (typeof window !== "undefined") {
       safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
     }
-    router.replace(href, { scroll: false });
+    navigateToSelection(href);
+  };
+
+  // Filters the results to the level just opened in the panel, without
+  // closing it or jumping to the results.
+  const previewSelection = (group: string | null, subcategory?: string | null) => {
+    clearSelectedCategories();
+    navigateToSelection(buildSelectionHref(group, subcategory, { final: false }));
   };
 
   const headerLabelMap = {
@@ -739,6 +765,7 @@ const Category: React.FC<CategoryProps> = ({
     setActiveCategory(name);
     setActiveGroup(null);
     setSearchTerm("");
+    previewSelection(name);
   };
 
   const handleGroupSelect = (group: ProductNode) => {
@@ -747,6 +774,7 @@ const Category: React.FC<CategoryProps> = ({
     setSearchTerm("");
     if (hasChildren) {
       setActiveGroup(name);
+      if (activeCategory) previewSelection(activeCategory, name);
       return;
     }
     if (!activeCategory) return;
@@ -784,8 +812,10 @@ const Category: React.FC<CategoryProps> = ({
   const handleBack = () => {
     if (activeGroup) {
       setActiveGroup(null);
+      previewSelection(activeCategory);
     } else if (activeCategory) {
       setActiveCategory(null);
+      previewSelection(null);
     }
   };
 

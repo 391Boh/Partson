@@ -39,7 +39,8 @@ export default function HomeScrollMotion() {
     };
     const onMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
-      if (document.documentElement.classList.contains("is-scrolling")) return;
+      const classes = document.documentElement.classList;
+      if (classes.contains("is-scrolling") || classes.contains("reduce-scroll-effects")) return;
       const target = (event.target as Element | null)?.closest<HTMLElement>(HOVER_SELECTOR) ?? null;
       if (target !== card) {
         release();

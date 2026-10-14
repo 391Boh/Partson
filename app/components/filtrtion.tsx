@@ -4,6 +4,7 @@ import { pluralizeProducts } from 'app/lib/pluralize-uk';
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { replaceCatalogUrl } from 'app/lib/catalog-navigation';
 import dynamic from 'next/dynamic';
 import FilterLoadingState from 'app/components/FilterLoadingState';
 import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
@@ -88,6 +89,8 @@ interface CategoryProps {
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
   resetViewSignal?: number;
+  selectedCars?: string[];
+  sortOrder?: 'none' | 'asc' | 'desc';
 }
 
 // One loading design for every filter tab (FilterLoadingState): a labelled
@@ -175,8 +178,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     } else {
       nextParams.set('promo', '1');
     }
-    router.replace(nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname);
-  }, [pathname, promoOnlyParam, router, searchParamsKey]);
+    replaceCatalogUrl(
+      router,
+      nextParams.toString() ? `${pathname}?${nextParams.toString()}` : pathname,
+      { selectedCars, sortOrder: sortOrderProp, scroll: true }
+    );
+  }, [pathname, promoOnlyParam, router, searchParamsKey, selectedCars, sortOrderProp]);
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price' | 'params'>('auto');
   const formatPriceInput = (value: number | null | undefined) =>
     typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
@@ -638,10 +645,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('carSearch');
     nextParams.delete('reset');
     nextParams.delete('promo');
+    nextParams.delete('scope');
     nextParams.delete(PRODUCT_PARAMS_QUERY_KEY);
     const nextQuery = nextParams.toString();
     if (nextQuery !== searchParamsKey) {
-      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+      replaceCatalogUrl(router, nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+        selectedCars: shouldClearCars ? [] : internalSelectedCars,
+        scroll: true,
+      });
     }
   }, [
     handleCarChange,
@@ -709,10 +720,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       const nextQuery = nextParams.toString();
       if (nextQuery !== searchParamsKey) {
         ignoreScrollCloseUntilRef.current = Date.now() + 800;
-        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+        replaceCatalogUrl(router, nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+          selectedCars,
+          sortOrder: effectiveSortOrder,
+        });
       }
     },
-    [pathname, router, searchParamsKey]
+    [effectiveSortOrder, pathname, router, searchParamsKey, selectedCars]
   );
 
   // Parameter ids belong to one category ("Ширина" of pads ≠ of wipers), so
@@ -867,6 +881,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               searchTerm={categorySearchTerm}
               onSearchTermChange={setCategorySearchTerm}
               resetViewSignal={categoryResetSignal}
+              selectedCars={selectedCars}
+              sortOrder={effectiveSortOrder}
             />
           </div>
         );
@@ -923,10 +939,12 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                         }
                         nextParams.delete('reset');
                         nextParams.set('tab', 'producer');
-                        router.replace(
+                        replaceCatalogUrl(
+                          router,
                           nextParams.toString()
                             ? `${pathname}?${nextParams.toString()}`
-                            : pathname
+                            : pathname,
+                          { selectedCars, sortOrder: effectiveSortOrder, scroll: true }
                         );
                       }}
                       className={`catalog-filter-brand-card card-metal group/card relative flex h-[68px] w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 py-2 transition-[border-color,background-color,box-shadow] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${

@@ -1,6 +1,7 @@
 type BackgroundTaskOptions = {
   delayMs?: number;
   idleTimeoutMs?: number;
+  waitForLoad?: boolean;
 };
 
 // requestIdleCallback alone can run while the browser is still downloading
@@ -8,7 +9,7 @@ type BackgroundTaskOptions = {
 // optional requests do not take bandwidth or main-thread time from the page.
 export const scheduleBackgroundTask = (
   task: () => void,
-  { delayMs = 0, idleTimeoutMs = 2_000 }: BackgroundTaskOptions = {}
+  { delayMs = 0, idleTimeoutMs = 2_000, waitForLoad = true }: BackgroundTaskOptions = {}
 ): (() => void) => {
   let cancelled = false;
   let timerId: number | undefined;
@@ -41,12 +42,13 @@ export const scheduleBackgroundTask = (
     if (!cancelled) timerId = window.setTimeout(scheduleIdle, delayMs);
   };
 
-  if (document.readyState === "complete") onLoad();
-  else window.addEventListener("load", onLoad, { once: true });
+  const readyEvent = waitForLoad ? "load" : "DOMContentLoaded";
+  if (document.readyState === "complete" || (!waitForLoad && document.readyState !== "loading")) onLoad();
+  else window.addEventListener(readyEvent, onLoad, { once: true });
 
   return () => {
     cancelled = true;
-    window.removeEventListener("load", onLoad);
+    window.removeEventListener(readyEvent, onLoad);
     if (timerId !== undefined) window.clearTimeout(timerId);
     if (idleId !== undefined) window.cancelIdleCallback?.(idleId);
   };

@@ -35,7 +35,7 @@ export default function DeferredFooter() {
         // commit independently so downloading early never forces a scroll hitch.
         if (!cancelled) cancelMount = scheduleBackgroundTask(() => {
           if (!cancelled) startTransition(() => setFooterComponent(() => module.default));
-        });
+        }, { waitForLoad: false });
       });
     };
 
@@ -57,7 +57,7 @@ export default function DeferredFooter() {
 
     // Prepare the universal footer after initial resources, while idle.
     // Intersection remains a fallback for visitors who scroll immediately.
-    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 250 });
+    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 2000, waitForLoad: false });
 
     if (typeof IntersectionObserver === "undefined") {
       loadRequestedAt = performance.now();

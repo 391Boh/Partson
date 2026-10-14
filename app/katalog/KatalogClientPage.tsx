@@ -958,7 +958,9 @@ const Katalog: React.FC<KatalogProps> = ({
             onPageBatchSizeChange={setPageBatchSize}
           />
         ) : (
-          <div className="min-h-[200px]" aria-hidden="true" />
+          // A screen tall, like the grid that replaces it: 200px let the SEO
+          // block below jump into view while a saved car synced into the URL.
+          <div className="min-h-[100svh]" aria-hidden="true" />
         )}
       </div>
     </section>

@@ -1,9 +1,16 @@
 "use client";
 
 import { CATALOG_PAGE_CACHE_VERSION } from "app/lib/catalog-client-cache";
+import {
+  PRODUCT_PARAMS_QUERY_KEY,
+  decodeProductParamFilters,
+  encodeProductParamFilters,
+} from "app/lib/product-params";
 
 const CATALOG_PAGE_ROUTE = "/api/catalog-page";
-const CATALOG_ITEMS_PER_PAGE = 12;
+// Must equal ITEMS_PER_PAGE in Data.tsx: the cache key below has to be the
+// exact key Data builds for page 1, or a prefetched page is never read.
+const CATALOG_ITEMS_PER_PAGE = 16;
 
 type CatalogSearchFilter = "all" | "article" | "name" | "code" | "producer" | "description";
 
@@ -39,6 +46,10 @@ const buildCatalogPageCacheKey = (params: {
   subcategory: string | null;
   producer: string | null;
   expandHierarchy: boolean;
+  promoOnly: boolean;
+  paramFilters: string;
+  cars: string[];
+  sortOrder: string;
 }) =>
   JSON.stringify({
     endpoint: CATALOG_PAGE_CACHE_VERSION,
@@ -48,16 +59,19 @@ const buildCatalogPageCacheKey = (params: {
     cursorField: "",
     q: params.searchQuery,
     filter: params.searchFilter,
-    cars: [],
+    cars: params.cars,
     cats: [],
     group: params.group,
     subcat: params.subcategory,
     producer: params.producer,
     hierarchy: params.expandHierarchy,
-    sort: "none",
+    promoOnly: params.promoOnly,
+    params: params.paramFilters,
+    sort: params.sortOrder,
     pricedOnly: false,
     priceFrom: null,
     priceTo: null,
+    priceRate: null,
     inStock: false,
   });
 
@@ -87,7 +101,29 @@ const writeCatalogPageSessionCache = (cacheKey: string, payload: unknown) => {
   }
 };
 
-export const prefetchCatalogListing = async (href: string) => {
+/** The prefetch of a page-1 cache key still in flight, so Data can wait for it
+ *  instead of sending the same 1C request a second time. */
+export const getCatalogPagePrefetch = (cacheKey: string) =>
+  catalogPagePrefetchInFlight.get(cacheKey);
+
+// Same normalisation as Data's normalizeCacheList (trim, dedupe, sort).
+const normalizeCarList = (values: readonly string[]) =>
+  Array.from(
+    new Set(values.map((value) => (value || "").replace(/\s+/g, " ").trim()).filter(Boolean))
+  ).sort();
+
+export type CatalogPrefetchOptions = {
+  /** The catalog's current car filter and sort, which Data folds into its
+   *  request and cache key; without them a prefetch for a visitor with a
+   *  chosen car would warm a key Data never reads. */
+  selectedCars?: readonly string[];
+  sortOrder?: string;
+};
+
+export const prefetchCatalogListing = async (
+  href: string,
+  options: CatalogPrefetchOptions = {}
+) => {
   if (typeof window === "undefined") return;
 
   let targetUrl: URL;
@@ -105,6 +141,10 @@ export const prefetchCatalogListing = async (href: string) => {
   const subcategory = normalizeOptionalValue(targetUrl.searchParams.get("subcategory"));
   const producer = normalizeOptionalValue(targetUrl.searchParams.get("producer"));
   const expandHierarchy = targetUrl.searchParams.get("scope") === "hierarchy";
+  const promoOnly = targetUrl.searchParams.get("promo") === "1";
+  const paramFilters = encodeProductParamFilters(
+    decodeProductParamFilters(targetUrl.searchParams.get(PRODUCT_PARAMS_QUERY_KEY))
+  );
   const cacheKey = buildCatalogPageCacheKey({
     page: 1,
     searchQuery,
@@ -113,6 +153,10 @@ export const prefetchCatalogListing = async (href: string) => {
     subcategory,
     producer,
     expandHierarchy,
+    promoOnly,
+    paramFilters,
+    cars: normalizeCarList(options.selectedCars ?? []),
+    sortOrder: options.sortOrder || "none",
   });
 
   if (hasCatalogPageSessionCache(cacheKey)) {
@@ -132,7 +176,7 @@ export const prefetchCatalogListing = async (href: string) => {
       body: JSON.stringify({
         page: 1,
         limit: CATALOG_ITEMS_PER_PAGE,
-        selectedCars: [],
+        selectedCars: options.selectedCars ?? [],
         selectedCategories: [],
         searchQuery,
         searchFilter,
@@ -140,6 +184,9 @@ export const prefetchCatalogListing = async (href: string) => {
         subcategory: subcategory || "",
         producer: producer || "",
         expandHierarchy,
+        promoOnly,
+        paramFilters,
+        sortOrder: options.sortOrder || "none",
       }),
       cache: "no-store",
     }).catch(() => null);

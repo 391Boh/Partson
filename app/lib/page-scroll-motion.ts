@@ -86,6 +86,9 @@ export function installPageScrollMotion(root: HTMLElement) {
     for (const el of root.querySelectorAll<HTMLElement>(SELECTOR)) {
       const backdrop = el.closest(".home-backdrop");
       if (backdrop) {
+        // The full-width masked dot field is expensive to composite. Keep it
+        // static and use a compact logo/part as this section's depth anchor.
+        if (el.matches(".home-scroll-decor")) continue;
         if (homeBackdrops.has(backdrop)) continue;
         homeBackdrops.add(backdrop);
       }

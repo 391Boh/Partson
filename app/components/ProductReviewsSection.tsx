@@ -306,9 +306,10 @@ export default function ProductReviewsSection({
             </div>
           )}
 
-          {/* compact loading state keeps the section stable without flashing cards */}
+          {/* Same height as the empty state most products end up in, so the
+              section does not grow under the reader when reviews arrive. */}
           {loading && (
-            <div className="flex min-h-[92px] items-center justify-center rounded-[15px] border border-sky-100 bg-[linear-gradient(135deg,rgba(240,249,255,0.74),rgba(255,255,255,0.98))] px-4 py-4">
+            <div className="flex min-h-[225px] items-center justify-center rounded-[15px] sm:min-h-[205px] border border-sky-100 bg-[linear-gradient(135deg,rgba(240,249,255,0.74),rgba(255,255,255,0.98))] px-4 py-4">
               <span className="inline-flex items-center gap-2 text-[12px] font-bold text-slate-500">
                 <RefreshCcw
                   size={14}

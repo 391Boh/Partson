@@ -590,7 +590,7 @@ export default function HeroAccountClient({
   // tagline/buttons block down below it, no matter how the block below was
   // told to align itself — the real fix was here, not there.
   const benefits = (
-    <div className="flex w-full min-w-0 flex-col space-y-2.5">
+    <div className="hero-benefits flex w-full min-w-0 flex-col space-y-2.5">
       <div className="flex items-center justify-start gap-3">
         {/* Was wrapped in a bordered rounded-full badge span — now just the
             bare icon, no container, so it reads as a bigger standalone

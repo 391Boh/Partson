@@ -15,12 +15,29 @@ try {
       const module = { exports: {} };
       const __dirname = '';
       ${vitals}
-      window.homeVitals = { cls: 0, inp: null, shifts: [] };
+      const supportsLayoutShift = PerformanceObserver.supportedEntryTypes.includes('layout-shift');
+      window.homeVitals = {
+        cls: supportsLayoutShift ? 0 : null,
+        inp: null,
+        ttfb: null,
+        ttfbRating: 'unmeasured',
+        layoutShiftSupported: supportsLayoutShift,
+        layoutShiftCount: supportsLayoutShift ? 0 : null,
+        maxLayoutShift: supportsLayoutShift ? 0 : null,
+        shifts: [],
+      };
       module.exports.onCLS(metric => { window.homeVitals.cls = metric.value; }, { reportAllChanges: true });
       module.exports.onINP(metric => { window.homeVitals.inp = metric.value; }, { reportAllChanges: true });
-      new PerformanceObserver(list => {
+      module.exports.onTTFB(metric => {
+        window.homeVitals.ttfb = metric.value;
+        window.homeVitals.ttfbRating = metric.rating;
+      }, { reportAllChanges: true });
+      if (supportsLayoutShift) new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
-          if (!entry.hadRecentInput) window.homeVitals.shifts.push({
+          if (entry.hadRecentInput) continue;
+          window.homeVitals.layoutShiftCount += 1;
+          window.homeVitals.maxLayoutShift = Math.max(window.homeVitals.maxLayoutShift, entry.value);
+          window.homeVitals.shifts.push({
             value: entry.value,
             sources: entry.sources.map(source => source.node?.className),
           });
@@ -62,6 +79,9 @@ try {
     await page.waitForTimeout(600);
     const metrics = await page.evaluate(() => window.homeVitals);
     console.log(JSON.stringify({ width, ...metrics }));
+    assert(metrics.layoutShiftSupported, 'This browser cannot measure layout shifts; null is unavailable, not a poor score');
+    assert(Number.isFinite(metrics.layoutShiftCount), 'Layout shift count must be measured even when no shifts occur');
+    assert(Number.isFinite(metrics.maxLayoutShift), 'Maximum layout shift must be measured even when no shifts occur');
     assert(metrics.cls <= 0.01, `Unexpected homepage CLS at ${width}px: ${metrics.cls}`);
     assert(Number.isFinite(metrics.inp), 'Real interactions must produce a finite INP');
     assert(metrics.inp <= 200, `Homepage INP at ${width}px: ${metrics.inp}ms`);

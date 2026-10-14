@@ -40,7 +40,9 @@ const isLikelyWeakDevice = () => {
 /**
  * Keeps the visual quality adaptive instead of assuming every desktop GPU can
  * composite the same number of masks, filters and transformed layers. The
- * check runs once per route, writes no React state and never touches layout.
+ * Samples successive gestures until a reduced budget is needed. A smooth
+ * hero must not mask frame drops in the heavier sections further down.
+ * Writes no React state and never touches layout.
  */
 export default function ScrollPerformanceGuard() {
   // A smooth first route cannot establish the budget for a later product grid.
@@ -48,13 +50,8 @@ export default function ScrollPerformanceGuard() {
   useEffect(() => {
     const root = document.documentElement;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // `next dev` renders far slower than production, so the sampler would
-    // flag almost any machine and hide the scroll effects for the session.
-    if (process.env.NODE_ENV !== "production") {
-      root.classList.remove("reduce-scroll-effects");
-      return;
-    }
-
+    // Measure the browser's actual budget in development too: local visitors
+    // need the same smooth scrolling, and reduced mode retains parallax.
     root.classList.remove("reduce-scroll-effects");
 
     try {
@@ -92,12 +89,12 @@ export default function ScrollPerformanceGuard() {
 
     const finish = () => {
       if (finished) return;
-      finished = true;
       sampling = false;
       if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", startSampling);
 
       if (samples >= 10 && slowFrames >= SLOW_FRAME_LIMIT) {
+        finished = true;
+        window.removeEventListener("scroll", startSampling);
         // The class restyles the whole document (~1300 elements, ~100 ms on
         // a slow phone). Adding it while the sampled gesture is still moving
         // put that stall into the very first scroll of the visit, so wait
@@ -120,9 +117,9 @@ export default function ScrollPerformanceGuard() {
       if (!sampling) return;
       if (previousFrame > 0) {
         const delta = now - previousFrame;
-        // Ignore tab switches / debugger pauses; they say nothing about GPU
-        // scroll performance and would otherwise force the low-quality mode.
-        if (delta < 150) {
+        // A visible 150–1000ms stall is real lost responsiveness, not evidence
+        // of a fast device. Exclude hidden tabs and very long debugger pauses.
+        if (document.visibilityState === "visible" && delta < 1_000) {
           samples += 1;
           if (delta > SLOW_FRAME_MS) slowFrames += 1;
         }
@@ -141,6 +138,8 @@ export default function ScrollPerformanceGuard() {
       sampling = true;
       startedAt = performance.now();
       previousFrame = 0;
+      slowFrames = 0;
+      samples = 0;
       raf = requestAnimationFrame(sample);
     }
 

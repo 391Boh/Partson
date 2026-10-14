@@ -8,6 +8,7 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 
 const SeoPhotosBackdrop = dynamic(() => import("./SeoPhotosBackdrop"), {
   ssr: false,
@@ -18,7 +19,6 @@ const AutoBackdrop = dynamic(() => import("./AutoLogosBackdrop"), { ssr: false }
 const CategoryBackdrop = dynamic(() => import("./TovarPartsBackdrop"), { ssr: false });
 const BrandsBackdrop = dynamic(() => import("./BrandsLogosBackdrop"), { ssr: false });
 
-const MAX_SCROLL_REVEAL_DELAY_MS = 320;
 const SCROLL_SETTLE_RETRY_MS = 80;
 
 // Mirrors SeoPhotosBackdrop's PHOTOS srcs. Kept as a plain string list (not
@@ -47,15 +47,12 @@ function useDeferredNearViewport<T extends HTMLElement>(
 
     let cancelled = false;
     let settleTimer: number | null = null;
-    let revealRequestedAt = 0;
 
     const revealWhenScrollSettles = () => {
       if (cancelled) return;
-      const waitedMs = performance.now() - revealRequestedAt;
-      if (
-        document.documentElement.classList.contains("is-scrolling") &&
-        waitedMs < MAX_SCROLL_REVEAL_DELAY_MS
-      ) {
+      // Only decorative backdrops use this hook. They can wait for a genuine
+      // pause instead of forcing a large first paint into a scrolling frame.
+      if (document.documentElement.classList.contains("is-scrolling")) {
         settleTimer = window.setTimeout(
           revealWhenScrollSettles,
           SCROLL_SETTLE_RETRY_MS
@@ -66,7 +63,6 @@ function useDeferredNearViewport<T extends HTMLElement>(
     };
 
     if (typeof IntersectionObserver === "undefined") {
-      revealRequestedAt = performance.now();
       revealWhenScrollSettles();
       return () => {
         cancelled = true;
@@ -78,7 +74,6 @@ function useDeferredNearViewport<T extends HTMLElement>(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         observer.disconnect();
-        revealRequestedAt = performance.now();
         revealWhenScrollSettles();
       },
       { rootMargin, threshold: 0 }
@@ -200,17 +195,8 @@ function DeferredCatalogBackdrop({ kind }: { kind: "auto" | "category" | "brands
     if (!near || ready) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     if (connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g") return;
-    const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
     const reveal = () => startTransition(() => setReady(true));
-    if (win.requestIdleCallback) {
-      const handle = win.requestIdleCallback(reveal, { timeout: 1500 });
-      return () => win.cancelIdleCallback?.(handle);
-    }
-    const timer = window.setTimeout(reveal, 200);
-    return () => window.clearTimeout(timer);
+    return scheduleBackgroundTask(reveal, { waitForLoad: false });
   }, [near, ready]);
 
   return (

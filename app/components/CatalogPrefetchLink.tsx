@@ -14,6 +14,7 @@ type CatalogPrefetchLinkProps = React.ComponentProps<typeof SmartLink> & {
 export default function CatalogPrefetchLink({
   href,
   onMouseEnter,
+  onMouseLeave,
   onFocus,
   onTouchStart,
   prefetchCatalogOnViewport = false,
@@ -24,6 +25,14 @@ export default function CatalogPrefetchLink({
 }: CatalogPrefetchLinkProps) {
   const anchorRef = useRef<HTMLAnchorElement | null>(null);
   const viewportWarmedRef = useRef(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelHoverWarm = useCallback(() => {
+    if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }, []);
+
+  useEffect(() => cancelHoverWarm, [href, cancelHoverWarm]);
 
   const warmCatalog = useCallback(() => {
     void prefetchCatalogListing(href);
@@ -59,11 +68,26 @@ export default function CatalogPrefetchLink({
 
   const handleMouseEnter = useCallback(
     (event: MouseEvent<HTMLAnchorElement>) => {
-      warmCatalog();
+      cancelHoverWarm();
+      // Catalog prefetch performs more work than route prefetch. A link
+      // passing under the pointer during scrolling is not an intent to open it.
+      const anchor = event.currentTarget;
+      if (!document.documentElement.classList.contains("is-scrolling")) {
+        hoverTimerRef.current = setTimeout(() => {
+          hoverTimerRef.current = null;
+          if (anchor.isConnected && anchor.matches(":hover") &&
+              !document.documentElement.classList.contains("is-scrolling")) warmCatalog();
+        }, 160);
+      }
       onMouseEnter?.(event);
     },
-    [onMouseEnter, warmCatalog]
+    [onMouseEnter, warmCatalog, cancelHoverWarm]
   );
+
+  const handleMouseLeave = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    cancelHoverWarm();
+    onMouseLeave?.(event);
+  }, [cancelHoverWarm, onMouseLeave]);
 
   const handleFocus = useCallback(
     (event: FocusEvent<HTMLAnchorElement>) => {
@@ -88,6 +112,7 @@ export default function CatalogPrefetchLink({
       prefetchOnIntent={prefetchOnIntent}
       prefetchOnViewport={prefetchOnViewport}
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}
       onTouchStart={handleTouchStart}
       {...props}

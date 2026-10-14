@@ -208,10 +208,10 @@ function DeferredHomeSection({
     if (!conserveData) {
       const sectionIndex = tone === "auto" ? 0 : tone === "product" ? 1 : 2;
       cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
-        // Code and data are warmed right after first paint (see
-        // HomeDeferredStack below), so each mount is short; a smaller gap
-        // brings the last section in well before a typical first scroll.
-        delayMs: sectionIndex * 250,
+        // Prepare after the initial hero paint, in separate idle slots.
+        // The map or another external request may still hold load open.
+        delayMs: 1450 + sectionIndex * 350,
+        waitForLoad: false,
       });
     }
     return cleanup;
@@ -256,28 +256,22 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
   // no longer serialized into the active homepage route.
   void _legacyInitialData;
 
-  // Warm the three sections' code and the manufacturer data in the first idle
-  // slot after paint. Mounting still waits for window.load + idle (above), but
-  // that gate also held back these downloads: on a throttled phone the chunks
-  // only started ~1.4 s in and the data request only after its section had
-  // mounted, so visitors scrolled into skeletons. Network only — evaluation of
-  // the chunks happens in the idle callback, never during a gesture.
+  // Warm one catalogue module per idle task after the initial hero paint.
+  // Scroll/visibility guards keep module evaluation out of active gestures.
   useEffect(() => {
     const connection = (navigator as Navigator & {
       connection?: { saveData?: boolean; effectiveType?: string };
     }).connection;
     if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
-    const warm = () => {
-      void loadAutoSection().catch(() => undefined);
-      void loadProductSection().catch(() => undefined);
-      void preloadBrandsSection().catch(() => undefined);
-    };
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(warm, { timeout: 1_500 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const timer = window.setTimeout(warm, 600);
-    return () => window.clearTimeout(timer);
+    // Separate idle tasks prevent three chunks evaluating in the same burst.
+    // The map's external resources must not hold preparation behind load.
+    const cancelTasks = [loadAutoSection, loadProductSection, preloadBrandsSection].map((load, index) =>
+      scheduleBackgroundTask(() => { void load().catch(() => undefined); }, {
+        delayMs: 1000 + index * 350,
+        waitForLoad: false,
+      })
+    );
+    return () => cancelTasks.forEach(cancel => cancel());
   }, []);
 
   return (

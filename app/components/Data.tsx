@@ -2,6 +2,8 @@
 
 import { awaitWithAbortSignal, createAbortError, handleCatalogBackgroundError, isAbortLikeError, observeCatalogRequest } from "app/lib/catalog-request-lifecycle";
 import { useLiveCatalogRefresh, type LiveCatalogProduct } from 'app/lib/use-live-catalog-refresh';
+import { getCatalogPagePrefetch } from "app/lib/catalog-page-prefetch";
+import { CATALOG_FILTER_PENDING_EVENT } from "app/lib/catalog-navigation";
 import React, {
   useState,
   useEffect,
@@ -2897,6 +2899,17 @@ function useCatalogData(params: {
         }
       }
 
+      // The filter panel starts page 1 of the chosen category as the click
+      // happens (catalog-page-prefetch), while the URL change is still on its
+      // way here. Wait for that request rather than sending a second one.
+      const pendingPrefetch = !requestCursor ? getCatalogPagePrefetch(cacheKey) : undefined;
+      if (pendingPrefetch) {
+        await awaitWithAbortSignal(pendingPrefetch, signal).catch(() => undefined);
+        if (signal?.aborted) throw createAbortError();
+        const prefetched = readPageFromSession(cacheKey);
+        if (prefetched) return prefetched;
+      }
+
       const requestPromise: Promise<CatalogPagePayload> = (async () => {
         const res = await fetch(CATALOG_PAGE_ROUTE, {
           method: "POST",
@@ -5684,7 +5697,34 @@ const Data: React.FC<DataProps> = ({
     : shouldUseVirtualWindow
       ? Math.max(0, Math.min(virtualWindowRange.startIndex, visibleSortedEntries.length))
       : 0;
-  const shouldDimCatalogGrid = false;
+  // The previous filter's products stay on screen until the new ones arrive
+  // (no skeleton flash). Fade them meanwhile, so they don't read as the
+  // answer to the filter just picked.
+  const isCatalogQueryReady = catalogReadyQuerySignature === catalogQuerySignature;
+  // Set straight from the filter click (an urgent update), since the new
+  // search params themselves only land when Next's transition commits.
+  const [isFilterPending, setIsFilterPending] = useState(false);
+  useEffect(() => {
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    const handlePending = () => {
+      setIsFilterPending(true);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => setIsFilterPending(false), 15_000);
+    };
+    window.addEventListener(CATALOG_FILTER_PENDING_EVENT, handlePending);
+    return () => {
+      window.removeEventListener(CATALOG_FILTER_PENDING_EVENT, handlePending);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
+  }, []);
+  // Keyed on the whole query string too: a URL change that leaves the
+  // product query as it was (only `tab`) must clear the pending state.
+  const searchParamsString = currentSearchParams.toString();
+  useEffect(() => {
+    if (isCatalogQueryReady || error) setIsFilterPending(false);
+  }, [catalogQuerySignature, isCatalogQueryReady, error, searchParamsString]);
+  const shouldDimCatalogGrid =
+    visibleSortedData.length > 0 && !error && (isFilterPending || !isCatalogQueryReady);
 
   useEffect(() => {
     if (visibleCatalogPriceCandidates.length === 0) return;
@@ -6023,7 +6063,7 @@ const Data: React.FC<DataProps> = ({
         id="catalog-results"
         data-filter-autoclose="results"
         className="relative w-full px-3 pb-0 pt-0 sm:px-3.5 sm:pb-0 lg:px-4"
-        aria-busy={loading || filterLoading || isLoadingNextPage}
+        aria-busy={loading || filterLoading || isLoadingNextPage || shouldDimCatalogGrid}
       >
         {liveCatalogSyncFailed && !loading && (
           <p role="status" className="mb-2 text-xs text-amber-800">
@@ -6051,10 +6091,23 @@ const Data: React.FC<DataProps> = ({
 
         {shouldShowCatalogGrid && (
           <div className="relative">
+            {shouldDimCatalogGrid && (
+              // Zero-height sticky row: the label floats over the grid
+              // without moving it (no layout shift when it appears).
+              <div className="pointer-events-none sticky top-[calc(var(--header-height,4rem)+5.5rem)] z-20 flex h-0 items-start justify-center">
+                <span
+                  role="status"
+                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/95 px-3.5 py-1.5 text-[12.5px] font-bold text-sky-800 shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
+                >
+                  <span className="catalog-filter-loading-spinner" aria-hidden="true" />
+                  Оновлюємо товари…
+                </span>
+              </div>
+            )}
             <div
               ref={catalogGridRef}
               className={`${viewMode === "list" ? CATALOG_LIST_CLASS : isAdmin ? CATALOG_ADMIN_GRID_CLASS : CATALOG_GRID_CLASS} ${
-                shouldDimCatalogGrid ? "opacity-[0.88]" : "opacity-100"
+                shouldDimCatalogGrid ? "opacity-45 transition-opacity duration-200" : "opacity-100 transition-opacity duration-200"
               }`}
             >
               {!hasVirtualWindowMiss && shouldUseVirtualWindow && virtualWindowRange.topSpacerPx > 0 && (
@@ -6253,6 +6306,21 @@ const Data: React.FC<DataProps> = ({
                   </div>
                 );
               })}
+
+              {/* First load of a query with nothing to show yet (restored car /
+                  sort, new filter): placeholders keep the grid a screen tall.
+                  Without them it collapsed to 0px, the SEO block below jumped
+                  into view and back once products arrived (CLS ~1.7). */}
+              {shouldShowInitialSkeleton && entriesToRender.length === 0 &&
+                Array.from({ length: 12 }, (_, index) => (
+                  <div
+                    key={`catalog-placeholder-${index}`}
+                    aria-hidden="true"
+                    className={`animate-pulse rounded-[22px] border border-sky-100/80 bg-white/70 ${
+                      viewMode === "list" ? "h-[140px]" : "h-[360px]"
+                    }`}
+                  />
+                ))}
 
               {shouldUseVirtualWindow && effectiveVirtualBottomSpacerPx > 0 && (
                 <div

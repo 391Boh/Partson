@@ -7190,7 +7190,9 @@ svg.catalog-filter-search-icon {
 }
 
 .home-static .home-intro-refined h1 {
-  max-width: 24ch;
+  /* em, not ch: ch follows the loaded font, so the box resized when Exo 2
+     swapped in and shifted the whole hero (CLS). 15.5em = 24ch of Exo 2. */
+  max-width: 15.5em;
   color: #fff;
   font-size: clamp(1.75rem, 3vw, 2.5rem);
   font-weight: 800;
@@ -7206,7 +7208,7 @@ svg.catalog-filter-search-icon {
 }
 
 .home-static .home-intro-refined .home-intro-subtitle {
-  max-width: 56ch;
+  max-width: 34.7em; /* = 56ch of Exo 2; em keeps it stable across the font swap */
   margin-top: 10px;
   padding-left: 0;
   color: #f0f7ff;
@@ -11990,4 +11992,35 @@ a.category-tile > span:nth-child(2) { font-size:14px; line-height:1.4; }
 @media (prefers-reduced-motion: reduce) {
   .catalog-filter-loading-spinner { animation-duration: 2.4s; }
   .catalog-filter-skeleton::after { animation: none; }
+}
+
+/* Translucent cool gradients let the photograph breathe behind each tile. */
+.home-static :is(.home-popular-category-link,.home-popular-brand-link) {
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  background:linear-gradient(145deg,rgba(255,255,255,.82) 0%,rgba(247,252,253,.62) 52%,rgba(220,239,244,.54) 100%);
+  border-color:rgba(166,195,208,.48);
+}
+@media (hover:hover) {
+  .home-static :is(.home-popular-category-link,.home-popular-brand-link):hover {
+    background:linear-gradient(145deg,rgba(255,255,255,.90),rgba(225,244,247,.76));
+    border-color:#8fbac7;
+  }
+}
+
+/* The greeting keeps only actionable benefits; catalog totals live below. */
+.home-static .hero-benefits { gap:16px; }
+.home-static .hero-benefits > div:first-child { gap:12px; }
+.home-static .hero-benefits > div:first-child > :first-child { width:28px; height:28px; filter:none; color:#9edbe6; }
+.home-static .hero-benefits > div:first-child p { color:#eef8fc; font-size:18px; font-style:normal; font-weight:650; font-variation-settings:"wght" 650; letter-spacing:0; text-transform:none; line-height:1.4; text-shadow:none; }
+.home-static .hero-benefits > div:first-child p + span { display:none; }
+.home-static .hero-benefits ul { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:0; font-size:13px; }
+.home-static .hero-benefits button { min-height:64px; padding:12px; border-radius:12px; border-color:#a7d5e22e; background:linear-gradient(135deg,#a9dfea12,#c7e9f205); box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+.home-static .hero-benefits button > span:first-child { width:30px; height:30px; border:0; border-radius:8px; background:#a3deea12; }
+.home-static .hero-benefits button > span:last-child { display:block; height:auto; min-height:2.8em; line-height:1.4; -webkit-line-clamp:unset; }
+.home-static .hero-benefits button:hover { background:#a1d8e21c; border-color:#8ccfdd70; transform:none; translate:none; }
+.home-static .hero-benefits button:focus-visible { outline:2px solid #9bdce9; outline-offset:3px; }
+@media (max-width:639px) {
+  .home-static .hero-benefits ul { grid-template-columns:minmax(0,1fr); }
+  .home-static .hero-benefits button { min-height:58px; }
 }

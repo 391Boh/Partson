@@ -254,9 +254,12 @@ const OpenChatButton = dynamic(() => import("app/components/OpenChatButton"), {
   ),
 });
 
+// The section streams in after the rest of the page; an empty fallback let it
+// pop in at ~320px and push the footer down (CLS). Reserve the height of its
+// empty state, which is what most products render.
 const ProductReviewsSection = dynamic(
   () => import("app/components/ProductReviewsSection"),
-  { loading: () => null }
+  { loading: () => <div aria-hidden="true" className="min-h-[366px] min-[380px]:min-h-[328px] sm:min-h-[312px]" /> }
 );
 
 const ProductFaqSection = dynamic(

@@ -370,6 +370,15 @@ const preloadChildPreviews = (
   }
 };
 
+const preloadHoveredChildPreviews = (event: React.PointerEvent<HTMLButtonElement>, parent: ProductNode) => {
+  if (event.pointerType !== "mouse" || document.documentElement.classList.contains("is-scrolling")) return;
+  const button = event.currentTarget;
+  window.setTimeout(() => {
+    if (button.isConnected && button.matches(":hover") &&
+        !document.documentElement.classList.contains("is-scrolling")) preloadChildPreviews(parent);
+  }, 160);
+};
+
 // Let React paint the selected group before touching sessionStorage and
 // starting a batch of preview requests. Running this work in pointerdown and
 // again in click extended the interaction task and pushed INP over 200 ms on
@@ -1178,7 +1187,7 @@ const ProductFetcher: React.FC<Props> = ({
                             key={`${group.name}-${id}`}
                             type="button"
                             onClick={() => openCategory(group)}
-                            onPointerEnter={() => preloadChildPreviews(group)}
+                            onPointerEnter={(event) => preloadHoveredChildPreviews(event, group)}
                             onFocus={() => preloadChildPreviews(group)}
                             className={cardClass}
                           >
@@ -1199,7 +1208,7 @@ const ProductFetcher: React.FC<Props> = ({
                             <span className="relative line-clamp-2 text-sm font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-[15px]">
                               {label}
                             </span>
-                            <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full bg-sky-100/70 px-2 py-0.5 text-[10px] font-bold text-slate-500 transition-[color,background-color] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-sky-800 sm:text-[10px]">
+                            <span className="relative mt-1.5 inline-flex items-center gap-1 rounded-full bg-sky-100/70 px-2 py-0.5 text-[10px] font-bold text-sky-800 transition-[color,background-color] duration-300 group-hover/category:bg-cyan-100 group-hover/category:text-sky-800 sm:text-[10px]">
                               {group.children?.length ?? 0}{" "}
                               {pluralWord(group.children?.length ?? 0, "група", "групи", "груп")}
                               <ChevronRight size={11} />
@@ -1239,7 +1248,7 @@ const ProductFetcher: React.FC<Props> = ({
                             key={`${group.name}-${id}`}
                             type="button"
                             onClick={() => openGroup(group)}
-                            onPointerEnter={() => preloadChildPreviews(group)}
+                            onPointerEnter={(event) => preloadHoveredChildPreviews(event, group)}
                             onFocus={() => preloadChildPreviews(group)}
                             className={cardClass}
                             aria-label={`Відкрити підгрупи: ${label}`}
@@ -1450,12 +1459,12 @@ const ProductFetcher: React.FC<Props> = ({
                   key="empty"
                   initial={shouldAnimate ? { opacity: 0 } : false}
                   animate={shouldAnimate ? { opacity: 1 } : undefined}
-                  className="col-span-full rounded-2xl border border-dashed border-cyan-100 bg-cyan-50 px-4 py-6 text-center text-sm text-gray-500"
+                  className="col-span-full rounded-2xl border border-dashed border-cyan-100 bg-cyan-50 px-4 py-6 text-center text-sm text-cyan-800"
                 >
-                  <div className="font-semibold text-gray-700">
+                  <div className="font-semibold text-cyan-950">
                     {"\u041d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
                   </div>
-                  <div className="mt-1 text-xs text-gray-500">
+                  <div className="mt-1 text-xs text-cyan-800">
                     {"\u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0456\u043d\u0448\u0438\u0439 \u0437\u0430\u043f\u0438\u0442"}
                   </div>
                 </motion.div>
