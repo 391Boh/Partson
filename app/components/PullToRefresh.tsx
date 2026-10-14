@@ -88,7 +88,12 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
         window.location.reload();
       }, 280);
     };
-    const onScroll = () => {
+    // Reading scrollY flushes pending style work, so doing it in every scroll
+    // event forced an extra style recalc per event (~216 per homepage scroll
+    // on a 4x throttled phone). Read it at most once per frame instead.
+    let scrollFrame = 0;
+    const readScroll = () => {
+      scrollFrame = 0;
       const y = window.scrollY;
       if (previousY > 1 && y <= 1) {
         arrivedAtTop = performance.now();
@@ -96,6 +101,9 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
       }
       previousY = y;
       if (y > 1) { touchStart = null; reset(); }
+    };
+    const onScroll = () => {
+      if (!scrollFrame) scrollFrame = requestAnimationFrame(readScroll);
     };
     const onWheel = (event: WheelEvent) => {
       const now = performance.now();
@@ -150,6 +158,7 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
       content?.classList.remove("pull-refresh-content");
       content?.style.removeProperty("--pull-offset");
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(scrollFrame);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);

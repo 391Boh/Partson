@@ -9080,7 +9080,7 @@ html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto
 @media (hover: none), (pointer: coarse) {
   .home-static :is(.card-metal,.home-feature-card):hover {
     transform: none;
-    scale: 1;
+    scale: none;
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 55%),0 3px 10px -5px rgb(var(--home-hover-rgb) / 15%);
   }
   .home-static .home-feature-card:hover::after { animation: none; opacity: 0; }
@@ -9089,7 +9089,10 @@ html:not(.reduce-scroll-effects) .home-static .home-section-stage :is(.home-auto
     box-shadow: inset 0 0 0 2px rgb(var(--home-hover-rgb) / 45%);
   }
 }
-html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article) { scale: 1; }
+/* `none`, not `1`: the resting value is `none`, and none -> 1 is a real
+   (if invisible) change, so every scroll end started a 380 ms main-thread
+   scale transition on every homepage card. */
+html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-cards > article) { scale: none; }
 html.is-scrolling .home-static .home-feature-card::after,
 html.reduce-scroll-effects .home-static .home-feature-card::after { animation: none; opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
@@ -9102,7 +9105,7 @@ html.is-scrolling .home-static .card-metal:hover {
   background-color: rgb(255 255 255 / 35%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 60%),0 3px 10px -5px rgb(var(--home-hover-rgb) / 12%);
 }
-html.is-scrolling .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel):hover { scale: 1; }
+html.is-scrolling .home-static :is(.hero-account-surface,.home-brands-grid > .reveal-head,.home-category-grid .reveal-head,.home-auto-grid .reveal-search-panel,.home-auto-grid .reveal-head-panel):hover { scale: none; }
 .home-static :is(.section-reveal-auto,.section-reveal-cats,.section-reveal-brands,.section-reveal-advantages).is-revealed :is(.reveal-head,.reveal-search,.reveal-adv-copy,.reveal-adv-map) {
   transition-property: opacity,transform,scale,border-color,box-shadow !important;
   transition-duration: 340ms,560ms,300ms,200ms,260ms !important;
