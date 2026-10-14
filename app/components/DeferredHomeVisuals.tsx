@@ -59,8 +59,6 @@ const conservesData = () => {
   return Boolean(connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g");
 };
 
-const SCROLL_SETTLE_RETRY_MS = 80;
-
 // Mirrors SeoPhotosBackdrop's PHOTOS srcs. Kept as a plain string list (not
 // imported from there) so requesting these doesn't pull that component's JS
 // chunk into this one — background-image can't be preloaded by the browser
@@ -85,46 +83,29 @@ function useDeferredNearViewport<T extends HTMLElement>(
     const element = ref.current;
     if (!element || ready) return;
 
-    let cancelled = false;
-    let settleTimer: number | null = null;
-
-    const revealWhenScrollSettles = () => {
-      if (cancelled) return;
-      // Only decorative backdrops use this hook. They can wait for a genuine
-      // pause instead of forcing a large first paint into a scrolling frame.
-      if (document.documentElement.classList.contains("is-scrolling")) {
-        settleTimer = window.setTimeout(
-          revealWhenScrollSettles,
-          SCROLL_SETTLE_RETRY_MS
-        );
-        return;
-      }
-      startTransition(() => setReady(true));
-    };
+    // Mount as soon as the section is near. This used to wait for the scroll
+    // to settle, so on a continuous scroll the brands and storefront-photo
+    // sections arrived without a background and only got it once the visitor
+    // stopped. The wide rootMargin plus a transition render keeps the mount
+    // ahead of the section and out of the urgent scroll frames.
+    const reveal = () => startTransition(() => setReady(true));
 
     if (typeof IntersectionObserver === "undefined") {
-      revealWhenScrollSettles();
-      return () => {
-        cancelled = true;
-        if (settleTimer !== null) window.clearTimeout(settleTimer);
-      };
+      reveal();
+      return;
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         observer.disconnect();
-        revealWhenScrollSettles();
+        reveal();
       },
       { rootMargin, threshold: 0 }
     );
     observer.observe(element);
 
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-    };
+    return () => observer.disconnect();
   }, [ready, rootMargin]);
 
   return { ref, ready };
