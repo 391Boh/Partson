@@ -210,7 +210,10 @@ function DeferredHomeSection({
       cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
         // Prepare after the initial hero paint, in separate idle slots.
         // The map or another external request may still hold load open.
-        delayMs: 1450 + sectionIndex * 350,
+        // Was 1450 + 350/section: the hero's LCP lands at ~0.9s, so the
+        // sections (and their backgrounds) stood as bare skeletons for well
+        // over a second after it. Idle slots still keep them off the LCP.
+        delayMs: 600 + sectionIndex * 250,
         waitForLoad: false,
       });
     }
