@@ -112,12 +112,31 @@ export default function HomeSeoLinks() {
   return (
     <nav aria-labelledby="home-seo-links-title" className="home-popular-nav font-ui relative z-10 py-8 sm:py-10">
       <div className="home-popular-photo" aria-hidden="true">
-        <Image src="/images/home/popular-sections-workshop-v1.webp" alt="" fill sizes="100vw" unoptimized loading="lazy" />
+        {/* Plain srcset: phones take the 960px copy (31 KB instead of 87 KB). */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static srcset served by nginx */}
+        <img
+          src="/images/home/popular-sections-workshop-v1.webp"
+          srcSet="/images/home/popular-sections-workshop-v1-960.webp 960w, /images/home/popular-sections-workshop-v1.webp 1672w"
+          sizes="(max-width: 767px) 320px, 100vw"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        />
       </div>
       <div className="home-popular-content page-shell-inline">
         <header className="home-popular-intro home-popular-hero">
           <div className="home-popular-hero-photo" aria-hidden="true">
-            <Image src="/images/directories/parts-workbench-v1.webp" alt="" fill sizes="(min-width: 1280px) 1200px, 100vw" unoptimized loading="lazy" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- static srcset served by nginx */}
+            <img
+              src="/images/directories/parts-workbench-v1.webp"
+              srcSet="/images/directories/parts-workbench-v1-960.webp 960w, /images/directories/parts-workbench-v1.webp 1920w"
+              sizes="(max-width: 767px) 320px, (min-width: 1280px) 1200px, 100vw"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+            />
           </div>
           <div className="home-popular-hero-body">
             <span className="home-popular-hero-eyebrow">

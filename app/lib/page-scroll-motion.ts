@@ -3,6 +3,16 @@ import { canUseTimelineParallax, registerParallax, type ParallaxHandle } from ".
 const BACKGROUNDS = ".directory-hero-backdrop, .home-popular-photo, .home-backdrop [data-plx-drift], .hero-photo, .info-hero-art-frame";
 const BLOCKS = ".home-auto-grid > .reveal-head, .home-category-grid > :first-child, .home-brands-grid > .reveal-head, .home-story-grid > .reveal-adv-copy, .directory-intro-copy, .directory-intro-facts, .directory-detail-hero > .relative.grid > aside, .directory-detail-identity, .directory-guide-copy, .directory-guide-notes, .info-content-card, .info-step-card, .info-cta, .catalog-seo-title, .catalog-seo-copy-primary, .catalog-seo-copy-secondary";
 const SELECTOR = `${BACKGROUNDS}, ${BLOCKS}`;
+// React attaches its fiber key to a server-rendered DOM node when it hydrates
+// it. Writing data-* / style onto a node before that makes React report a
+// hydration attribute mismatch (and drop the attributes), which happened when
+// page content hydrated after the layout installed this. Such nodes simply
+// wait for a later scan.
+const isHydrated = (node: Element) => Object.keys(node).some(key => key.startsWith("__reactFiber$"));
+const HYDRATION_RETRY_MS = 200;
+// Nodes React never hydrates (static HTML) must not keep the scan polling.
+const HYDRATION_MAX_RETRIES = 50;
+
 type Effect = { el: HTMLElement; scene: HTMLElement; amplitude: number; axis: "x" | "y"; hero: boolean; lastShift?: number };
 
 /** One viewport observer; native timelines when available, otherwise the shared
@@ -15,6 +25,7 @@ export function installPageScrollMotion(root: HTMLElement) {
   const fallbackScenes = new Map<HTMLElement, { active: Set<Effect>; handle?: ParallaxHandle; progress?: number }>();
   let timer = 0;
   let stopped = false;
+  let hydrationRetries = 0;
 
   const paint = (item: Effect, progress: number) => {
     const gain = (window.innerWidth < 768 ? .45 : 1) * (document.documentElement.classList.contains("reduce-scroll-effects") ? .5 : 1);
@@ -102,12 +113,17 @@ export function installPageScrollMotion(root: HTMLElement) {
       delete el.dataset.pageMotionNative;
       effects.delete(el);
     }
+    let waitingForHydration = false;
     for (const el of allowed) {
       if (effects.has(el) || el.closest(".partner-page")) continue;
       const background = el.matches(BACKGROUNDS);
       const hero = el.matches(".hero-photo");
       const scene = el.matches(".home-popular-photo") ? el.closest<HTMLElement>(".home-popular-nav") : el.parentElement?.closest<HTMLElement>("section") ?? el.parentElement;
       if (!scene || scene === el) continue;
+      if (hydrationRetries < HYDRATION_MAX_RETRIES && (!isHydrated(el) || !isHydrated(scene))) {
+        waitingForHydration = true;
+        continue;
+      }
       const drift = Number.parseFloat(el.style.getPropertyValue("--plx-drift"));
       const amplitude = hero ? 56 : el.matches(".directory-hero-backdrop") ? -72 : el.matches(".directory-intro-facts,.directory-detail-hero aside") ? -14 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
       const axis = !background && el.matches(".home-auto-grid > .reveal-head,.directory-intro-copy,.directory-detail-identity,.directory-guide-copy,.catalog-seo-title") ? "x" : "y";
@@ -122,6 +138,10 @@ export function installPageScrollMotion(root: HTMLElement) {
       el.style.setProperty("--page-motion-from-y", `${axis === "y" && !hero ? -amplitude : 0}px`);
       el.style.setProperty("--page-motion-to-y", `${axis === "y" ? amplitude : 0}px`);
       observer.observe(el);
+    }
+    if (waitingForHydration && !timer) {
+      hydrationRetries += 1;
+      timer = window.setTimeout(scan, HYDRATION_RETRY_MS);
     }
   };
   const changes = new MutationObserver(records => {

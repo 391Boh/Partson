@@ -26,6 +26,7 @@ import {
 import { sectionContent } from './sections';
 import { PHONE_DISPLAY, PHONE_RAW } from './ui';
 import OpenChatButton from 'app/components/OpenChatButton';
+import InformationSectionsPrefetch from './InformationSectionsPrefetch';
 import { directoryPanelClass } from 'app/components/catalog-directory-styles';
 
 const HERO_IMAGE_ALT: Record<InformationSectionKey, string> = {
@@ -76,6 +77,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
       className="info-page relative min-h-screen py-5 text-slate-900 sm:py-7"
       style={{ '--info-a': accentA, '--info-b': accentB } as CSSProperties}
     >
+      <InformationSectionsPrefetch paths={informationSections.map((s) => getInformationPath(s.key))} />
       <div className="page-shell-inline space-y-5 sm:space-y-6">
         {/* Хлібні крихти */}
         <nav aria-label="Навігаційні хлібні крихти">

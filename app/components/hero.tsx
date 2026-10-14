@@ -1,9 +1,17 @@
-import Image from "next/image";
-import heroPhoto from "../../public/storefront/photos/partson-store-1.webp";
+import { preload } from "react-dom";
 
 import LazyHeroAccountClient from "./LazyHeroAccountClient";
 import HeroIntroCard from "./HeroIntroCard";
 import HeroParallaxBackground from "./HeroParallaxBackground";
+
+// Served as static files (nginx, immutable) rather than through the Next
+// image optimizer: on the 2 GB server a cold optimizer cache — after every
+// deploy — kept the hero photo ~1s behind the page. Under the dark wash a
+// 768px copy is plenty on phones, so `sizes` caps them there even at 3x DPR.
+const HERO_PHOTO_SRC = "/storefront/photos/partson-store-1.webp";
+const HERO_PHOTO_SRCSET =
+  "/storefront/photos/partson-store-1-768.webp 768w, /storefront/photos/partson-store-1.webp 1280w";
+const HERO_PHOTO_SIZES = "(max-width: 767px) 256px, 100vw";
 
 // Was 5 separate absolutely-positioned <span> overlays + 2 CSS-class-driven
 // ::before/::after pseudo-elements stacked on top of this section (~8
@@ -53,6 +61,14 @@ const depthBackgroundSize = "auto, auto, auto, auto, auto, auto, auto, auto";
 const depthBackgroundPosition = "0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0";
 
 const Hero = () => {
+  // What next/image's `preload` did: a <link rel="preload"> in <head> with the
+  // same srcset, so the photo starts with the HTML, not after layout.
+  preload(HERO_PHOTO_SRC, {
+    as: "image",
+    imageSrcSet: HERO_PHOTO_SRCSET,
+    imageSizes: HERO_PHOTO_SIZES,
+    fetchPriority: "high",
+  });
   return (
     <section
       // `<main>` skips its usual pt-header-offset on the homepage (see
@@ -68,14 +84,22 @@ const Hero = () => {
       className="hero-section-smooth group/hero font-ui relative isolate z-[1] flex min-h-[400px] w-full select-none items-start overflow-hidden pt-[calc(var(--header-height,4rem)+1.5rem)] pb-6 sm:min-h-[450px] sm:items-center sm:pt-[calc(var(--header-height,4rem)+2.25rem)] sm:pb-9 lg:min-h-[510px] lg:pt-[calc(var(--header-height,4rem)+3rem)] lg:pb-12"
       >
       <HeroParallaxBackground>
-        <Image
-          src={heroPhoto}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static srcset, see HERO_PHOTO_SRC */}
+        <img
+          src={HERO_PHOTO_SRC}
+          srcSet={HERO_PHOTO_SRCSET}
+          sizes={HERO_PHOTO_SIZES}
           alt=""
-          fill
-          preload
-          sizes="100vw"
-          quality={70}
-          style={{ objectFit: "cover", objectPosition: "center 38%" }}
+          fetchPriority="high"
+          decoding="async"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center 38%",
+          }}
         />
       </HeroParallaxBackground>
       <div
