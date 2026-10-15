@@ -6,6 +6,7 @@ import {
   getPricedProductEntriesBySitemapId,
   getPricedProductSitemapIds,
 } from "app/lib/product-sitemap";
+import { getProductSitemapLastModified } from "app/lib/product-sitemap-lastmod";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { getSiteUrl } from "app/lib/site-url";
 
@@ -46,6 +47,10 @@ export default async function sitemap(props: {
     return [];
   }
 
+  const productLastModified = await getProductSitemapLastModified(entries).catch(
+    () => new Map<string, string>()
+  );
+
   const items: MetadataRoute.Sitemap = entries
     .map((entry) => {
       const normalizedCode = normalize(entry.code);
@@ -77,7 +82,7 @@ export default async function sitemap(props: {
 
       return {
         url: `${siteUrl}${productPath}`,
-        lastModified,
+        lastModified: productLastModified.get(normalizedCode) ?? lastModified,
         changeFrequency: "weekly" as const,
         priority: 0.65,
         images: productImages,

@@ -83,6 +83,7 @@ import {
   getProductReviewStats,
   type ProductReview,
 } from "app/lib/reviews-server";
+import { buildOfferShippingDetails } from "app/lib/shipping-policy";
 
 // 1C itself is documented (see ProductCard.tsx's DESCRIPTION_REQUEST_TIMEOUT_MS)
 // to take 1.9-3.7s per call, even back-to-back, and oneC.js additionally
@@ -594,6 +595,7 @@ const buildProductJsonLd = (options: {
           // `returnFees` is deliberately omitted — who covers return shipping
           // is negotiated case by case there, not a fixed policy, and
           // asserting one here would be inaccurate structured data.
+          shippingDetails: buildOfferShippingDetails(),
           hasMerchantReturnPolicy: {
             "@type": "MerchantReturnPolicy",
             applicableCountry: "UA",

@@ -12,6 +12,13 @@ import {
 } from "app/lib/product-sitemap";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
+import {
+  SHIPPING_COUNTRY,
+  SHIPPING_HANDLING_DAYS,
+  SHIPPING_RATE_UAH,
+  SHIPPING_SERVICE,
+  SHIPPING_TRANSIT_DAYS,
+} from "app/lib/shipping-policy";
 
 // Google product taxonomy ID 899. Shared with the product page's Product
 // JSON-LD `category`, which Search Console flags as invalid when it carries
@@ -406,6 +413,19 @@ const toGoogleMerchantFeedItem = (
   };
 };
 
+// Same terms as the product pages' OfferShippingDetails (shipping-policy.ts).
+const SHIPPING_XML = [
+  "      <g:shipping>",
+  `        <g:country>${SHIPPING_COUNTRY}</g:country>`,
+  `        <g:service>${SHIPPING_SERVICE}</g:service>`,
+  `        <g:price>${SHIPPING_RATE_UAH.toFixed(2)} UAH</g:price>`,
+  `        <g:min_handling_time>${SHIPPING_HANDLING_DAYS.min}</g:min_handling_time>`,
+  `        <g:max_handling_time>${SHIPPING_HANDLING_DAYS.max}</g:max_handling_time>`,
+  `        <g:min_transit_time>${SHIPPING_TRANSIT_DAYS.min}</g:min_transit_time>`,
+  `        <g:max_transit_time>${SHIPPING_TRANSIT_DAYS.max}</g:max_transit_time>`,
+  "      </g:shipping>",
+].join("\n");
+
 const buildGoogleMerchantFeedXml = (
   siteUrl: string,
   items: GoogleMerchantFeedItem[]
@@ -431,6 +451,7 @@ const buildGoogleMerchantFeedXml = (
           ? `      <g:product_type>${escapeXml(item.productType)}</g:product_type>`
           : null,
         `      <g:google_product_category>${escapeXml(item.googleProductCategory)}</g:google_product_category>`,
+        SHIPPING_XML,
         item.customLabel0
           ? `      <g:custom_label_0>${escapeXml(item.customLabel0)}</g:custom_label_0>`
           : null,
