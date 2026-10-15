@@ -5,6 +5,11 @@ const LAST_MODIFIED_ENV_KEYS = [
   "NEXT_PUBLIC_SITE_CONTENT_LAST_MODIFIED",
 ] as const;
 
+// Used when no date is configured: without one every non-product sitemap
+// went out with no <lastmod> at all. Bump it when the catalogue pages'
+// templates or structured data change site-wide.
+const SITE_TEMPLATES_REVISED_AT = "2026-10-15T00:00:00.000Z";
+
 export const getConfiguredSitemapLastModified = () => {
   for (const key of LAST_MODIFIED_ENV_KEYS) {
     const value = process.env[key]?.trim();
@@ -16,5 +21,5 @@ export const getConfiguredSitemapLastModified = () => {
     }
   }
 
-  return undefined;
+  return SITE_TEMPLATES_REVISED_AT;
 };

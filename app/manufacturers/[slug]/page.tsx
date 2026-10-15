@@ -62,7 +62,7 @@ import {
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
-import { getProducerSeoCopy } from "app/lib/seo-copy";
+import { getProducerSeoCopy, isIndexableManufacturerPage } from "app/lib/seo-copy";
 import {
   appendSeoContact,
   buildFirstFittingSeoTitle,
@@ -1252,9 +1252,10 @@ export async function generateMetadata({
     title,
     description,
     canonicalPath: buildManufacturerPath(producer.slug),
-    // A brand known only from the static brand list (no products in the
-    // catalog) renders a thin page — keep it reachable but out of the index.
-    index: producer.productCount > 0,
+    // A brand with no products, or only one or two and no brand
+    // description, renders a thin page — keep it reachable but out of the
+    // index (the manufacturers sitemap applies the same rule).
+    index: isIndexableManufacturerPage(producer.label, producer.productCount),
     keywords: buildManufacturerKeywords(producer.label),
     openGraphTitle: `${title} | PartsON`,
     image: producerImage ?? {
@@ -1342,7 +1343,8 @@ export default async function ManufacturerDetailPage({
   const seoCopy = getProducerSeoCopy(
     producer.label,
     producer.productCount,
-    producer.topGroups.map((group) => group.label)
+    producer.topGroups.map((group) => group.label),
+    manufacturerProducts.map((product) => product.name)
   );
   const hasAnySubgroups = producer.topCategories?.length
     ? producer.topCategories.some((cat) => cat.groups.some((g) => g.subgroups.length > 0))
@@ -1350,7 +1352,7 @@ export default async function ManufacturerDetailPage({
   const seoTextBlocks = buildUniqueTextBlocks(
     producer.description,
     ...seoCopy.paragraphs
-  ).slice(0, 4);
+  ).slice(0, 5);
   const seoHighlights = buildUniqueTextBlocks(...seoCopy.highlights).slice(0, 4);
   // Em-dash, matching buildManufacturerTitle above and the site's heading
   // convention elsewhere — was a plain hyphen with an awkward triple-

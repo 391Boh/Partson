@@ -3450,6 +3450,19 @@ const PRODUCER_COPY_MAP: Record<string, ProducerSeoCopyEntry> = {
   },
 };
 
+// A brand page is worth indexing once it lists a few products, or when it
+// carries a hand-written brand description. Brands with one or two products
+// and only the generic copy were "crawled, not indexed" by Google: thin,
+// near-identical pages that dilute the rest of the site.
+const MIN_PRODUCTS_FOR_GENERIC_MANUFACTURER_PAGE = 3;
+
+export const hasProducerSeoCopy = (label: string) =>
+  Boolean(PRODUCER_COPY_MAP[label.trim().toLowerCase()]);
+
+export const isIndexableManufacturerPage = (label: string, publicProductCount: number) =>
+  publicProductCount >= MIN_PRODUCTS_FOR_GENERIC_MANUFACTURER_PAGE ||
+  (publicProductCount > 0 && hasProducerSeoCopy(label));
+
 export const getProducerSeoCopy = (
   label: string,
   productCount: number,
@@ -3458,7 +3471,10 @@ export const getProducerSeoCopy = (
   // from what this brand actually stocks. Optional only for callers that
   // haven't computed groups yet; the fallback below degrades to a claim-free
   // sentence rather than ever guessing.
-  topGroupLabels: string[] = []
+  topGroupLabels: string[] = [],
+  // Names of products this brand really lists. Without a hand-written
+  // description they are what makes one brand's page differ from another's.
+  productNames: string[] = []
 ): ProducerSeoCopy => {
   const productCountLabel =
     productCount > 0
@@ -3491,12 +3507,21 @@ export const getProducerSeoCopy = (
       ? `Основні групи товарів ${label} у каталозі: ${topGroupLabels.slice(0, 4).join(", ")}.`
       : `Товари ${label} розподілені за групами й категоріями, щоб структуру бренду було видно одразу.`;
 
+  const exampleNames = Array.from(
+    new Set(productNames.map((name) => buildVisibleProductName(name)).filter((name) => name && name !== "Товар"))
+  ).slice(0, 5);
+  const examplesSentence =
+    exampleNames.length > 0
+      ? `Приклади товарів ${label} у PartsON: ${exampleNames.join("; ")}.`
+      : null;
+
   return {
     title: `${label} — каталог бренду PartsON`,
     intro:
       `У цьому розділі зібрано запчастини ${label}, представлені в PartsON. Оберіть потрібний тип деталі й порівняйте характеристики доступних варіантів.`,
     paragraphs: [
       topGroupsSentence,
+      ...(examplesSentence ? [examplesSentence] : []),
       `Для вибору конкретної запчастини ${label} звірте артикул, оригінальний номер, розміри та сторону встановлення. Якщо є сумніви щодо модифікації автомобіля, надішліть VIN менеджеру.`,
       `Ціна й наявність наведені в картці товару. Замовлення можна забрати у Львові або оформити доставку по Україні.`,
     ],

@@ -18,6 +18,7 @@ import { getGroupProductPreview } from "app/lib/group-product-image";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
+import { isIndexableManufacturerPage } from "app/lib/seo-copy";
 
 export type SitemapChangeFrequency =
   | "always"
@@ -326,11 +327,13 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
     SITEMAP_MANUFACTURERS_SOURCE_TIMEOUT_MS
   );
 
-  // Only brands whose page actually lists products: the manufacturer page
-  // marks a brand with no public (priced + photographed) products noindex,
-  // and a noindex URL must not be submitted here.
-  const hasPublicProducts = (producer: { productCount?: number }) =>
-    typeof producer.productCount !== "number" || producer.productCount > 0;
+  // Only brands whose page is indexable: the manufacturer page marks a brand
+  // with no public (priced + photographed) products, or a thin generic one,
+  // noindex (isIndexableManufacturerPage), and a noindex URL must not be
+  // submitted here.
+  const hasPublicProducts = (producer: { label: string; productCount?: number }) =>
+    typeof producer.productCount !== "number" ||
+    isIndexableManufacturerPage(producer.label, producer.productCount);
 
   if (facets?.producers?.length) {
     for (const producer of facets.producers) {
@@ -359,7 +362,12 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
 
   if (directoryData?.clientProducers?.length) {
     for (const producer of directoryData.clientProducers) {
-      if (directoryData.hasIndexedCounts && producer.publicProductCount <= 0) continue;
+      if (
+        directoryData.hasIndexedCounts &&
+        !isIndexableManufacturerPage(producer.label, producer.publicProductCount)
+      ) {
+        continue;
+      }
       pushUniqueEntry(
         buildManufacturerPath(producer.slug),
         contentLastModified,
@@ -413,7 +421,7 @@ const getGroupsSitemapEntriesCached = unstable_cache(
 
 const getManufacturersSitemapEntriesCached = unstable_cache(
   buildManufacturersSitemapEntries,
-  ["manufacturers-sitemap-v5"],
+  ["manufacturers-sitemap-v6"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["manufacturers-sitemap"],
