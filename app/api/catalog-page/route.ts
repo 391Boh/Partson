@@ -11,6 +11,7 @@ import type { CatalogProduct } from "app/lib/catalog-server";
 import { encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import {
   canUseProductParams,
+  isTerminalCatalogParamsQuery,
   getCatalogProductsMatchingParams,
   readCatalogParamsListOptions,
   readCatalogParamsQuery,
@@ -245,7 +246,7 @@ export async function POST(request: Request) {
     );
     if (paramFilters.length > 0) {
       const paramsQuery = readCatalogParamsQuery(body);
-      if (canUseProductParams(paramsQuery)) {
+      if (canUseProductParams(paramsQuery) && await isTerminalCatalogParamsQuery(paramsQuery)) {
         const products = await getCatalogProductsMatchingParams(
           paramsQuery,
           paramFilters,

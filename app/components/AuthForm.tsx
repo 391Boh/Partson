@@ -1,5 +1,7 @@
 "use client";
 
+import { usePanelTransition } from "app/lib/use-panel-transition";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
 import React, { FormEvent, useCallback, useEffect, useRef, useState, useId } from "react";
 import {
   signInWithEmailAndPassword,
@@ -132,6 +134,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isTelegramLoading, setIsTelegramLoading] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  usePanelTransition(modalRef, mode, "form");
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -178,13 +181,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [closeModal]);
 
-  useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeModal();
-    };
-    document.addEventListener("keydown", handleEscapeKey);
-    return () => document.removeEventListener("keydown", handleEscapeKey);
-  }, [closeModal]);
+  useCustomerDialog(modalRef, closeModal);
 
   useEffect(() => {
     setIsGoogleRedirectPending(true);
@@ -568,7 +565,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         aria-labelledby="auth-form-modal-title"
         className={`customer-window customer-overlay-panel customer-overlay-panel--auth auth-form-panel soft-modal-shell soft-panel-glow app-overlay-panel overflow-y-auto text-slate-700 transform-gpu pointer-events-auto ${
           isClosing
-            ? "transition-all duration-300 ease-in translate-x-4 -translate-y-1 scale-[0.94] rotate-1 opacity-0 blur-[4px]"
+            ? "transition-[opacity,transform] duration-300 ease-out translate-y-1 opacity-0"
             : "app-panel-enter"
         }`}
       >
@@ -577,10 +574,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
           <div className="soft-panel-header">
             <div className="min-w-0">
-              <span className="soft-panel-eyebrow">
-                {mode === "login" ? <LogIn size={14} /> : <UserPlus size={14} />}
-                {mode === "login" ? "Вхід" : "Реєстрація"}
-              </span>
               <h2 id="auth-form-modal-title" className="soft-panel-title">
                 {mode === "login" ? "Вхід до акаунта" : "Створити акаунт"}
               </h2>
@@ -630,6 +623,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
             </button>
           </div>
 
+          <div className="app-panel-scroll customer-auth-body min-h-0 flex-1 overflow-y-auto">
           <div className="flex flex-col gap-2">
             <div className="auth-social-stack grid grid-cols-1 gap-3">
               <button
@@ -869,6 +863,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               {socialAuthError}
             </p>
           )}
+          </div>
         </div>
       </div>
     </div>

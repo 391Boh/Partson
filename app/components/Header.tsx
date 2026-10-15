@@ -12,6 +12,7 @@ import { usePathname } from 'next/navigation';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
+import { fetchPartnerStatus } from 'app/lib/partner-status-client';
 import SmartLink from 'app/components/SmartLink';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
@@ -377,10 +378,10 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   // brighter border and bolder text give these buttons a defined edge
   // against the background instead of blending into it.
   const buttonBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-all duration-200 whitespace-nowrap hover:border-sky-300/65 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.28)_0%,rgba(56,189,248,0.08)_100%)] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.28),0_2px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(125,211,252,0.28)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'nav-action font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-all duration-200 whitespace-nowrap hover:border-sky-300/65 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.28)_0%,rgba(56,189,248,0.08)_100%)] hover:text-sky-100 hover:shadow-[0_6px_18px_rgba(14,165,233,0.28),0_2px_8px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(125,211,252,0.28)] active:scale-[0.96] active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3.5 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionBaseClass =
-    'font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-[background-color,background-image,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/55 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.24)_0%,rgba(56,189,248,0.07)_100%)] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.22),0_2px_7px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
+    'nav-action font-ui relative inline-flex h-11 w-11 shrink-0 cursor-pointer select-none items-center justify-center gap-1.5 rounded-[14px] border border-white/[0.30] bg-[image:linear-gradient(150deg,rgba(255,255,255,0.18)_0%,rgba(255,255,255,0.05)_100%)] text-[10px] font-bold tracking-[0.01em] text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)] shadow-[0_2px_10px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.24)] transition-[background-color,background-image,border-color,color,box-shadow,filter,transform] duration-[420ms] ease-[cubic-bezier(0.16,1,0.3,1)] whitespace-nowrap hover:border-sky-300/55 hover:bg-[image:linear-gradient(150deg,rgba(56,189,248,0.24)_0%,rgba(56,189,248,0.07)_100%)] hover:text-sky-100 hover:shadow-[0_5px_15px_rgba(14,165,233,0.22),0_2px_7px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(125,211,252,0.24)] active:scale-[0.97] active:duration-150 active:shadow-[0_1px_3px_rgba(0,0,0,0.22)] sm:h-auto sm:w-auto sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-[13px] touch-manipulation';
 
   const rightActionActiveClass =
     '!border-sky-300/65 !bg-[image:linear-gradient(150deg,rgba(56,189,248,0.32)_0%,rgba(56,189,248,0.12)_100%)] !text-sky-100 !shadow-[0_4px_14px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(125,211,252,0.28)] !-translate-y-0';
@@ -522,6 +523,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
               <li className="relative select-none">
                 <button
                   data-overlay-toggle="menu"
+                  aria-expanded={activeMenu === "menu"}
                   aria-label="Меню"
                   onClick={() => toggleMenu("menu")}
                   className={`${buttonBaseClass} ${
@@ -584,6 +586,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
               <li className="relative select-none">
                 <button
                   data-overlay-toggle="info"
+                  aria-expanded={activeMenu === "info"}
                   aria-label="Інформація"
                   onClick={() => toggleMenu("info")}
                   className={`${buttonBaseClass} ${
@@ -626,6 +629,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
 
           <button
             aria-label="Пошук"
+            aria-expanded={showSearchModal}
             className={`group lg:hidden ${rightActionBaseClass} ${searchActionClass} ${
               showSearchModal ? searchActionActiveClass : ''
             }`}
@@ -647,6 +651,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
           {/* ACCOUNT */}
           <button
             data-overlay-toggle="auth"
+            aria-expanded={modals.auth}
             aria-label="Профіль"
             onPointerEnter={preloadAuthModal}
             onFocus={preloadAuthModal}
@@ -669,6 +674,10 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
           {/* CART */}
           <button
             data-overlay-toggle="order"
+            aria-expanded={modals.order}
+            onPointerEnter={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
+            onFocus={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
+            onTouchStart={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
             // The badge count is visual only; put it in the accessible name.
             aria-label={
               hasMounted && cartItems.length > 0
@@ -697,6 +706,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
           {/* PHONE */}
           <button
             data-overlay-toggle="contact"
+            aria-expanded={modals.contact}
             aria-label="Контакти"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {

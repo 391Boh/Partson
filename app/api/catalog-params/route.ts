@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import {
   canUseProductParams,
+  isTerminalCatalogParamsQuery,
   getCatalogParamFacets,
   readCatalogParamsQuery,
 } from "app/lib/catalog-params-server";
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
   );
 
   try {
+    if (!await isTerminalCatalogParamsQuery(query)) {
+      return NextResponse.json({ facets: [], totalCount: 0, withParamsCount: 0, matchCount: 0, complete: true, needsCategory: true });
+    }
     const result = await getCatalogParamFacets(query, filters);
     return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
   } catch {

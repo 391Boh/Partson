@@ -3,8 +3,11 @@ import "server-only";
 import { fetchCatalogProductsByQuery, type CatalogProduct, type CatalogSearchFilter } from "app/lib/catalog-server";
 import { catalogRouteCacheClearHooks } from "app/lib/catalog-page-route-cache";
 import { normalizeSearchQuery } from "app/lib/catalog-search";
+import { getProductTreeDataset } from "app/lib/product-tree";
 import {
   buildProductParamFacets,
+  formatParamNumber,
+  slugifyParamToken,
   matchesProductParamFilters,
   parseProductParams,
   type ParsedProductParams,
@@ -74,7 +77,7 @@ export const readCatalogParamsListOptions = (body: Record<string, unknown>): Cat
 });
 
 type ParamBaseEntry ={ product: CatalogProduct; params: ParsedProductParams };
-type ParamBase = { entries: ParamBaseEntry[]; complete: boolean };
+type ParamBase = { entries: ParamBaseEntry[]; complete: boolean; facets: ProductParamFacet[] };
 
 const BASE_TTL_MS = 1000 * 60 * 10;
 const PAGE_LIMIT = 240;
@@ -86,8 +89,30 @@ catalogRouteCacheClearHooks.add(() => baseCache.clear());
 
 // Without a category there is nothing meaningful to compare, and loading the
 // whole catalog page by page would hammer 1C.
-export const canUseProductParams = (query: Pick<CatalogParamsQuery, "group" | "subcategory" | "selectedCategories">) =>
-  Boolean(query.subcategory || query.group || query.selectedCategories.length > 0);
+export const canUseProductParams = (query: Pick<CatalogParamsQuery, "group" | "subcategory" | "selectedCategories"> & { expandHierarchy?: boolean }) =>
+  !query.expandHierarchy && query.selectedCategories.length <= 1 && Boolean(query.group || query.subcategory || query.selectedCategories.length === 1);
+
+export async function isTerminalCatalogParamsQuery(query: CatalogParamsQuery): Promise<boolean> {
+  if (!canUseProductParams(query)) return false;
+  const tree = await getProductTreeDataset();
+  const normalize = (value: string) => value.trim().toLocaleLowerCase('uk-UA');
+  const path = (query.selectedCategories[0] || '').split(/\s+\/\s+/);
+  const target = normalize(query.subcategory || path.at(-1) || query.group || '');
+  const parent = normalize(query.subcategory || query.selectedCategories.length ? query.group || path.at(-2) || '' : '');
+  const matches: boolean[] = [];
+  for (const group of tree.groups) {
+    if (!parent && [group.label, group.slug, group.legacySlug].some((label) => label && normalize(label) === target)) matches.push(group.subgroups.length === 0);
+    for (const subgroup of group.subgroups) {
+      const inGroup = !parent || [group.label, group.slug, group.legacySlug].some((label) => label && normalize(label) === parent);
+      if (inGroup && [subgroup.label, subgroup.slug, subgroup.legacySlug].some((label) => label && normalize(label) === target)) {
+        matches.push(subgroup.children.length === 0);
+      }
+      const inSubgroup = inGroup || [subgroup.label, subgroup.slug, subgroup.legacySlug].some((label) => label && normalize(label) === parent);
+      if (inSubgroup && subgroup.children.some((child) => [child.label, child.slug, child.legacySlug].some((label) => label && normalize(label) === target))) matches.push(true);
+    }
+  }
+  return matches.length > 0 && matches.every(Boolean);
+}
 
 const buildBaseKey = (query: CatalogParamsQuery) =>
   JSON.stringify([
@@ -113,8 +138,8 @@ const fetchBasePage = (
     selectedCars: query.selectedCars,
     selectedCategories: query.selectedCategories,
     searchQuery: query.searchQuery,
-    // "all" makes allgoods include descriptions (ВключатьОписание).
     searchFilter: query.searchFilter,
+    includeDescription: true,
     group: query.group,
     subcategory: query.subcategory,
     producer: query.producer,
@@ -173,12 +198,10 @@ const loadBase = async (query: CatalogParamsQuery): Promise<ParamBase> => {
   const hierarchyResult = await hierarchyPage;
   if (hierarchyResult) add(hierarchyResult.items);
 
-  if (entries.length === 0) {
-    // Never cache an empty set: it is as likely a 1C timeout as a real
-    // empty category, and the catalog query itself will say which.
+  if (entries.length === 0 && !complete) {
     throw new Error("Catalog params base is empty");
   }
-  return { entries, complete };
+  return { entries, complete, facets: buildProductParamFacets(entries.map((entry) => entry.params), []) };
 };
 
 const getBase = (query: CatalogParamsQuery) => {
@@ -189,6 +212,11 @@ const getBase = (query: CatalogParamsQuery) => {
 
   const promise = loadBase(query);
   baseCache.set(key, { expiresAt: now + BASE_TTL_MS, promise });
+  void promise.then((base) => {
+    // Empty contexts are valid (e.g. a producer with no fitting products),
+    // but should stay retryable rather than pinning a transient empty set.
+    if (!base.entries.length && baseCache.get(key)?.promise === promise) baseCache.delete(key);
+  }, () => {});
   promise.catch(() => {
     if (baseCache.get(key)?.promise === promise) baseCache.delete(key);
   });
@@ -212,16 +240,34 @@ export const getCatalogParamFacets = async (
   query: CatalogParamsQuery,
   filters: ProductParamFilter[]
 ): Promise<CatalogParamsResult> => {
-  const base = await getBase(query);
+  // Schema belongs to the category, not to a particular search/car/producer.
+  // Keep its fields, options and ranges stable while contextual counts change.
+  const schemaQuery: CatalogParamsQuery = {
+    ...query, producer: "", selectedCars: [], searchQuery: "", searchFilter: "all",
+  };
+  const [base, schemaBase] = await Promise.all([getBase(query), getBase(schemaQuery)]);
   const parsedList = base.entries.map((entry) => entry.params);
+  const facets = schemaBase.facets.map((facet): ProductParamFacet => {
+    const counts = new Map<string, number>();
+    let count = 0;
+    for (const params of parsedList) {
+      const entry = params.get(facet.id);
+      if (!entry || !matchesProductParamFilters(params, filters, facet.id)) continue;
+      if (entry.numbers.length) count += 1;
+      const values = new Set([...entry.choices.keys(), ...entry.numbers.map((number) => slugifyParamToken(formatParamNumber(number, entry.unit)))]);
+      for (const id of values) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    if (facet.kind === "range") return { ...facet, count };
+    return { ...facet, values: facet.values.map((option) => ({ ...option, count: counts.get(option.id) ?? 0 })) };
+  });
   return {
-    facets: buildProductParamFacets(parsedList, filters),
+    facets,
     totalCount: base.entries.length,
     withParamsCount: parsedList.filter((params) => params.size > 0).length,
     matchCount: filters.length
       ? parsedList.filter((params) => matchesProductParamFilters(params, filters)).length
       : base.entries.length,
-    complete: base.complete,
+    complete: base.complete && schemaBase.complete,
   };
 };
 

@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { usePanelTransition } from "app/lib/use-panel-transition";
 import { pluralizeProducts } from 'app/lib/pluralize-uk';
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
@@ -31,6 +32,7 @@ import type { PersistedCarSelection } from 'app/components/Auto';
 import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
 import type { ProductParamsQuery } from 'app/components/ProductParamsFilter';
 import { decodeProductParamFilters, PRODUCT_PARAMS_QUERY_KEY } from 'app/lib/product-params';
+import { loadParamFacets } from 'app/lib/catalog-params-client';
 
 type ProducerFilterBrand = {
   name: string;
@@ -185,6 +187,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     );
   }, [pathname, promoOnlyParam, router, searchParamsKey, selectedCars, sortOrderProp]);
   const [activeComponent, setActiveComponent] = useState<'auto' | 'category' | 'producer' | 'price' | 'params'>('auto');
+  usePanelTransition(panelContentRef, activeComponent);
   const formatPriceInput = (value: number | null | undefined) =>
     typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
   const parsePriceInput = (value: string) => {
@@ -357,6 +360,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
 
   useEffect(() => {
     if (tabParam === 'category' || tabParam === 'auto' || tabParam === 'producer' || tabParam === 'params') {
+      ignoreScrollCloseUntilRef.current = Date.now() + 800;
       setActiveComponent(tabParam);
       setCollapsed(false);
     }
@@ -429,6 +433,27 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [groupParam, subcategoryParam, producerParam, selectedCars, selectedCategories, searchQuery, searchFilter, searchParamsKey]
   );
+  const taxonomyKey = JSON.stringify([groupParam, subcategoryParam, [...selectedCategories].sort()]);
+  const [terminalParamsScope, setTerminalParamsScope] = useState<{ key: string; terminal: boolean } | null>(null);
+  const canCheckParams = !productParamsQuery.expandHierarchy && selectedCategories.length <= 1 && hasCategorySelection;
+  const defaultTerminalCategory = Boolean(subcategoryParam || selectedCategories.length === 1);
+  const hasFinalCategory = canCheckParams && (terminalParamsScope?.key === taxonomyKey
+    ? terminalParamsScope.terminal : defaultTerminalCategory);
+  const paramsPrefetchKey = JSON.stringify(productParamsQuery);
+  useEffect(() => {
+    if (!canCheckParams) return;
+    let cancelled = false;
+    const cancel = scheduleBackgroundTask(() => {
+      void import('app/components/ProductParamsFilter');
+      void loadParamFacets(JSON.parse(paramsPrefetchKey) as ProductParamsQuery).then((data) => {
+        if (!cancelled) setTerminalParamsScope((current) => {
+          const previous = current?.key === taxonomyKey ? current.terminal : defaultTerminalCategory;
+          return previous === !data.needsCategory ? current : { key: taxonomyKey, terminal: !data.needsCategory };
+        });
+      }).catch(() => {});
+    }, { delayMs: 100, idleTimeoutMs: 500, waitForLoad: false });
+    return () => { cancelled = true; cancel(); };
+  }, [canCheckParams, paramsPrefetchKey, taxonomyKey, defaultTerminalCategory]);
   // Previously only reflected sort order — turning on "Акційні товари" (or,
   // pre-existing, "З ціною"/"В наявності"/a price range) left the outer
   // "Ціна" summary chip looking completely idle despite a real filter from
@@ -737,23 +762,24 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   useEffect(() => {
     if (lastParamsCategoryKeyRef.current === paramsCategoryKey) return;
     lastParamsCategoryKeyRef.current = paramsCategoryKey;
-    // A final group picked in the category tab (katkomp adds tab=params):
-    // go straight to its parameters — position, sizes, type.
-    if (subcategoryParam && tabParam === 'params') {
-      ignoreScrollCloseUntilRef.current = Date.now() + 800;
-      setActiveComponent('params');
-      setCollapsed(false);
-    }
     if (!paramsParam) return;
     const nextParams = new URLSearchParams(searchParamsKey);
     nextParams.delete(PRODUCT_PARAMS_QUERY_KEY);
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-  }, [paramsCategoryKey, paramsParam, pathname, router, searchParamsKey, subcategoryParam, tabParam]);
+  }, [paramsCategoryKey, paramsParam, pathname, router, searchParamsKey]);
 
   useEffect(() => {
-    if (activeComponent === 'params' && !hasCategorySelection) setActiveComponent('category');
-  }, [activeComponent, hasCategorySelection]);
+    if (!hasFinalCategory || tabParam !== 'params') return;
+    // Also handles a terminal root group confirmed by the cached taxonomy.
+    ignoreScrollCloseUntilRef.current = Date.now() + 800;
+    setActiveComponent('params');
+    setCollapsed(false);
+  }, [hasFinalCategory, tabParam, taxonomyKey]);
+
+  useEffect(() => {
+    if (activeComponent === 'params' && !hasFinalCategory) setActiveComponent('category');
+  }, [activeComponent, hasFinalCategory]);
 
   const handleOpenAutoTab = useCallback(() => {
     if (isAutoTabActive && !collapsed) {
@@ -1005,7 +1031,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                     </button>
                   ))}
                 {hiddenProducerCount > 0 ? (
-                  <div className="flex h-[68px] w-full min-w-0 items-center justify-center rounded-[16px] border border-dashed border-violet-300 bg-violet-50/70 px-2 text-center text-[9px] font-semibold leading-3 text-slate-500">
+                  <div className="flex h-[68px] w-full min-w-0 items-center justify-center rounded-[16px] border border-dashed border-violet-300 bg-violet-50/70 px-2 text-center text-[9px] font-semibold leading-3 text-violet-800">
                     +{hiddenProducerCount.toLocaleString('uk-UA')} виробників.
                     Уточніть пошук
                   </div>
@@ -1314,7 +1340,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 </span>
               )}
             </button>
-            {hasCategorySelection && (
+            {hasFinalCategory && (
               <button
                 type="button"
                 onClick={handleOpenParamsTab}
@@ -1401,7 +1427,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 event.stopPropagation();
                 setCollapsed((prev) => !prev);
               }}
-              className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-slate-200 bg-white text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.06)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
+              className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-slate-200 bg-white text-sky-800 shadow-[0_6px_16px_rgba(15,23,42,0.06)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 active:scale-95 cursor-pointer touch-manipulation sm:h-8 sm:w-8 sm:rounded-full"
               aria-label={collapsed ? 'Розгорнути фільтрацію' : 'Згорнути фільтрацію'}
               aria-expanded={!collapsed}
             >

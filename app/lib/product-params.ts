@@ -393,7 +393,7 @@ export const buildProductParamFacets = (
 
     if (acc.choices.size > 0 && acc.numbers.size === 0) {
       const values = Array.from(acc.choices, ([valueId, value]) => ({ id: valueId, label: value.label, count: value.count }))
-        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "uk"))
+        .sort((a, b) => a.label.localeCompare(b.label, "uk", { numeric: true }))
         .slice(0, MAX_CHOICE_VALUES);
       // A value every product shares ("Ліва" and "Права" on every disc)
       // cannot narrow anything down.
@@ -438,7 +438,7 @@ export const buildProductParamFacets = (
       if (leadA !== -1 || leadB !== -1) {
         return (leadA === -1 ? 99 : leadA) - (leadB === -1 ? 99 : leadB);
       }
-      return b.coverage - a.coverage;
+      return b.coverage - a.coverage || a.label.localeCompare(b.label, "uk");
     })
     .slice(0, MAX_FACETS);
 };

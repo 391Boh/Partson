@@ -452,8 +452,23 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     return parts.join(' • ');
   }, [selectedModDetails, selectedYear]);
 
+  // On phones the step navigation is pinned above the list and the search
+  // pins right under it, so the search's sticky offset follows its height.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stepsNavRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const nav = stepsNavRef.current;
+    if (!root || !nav || typeof ResizeObserver === 'undefined') return;
+    const sync = () => root.style.setProperty('--auto-filter-nav-h', `${nav.offsetHeight}px`);
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [isPickerOpen]);
+
   return (
-    <div className="auto-filter-compact min-w-0 w-full max-w-none select-none">
+    <div ref={rootRef} className="auto-filter-compact min-w-0 w-full max-w-none select-none">
       <div className="flex flex-col gap-4">
         {hasTableData && (
           <div className="flex flex-col gap-3">
@@ -673,7 +688,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
 
         {isPickerOpen && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[210px_minmax(0,1fr)] md:gap-6">
-            <div className="md:border-r md:border-slate-200/80 md:pr-4">
+            <div ref={stepsNavRef} className="auto-filter-nav md:border-r md:border-slate-200/80 md:pr-4">
                   <div className="auto-filter-steps grid grid-cols-3 gap-1.5 md:grid-cols-1 md:gap-2">
             <button
               type="button"

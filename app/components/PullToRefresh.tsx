@@ -20,7 +20,7 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
     let lastWheel = 0;
     let wheelCanPull = false;
     let arrivedAtTop = 0;
-    let previousY = window.scrollY;
+    let isAtTop = window.scrollY <= 1;
     let timer = 0;
     let reloadTimer = 0;
     let frame = 0;
@@ -32,7 +32,7 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
     root.classList.add("has-pull-refresh");
 
     const eligible = (target: EventTarget | null) => {
-      if (window.scrollY > 1 || document.body.style.overflow === "hidden" || root.style.overflow === "hidden") return false;
+      if (!isAtTop || window.scrollY > 1 || document.body.style.overflow === "hidden" || root.style.overflow === "hidden") return false;
       let element = target instanceof Element ? target : null;
       if (element?.closest("header,nav,input,textarea,select,[role='dialog'],[contenteditable='true']")) return false;
       // A scrollable inner panel owns its gesture, even at its own top edge.
@@ -88,19 +88,22 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
         window.location.reload();
       }, 280);
     };
-    // Reading scrollY flushes pending style work, so doing it in every scroll
-    // event forced an extra style recalc per event (~216 per homepage scroll
-    // on a 4x throttled phone). Read it at most once per frame instead.
+    // Normal scrolling needs only the two boundary transitions, not a read
+    // and animation frame for every scroll tick. Observe the existing page
+    // sentinel; retain a frame-coalesced fallback for older browsers.
     let scrollFrame = 0;
-    const readScroll = () => {
-      scrollFrame = 0;
-      const y = window.scrollY;
-      if (previousY > 1 && y <= 1) {
+    const updateTop = (nextIsAtTop: boolean) => {
+      if (isAtTop === nextIsAtTop) return;
+      if (nextIsAtTop) {
         arrivedAtTop = performance.now();
         wheelCanPull = false;
       }
-      previousY = y;
-      if (y > 1) { touchStart = null; reset(); }
+      isAtTop = nextIsAtTop;
+      if (!isAtTop) { touchStart = null; reset(); }
+    };
+    const readScroll = () => {
+      scrollFrame = 0;
+      updateTop(window.scrollY <= 1);
     };
     const onScroll = () => {
       if (!scrollFrame) scrollFrame = requestAnimationFrame(readScroll);
@@ -112,13 +115,15 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
       // Every wheel event extends that gesture, including ordinary scrolling.
       const newGesture = lastWheel === 0 || now - lastWheel > WHEEL_GESTURE_GAP;
       lastWheel = now;
-      if (newGesture) wheelCanPull = now - arrivedAtTop >= WHEEL_GESTURE_GAP && eligible(event.target);
       if (loading || event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
         wheelCanPull = false;
         reset();
         return;
       }
       if (event.deltaY >= 0) { wheelCanPull = false; reset(); return; }
+      // Downward scrolling and upward gestures below the page boundary never
+      // need the ancestor geometry/style walk used to recognise a pull.
+      if (newGesture) wheelCanPull = now - arrivedAtTop >= WHEEL_GESTURE_GAP && eligible(event.target);
       if (!wheelCanPull || !eligible(event.target)) { wheelCanPull = false; return; }
       const delta = -event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1);
       update(distance + Math.min(delta, 45));
@@ -145,7 +150,16 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
     };
     const onTouchCancel = () => { touchStart = null; reset(); };
     const options = { passive: true };
-    window.addEventListener("scroll", onScroll, options);
+    const sentinel = document.querySelector("[data-page-top-sentinel]");
+    let topObserver: IntersectionObserver | null = null;
+    if (sentinel && typeof IntersectionObserver !== "undefined") {
+      topObserver = new IntersectionObserver(([entry]) => {
+        if (entry) updateTop(entry.isIntersecting && entry.intersectionRatio >= 1);
+      }, { threshold: 1, rootMargin: "1px 0px 0px 0px" });
+      topObserver.observe(sentinel);
+    } else {
+      window.addEventListener("scroll", onScroll, options);
+    }
     window.addEventListener("wheel", onWheel, options);
     window.addEventListener("touchstart", onTouchStart, options);
     window.addEventListener("touchmove", onTouchMove, options);
@@ -159,6 +173,7 @@ export default function PullToRefresh({ contentRef, dark = false }: { contentRef
       content?.style.removeProperty("--pull-offset");
       cancelAnimationFrame(frame);
       cancelAnimationFrame(scrollFrame);
+      topObserver?.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);

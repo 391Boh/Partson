@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import SmartLink from "app/components/SmartLink";
+import { observeViewportEntrance } from "app/lib/viewport-entrance";
 import {
   ChevronRight,
   Boxes,
@@ -50,24 +51,13 @@ const infoLinks = [
 export default function Footer() {
   const footerRef = useRef<HTMLElement>(null);
   const bottomSentinelRef = useRef<HTMLSpanElement>(null);
-  const [visible, setVisible] = useState(false);
   const [atPageBottom, setAtPageBottom] = useState(false);
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const el = footerRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold: 0.05, rootMargin: "0px 0px -24px 0px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
+    const columns = footerRef.current?.querySelectorAll<HTMLElement>("[data-footer-entrance]");
+    const cleanups = Array.from(columns ?? [], (column) => observeViewportEntrance(column, 6));
+    return () => cleanups.forEach((cleanup) => cleanup());
   }, []);
 
   useEffect(() => {
@@ -120,10 +110,7 @@ export default function Footer() {
     }
   };
 
-  const colBase =
-    "h-full transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]";
-  const colHidden = "opacity-0 translate-y-10";
-  const colVisible = "opacity-100 translate-y-0";
+  const colBase = "h-full";
   const bottomReveal = atPageBottom ? "opacity-100" : "opacity-[0.92]";
 
   return (
@@ -170,8 +157,8 @@ export default function Footer() {
 
           {/* ── Col 1: brand + social ───────────────────────── */}
           <div
-            className={`${colBase} ${visible ? colVisible : colHidden} flex flex-col justify-between rounded-2xl border border-white/40 bg-white/18 px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.46)] backdrop-blur-[2px] md:border-r md:border-slate-200/45 md:bg-transparent md:px-0 md:pb-0 md:pl-0 md:pr-8 md:pt-8 md:shadow-none md:backdrop-blur-0 lg:pt-12`}
-            style={{ transitionDelay: visible ? "0ms" : "0ms" }}
+            data-footer-entrance
+            className={`${colBase} flex flex-col justify-between rounded-2xl border border-white/40 bg-white/18 px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.46)] backdrop-blur-[2px] md:border-r md:border-slate-200/45 md:bg-transparent md:px-0 md:pb-0 md:pl-0 md:pr-8 md:pt-8 md:shadow-none md:backdrop-blur-0 lg:pt-12`}
           >
             <SmartLink
               href="/"
@@ -241,8 +228,8 @@ export default function Footer() {
 
           {/* ── Col 2: info links ────────────────────────────── */}
           <div
-            className={`${colBase} ${visible ? colVisible : colHidden} flex flex-col md:border-r md:border-slate-200/45 md:pr-8`}
-            style={{ transitionDelay: visible ? "110ms" : "0ms" }}
+            data-footer-entrance
+            className={`${colBase} flex flex-col md:border-r md:border-slate-200/45 md:pr-8`}
           >
             <p className={sectionHeadingClass}>
               <span className="h-1.5 w-1.5 rounded-full bg-blue-400" aria-hidden="true" />
@@ -262,8 +249,8 @@ export default function Footer() {
 
           {/* ── Col 3: contacts ───── */}
           <div
-            className={`${colBase} ${visible ? colVisible : colHidden} flex flex-col md:pl-2`}
-            style={{ transitionDelay: visible ? "220ms" : "0ms" }}
+            data-footer-entrance
+            className={`${colBase} flex flex-col md:pl-2`}
           >
             <p className={sectionHeadingClass}>
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
@@ -345,8 +332,8 @@ export default function Footer() {
 
         {/* bottom bar */}
         <div
-          className={`${colBase} ${visible ? colVisible : colHidden} mt-8 border-t border-slate-200/70 pt-5 text-center text-sm text-slate-500`}
-          style={{ transitionDelay: visible ? "320ms" : "0ms" }}
+          data-footer-entrance
+          className={`${colBase} mt-8 border-t border-slate-200/70 pt-5 text-center text-sm text-slate-500`}
         >
           <SmartLink
             href="/inform/payment"

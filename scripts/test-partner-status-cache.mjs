@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+const importBundle=async(options)=>{const r=await build({bundle:true,write:false,platform:'node',format:'esm',...options});return import('data:text/javascript;base64,'+Buffer.from(r.outputFiles[0].text).toString('base64'))};
+const client=await importBundle({entryPoints:['app/lib/partner-status-client.ts']});
+const originalFetch=globalThis.fetch,originalNow=Date.now;
+let clock=originalNow(),requests=0,tokens=0,fail=false,invalid=false;
+Date.now=()=>clock;
+globalThis.fetch=async()=>{requests++;await new Promise(r=>setTimeout(r,20));if(fail)return new Response('{}',{status:503});return Response.json(invalid?{isPartner:true,totalSpent:-1}:{isPartner:true,totalSpent:12500})};
+const user=(uid)=>({uid,getIdToken:async()=>{tokens++;return 'offline-token'}});
+try{
+ await Promise.all([client.fetchPartnerStatus(user('a')),client.fetchPartnerStatus(user('a')),client.fetchPartnerStatus(user('a'))]);
+ assert.equal(requests,1);assert.equal(tokens,1);
+ assert.equal(client.getCachedPartnerStatus('a').totalSpent,12500);
+ await client.fetchPartnerStatus(user('a'));assert.equal(requests,1);
+ await client.fetchPartnerStatus(user('b'));assert.equal(requests,2,'Accounts must not share balances');
+ clock+=31000;assert.equal(client.getCachedPartnerStatus('a'),null);
+ await client.fetchPartnerStatus(user('a'));assert.equal(requests,3);
+ client.invalidatePartnerStatusClient('a');fail=true;await assert.rejects(client.fetchPartnerStatus(user('a')));
+ fail=false;await client.fetchPartnerStatus(user('a'));assert.equal(requests,5,'Failures must remain retryable');
+ invalid=true;await assert.rejects(client.fetchPartnerStatus(user('invalid')));assert.equal(client.getCachedPartnerStatus('invalid'),null);invalid=false;
+ const stale=client.fetchPartnerStatus(user('race'));client.invalidatePartnerStatusClient('race');await stale;assert.equal(client.getCachedPartnerStatus('race'),null,'Invalidation must prevent an in-flight result from repopulating the cache');
+ console.log('PASS client: three consumers share one token/API request, cache hits need no network, UID isolation, TTL, errors, validation and invalidation');
+}finally{globalThis.fetch=originalFetch;Date.now=originalNow}
+let orderReads=0,grantReads=0,selected=[];let release;
+let gate=new Promise(r=>{release=r});
+globalThis.__partnerCacheTestDb={collection(name){if(name==='partnerGrants')return{doc(){return{async get(){grantReads++;await gate;return{data:()=>({active:false})}}}}};return{where(){return{select(...fields){selected.push(fields);return{async get(){orderReads++;await gate;return{docs:[{data:()=>({totalAmount:1500,total:9000})},{data:()=>({total:'750'})},{data:()=>({totalAmount:-10})},{data:()=>({totalAmount:'bad'})}]}}}}}}}}};
+const server=await importBundle({entryPoints:['app/api/_lib/partner-auth.ts'],plugins:[{name:'offline-admin',setup(b){b.onResolve({filter:/^(server-only|app\/lib\/firebase-admin)$/},a=>({path:a.path,namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='server-only'?'':'export const getFirebaseAdminDb=()=>globalThis.__partnerCacheTestDb;export const getFirebaseAdminAuth=()=>({});'}))}}]});
+const first=server.resolvePartnerStatusByUid('person');const second=server.resolvePartnerStatusByUid('person');release();
+assert.deepEqual(await first,{isPartner:true,totalSpent:2250});assert.deepEqual(await second,{isPartner:true,totalSpent:2250});
+assert.equal(orderReads,1);assert.equal(grantReads,1);assert.deepEqual(selected,[['totalAmount','total']]);
+await server.resolvePartnerStatusByUid('person');assert.equal(orderReads,1);
+server.invalidatePartnerStatus('person');await server.resolvePartnerStatusByUid('person');assert.equal(orderReads,2);
+gate=new Promise(r=>{release=r});const inflight=server.resolvePartnerStatusByUid('race');server.invalidatePartnerStatus('race');release();await inflight;await server.resolvePartnerStatusByUid('race');assert.equal(orderReads,4);
+console.log('PASS server: concurrent requests share Firestore reads; only amount fields are fetched; existing amount fallback, cache and invalidation are preserved');

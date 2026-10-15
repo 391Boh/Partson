@@ -14,11 +14,14 @@ const PARTNER_STATUS_CACHE_MAX_ENTRIES = 1000;
 type PartnerStatusCacheEntry = { isPartner: boolean; totalSpent: number; expiresAt: number };
 declare global {
   var __partsonPartnerStatusCache: Map<string, PartnerStatusCacheEntry> | undefined;
+  var __partsonPartnerStatusPending: Map<string, Promise<{ isPartner: boolean; totalSpent: number }>> | undefined;
 }
 const partnerStatusCache = globalThis.__partsonPartnerStatusCache ??= new Map<string, PartnerStatusCacheEntry>();
+const partnerStatusPending = globalThis.__partsonPartnerStatusPending ??= new Map<string, Promise<{ isPartner: boolean; totalSpent: number }>>();
 
 export const invalidatePartnerStatus = (uid: string) => {
   partnerStatusCache.delete(uid.trim());
+  partnerStatusPending.delete(uid.trim());
 };
 
 const readOrderAmount = (value: unknown) => {
@@ -43,30 +46,39 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
     return { isPartner: cached.isPartner, totalSpent: cached.totalSpent };
   }
 
-  const [grant, snapshot] = await Promise.all([
-    getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get(),
-    getFirebaseAdminDb().collection("orders").where("uid", "==", normalizedUid).get(),
-  ]);
-  const manuallyGranted = grant.data()?.active === true;
-  const totalSpent = snapshot.docs.reduce((sum, document) => {
-    const data = document.data() as { totalAmount?: unknown; total?: unknown };
-    return sum + readOrderAmount(data.totalAmount ?? data.total);
-  }, 0);
-  const status = {
-    isPartner: manuallyGranted || totalSpent >= PARTNER_THRESHOLD_UAH,
-    totalSpent,
-  };
-
-  if (partnerStatusCache.size >= PARTNER_STATUS_CACHE_MAX_ENTRIES) {
-    const oldestKey = partnerStatusCache.keys().next().value as string | undefined;
-    if (oldestKey) partnerStatusCache.delete(oldestKey);
+  const existing = partnerStatusPending.get(normalizedUid);
+  if (existing) return existing;
+  const request = (async () => {
+    const [grant, snapshot] = await Promise.all([
+      getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get(),
+      getFirebaseAdminDb().collection("orders").where("uid", "==", normalizedUid).select("totalAmount", "total").get(),
+    ]);
+    const manuallyGranted = grant.data()?.active === true;
+    const totalSpent = snapshot.docs.reduce((sum, document) => {
+      const data = document.data() as { totalAmount?: unknown; total?: unknown };
+      return sum + readOrderAmount(data.totalAmount ?? data.total);
+    }, 0);
+    return {
+      isPartner: manuallyGranted || totalSpent >= PARTNER_THRESHOLD_UAH,
+      totalSpent,
+    };
+  })();
+  partnerStatusPending.set(normalizedUid, request);
+  try {
+    const status = await request;
+    if (partnerStatusPending.get(normalizedUid) !== request) return status;
+    if (partnerStatusCache.size >= PARTNER_STATUS_CACHE_MAX_ENTRIES) {
+      const oldestKey = partnerStatusCache.keys().next().value as string | undefined;
+      if (oldestKey) partnerStatusCache.delete(oldestKey);
+    }
+    partnerStatusCache.set(normalizedUid, {
+      ...status,
+      expiresAt: Date.now() + PARTNER_STATUS_CACHE_TTL_MS,
+    });
+    return status;
+  } finally {
+    if (partnerStatusPending.get(normalizedUid) === request) partnerStatusPending.delete(normalizedUid);
   }
-  partnerStatusCache.set(normalizedUid, {
-    ...status,
-    expiresAt: now + PARTNER_STATUS_CACHE_TTL_MS,
-  });
-
-  return status;
 };
 
 export const verifyPartnerRequest = async (

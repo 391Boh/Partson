@@ -22,6 +22,7 @@ export default function HomeScrollMotion() {
     const paint = () => {
       frame = 0;
       if (!card || !rect) return;
+      if (!card.hasAttribute("data-hover-intent")) card.dataset.hoverIntent = "";
       const x = Math.max(0, Math.min(rect.width, point.x - rect.left));
       const y = Math.max(0, Math.min(rect.height, point.y - rect.top));
       card.style.setProperty("--mx", `${x.toFixed(1)}px`);
@@ -31,6 +32,7 @@ export default function HomeScrollMotion() {
     };
     const release = () => {
       if (card) {
+        delete card.dataset.hoverIntent;
         card.style.setProperty("--dx", "0");
         card.style.setProperty("--dy", "0");
       }
@@ -64,6 +66,7 @@ export default function HomeScrollMotion() {
       home.removeEventListener("pointerleave", release);
       window.removeEventListener("scroll", onScroll);
       if (frame) cancelAnimationFrame(frame);
+      release();
     };
   }, []);
 

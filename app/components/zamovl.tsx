@@ -1,6 +1,8 @@
 "use client";
 
 import { type ComponentProps, useEffect, useRef, useState } from "react";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
+import { invalidatePartnerStatusClient } from "app/lib/partner-status-client";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
@@ -11,7 +13,7 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { Check, ShoppingBag, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { pluralizePositions } from "app/lib/pluralize-uk";
 
 import CustomerDetails from "./CustomerDetails";
@@ -119,6 +121,8 @@ const Zamovl: React.FC<ZamovlProps> = ({
   isPartnerDiscountApplied,
   onClearCart,
 }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useCustomerDialog(dialogRef, onCloseAll);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
@@ -304,6 +308,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       { merge: true }
     );
     orderCreatedRef.current = true;
+    if (firebaseUser?.uid) invalidatePartnerStatusClient(firebaseUser.uid);
 
     if (!orderNotifiedRef.current && options.completeCheckout) {
       void notifyTelegramAdmin({
@@ -500,16 +505,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="checkout-title" className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-4">
         <div className="soft-panel-accent mb-3.5 h-[3px] rounded-full" />
         <div className="soft-panel-header border-b border-slate-200/60 pb-3">
           <div className="min-w-0">
-            <span className="soft-panel-eyebrow">
-              <ShoppingBag size={14} />
-              Замовлення
-            </span>
-            <h3 className="soft-panel-title">Оформлення замовлення</h3>
+            <h3 id="checkout-title" className="soft-panel-title">Оформлення замовлення</h3>
             <p className="soft-panel-subtitle">
               {currentStep === 3 ? (
                 "Замовлення прийнято — деталі нижче."
@@ -525,7 +526,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
           </div>
           <button
             onClick={onCloseAll}
-            className="soft-icon-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+            className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
             aria-label="Закрити форму замовлення"
           >
             <X size={18} />

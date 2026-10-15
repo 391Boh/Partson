@@ -1,5 +1,14 @@
 ﻿"use client";
 
+import { usePanelTransition } from "app/lib/use-panel-transition";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
+import { fetchPartnerStatus } from "app/lib/partner-status-client";
+import {
+  ProfileAvatar,
+  ProfileAvatarPicker,
+  canUseAvatarTier,
+  findProfileAvatar,
+} from "app/components/ProfileAvatar";
 import React, { useEffect, useState, useRef } from "react";
 import {
   signOut,
@@ -49,6 +58,35 @@ interface AccountInfoProps {
   initialTab?: "profile" | "vins" | "security" | null;
 }
 
+const avatarCacheKey = (uid: string) => `partson:avatar:${uid}`;
+
+const readCachedAvatar = (uid: string | undefined) => {
+  if (!uid || typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(avatarCacheKey(uid));
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedAvatar = (uid: string, id: string | null) => {
+  try {
+    if (id) localStorage.setItem(avatarCacheKey(uid), id);
+    else localStorage.removeItem(avatarCacheKey(uid));
+  } catch {
+    // Only an instant-paint cache; Firestore holds the real value.
+  }
+};
+
+const readRememberedAdmin = (uid: string | undefined) => {
+  if (!uid || typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(`partson:isAdmin:${uid}`) === "1";
+  } catch {
+    return false;
+  }
+};
+
 const AccountInfo: React.FC<AccountInfoProps> = ({
   user,
   onClose,
@@ -80,8 +118,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-  const vinSectionRef = useRef<HTMLElement>(null);
+  useCustomerDialog(modalRef, onClose);
+  usePanelTransition(modalRef, activeTab, ".customer-profile-fields");
   const userId = user?.uid ?? null;
+  const [avatarId, setAvatarId] = useState<string | null>(() => readCachedAvatar(user?.uid));
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [isPartner, setIsPartner] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState(() => readRememberedAdmin(user?.uid));
 
   const normalizeVins = (raw: unknown): string[] => {
     if (!raw) return [];
@@ -175,6 +219,12 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             ? data.email.trim()
             : user?.email || null
         );
+        const storedAvatar =
+          typeof data.avatar === "string" && findProfileAvatar(data.avatar)
+            ? data.avatar
+            : null;
+        setAvatarId(storedAvatar);
+        writeCachedAvatar(userId, storedAvatar);
         const cleanedVins = normalizeVins(
           (data as Record<string, unknown>).vins ??
             (data as Record<string, unknown>).VIN ??
@@ -192,6 +242,50 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
     return () => unsubscribe();
   }, [userId, user?.email]);
+
+  // Partner avatars unlock with partner status, admin ones with the admin
+  // role LayoutAccountRuntime already resolves and announces.
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!userId || !currentUser || currentUser.uid !== userId) return;
+    let cancelled = false;
+    fetchPartnerStatus(currentUser)
+      .then((status) => {
+        if (!cancelled) setIsPartner(status.isPartner);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    setIsAdmin(readRememberedAdmin(userId ?? undefined));
+    const onAdminState = (event: Event) => {
+      setIsAdmin((event as CustomEvent<{ isAdmin?: boolean }>).detail?.isAdmin === true);
+    };
+    window.addEventListener("partson:adminStateChange", onAdminState);
+    return () => window.removeEventListener("partson:adminStateChange", onAdminState);
+  }, [userId]);
+
+  const handleSelectAvatar = async (id: string | null) => {
+    if (!userId || avatarSaving) return;
+    const previous = avatarId;
+    setAvatarId(id);
+    setAvatarSaving(true);
+    try {
+      await setDoc(doc(db, "users", userId), { avatar: id }, { merge: true });
+      writeCachedAvatar(userId, id);
+      setIsAvatarPickerOpen(false);
+      showToast("success", "Аватар оновлено");
+    } catch (error) {
+      console.error("Помилка збереження аватара:", error);
+      setAvatarId(previous);
+      showToast("error", "Не вдалося зберегти аватар.");
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -219,23 +313,6 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  useEffect(() => {
-    if (!isVinFieldVisible || activeTab !== "vins") return;
-    if (typeof window === "undefined" || window.innerWidth >= 640) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      const container = modalRef.current;
-      const section = vinSectionRef.current;
-      if (!container || !section) return;
-
-      container.scrollTo({
-        top: Math.max(section.offsetTop - 12, 0),
-        behavior: "smooth",
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab, isVinFieldVisible]);
 
   const showToast = (type: "success" | "error", text: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -413,6 +490,14 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       : name;
   const hasPhoneValue = Boolean(phone && !/не вказ|не знайден|помилка/i.test(phone));
   const profileInitial = (displayName || "Г").trim().charAt(0).toUpperCase();
+  const chosenAvatar = findProfileAvatar(avatarId);
+  // A partner avatar stays on show while the status check is in flight; it
+  // falls back to the letter only for an account that has lost the status.
+  const shownAvatarId =
+    chosenAvatar &&
+    canUseAvatarTier(chosenAvatar.tier, { isPartner: isPartner !== false, isAdmin })
+      ? avatarId
+      : null;
   return (
     <div
       ref={modalRef}
@@ -440,21 +525,36 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
         <div className="soft-panel-header">
           <div className="customer-profile-identity flex min-w-0 items-center gap-3">
-            <div className="relative shrink-0">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-[1.05rem] font-black uppercase tracking-[-0.04em] text-white shadow-[0_16px_32px_rgba(14,165,233,0.38),0_4px_10px_rgba(14,165,233,0.24)] sm:h-12 sm:w-12 sm:rounded-[18px] sm:text-[1.2rem]">
-                {profileInitial}
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-slate-900/90 bg-emerald-400 shadow-[0_2px_6px_rgba(16,185,129,0.4)]" />
-            </div>
+            <button
+              type="button"
+              className="profile-avatar-trigger relative shrink-0"
+              aria-expanded={isAvatarPickerOpen}
+              aria-controls="profile-avatar-picker"
+              aria-label="Змінити аватар"
+              title="Змінити аватар"
+              onClick={() => setIsAvatarPickerOpen((open) => !open)}
+            >
+              <ProfileAvatar
+                avatarId={shownAvatarId}
+                initial={profileInitial}
+                className="h-11 w-11 text-[1.05rem] sm:h-12 sm:w-12 sm:text-[1.2rem]"
+              />
+              <span className="profile-avatar-trigger-edit" aria-hidden="true">
+                <Pencil size={9} strokeWidth={2.6} />
+              </span>
+            </button>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <h2 className="soft-panel-title truncate">{displayName}</h2>
+                <h2 className="soft-panel-title">Мій профіль</h2>
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-300">
                   <ShieldCheck size={10} />
                   Активний
                 </span>
               </div>
-              <p className="soft-panel-subtitle truncate">{emailValue}</p>
+              <p className="soft-panel-subtitle">
+                <span className="line-clamp-2 break-words" title={displayName}>{displayName}</span>
+                <span className="block truncate" title={emailValue}>{emailValue}</span>
+              </p>
             </div>
           </div>
           <button
@@ -466,6 +566,30 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
             <X size={22} strokeWidth={2.5} />
           </button>
         </div>
+
+        {isAvatarPickerOpen && (
+          <div id="profile-avatar-picker" className="profile-avatar-panel">
+            <div className="profile-avatar-panel-head">
+              <span>Оберіть аватар</span>
+              <button
+                type="button"
+                className="profile-avatar-panel-close"
+                onClick={() => setIsAvatarPickerOpen(false)}
+                aria-label="Закрити вибір аватара"
+              >
+                <X size={16} strokeWidth={2.4} />
+              </button>
+            </div>
+            <ProfileAvatarPicker
+              selectedId={avatarId}
+              initial={profileInitial}
+              isPartner={isPartner === true}
+              isAdmin={isAdmin}
+              saving={avatarSaving}
+              onSelect={handleSelectAvatar}
+            />
+          </div>
+        )}
 
         <div className="soft-panel-tabs grid grid-cols-3">
           <button
@@ -507,6 +631,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </div>
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto pr-0 sm:pr-1">
+
           <section className="soft-panel-hero px-3 py-3 sm:px-4 sm:py-3.5">
             {!loading && (() => {
               const isNameFilled = Boolean(
@@ -608,7 +733,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                     setTempName(name);
                     setIsEditingName(true);
                   }}
-                  className="truncate text-left text-base font-semibold text-slate-700 transition hover:text-slate-900"
+                  className="max-w-full break-words text-left text-base font-semibold text-slate-700 transition hover:text-slate-900"
                 >
                   {name || "Не вказано"}
                 </button>
@@ -800,7 +925,6 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
         </section>
 
         <section
-          ref={vinSectionRef}
           className={`soft-surface-card rounded-[16px] p-3 md:col-span-2 sm:rounded-[20px] sm:p-3.5 ${
             activeTab !== "vins" ? "hidden" : ""
           }`}
@@ -825,7 +949,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
               {vins.map((vin, idx) => (
                 <li
                   key={vin + idx}
-                  className="flex min-w-0 flex-col gap-2 rounded-[14px] border border-sky-200/70 bg-white px-2.5 py-2 font-mono text-[13px] text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm"
+                  className="customer-vin-row flex min-w-0 items-center justify-between gap-2 rounded-[14px] border border-sky-200/70 bg-white px-2.5 py-2 font-mono text-[13px] text-slate-700 sm:gap-3 sm:rounded-[16px] sm:px-3 sm:py-2.5 sm:text-sm"
                 >
                   <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-sky-50 px-1.5 text-[10px] font-semibold text-sky-700 sm:h-7 sm:min-w-7 sm:px-2 sm:text-[11px]">
@@ -934,8 +1058,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword((p) => !p)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                  tabIndex={-1}
+                  className="customer-password-toggle absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 transition cursor-pointer"
+                  aria-label={showCurrentPassword ? "Приховати поточний пароль" : "Показати поточний пароль"}
                 >
                   {showCurrentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
@@ -953,8 +1077,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowNewPassword((p) => !p)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                  tabIndex={-1}
+                  className="customer-password-toggle absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 transition cursor-pointer"
+                  aria-label={showNewPassword ? "Приховати новий пароль" : "Показати новий пароль"}
                 >
                   {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>

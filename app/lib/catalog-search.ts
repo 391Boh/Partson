@@ -1,4 +1,4 @@
-import { swapKeyboardLayout } from "./keyboard-layout";
+import { swapKeyboardLayout, swapKeyboardLayoutPerWord } from "./keyboard-layout";
 import { transliterateCyrillicToLatin, transliterateLatinToUkrainian } from "./transliterate";
 
 export const normalizeSearchQuery = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -10,8 +10,22 @@ export function searchAlternatives(query: string): string[] {
   const phonetic = /\d/.test(raw) ? raw : /[а-яіїєґ]/i.test(raw)
     ? transliterateCyrillicToLatin(raw)
     : transliterateLatinToUkrainian(raw).replace(/філтр/g, "фільтр");
-  return [...new Set([swapKeyboardLayout(raw), phonetic])]
+  return [...new Set([swapKeyboardLayout(raw), phonetic, ...swapKeyboardLayoutPerWord(raw)])]
     .filter((value) => value.length >= 2 && value !== raw);
+}
+
+/** A letters-only query with this few literal hits is more likely a word typed
+ *  in the wrong layout that happens to occur inside an article or name ("ask"
+ *  for "філ" matches "MASTER") than what was meant. */
+export const WEAK_LITERAL_HITS = 2;
+
+/** The wrong-layout reading of a letters-only query, checked even when the
+ *  literal query found a few (weak) hits. */
+export function layoutAlternatives(query: string): string[] {
+  const raw = normalizeSearchQuery(query).toLowerCase();
+  if (raw.length < 3 || /\d/.test(raw)) return [];
+  const swapped = swapKeyboardLayout(raw);
+  return swapped && swapped !== raw ? [swapped] : [];
 }
 
 export type SearchItem = {

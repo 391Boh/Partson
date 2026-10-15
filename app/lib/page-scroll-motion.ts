@@ -1,4 +1,5 @@
 import { canUseTimelineParallax, registerParallax, type ParallaxHandle } from "./parallax-controller";
+import { observeViewportEntrance } from "./viewport-entrance";
 
 const BACKGROUNDS = ".directory-hero-backdrop, .home-popular-photo, .home-backdrop [data-plx-drift], .hero-photo, .info-hero-art-frame";
 const BLOCKS = ".home-auto-grid > .reveal-head, .home-category-grid > :first-child, .home-brands-grid > .reveal-head, .home-story-grid > .reveal-adv-copy, .directory-intro-copy, .directory-intro-facts, .directory-detail-hero > .relative.grid > aside, .directory-detail-identity, .directory-guide-copy, .directory-guide-notes, .info-content-card, .info-step-card, .info-cta, .catalog-seo-title, .catalog-seo-copy-primary, .catalog-seo-copy-secondary";
@@ -13,7 +14,7 @@ const HYDRATION_RETRY_MS = 200;
 // Nodes React never hydrates (static HTML) must not keep the scan polling.
 const HYDRATION_MAX_RETRIES = 50;
 
-type Effect = { el: HTMLElement; scene: HTMLElement; amplitude: number; axis: "x" | "y"; hero: boolean; lastShift?: number };
+type Effect = { el: HTMLElement; scene: HTMLElement; amplitude: number; axis: "x" | "y"; hero: boolean; lastShift?: number; stopEntrance?: () => void };
 
 /** One viewport observer; native timelines when available, otherwise the shared
  * cached-geometry controller. No React updates or layout reads on scroll. */
@@ -83,6 +84,7 @@ export function installPageScrollMotion(root: HTMLElement) {
     if (stopped) return;
     for (const [el, effect] of effects) {
       if (root.contains(el)) continue;
+      effect.stopEntrance?.();
       deactivate(effect);
       observer.unobserve(el);
       delete el.dataset.pageMotion;
@@ -107,6 +109,7 @@ export function installPageScrollMotion(root: HTMLElement) {
     }
     for (const [el, effect] of effects) {
       if (allowed.has(el)) continue;
+      effect.stopEntrance?.();
       deactivate(effect);
       observer.unobserve(el);
       delete el.dataset.pageMotion;
@@ -128,6 +131,11 @@ export function installPageScrollMotion(root: HTMLElement) {
       const amplitude = hero ? 56 : el.matches(".directory-hero-backdrop") ? -72 : el.matches(".directory-intro-facts,.directory-detail-hero aside") ? -14 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
       const axis = !background && el.matches(".home-auto-grid > .reveal-head,.directory-intro-copy,.directory-detail-identity,.directory-guide-copy,.catalog-seo-title") ? "x" : "y";
       const effect: Effect = { el, scene, amplitude, axis, hero };
+      // Homepage/info modules already own their entrance. Keep foreground fades
+      // separate from native parallax, so neither overwrites the other.
+      if (!background && !el.closest(".home-static, .info-page, .directory-intro, .directory-detail-hero")) {
+        effect.stopEntrance = observeViewportEntrance(el);
+      }
       effects.set(el, effect);
       scenes.add(scene);
       scene.dataset.pageMotionScene = "";
@@ -188,6 +196,7 @@ export function installPageScrollMotion(root: HTMLElement) {
     motion.removeEventListener("change", refreshMotion);
     for (const effect of effects.values()) {
       deactivate(effect);
+      effect.stopEntrance?.();
       delete effect.el.dataset.pageMotion;
       delete effect.el.dataset.pageMotionNative;
       for (const suffix of ["from-x", "to-x", "from-y", "to-y"]) effect.el.style.removeProperty(`--page-motion-${suffix}`);

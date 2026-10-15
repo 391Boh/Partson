@@ -5,16 +5,12 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { Factory, FolderTree, PackageSearch } from "lucide-react";
+import { ArrowRight, Factory, FolderTree, PackageSearch } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import {
   directoryCompactMetricAccentClass,
-  directoryCompactMetricClass,
-  directoryHeaderClass,
-  directoryListCardClass,
-  directoryPanelClass,
   directoryPrimaryButtonClass,
 } from "app/components/catalog-directory-styles";
 import {
@@ -33,6 +29,7 @@ import { getGroupProductPreview } from "app/lib/group-product-image";
 import {
   pluralizeManufacturers,
   pluralizeProducts,
+  pluralizeSubgroups,
   pluralizeUk,
 } from "app/lib/pluralize-uk";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
@@ -598,123 +595,75 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
             <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Групи запчастин</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">Оберіть групу, а за потреби уточніть підгрупу.</p>
           </header>
-          <div className="category-card-grid">
-          {group.subgroups.map((subgroup) =>
-            subgroup.children.length > 0 ? (
-              <div key={subgroup.slug} className={`${directoryPanelClass} category-group-card`}>
-                <div className={`${directoryHeaderClass} flex items-center justify-between gap-3`}>
-                  <div className="min-w-0">
-                    <p className="directory-kicker text-[10px] uppercase text-teal-800">
-                      Група
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold leading-snug tracking-[-0.01em] text-slate-900">
-                      {buildVisibleProductName(subgroup.label)}
-                    </h3>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                    <span className={directoryCompactMetricClass}>
-                        <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
-                      </span>
+          {/* One card per group, subgroups listed inside it. Columns instead of
+              a grid: a group with many subgroups grows on its own and never
+              stretches the cards next to it. */}
+          <div className="cat-groups">
+            {group.subgroups.map((subgroup) => {
+              const subgroupName = buildVisibleProductName(subgroup.label);
+              const subgroupPreview = getGroupProductPreview({
+                categoryLabel: group.label,
+                itemLabel: subgroup.label,
+              });
+              const childCount = subgroup.children.length;
 
-                  </div>
-                </div>
-                <details className="category-card-details">
-                  <summary>Підгрупи</summary>
-                  <ul className="category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
-                  {subgroup.children.map((child) => {
-                    const childPreview = getGroupProductPreview({
-                      categoryLabel: group.label,
-                      itemLabel: child.label,
-                      parentLabel: subgroup.label,
-                    });
-
-                    return (
-                      <li key={child.slug}>
-                        <CatalogPrefetchLink
-                          href={buildGroupItemPath(group.slug, child.slug)}
-                          className={`${directoryListCardClass} category-tile group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
-                        >
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
-                            {childPreview ? (
-                              <Image
-                                src={childPreview.url}
-                                alt=""
-                                aria-hidden
-                                width={44}
-                                height={44}
-                                sizes="44px"
-                                className="h-full w-full object-cover transition duration-300"
-                              />
-                            ) : (
-                              <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
-                            )}
-
-
-
-
-
-                          </span>
-                          <span className="min-w-0 flex-1 font-semibold leading-snug">
-                            {buildVisibleProductName(child.label)}
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            <span className={directoryCompactMetricClass}>
-                                <span>{formatCount(child.productCount)}</span>
-                                <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
-                              </span>
-                            <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
-                          </span>
-                        </CatalogPrefetchLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-                </details>
-              </div>
-            ) : (
-              <div key={subgroup.slug} className={`${directoryListCardClass} category-tile group/row`}>
-                <CatalogPrefetchLink
-                  href={buildGroupItemPath(group.slug, subgroup.slug)}
-                  className="category-tile-link flex items-center gap-3 px-4 py-3 text-sm text-slate-700"
+              return (
+                <article
+                  key={subgroup.slug}
+                  className={`cat-group${childCount > 0 ? " cat-group--parent" : ""}`}
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
-                    {(() => {
-                      const subgroupPreview = getGroupProductPreview({
-                        categoryLabel: group.label,
-                        itemLabel: subgroup.label,
-                      });
-                      return subgroupPreview ? (
+                  <CatalogPrefetchLink
+                    href={buildGroupItemPath(group.slug, subgroup.slug)}
+                    className="cat-group-head"
+                  >
+                    <span className="cat-group-thumb">
+                      {subgroupPreview ? (
                         <Image
                           src={subgroupPreview.url}
                           alt=""
                           aria-hidden
-                          width={44}
-                          height={44}
-                          sizes="44px"
-                          className="h-full w-full object-cover transition duration-300"
+                          width={48}
+                          height={48}
+                          sizes="48px"
                         />
                       ) : (
-                        <FolderTree className="h-4 w-4 text-teal-600/70" aria-hidden />
-                      );
-                    })()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="block font-semibold leading-snug">
-                      {buildVisibleProductName(subgroup.label)}
+                        <FolderTree className="h-5 w-5" aria-hidden />
+                      )}
                     </span>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-1.5 self-start">
-                    <span className={directoryCompactMetricClass}>
-                        <span>{formatCount(subgroup.productCount)}</span>
-                        <span className="font-semibold text-slate-500">{pluralizeProducts(subgroup.productCount)}</span>
+                    <span className="cat-group-text">
+                      <span className="cat-group-title">{subgroupName}</span>
+                      <span className="cat-group-meta">
+                        {formatCount(subgroup.productCount)} {pluralizeProducts(subgroup.productCount)}
+                        {childCount > 0 && (
+                          <>
+                            <span aria-hidden className="cat-group-meta-dot" />
+                            {formatCount(childCount)} {pluralizeSubgroups(childCount)}
+                          </>
+                        )}
                       </span>
-                    <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
-                  </span>
-                </CatalogPrefetchLink>
-              </div>
-            )
-          )}
+                    </span>
+                    <span className="cat-group-arrow" aria-hidden>
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </CatalogPrefetchLink>
+                  {childCount > 0 && (
+                    <ul className="cat-group-children" aria-label={`Підгрупи: ${subgroupName}`}>
+                      {subgroup.children.map((child) => (
+                        <li key={child.slug}>
+                          <CatalogPrefetchLink
+                            href={buildGroupItemPath(group.slug, child.slug)}
+                            className="cat-subgroup"
+                          >
+                            <span className="cat-subgroup-name">{buildVisibleProductName(child.label)}</span>
+                            <span className="cat-subgroup-count">{formatCount(child.productCount)}</span>
+                          </CatalogPrefetchLink>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

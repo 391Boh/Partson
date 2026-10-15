@@ -146,6 +146,29 @@ function RouteViewStateSync({
 
 // Keep visibility updates local: crossing the sentinel must not render the
 // account runtime, chat controls and navigation on every page.
+function PageHeader({ pathname, sentinelRef }: { pathname: string; sentinelRef: { current: HTMLSpanElement | null } }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (pathname !== "/") return;
+    const sentinel = sentinelRef.current;
+    const backdrop = hostRef.current?.querySelector<HTMLElement>(".site-header-shell > span[aria-hidden='true']");
+    if (!sentinel || !backdrop || typeof IntersectionObserver === "undefined") return;
+    // Only the background opacity depends on scroll position. Updating that
+    // plane avoids rendering the header's menus/search/account, let alone
+    // LayoutHost, at both ends of each trip through the top boundary.
+    const observer = new IntersectionObserver(
+      ([entry]) => { backdrop.style.opacity = entry?.isIntersecting ? "0" : "1"; },
+      { threshold: 0.01 }
+    );
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+      backdrop.style.removeProperty("opacity");
+    };
+  }, [pathname, sentinelRef]);
+  return <div ref={hostRef}><Header transparentAtTop={pathname === "/"} /></div>;
+}
+
 function ScrollToTopButton({ sentinelRef }: { sentinelRef: { current: HTMLSpanElement | null } }) {
   const [showScrollTop, setShowScrollTop] = useState(false);
   useEffect(() => {
@@ -214,7 +237,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
     isEmbeddedProductView: false,
   });
-  const [isPageAtTop, setIsPageAtTop] = useState(true);
 
   const router = useRouter();
   const pathnameValue = usePathname();
@@ -225,7 +247,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const adminPanelPathnameRef = useRef(pathname);
   const pageContentRef = useRef<HTMLElement | null>(null);
   const scrollTopSentinelRef = useRef<HTMLSpanElement | null>(null);
-  const isPageAtTopRef = useRef(true);
   const isDevelopment = process.env.NODE_ENV !== "production";
   const enableAggressiveWarmup =
     process.env.NEXT_PUBLIC_ENABLE_AGGRESSIVE_WARMUP === "1";
@@ -244,34 +265,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const closeChat = useCallback(() => {
     setIsChatOpen(false);
   }, []);
-
-  // Drive the transparent homepage header from the same top sentinel used by
-  // the scroll-to-top affordance. IntersectionObserver runs off the main
-  // scroll path, so this avoids a React state check and an extra rAF for every
-  // wheel/touch frame while still handling reload and bfcache restoration.
-  useEffect(() => {
-    if (typeof window === "undefined" || pathname !== "/") return;
-    const sentinel = scrollTopSentinelRef.current;
-    if (!sentinel || typeof IntersectionObserver === "undefined") return;
-
-    const update = (nextIsAtTop: boolean) => {
-      if (nextIsAtTop === isPageAtTopRef.current) return;
-      isPageAtTopRef.current = nextIsAtTop;
-      setIsPageAtTop(nextIsAtTop);
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => update(Boolean(entry?.isIntersecting)),
-      { threshold: 0.01 }
-    );
-    observer.observe(sentinel);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [pathname]);
-
-
 
   // Large homepage sections have decorative hover gradients and shadows. As
   // the page moves underneath a stationary pointer, those hovers can fire in
@@ -1072,6 +1065,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
     <div style={{ ["--header-height" as string]: "4rem" }}>
       <span
         ref={scrollTopSentinelRef}
+        data-page-top-sentinel
         className="pointer-events-none absolute left-0 top-0 h-[25px] w-px"
         aria-hidden="true"
       />
@@ -1095,7 +1089,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
       {!isEmbeddedProductView && (
         <div className="fixed top-0 left-0 right-0 z-50 h-[var(--header-height,4rem)]">
-          <Header transparentAtTop={pathname === "/" && isPageAtTop} />
+          <PageHeader pathname={pathname} sentinelRef={scrollTopSentinelRef} />
         </div>
       )}
 

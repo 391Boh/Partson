@@ -2,7 +2,7 @@ import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { decodeSearchCursor, encodeSearchCursor, matchesSearchField, searchAlternatives, searchProductFields, type SearchField } from "app/lib/catalog-search";
+import { decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, searchAlternatives, searchProductFields, WEAK_LITERAL_HITS, type SearchField } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -1436,6 +1436,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
   includePriceEnrichment?: boolean;
   preferLegacySource?: boolean;
   forceAllgoodsSource?: boolean;
+  includeDescription?: boolean;
   pricedItemsOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
@@ -1653,7 +1654,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
   if (canUseAllgoods) {
     const allgoodsBaseBody: Record<string, unknown> = {};
-    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = searchFilter === "description" || searchFilter === "all";
+    allgoodsBaseBody[ALLGOODS_INCLUDE_DESCRIPTION_FIELD] = options.includeDescription === true || searchFilter === "description" || searchFilter === "all";
 
     if (producerName) {
       allgoodsBaseBody[ALLGOODS_PRODUCER_FIELD] = producerName;
@@ -1791,6 +1792,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
       // returns a fast-looking but unsorted/unfiltered page, which is worse than
       // retrying the correct source (and previously broke ASC intermittently).
       if (
+        options.includeDescription === true ||
         sortOrder !== "none" ||
         options.pricedItemsOnly === true ||
         options.priceFrom != null ||
@@ -1964,7 +1966,20 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
   });
   if (originalQuery) {
     if (continuation) return wrapSearchResult(result, continuation.query);
-    if (!result.items.length && !options.cursor && (!options.page || options.page === 1)) {
+    const firstPage = !options.cursor && (!options.page || options.page === 1);
+    // A couple of accidental hits ("ask" inside "MASTER" while typing "філ" in
+    // the English layout) used to block the layout correction entirely.
+    const weakLiteral =
+      firstPage && !result.hasMore && result.items.length > 0 && result.items.length <= WEAK_LITERAL_HITS;
+    const layoutCandidates = weakLiteral ? layoutAlternatives(originalQuery) : [];
+    if (layoutCandidates.length) {
+      const corrected = await fetchCatalogProductsByQueryInner({ ...options, searchQuery: layoutCandidates[0] })
+        .catch(() => null);
+      if (corrected && corrected.items.length > result.items.length) {
+        return wrapSearchResult(corrected, layoutCandidates[0]);
+      }
+    }
+    if (!result.items.length && firstPage) {
       const alternatives = searchAlternatives(originalQuery);
       // Start alternatives together, but return the preferred correction as
       // soon as it succeeds instead of waiting for unrelated slower variants.
@@ -2916,7 +2931,22 @@ export const searchCatalogIndex = async (
   };
 
   const matches = matchAgainst(trimmedQuery);
+  if (matches.length > WEAK_LITERAL_HITS) {
+    return { items: matches.slice(0, options.limit), totalCount: matches.length };
+  }
   if (matches.length > 0) {
+    // Same weak-hit check as the live path: prefer the wrong-layout reading
+    // when it finds more than the couple of accidental literal matches.
+    for (const alternative of layoutAlternatives(trimmedQuery)) {
+      const altMatches = matchAgainst(alternative);
+      if (altMatches.length > matches.length) {
+        return {
+          items: altMatches.slice(0, options.limit),
+          totalCount: altMatches.length,
+          correctedQuery: alternative,
+        };
+      }
+    }
     return { items: matches.slice(0, options.limit), totalCount: matches.length };
   }
 

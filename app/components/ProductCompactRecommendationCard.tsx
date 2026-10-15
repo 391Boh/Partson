@@ -1,4 +1,4 @@
-import AnalogProductThumb from "app/components/AnalogProductThumb";
+import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
 import { buildVisibleProductName, buildVisibleCategoryLabel } from "app/lib/product-url";
 
@@ -49,16 +49,9 @@ export default function ProductCompactRecommendationCard({
   const categoryLabel = buildVisibleCategoryLabel(item.subGroup || item.group || item.category || "");
   const imageCode = item.code || item.article || sourceArticle;
   const imageArticle = item.article || item.code || sourceArticle;
-  // Wait for the batch lookup's confirmed src instead of guessing one via
-  // buildProductImagePath: a guess for an item with no real photo used to
-  // trigger a real request that 307-redirects to the fallback image, which
-  // AnalogProductThumb then has to detect and retry through twice (strict,
-  // then relaxed) before it settles on the "no photo" placeholder — visible
-  // as the thumbnail flashing/loading for a while. Leaving this empty until
-  // resolved renders the placeholder immediately with no wasted round trips,
-  // and AnalogProductThumb's own success cache still shows an already-seen
-  // image instantly regardless of this prop.
-  const imageSrc = prefetchedImageSrc;
+  // Batch URLs warm related items, but recently viewed items have no batch.
+  // The shared catalog image component can resolve the direct route near
+  // the viewport and recover from failed/stale URLs without changing layout.
   const hasPrice = priceLabel !== "Ціну уточнити";
 
   return (
@@ -70,19 +63,16 @@ export default function ProductCompactRecommendationCard({
     >
       <div className="flex items-start gap-2 p-2.5 pb-0">
         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-          <AnalogProductThumb
-            src={imageSrc}
+          <ProductCardImage
+            prefetchedSrc={prefetchedImageSrc}
             alt={visibleName}
             productCode={imageCode}
             articleHint={imageArticle}
-            // The src only ever comes from the image batch, which has already
-            // verified the photo — requesting it again with strict=1 first
-            // missed the route's warm cache and cost up to ~2 s per card
-            // before the same image was fetched a second time without it.
-            disableDirectFetch
-            pending={false}
-            loading={imagePriority ? "eager" : "lazy"}
+            hasKnownPhoto={item.hasPhoto !== false || Boolean(prefetchedImageSrc)}
+            deferDirectLoad
+            loadingMode={imagePriority ? "eager" : "lazy"}
             fetchPriority={imagePriority ? "high" : "auto"}
+            sizes="56px"
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 pt-0.5">

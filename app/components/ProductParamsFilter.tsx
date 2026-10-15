@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowUpToLine, Info, RotateCcw, SlidersHorizontal } from 'lucide-react';
 
+import { loadParamFacets, productParamsKey, readParamFacets, type ParamFacetsPayload } from 'app/lib/catalog-params-client';
 import FilterLoadingState from 'app/components/FilterLoadingState';
 import { pluralizeProducts } from 'app/lib/pluralize-uk';
 import {
@@ -29,22 +30,13 @@ export type ProductParamsQuery = {
   expandHierarchy: boolean;
 };
 
-type FacetsPayload = {
-  facets: ProductParamFacet[];
-  totalCount: number;
-  withParamsCount: number;
-  matchCount: number;
-  needsCategory?: boolean;
-  error?: string;
-};
-
 type Props = {
   query: ProductParamsQuery;
   value: string;
   onChange: (encoded: string) => void;
 };
 
-const RANGE_COMMIT_DELAY_MS = 450;
+const RANGE_COMMIT_DELAY_MS = 200;
 
 const parseRangeInput = (raw: string) => {
   const normalized = raw.replace(',', '.').trim();
@@ -59,20 +51,25 @@ function RangeFacet({
   facet,
   filter,
   onCommit,
+  resetCount,
 }: {
   facet: Extract<ProductParamFacet, { kind: 'range' }>;
   filter: Extract<ProductParamFilter, { min: number | null }> | undefined;
   onCommit: (min: number | null, max: number | null) => void;
+  resetCount: number;
 }) {
   const [from, setFrom] = useState(filter?.min != null ? String(filter.min) : '');
   const [to, setTo] = useState(filter?.max != null ? String(filter.max) : '');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitRef = useRef(onCommit);
+  useEffect(() => { commitRef.current = onCommit; }, [onCommit]);
 
   // Re-sync when the URL changes from outside (reset, Back button).
   useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
     setFrom(filter?.min != null ? String(filter.min) : '');
     setTo(filter?.max != null ? String(filter.max) : '');
-  }, [filter?.min, filter?.max]);
+  }, [filter?.min, filter?.max, resetCount]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -82,14 +79,14 @@ function RangeFacet({
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      onCommit(parseRangeInput(nextFrom), parseRangeInput(nextTo));
+      commitRef.current(parseRangeInput(nextFrom), parseRangeInput(nextTo));
     }, RANGE_COMMIT_DELAY_MS);
   };
 
   const unit = facet.unit;
   const isActive = Boolean(filter);
   const inputClass =
-    'h-10 w-full min-w-0 rounded-[10px] border border-amber-200/80 bg-white pl-8 pr-9 text-[13px] font-bold text-slate-800 outline-none transition placeholder:font-semibold placeholder:text-slate-300 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 sm:h-9 sm:text-[12px]';
+    'h-10 w-full min-w-0 rounded-[10px] border border-amber-200/80 bg-white pl-8 pr-9 text-[13px] font-bold text-slate-800 outline-none transition placeholder:font-semibold placeholder:text-slate-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 sm:h-9 sm:text-[12px]';
 
   return (
     <div className={`catalog-params-card ${isActive ? 'is-active' : ''}`}>
@@ -114,7 +111,7 @@ function RangeFacet({
             }}
             className={inputClass}
           />
-          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">{unit}</span> : null}
+          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{unit}</span> : null}
         </label>
         <label className="relative block">
           <span className="sr-only">{facet.label} до</span>
@@ -130,57 +127,60 @@ function RangeFacet({
             }}
             className={inputClass}
           />
-          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">{unit}</span> : null}
+          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{unit}</span> : null}
         </label>
       </div>
       <span className="catalog-params-card-hint">
-        Точний розмір — однакове значення в обох полях · {formatCount(facet.count)} {pluralizeProducts(facet.count)} з розміром
+        Точний розмір: заповніть обидва поля однаково. {formatCount(facet.count)} {pluralizeProducts(facet.count)} з розміром
       </span>
     </div>
   );
 }
 
 export default function ProductParamsFilter({ query, value, onChange }: Props) {
-  const filters = useMemo(() => decodeProductParamFilters(value), [value]);
+  const [resetCount, setResetCount] = useState(0);
+  const [localValue, setLocalValue] = useState(value);
+  useEffect(() => setLocalValue(value), [value]);
+  const filters = useMemo(() => decodeProductParamFilters(localValue), [localValue]);
   const encoded = useMemo(() => encodeProductParamFilters(filters), [filters]);
   const queryKey = JSON.stringify(query);
-  const [payload, setPayload] = useState<FacetsPayload | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [storedPayload, setPayload] = useState<ParamFacetsPayload | null>(() => readParamFacets(productParamsKey(query, encoded)));
+  const [payloadScope, setPayloadScope] = useState(queryKey);
+  const payload = payloadScope === queryKey ? storedPayload : readParamFacets(productParamsKey(query, encoded));
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(payload ? 'ready' : 'loading');
   const [reloadToken, setReloadToken] = useState(0);
-  const lastQueryKeyRef = useRef(queryKey);
+  const lastReloadRef = useRef(0);
 
   useEffect(() => {
-    const controller = new AbortController();
-    // Facet counts refresh in place while a filter changes; only a different
-    // category (or car/producer/search) shows the loader again.
-    if (lastQueryKeyRef.current !== queryKey || !payload) setStatus('loading');
-    lastQueryKeyRef.current = queryKey;
-
-    fetch('/api/catalog-params', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...(JSON.parse(queryKey) as ProductParamsQuery), paramFilters: encoded }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const data = (await response.json().catch(() => null)) as FacetsPayload | null;
-        if (!response.ok || !data || !Array.isArray(data.facets)) throw new Error(data?.error || 'failed');
-        setPayload(data);
-        setStatus('ready');
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        void error;
-        setStatus('error');
-      });
-
-    return () => controller.abort();
-    // payload is read only to decide whether to show the loader.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    const currentQuery = JSON.parse(queryKey) as ProductParamsQuery;
+    const cached = readParamFacets(productParamsKey(currentQuery, encoded));
+    const force = lastReloadRef.current !== reloadToken;
+    lastReloadRef.current = reloadToken;
+    if (cached && !force) {
+      setPayload(cached);
+      setPayloadScope(queryKey);
+      setStatus('ready');
+      return;
+    }
+    setStatus('loading');
+    void loadParamFacets(currentQuery, encoded, force).then((data) => {
+      if (cancelled) return;
+      setPayload(data);
+      setPayloadScope(queryKey);
+      setStatus('ready');
+    }).catch(() => {
+      if (!cancelled) setStatus('error');
+    });
+    return () => { cancelled = true; };
   }, [encoded, queryKey, reloadToken]);
 
   const commit = useCallback(
-    (next: ProductParamFilter[]) => onChange(encodeProductParamFilters(next)),
+    (next: ProductParamFilter[]) => {
+      const nextValue = encodeProductParamFilters(next);
+      setLocalValue(nextValue);
+      onChange(nextValue);
+    },
     [onChange]
   );
 
@@ -199,8 +199,8 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
     commit(min === null && max === null ? rest : [...rest, { id: facetId, min, max }]);
   };
 
-  if (status === 'loading' && !payload) {
-    return <FilterLoadingState label="Шукаємо параметри товарів категорії" variant="chips" />;
+  if (status !== 'error' && !payload) {
+    return <FilterLoadingState label="Завантажуємо параметри" variant="chips" />;
   }
 
   if (status === 'error' && !payload) {
@@ -221,7 +221,7 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
     return (
       <div className="catalog-params-empty" role="status">
         <SlidersHorizontal size={18} className="text-amber-500" aria-hidden="true" />
-        <p>Оберіть категорію — тоді тут з’являться її параметри: позиція встановлення, розміри, тип.</p>
+        <p>Оберіть кінцеву групу або підгрупу товарів, щоб налаштувати параметри.</p>
       </div>
     );
   }
@@ -232,27 +232,28 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
   const hasFilters = filters.length > 0;
 
   return (
-    <div className={`catalog-filter-panel-view catalog-params-panel ${status === 'loading' ? 'is-refreshing' : ''}`}>
+    <div className="catalog-filter-panel-view catalog-params-panel" aria-busy={status === 'loading'}>
       <div className="catalog-price-panel-header">
         <span className="catalog-price-panel-icon catalog-params-icon" aria-hidden="true">
           <SlidersHorizontal size={18} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-black leading-tight text-slate-800 sm:text-[13px]">Параметри товару</span>
+          <span className="block text-[14px] font-semibold leading-tight text-slate-800">Параметри товару</span>
           <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-slate-500">
             {facets.length
-              ? `Вказані в описі ${formatCount(payload.withParamsCount)} з ${formatCount(payload.totalCount)} ${pluralizeProducts(payload.totalCount)}`
-              : 'Для цієї категорії параметрів в описах поки немає'}
+              ? `${formatCount(payload.totalCount)} ${pluralizeProducts(payload.totalCount)} · виберіть потрібні характеристики`
+              : 'Для цієї групи характеристики поки недоступні'}
           </span>
         </span>
         {hasFilters ? (
-          <button type="button" onClick={() => commit([])} className="catalog-price-reset-button" aria-label="Скинути параметри">
+          <button type="button" onClick={() => { setResetCount((count) => count + 1); commit([]); }} className="catalog-price-reset-button" aria-label="Скинути параметри">
             <RotateCcw size={13} aria-hidden="true" />
             <span className="hidden sm:inline">Скинути</span>
           </button>
         ) : null}
       </div>
 
+      <p className="catalog-params-scope">{query.subcategory || query.selectedCategories[0]}</p>
       {hasFilters ? (
         <p className="catalog-params-result" role="status" aria-live="polite">
           <strong>
@@ -266,8 +267,7 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
         <div className="catalog-params-empty">
           <Info size={16} className="text-slate-400" aria-hidden="true" />
           <p>
-            Щойно в описах товарів з’являться характеристики (позиція, розміри, тип), фільтри
-            тут побудуються автоматично.
+            Для цієї групи ще немає доступних параметрів. Скористайтеся пошуком за артикулом або VIN.
           </p>
         </div>
       ) : null}
@@ -310,6 +310,7 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
                 <RangeFacet
                   key={facet.id}
                   facet={facet}
+                  resetCount={resetCount}
                   filter={filter && !('values' in filter) ? filter : undefined}
                   onCommit={(min, max) => setRange(facet.id, min, max)}
                 />
@@ -343,12 +344,12 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
         </div>
       ) : null}
 
-      {facets.length > 0 ? (
-        <p className="catalog-params-note">
-          <Info size={12} aria-hidden="true" />
-          Параметри беруться з опису товару в 1С. Товари без вказаного параметра при фільтрі не
-          показуються — якщо не знайшли потрібне, перевірте за артикулом або VIN.
-        </p>
+      <p className="catalog-params-note">Зміни застосовуються автоматично.</p>
+      {status === 'error' ? (
+        <div className="catalog-params-note" role="status">
+          Не вдалося оновити кількість товарів.
+          <button type="button" className="catalog-price-reset-button" onClick={() => setReloadToken((token) => token + 1)}>Повторити</button>
+        </div>
       ) : null}
     </div>
   );

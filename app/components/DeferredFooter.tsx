@@ -1,6 +1,7 @@
 "use client";
 
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
 
 import { startTransition, useEffect, useRef, useState, type ComponentType } from "react";
 
@@ -23,68 +24,77 @@ export default function DeferredFooter() {
     if (!anchor || FooterComponent) return;
 
     let cancelled = false;
-    let settleTimer: number | null = null;
-    let loadRequestedAt = 0;
+    let nearViewport = false;
     let requested = false;
+    let attempts = 0;
+    let loadedFooter: ComponentType | null = null;
+    let settleTimer: number | null = null;
+    let mountRequestedAt = 0;
     let cancelMount: (() => void) | undefined;
+
+    const commitFooter = () => {
+      if (cancelled || !loadedFooter) return;
+      const component = loadedFooter;
+      startTransition(() => setFooterComponent(() => component));
+    };
+    const mountWhenScrollSettles = () => {
+      if (cancelled || !loadedFooter) return;
+      if (document.documentElement.classList.contains("is-scrolling") &&
+          performance.now() - mountRequestedAt < MAX_SCROLL_LOAD_DELAY_MS) {
+        settleTimer = window.setTimeout(mountWhenScrollSettles, SCROLL_SETTLE_RETRY_MS);
+        return;
+      }
+      commitFooter();
+    };
     const loadFooter = () => {
       if (cancelled || requested) return;
       requested = true;
-      void import("./footer").then((module) => {
-        // Import completion can land during a later gesture. Schedule the
-        // commit independently so downloading early never forces a scroll hitch.
-        if (!cancelled) cancelMount = scheduleBackgroundTask(() => {
-          if (!cancelled) startTransition(() => setFooterComponent(() => module.default));
-        }, { waitForLoad: false });
+      attempts += 1;
+      void Promise.all([import("./footer"), whenFullStylesheetReady()]).then(([module]) => {
+        if (cancelled) return;
+        loadedFooter = module.default;
+        // Near the viewport the bounded path owns the commit. Do not put it
+        // back behind an idle scheduler that can wait forever during scroll.
+        if (nearViewport) mountWhenScrollSettles();
+        else if (document.documentElement.classList.contains("is-scrolling")) {
+          cancelMount = scheduleBackgroundTask(commitFooter, { waitForLoad: false });
+        } else commitFooter();
+      }).catch(() => {
+        requested = false;
+        if (!cancelled && nearViewport && attempts < 2) {
+          settleTimer = window.setTimeout(loadFooter, 500);
+        }
       });
     };
 
-    const loadFooterWhenScrollSettles = () => {
-      if (cancelled) return;
-      const waitedMs = performance.now() - loadRequestedAt;
-      if (
-        document.documentElement.classList.contains("is-scrolling") &&
-        waitedMs < MAX_SCROLL_LOAD_DELAY_MS
-      ) {
-        settleTimer = window.setTimeout(
-          loadFooterWhenScrollSettles,
-          SCROLL_SETTLE_RETRY_MS
-        );
-        return;
-      }
-      loadFooter();
+    // Warm after the initial DOM/paint, independent of slow images/iframes.
+    // A long page's footer should already be available before it is reached.
+    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 500, idleTimeoutMs: 250, waitForLoad: false });
+    const requestVisibleFooter = () => {
+      if (cancelled || nearViewport) return;
+      nearViewport = true;
+      mountRequestedAt = performance.now();
+      cancelPreparation();
+      cancelMount?.();
+      if (loadedFooter) mountWhenScrollSettles();
+      else loadFooter();
     };
-
-    // Prepare the universal footer after initial resources, while idle.
-    // Intersection remains a fallback for visitors who scroll immediately.
-    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 2000, waitForLoad: false });
-
+    let observer: IntersectionObserver | null = null;
     if (typeof IntersectionObserver === "undefined") {
-      loadRequestedAt = performance.now();
-      loadFooterWhenScrollSettles();
-      return () => {
-        cancelled = true;
-        cancelPreparation();
-        cancelMount?.();
-        if (settleTimer !== null) window.clearTimeout(settleTimer);
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
+      requestVisibleFooter();
+    } else {
+      observer = new IntersectionObserver(([entry]) => {
         if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        loadRequestedAt = performance.now();
-        loadFooterWhenScrollSettles();
-      },
-      { rootMargin: "400px 0px", threshold: 0.01 }
-    );
-    observer.observe(anchor);
+        observer?.disconnect();
+        requestVisibleFooter();
+      }, { rootMargin: "1600px 0px", threshold: 0.01 });
+      observer.observe(anchor);
+    }
     return () => {
       cancelled = true;
       cancelPreparation();
       cancelMount?.();
-      observer.disconnect();
+      observer?.disconnect();
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
   }, [FooterComponent]);

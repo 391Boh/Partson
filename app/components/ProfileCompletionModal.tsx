@@ -83,9 +83,10 @@ export default function ProfileCompletionModal({
       className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="complete-profile-title"
     >
-      <div className="floating-dialog-shell w-full max-w-md rounded-[20px] p-6">
-        <h2 className="font-display mb-2 text-2xl font-[760] text-white">
+      <div className="floating-dialog-shell max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[16px] p-4 sm:p-6 [&_input]:min-h-11 [&_input]:text-base [&_button]:min-h-11">
+        <h2 id="complete-profile-title" className="font-display mb-2 text-2xl font-[760] text-white">
           Завершити профіль
         </h2>
         <p className="mb-6 text-slate-300">

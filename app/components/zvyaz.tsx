@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import { useState } from "react";
-import { ArrowLeft, X, PhoneCall, Send } from "lucide-react";
+import { useRef, useState } from "react";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
+import { ArrowLeft, X, Send } from "lucide-react";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
@@ -23,6 +24,8 @@ interface ZvyazProps {
 }
 
 const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useCustomerDialog(dialogRef, onClose);
   const [name, setName] = useState(userData?.name || "");
   const [phone, setPhone] = useState(userData?.phone || "");
   const [message, setMessage] = useState("");
@@ -71,18 +74,18 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
 
   return (
     <div
-      className="customer-overlay-panel customer-overlay-panel--contact soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden"
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="callback-title"
+      className="customer-window customer-overlay-panel customer-overlay-panel--contact soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />
 
         <div className="soft-panel-header">
           <div className="min-w-0">
-            <span className="soft-panel-eyebrow">
-              <PhoneCall size={14} />
-              Зв&apos;язок
-            </span>
-            <h3 className="soft-panel-title">
+            <h3 id="callback-title" className="soft-panel-title">
               Зворотний дзвінок
             </h3>
             <p className="soft-panel-subtitle">
@@ -103,6 +106,8 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
           <div className="app-panel-scroll min-h-0 flex-1 space-y-2 overflow-y-auto sm:pr-1">
             <input
               type="text"
+              aria-label="Ваше ім’я"
+              autoComplete="name"
               placeholder="Ваше імʼя"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -112,6 +117,8 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
 
             <input
               type="tel"
+              aria-label="Ваш телефон"
+              autoComplete="tel"
               placeholder="Ваш телефон"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -120,6 +127,7 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
             />
 
             <textarea
+              aria-label="Коментар (необов’язково)"
               placeholder="Коментар (необовʼязково)"
               value={message}
               onChange={(e) => setMessage(e.target.value)}

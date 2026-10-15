@@ -58,7 +58,7 @@ const CustomerDetails: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-5 space-y-4 text-sky-50">
+    <div className="space-y-4 text-sky-50">
       <p className="soft-note rounded-[16px] px-3.5 py-2.5 text-sm">
         {user
           ? 'Дані профілю вже підставлені. Перевірте та за потреби оновіть.'

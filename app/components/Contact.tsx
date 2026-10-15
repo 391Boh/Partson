@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { usePanelTransition } from "app/lib/use-panel-transition";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -78,10 +80,12 @@ const CONTACT_PEOPLE: ReadonlyArray<{
 
 const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef<number | null>(null);
+  const touchStartX = useRef<{ x: number; y: number } | null>(null);
 
   const [tab, setTab] = useState<"phones" | "address">("phones");
+  usePanelTransition(ref, tab, ".app-panel-scroll");
   const [showZvyaz, setShowZvyaz] = useState(false);
+  useCustomerDialog(ref, onClose, showZvyaz);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
   const [userData, setUserData] = useState<{ name: string; phone: string } | null>(null);
   const [openStatus, setOpenStatus] = useState<{
@@ -212,14 +216,15 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
   /* Swipe */
   const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+    touchStartX.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
-    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    const diff = e.changedTouches[0].clientX - touchStartX.current.x;
+    const vertical = e.changedTouches[0].clientY - touchStartX.current.y;
 
-    if (Math.abs(diff) > 60) {
+    if (Math.abs(diff) > 60 && Math.abs(diff) > Math.abs(vertical) * 1.3) {
       if (diff < 0 && tab === "phones") {
         setTab("address");
       }
@@ -250,10 +255,6 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
           <div className="soft-panel-header">
             <div className="min-w-0">
-              <span className="soft-panel-eyebrow">
-                <Phone size={14} />
-                Контакти
-              </span>
               <h2 id="contact-modal-title" className="soft-panel-title">Зв&apos;язок і підтримка</h2>
               <p className="soft-panel-subtitle">
                 Телефонуйте, пишіть у Viber або Telegram — відповімо швидко.

@@ -1,6 +1,9 @@
 ﻿'use client';
 
-import { fetchPartnerStatus } from 'app/lib/partner-status-client';
+import { usePanelTransition } from "app/lib/use-panel-transition";
+import { useCustomerDialog } from "app/lib/use-customer-dialog";
+import { fetchPartnerStatus, getCachedPartnerStatus } from 'app/lib/partner-status-client';
+import ProfileOrderRewards from './ProfileOrderRewards';
 import {
   ArrowLeft,
   ChevronDown,
@@ -93,15 +96,20 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const [showPastOrders, setShowPastOrders] = useState(false);
   const [pastOrders, setPastOrders] = useState<PastOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [user, setUser] = useState<User | null>(() => auth.currentUser);
+  const [isAuthReady, setIsAuthReady] = useState(() => Boolean(auth.currentUser));
+  const [initialPartnerStatus] = useState(() => auth.currentUser ? getCachedPartnerStatus(auth.currentUser.uid) : null);
   const [firstOrderDiscountStatus, setFirstOrderDiscountStatus] =
     useState<FirstOrderDiscountStatus>('loading');
   const [partnerDiscountStatus, setPartnerDiscountStatus] =
-    useState<PartnerDiscountStatus>('loading');
-  const [totalSpentOnOrders, setTotalSpentOnOrders] = useState(0);
+    useState<PartnerDiscountStatus>(() => initialPartnerStatus ? initialPartnerStatus.isPartner ? 'active' : 'pending' : 'loading');
+  const [totalSpentOnOrders, setTotalSpentOnOrders] = useState(() => initialPartnerStatus?.totalSpent ?? 0);
+  const [partnerSummaryUid, setPartnerSummaryUid] = useState<string | null>(() => initialPartnerStatus ? auth.currentUser?.uid ?? null : null);
+  const [partnerRetry, setPartnerRetry] = useState(0);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const orderRef = useRef<HTMLDivElement>(null);
+  useCustomerDialog(orderRef, onClose, isOrdering ? "checkout" : showPastOrders ? "history" : "cart");
+  usePanelTransition(orderRef, isOrdering ? "checkout" : showPastOrders ? "history" : "cart", ".app-panel-scroll");
   const openAuthModal = () => {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(
@@ -303,11 +311,15 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         setPartnerDiscountStatus('guest');
         return;
       }
-      setPartnerDiscountStatus('loading');
+      if (!getCachedPartnerStatus(user.uid)) setPartnerDiscountStatus('loading');
       try {
         const status = await fetchPartnerStatus(user);
+        if (!Number.isFinite(status.totalSpent) || status.totalSpent < 0) {
+          throw new Error('Invalid order total');
+        }
         if (cancelled) return;
         setTotalSpentOnOrders(status.totalSpent);
+        setPartnerSummaryUid(user.uid);
         setPartnerDiscountStatus(status.isPartner ? 'active' : 'pending');
       } catch {
         if (!cancelled) setPartnerDiscountStatus('error');
@@ -316,7 +328,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
     void checkPartnership();
     return () => { cancelled = true; };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, partnerRetry]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -399,6 +411,16 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         ? 'border-amber-200/80 bg-gradient-to-r from-white via-amber-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(245,158,11,0.07)]'
         : 'border-sky-200/80 bg-gradient-to-r from-white via-sky-50/85 to-white text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.08)]';
 
+  const rewardsReady = partnerSummaryUid === user?.uid &&
+    (partnerDiscountStatus === 'active' || partnerDiscountStatus === 'pending');
+  const orderRewards = user ? (
+    <ProfileOrderRewards
+      totalSpent={rewardsReady ? totalSpentOnOrders : null}
+      status={rewardsReady ? 'ready' : partnerDiscountStatus === 'error' ? 'error' : 'loading'}
+      onRetry={() => setPartnerRetry((value) => value + 1)}
+    />
+  ) : null;
+
   if (isOrdering) {
     return (
       <Zamovl
@@ -434,10 +456,6 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
           <div className="soft-panel-header">
             <div className="min-w-0">
-              <span className="soft-panel-eyebrow">
-                <ClipboardList size={14} />
-                Замовлення
-              </span>
               <h3 id="past-orders-modal-title" className="soft-panel-title">Історія замовлень</h3>
               <p className="soft-panel-subtitle">
                 {user && pastOrders.length > 0
@@ -673,10 +691,6 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
         <div className="soft-panel-header">
           <div className="min-w-0">
-            <span className="soft-panel-eyebrow">
-              <ShoppingCart size={14} />
-              Кошик
-            </span>
             <h3 id="my-order-modal-title" className="soft-panel-title">Моє замовлення</h3>
             <p className="soft-panel-subtitle">
               {hasItems
@@ -701,6 +715,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
           <div className="space-y-2 pb-1">
+        {orderRewards}
         {hasItems ? (
           <>
             {shouldShowPartnerPanel && (
@@ -859,7 +874,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                           {itemName}
                         </Link>
                         <p className="cw-cart-meta">
-                          {item.article && <span>Арт. {item.article}</span>}
+                          {item.article && <span className="block max-w-full truncate" title={item.article}>Арт. {item.article}</span>}
                           {item.producer && <span>{item.producer}</span>}
                           {item.isPromoPrice && <span className="cw-cart-promo">Акція</span>}
                         </p>

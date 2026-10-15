@@ -239,27 +239,30 @@ export default function ImageModal({ src, onClose }: ImageModalProps) {
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="relative flex h-[min(88vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[image:linear-gradient(180deg,rgba(2,6,23,0.98)_0%,rgba(15,23,42,0.98)_100%)] shadow-[0_36px_90px_rgba(2,6,23,0.58)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Фото товару"
+        className="relative flex h-[min(88dvh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-[16px] border border-white/10 bg-[image:linear-gradient(180deg,rgba(2,6,23,0.98)_0%,rgba(15,23,42,0.98)_100%)] shadow-[0_36px_90px_rgba(2,6,23,0.58)]"
         onClick={(event) => event.stopPropagation()}
         initial={{ scale: 0.94, y: 28, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.96, y: 20, opacity: 0 }}
         transition={{ type: "spring", damping: 22, stiffness: 220 }}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-3 text-white sm:px-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-3 py-3 text-white sm:px-4">
           <div className="min-w-0">
             <p className="text-sm font-semibold tracking-[-0.02em] text-white/92">
               Фото товару
             </p>
             <p className="text-[11px] text-white/55">
-              Колесо миші, подвійний клік або кнопки для збільшення
+              Збільшуйте кнопками або подвійним дотиком
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={stepZoomOut}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
               title="Зменшити"
               aria-label="Зменшити фото"
             >
@@ -268,7 +271,7 @@ export default function ImageModal({ src, onClose }: ImageModalProps) {
             <button
               type="button"
               onClick={resetTransform}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
               title="Скинути"
               aria-label="Скинути масштаб"
             >
@@ -277,7 +280,7 @@ export default function ImageModal({ src, onClose }: ImageModalProps) {
             <button
               type="button"
               onClick={stepZoomIn}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
               title="Збільшити"
               aria-label="Збільшити фото"
             >
@@ -286,7 +289,7 @@ export default function ImageModal({ src, onClose }: ImageModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white/84 transition hover:border-white/24 hover:bg-white/14"
               title="Закрити"
               aria-label="Закрити фото"
             >
