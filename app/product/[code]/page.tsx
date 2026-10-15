@@ -1769,6 +1769,7 @@ export async function generateMetadata({
     robots: {
       index: shouldIndexProduct,
       follow: true,
+      "max-image-preview": "large",
       googleBot: {
         index: shouldIndexProduct,
         follow: true,

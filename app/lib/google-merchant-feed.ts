@@ -154,7 +154,7 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
     .join(" ");
 };
 
-const getMerchantGalleryImages = async () => {
+export const getMerchantGalleryImages = async () => {
   const imagesByCode = new Map<string, string[]>();
   try {
     const snapshot = await getFirebaseAdminDb().collectionGroup("images").get();

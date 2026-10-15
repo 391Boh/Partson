@@ -59,6 +59,7 @@ import { fetchProductImageBase64Batch } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
+  buildProductSeoImagePath,
 } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
@@ -1246,7 +1247,22 @@ export async function generateMetadata({
     )
   );
 
-  const producerImage = resolveProducerSocialImage(producer.label, producer.logoPath);
+  // Brand logos are mostly SVG, which Google and social previews don't take
+  // as a page image; a real photo of one of the brand's products gives the
+  // result a thumbnail instead of the generic site card.
+  const productPhoto = resolveProducerSocialImage(producer.label, producer.logoPath)
+    ? null
+    : (await getManufacturerTopProductsFromSnapshot(producer.label).catch(
+        () => [] as CatalogProduct[]
+      )).find((product) => product.hasPhoto === true && product.code);
+  const producerImage =
+    resolveProducerSocialImage(producer.label, producer.logoPath) ??
+    (productPhoto
+      ? {
+          url: buildProductSeoImagePath(productPhoto.code, productPhoto.article),
+          alt: `${buildVisibleProductName(productPhoto.name)} — ${producer.label}`,
+        }
+      : null);
 
   return buildPageMetadata({
     title,

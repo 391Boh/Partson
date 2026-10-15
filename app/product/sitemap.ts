@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { getMerchantGalleryImages } from "app/lib/google-merchant-feed";
 import { buildProductSeoImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 import {
@@ -31,6 +32,20 @@ function escapeXmlUrl(value: string): string {
   return value.replace(/&/g, "&amp;");
 }
 
+// The extra photos uploaded to a product's gallery (Firestore). Read once for
+// all sitemap chunks per revalidation instead of once per chunk.
+let galleryImagesPromise: Promise<Map<string, string[]>> | null = null;
+let galleryImagesLoadedAt = 0;
+const GALLERY_IMAGES_TTL_MS = 30 * 60 * 1000;
+
+const getGalleryImages = () => {
+  if (!galleryImagesPromise || Date.now() - galleryImagesLoadedAt > GALLERY_IMAGES_TTL_MS) {
+    galleryImagesLoadedAt = Date.now();
+    galleryImagesPromise = getMerchantGalleryImages().catch(() => new Map<string, string[]>());
+  }
+  return galleryImagesPromise;
+};
+
 export default async function sitemap(props: {
   id: Promise<string | number>;
 }): Promise<MetadataRoute.Sitemap> {
@@ -47,9 +62,10 @@ export default async function sitemap(props: {
     return [];
   }
 
-  const productLastModified = await getProductSitemapLastModified(entries).catch(
-    () => new Map<string, string>()
-  );
+  const [productLastModified, galleryImages] = await Promise.all([
+    getProductSitemapLastModified(entries).catch(() => new Map<string, string>()),
+    getGalleryImages(),
+  ]);
 
   const items: MetadataRoute.Sitemap = entries
     .map((entry) => {
@@ -68,6 +84,13 @@ export default async function sitemap(props: {
         subGroup: entry.subGroup ?? undefined,
         category: entry.category ?? undefined,
       });
+      // Same order as the page: the primary photo, then the gallery ones.
+      const galleryUrls = (galleryImages.get(normalizedCode) ?? [])
+        .map((url) =>
+          url.startsWith("/") ? `${siteUrl}${url}` : /^https:\/\//i.test(url) ? url : ""
+        )
+        .filter(Boolean)
+        .map(escapeXmlUrl);
       const productImages =
         entry.hasPhoto !== true
           ? undefined
@@ -78,6 +101,7 @@ export default async function sitemap(props: {
                   entry.article ?? undefined
                 )}`
               ),
+              ...galleryUrls,
             ];
 
       return {
