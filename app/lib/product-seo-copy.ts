@@ -47,13 +47,30 @@ export function buildProductSeoTitle({ name, producer, article }: { name: string
   return `${short(label, Math.max(20, SEO_TITLE_MAX_LENGTH - suffix.length))}${suffix}`;
 }
 
-export function buildProductMetaDescription(options: ProductIdentity) {
+export function buildProductMetaDescription(
+  options: ProductIdentity & {
+    // Same price and stock the page and its Offer markup show. Put in the
+    // snippet so a result for an article number answers "how much, is it
+    // there" before the click; omitted where they aren't known.
+    priceUah?: number | null;
+    inStock?: boolean | null;
+  }
+) {
   const name = clean(buildVisibleProductName(options.productName || options.subGroup || options.group || options.category || "Автозапчастина"));
   const identity = [clean(options.producer), clean(options.article)]
     .filter(value => value && !contains(name, value)).join(" ");
   const lead = `${short(name, 66)}${identity ? ` ${short(identity, 36)}` : ""}`;
   // The product name retains actual fitment/model information. Do not turn
   // a supplier's category into an unverified compatibility or stock claim.
+  const offer = [
+    typeof options.priceUah === "number" && options.priceUah > 0
+      ? `${options.priceUah.toLocaleString("uk-UA")} грн`
+      : "",
+    options.inStock === true ? "в наявності" : options.inStock === false ? "під замовлення" : "",
+  ].filter(Boolean).join(", ");
+  if (offer) {
+    return trimSeoDescription(`${lead} — ${offer}. Самовивіз у Львові, Нова Пошта 1–2 дні, підбір за VIN.`);
+  }
   return trimSeoDescription(`${lead} — ціна й наявність у PartsON. Підбір за VIN, самовивіз у Львові та доставка по Україні.`);
 }
 

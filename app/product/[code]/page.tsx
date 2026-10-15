@@ -99,7 +99,12 @@ import { buildOfferShippingDetails } from "app/lib/shipping-policy";
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
-const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 80;
+// fetchEuroRate answers instantly from its cache once warm; only the first
+// render after a restart waits on the source. At 80ms that first render
+// usually gave up and priced the page at the 50 UAH/EUR fallback, and ISR
+// kept that wrong price in the HTML, the Offer markup and the snippet for an
+// hour — a price mismatch Google reads as "don't show the price".
+const PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS = 1500;
 const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 4000;
 // Both run concurrently via Promise.all below, so raising either only caps
 // that one promise's own worst case — it doesn't add to the other's wait.
@@ -1711,6 +1716,8 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
+    priceUah: shouldIndexProduct ? seoPriceForMeta.priceUah : null,
+    inStock: routeProduct ? routeProduct.quantity > 0 : null,
     productName: seoVisibleProductName,
     producer: productProducer,
     article: productArticle,
@@ -2602,6 +2609,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         category: product.category,
                       }}
                       euroRate={recommendationEuroRate}
+                      crossReferenceCodes={productAnalogCodes}
                     />
                   </Suspense>
                   <ProductDeferredRecommendations

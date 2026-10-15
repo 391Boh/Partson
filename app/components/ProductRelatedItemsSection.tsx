@@ -7,6 +7,7 @@ import {
   getStaticProductRecommendations,
 } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import ProductCrossReferences from "app/components/ProductCrossReferences";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getSiteUrl } from "app/lib/site-url";
@@ -31,6 +32,8 @@ type ProductRelatedItemsSectionProps = {
     category?: string;
   };
   euroRate?: number;
+  // Cross-reference codes parsed from the product name, for the numbers block.
+  crossReferenceCodes?: string[];
 };
 
 const buildRecommendationItemListJsonLd = (
@@ -67,6 +70,7 @@ const buildRecommendationItemListJsonLd = (
 export default async function ProductRelatedItemsSection({
   product,
   euroRate = 50,
+  crossReferenceCodes = [],
 }: ProductRelatedItemsSectionProps) {
   const article = (product.article || "").trim();
   const code = (product.code || "").trim();
@@ -126,6 +130,13 @@ export default async function ProductRelatedItemsSection({
 
   return (
     <>
+      <ProductCrossReferences
+        article={article}
+        code={code}
+        producer={producer}
+        crossReferenceCodes={crossReferenceCodes}
+        analogs={initialRelatedItems ?? []}
+      />
       <ProductRelatedItemsClientSection
         product={product}
         initialRelatedItems={initialRelatedItems}
