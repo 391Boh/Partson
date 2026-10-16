@@ -9,14 +9,27 @@ const projectId =
   process.env.FIREBASE_PROJECT_ID ||
   "";
 
+// Google sign-in runs on the auth domain. On partson.shop that is the site
+// itself: nginx proxies /__/auth/ to Firebase, so the sign-in result is
+// stored first-party. With the default *.firebaseapp.com, Safari (and other
+// browsers that partition third-party storage) completed the Google step but
+// the site never saw the result, so the visitor stayed signed out.
+// Requires https://partson.shop/__/auth/handler among the OAuth client's
+// authorized redirect URIs.
+const SAME_ORIGIN_AUTH_HOSTS = new Set(["partson.shop", "www.partson.shop"]);
+function resolveAuthDomain() {
+  if (typeof window !== "undefined" && SAME_ORIGIN_AUTH_HOSTS.has(window.location.hostname)) {
+    return window.location.hostname;
+  }
+  return process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "";
+}
+
 const firebaseConfig = {
   apiKey:
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
     process.env.NEXT_PUBLIC_FIREBASE_KEY ||
     "",
-  authDomain:
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
-    "",
+  authDomain: resolveAuthDomain(),
   projectId,
   storageBucket:
     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||

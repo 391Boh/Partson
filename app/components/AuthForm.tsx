@@ -32,6 +32,11 @@ import {
 import { Eye, EyeOff, LogIn, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
+
+// Android WebView ("; wv)") and the in-app browsers of social apps.
+const EMBEDDED_BROWSER_PATTERN = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|Line\/|TikTok|BytedanceWebview|musical_ly/i;
+const isEmbeddedAppBrowser = () =>
+  typeof navigator !== "undefined" && EMBEDDED_BROWSER_PATTERN.test(navigator.userAgent || "");
 import { publishFirebaseAuthUser } from "app/lib/firebase-auth-state";
 import { pushAnalyticsEvent } from "app/lib/gtm";
 
@@ -219,6 +224,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
   const handleGoogleAuth = async () => {
     if (requestLock.current || isTelegramLoading || isGoogleRedirectPending) return;
+    // Google refuses sign-in inside apps' built-in browsers
+    // ("disallowed_useragent"), so the window would only show its error page.
+    if (isEmbeddedAppBrowser()) {
+      setSocialAuthError(
+        "Google не дозволяє вхід у вбудованому браузері застосунку. Відкрийте сайт у Chrome або Safari (меню ⋯ → «Відкрити в браузері») і спробуйте ще раз."
+      );
+      return;
+    }
     requestLock.current = true;
     setLoginError(null);
     setRegisterError(null);
@@ -227,7 +240,11 @@ const AuthForm: React.FC<AuthFormProps> = ({
     setIsGoogleLoading(true);
 
     try {
-      await setPersistence(auth, browserLocalPersistence);
+      // The Google window must open straight from the tap: phones' browsers
+      // (Safari above all) block a popup opened after an await, and the
+      // redirect fallback then fails too on browsers that partition
+      // third-party storage. So no setPersistence first; the session is made
+      // persistent once signed in (below), which carries the user over.
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       const email = loginData.email.trim();
@@ -281,6 +298,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           })()
         : await signInWithPopup(auth, provider);
       const user = credential.user;
+      await setPersistence(auth, browserLocalPersistence).catch(() => undefined);
 
       try {
         await syncAuthUserProfile(user, "google");
