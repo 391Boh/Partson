@@ -100,7 +100,7 @@ export default async function InformationSectionPage({
               url: `${siteUrl}/inform/${resolvedSection.key}`,
               description: resolvedSection.seoDescription,
               inLanguage: "uk-UA",
-              dateModified: INFORMATION_UPDATED_AT,
+              dateModified: resolvedSection.updatedAt ?? INFORMATION_UPDATED_AT,
               isPartOf: {
                 "@type": "WebSite",
                 name: "PartsON",
@@ -210,7 +210,7 @@ export default async function InformationSectionPage({
             {
               "@type": "AboutPage",
               "@id": `${siteUrl}/inform/about#about`,
-              dateModified: INFORMATION_UPDATED_AT,
+              dateModified: resolvedSection.updatedAt ?? INFORMATION_UPDATED_AT,
               name: "Про PartsON — магазин автозапчастин у Львові",
               description:
                 "PartsON — інтернет-магазин і магазин автозапчастин у Львові на вул. Перфецького, 8 з підбором деталей за VIN, артикулом, кодом і маркою авто.",
@@ -295,7 +295,7 @@ export default async function InformationSectionPage({
               url: `${siteUrl}/inform/diagnostics`,
               description: resolvedSection.seoDescription,
               inLanguage: "uk-UA",
-              dateModified: INFORMATION_UPDATED_AT,
+              dateModified: resolvedSection.updatedAt ?? INFORMATION_UPDATED_AT,
               isPartOf: {
                 "@type": "WebSite",
                 name: "PartsON",
@@ -303,9 +303,10 @@ export default async function InformationSectionPage({
               },
               primaryImageOfPage: {
                 "@type": "ImageObject",
-                url: `${siteUrl}/Katlogo/datchyky_ta_elektronika.png`,
-                width: 512,
-                height: 512,
+                url: `${siteUrl}/images/information/diagnostics-hero-v1.webp`,
+                width: 1200,
+                height: 800,
+                caption: "Сканер OBD-II для комп'ютерної діагностики авто у PartsON, Львів",
               },
               mainEntity: {
                 "@id": `${siteUrl}/inform/diagnostics#computer-diagnostics`,

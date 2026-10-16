@@ -29,6 +29,14 @@ type InformationSection = {
   related: InformationSectionKey[];
   contentLead: string;
   faqs: Array<{ question: string; answer: string }>;
+  /** Service pages: replaces the generic "Інформація для клієнтів" hero label. */
+  heroKicker?: string;
+  /** Service pages: the hero calls the person who handles this service. */
+  heroPhone?: { raw: string; display: string; label: string };
+  /** Decorative background drawn behind the hero content. */
+  heroBackground?: string;
+  /** Set when this section's content changed after INFORMATION_UPDATED_AT. */
+  updatedAt?: string;
 };
 
 export const INFORMATION_UPDATED_AT = "2026-10-01";
@@ -332,11 +340,18 @@ export const informationSections: InformationSection[] = [
     title: "Діагностика",
     subtitle: "OBD, помилки, електроніка",
     intro: "Комп’ютерна OBD-діагностика авто у Львові: зчитування помилок, перевірка електронних систем і рекомендації щодо ремонту.",
-    pageHeading: "Перевіримо електронні системи автомобіля",
-    seoTitle: "Комп'ютерна діагностика авто у Львові",
+    // The H1 carries the query people actually search ("комп'ютерна
+    // діагностика авто львів"); the old "Перевіримо електронні системи
+    // автомобіля" left it only in an H2 further down.
+    pageHeading: "Комп'ютерна діагностика авто у Львові",
+    seoTitle: "Комп'ютерна діагностика авто у Львові — Check Engine, ABS",
     seoDescription: trimSeoDescription(
-      `Комп'ютерна OBD-II діагностика авто у Львові: Check Engine, ECU, ABS, ESP, SRS, АКПП, розшифрування помилок і підбір запчастин. Запис: +38 (093) 480-42-61. Адреса: ${STORE_ADDRESS}.`
+      `Діагностика авто: ${STORE_ADDRESS}. Розшифруємо помилки Check Engine, ABS, ESP, SRS, АКПП і підберемо запчастини. Запис: +38 (093) 480-42-61.`
     ),
+    heroKicker: "Послуга у Львові · вул. Перфецького, 8",
+    heroPhone: { raw: "+380934804261", display: "+38 (093) 480-42-61", label: "Роман, запис на діагностику" },
+    heroBackground: "/images/information/diagnostics-hero-bg.svg",
+    updatedAt: "2026-10-17",
     keywords: [
       "комп'ютерна діагностика авто львів",
       "комп'ютерна діагностика автомобіля",
@@ -352,6 +367,11 @@ export const informationSections: InformationSection[] = [
       "діагностика авто перед купівлею львів",
       "комп'ютерна діагностика перфецького",
       "виїзна діагностика авто львів",
+      "компютерна діагностика авто львів",
+      "діагностика двигуна львів",
+      "діагностика автомобіля перед купівлею",
+      "розшифровка помилок obd2",
+      "p0300 p0171 p0420",
     ],
     facts: [
       { value: "OBD-II", label: "ECU, ABS, ESP, SRS, АКПП" },
@@ -367,6 +387,9 @@ export const informationSections: InformationSection[] = [
       { question: "Скільки коштує комп’ютерна діагностика авто у Львові?", answer: "Вартість узгоджується після уточнення марки, моделі та симптомів авто. Виїзна діагностика — орієнтовно від 500 грн." },
       { question: "Чи можлива виїзна діагностика?", answer: "Так. За домовленістю виїжджаємо по Львову або за межі міста." },
       { question: "Як записатися на діагностику?", answer: "Зателефонуйте Роману за номером +38 (093) 480-42-61 або залиште заявку у формі на цій сторінці — ми передзвонимо й узгодимо час." },
+      { question: "Check Engine погас сам. Чи потрібна діагностика?", answer: "Бажано. Індикатор гасне, коли умова помилки зникла, але код залишається в пам’яті блока як збережений. За ним видно, яка система давала збій і за яких умов, — це допомагає не чекати, поки несправність повториться." },
+      { question: "Чи можна просто стерти помилку?", answer: "Стерти код можна, але без усунення причини він повернеться. Крім того, зі стиранням зникають дані «стоп-кадру» (freeze frame) — параметри двигуна в момент помилки, які допомагають знайти причину. Тому спершу зчитуємо й аналізуємо, а потім стираємо." },
+      { question: "Чи перевіряєте авто перед купівлею?", answer: "Так. Зчитуємо помилки всіх доступних блоків, дивимося збережені й періодичні коди та стан систем безпеки. Це показує проблеми, які продавець міг приховати, просто стерши помилки перед оглядом." },
     ],
   },
 ];

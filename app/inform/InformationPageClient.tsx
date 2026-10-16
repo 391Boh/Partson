@@ -93,6 +93,13 @@ export default function InformationPageClient({ initialSectionKey }: Information
         {/* Hero */}
         <section className="info-hero relative isolate overflow-hidden rounded-[28px] border border-white bg-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.07)] ring-1 ring-[#d9e3ec]/70">
           <span className="info-hero-sheen pointer-events-none absolute inset-x-10 top-0 h-[2px] rounded-full opacity-80" aria-hidden="true" />
+          {section.heroBackground ? (
+            <span
+              className="info-hero-backdrop pointer-events-none absolute inset-0 -z-10"
+              style={{ backgroundImage: `url("${section.heroBackground}")` }}
+              aria-hidden="true"
+            />
+          ) : null}
 
           <ViewTransition key={section.key} name="info-hero" share="info-hero" enter="info-hero" exit="info-hero" default="none">
             <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-10 lg:p-10">
@@ -101,7 +108,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                   <span className="info-accent-bg inline-flex h-9 w-9 items-center justify-center rounded-[12px] text-white">
                     <ActiveIcon size={18} strokeWidth={1.9} aria-hidden="true" />
                   </span>
-                  Інформація для клієнтів
+                  {section.heroKicker ?? 'Інформація для клієнтів'}
                 </p>
 
                 <h1 className="info-hero-title mt-5 max-w-3xl text-[1.9rem] leading-[1.08] text-[#13202f] sm:text-[2.6rem] lg:text-[3rem]">
@@ -115,13 +122,17 @@ export default function InformationPageClient({ initialSectionKey }: Information
                 </p>
 
                 <div className="info-in info-read info-read-muted mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13.5px]" style={{ '--i': 3 } as CSSProperties}>
-                  <a href={`tel:${PHONE_RAW}`} className="inline-flex items-center gap-1.5 font-medium text-[#13202f] transition hover:text-sky-700">
+                  <a
+                    href={`tel:${section.heroPhone?.raw ?? PHONE_RAW}`}
+                    aria-label={section.heroPhone ? `${section.heroPhone.label}: ${section.heroPhone.display}` : undefined}
+                    className="inline-flex items-center gap-1.5 font-medium text-[#13202f] transition hover:text-sky-700"
+                  >
                     <Phone size={14} strokeWidth={2} aria-hidden="true" />
-                    {PHONE_DISPLAY}
+                    {section.heroPhone ? `${section.heroPhone.label}: ${section.heroPhone.display}` : PHONE_DISPLAY}
                   </a>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="info-accent-dot h-1.5 w-1.5 rounded-full" aria-hidden="true" />
-                    Оновлено <time dateTime={INFORMATION_UPDATED_AT}>{formatUpdatedAt(INFORMATION_UPDATED_AT)}</time>
+                    Оновлено <time dateTime={section.updatedAt ?? INFORMATION_UPDATED_AT}>{formatUpdatedAt(section.updatedAt ?? INFORMATION_UPDATED_AT)}</time>
                   </span>
                 </div>
               </div>

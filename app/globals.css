@@ -13428,3 +13428,88 @@ button[aria-label="Відкрити вкладку параметрів това
   .catalog-filter-card .catalog-filter-mini-bar:has(> button:nth-of-type(5)) .filter-tab-label { font-size: 9px; letter-spacing: -.03em; }
   .catalog-filter-card .catalog-filter-mini-bar:has(> button:nth-of-type(5)) { grid-auto-columns: auto; }
 }
+
+/* ---------------------------------------------------------------
+   Diagnostics service page: circuit/oscilloscope art behind the
+   hero, and the popular-codes list drawn as a scanner screen.
+   --------------------------------------------------------------- */
+.info-hero-backdrop {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: .7;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 70%, transparent 100%);
+}
+.diagnostics-scan-panel {
+  background-color: #0b1d2c;
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 24px 50px -24px rgb(8 30 48 / 55%), inset 0 0 0 1px rgb(56 189 248 / 18%);
+}
+.diagnostics-code-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px 16px;
+  border: 1px solid rgb(56 189 248 / 20%);
+  border-radius: 16px;
+  background: rgb(9 26 40 / 72%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.diagnostics-code-chip {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid rgb(34 211 238 / 45%);
+  border-radius: 8px;
+  background: rgb(8 51 68 / 70%);
+  color: #67e8f9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1.5;
+  text-shadow: 0 0 12px rgb(34 211 238 / 45%);
+}
+.diagnostics-code-title {
+  margin: 0;
+  padding-top: 2px;
+  color: #f1f7fc;
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.diagnostics-code-causes {
+  margin: 0;
+  color: #b8cad8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.diagnostics-code-causes > span {
+  color: #8fa9bb;
+  font-weight: 600;
+}
+.diagnostics-code-link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid rgb(167 139 250 / 40%);
+  border-radius: 10px;
+  background: rgb(76 52 140 / 30%);
+  color: #ddd6fe;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 140ms, border-color 140ms;
+}
+.diagnostics-code-link:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+@media (hover: hover) {
+  .diagnostics-code-link:hover { border-color: #a78bfa; background: rgb(96 66 170 / 45%); color: #fff; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagnostics-code-link { transition: none; }
+}

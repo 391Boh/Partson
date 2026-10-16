@@ -2,14 +2,18 @@ import {
   Activity,
   AlertTriangle,
   Car,
+  ClipboardCheck,
   Cpu,
   Gauge,
   MapPin,
   Phone,
   ShieldCheck,
+  ShoppingCart,
   Wallet,
   Wrench,
 } from 'lucide-react';
+
+import Link from 'next/link';
 
 import DiagnosticsConsultationForm from '../DiagnosticsConsultationForm';
 import {
@@ -33,8 +37,11 @@ export const toc: TocItem[] = [
   { id: 'booking', label: 'Запис на діагностику' },
   { id: 'systems', label: 'Що перевіряємо' },
   { id: 'codes', label: 'Коди помилок' },
+  { id: 'popular-codes', label: 'Поширені помилки' },
   { id: 'process', label: 'Як проходить діагностика' },
   { id: 'when', label: 'Коли варто приїхати' },
+  { id: 'before-buying', label: 'Перед купівлею авто' },
+  { id: 'parts', label: 'Діагностика і запчастини' },
   { id: 'brands', label: 'Марки та моделі' },
 ];
 
@@ -64,10 +71,68 @@ const BRANDS = [
   { brand: 'Chevrolet', models: ['Aveo', 'Lacetti', 'Cruze', 'Captiva', 'Orlando'] },
 ];
 
+// Generic SAE OBD-II meanings; the exact cause always depends on the car,
+// which is what the diagnostics visit is for. Links go to catalog pages that
+// actually hold the parts.
+const POPULAR_CODES: Array<{
+  code: string;
+  title: string;
+  causes: string;
+  parts?: { label: string; href: string };
+}> = [
+  {
+    code: 'P0300',
+    title: 'Пропуски запалювання в кількох циліндрах',
+    causes: 'Свічки, котушки або дроти запалювання, форсунки, підсмоктування повітря, низька компресія.',
+    parts: { label: 'Система запалювання', href: '/groups/detali-dvyhuna/systema-zapalennya' },
+  },
+  {
+    code: 'P0171',
+    title: 'Надто бідна паливна суміш (банк 1)',
+    causes: 'Підсмоктування повітря, забруднений витратомір, слабкий паливний насос або забитий паливний фільтр.',
+    parts: { label: 'Паливна система', href: '/groups/palyvna-systema' },
+  },
+  {
+    code: 'P0420',
+    title: 'Ефективність каталізатора нижче норми (банк 1)',
+    causes: 'Зношений каталізатор, несправний задній кисневий датчик, підсмоктування у випускній системі.',
+    parts: { label: 'Датчики та електроніка', href: '/groups/datchyky-ta-elektronika' },
+  },
+  {
+    code: 'P0101',
+    title: 'Сигнал витратоміра повітря поза діапазоном',
+    causes: 'Забруднений або несправний датчик MAF, підсмоктування після нього, забитий повітряний фільтр.',
+    parts: { label: 'Повітряні фільтри', href: '/katalog?search=%D0%BF%D0%BE%D0%B2%D1%96%D1%82%D1%80%D1%8F%D0%BD%D0%B8%D0%B9+%D1%84%D1%96%D0%BB%D1%8C%D1%82%D1%80&filter=all' },
+  },
+  {
+    code: 'P0401',
+    title: 'Недостатній потік рециркуляції EGR',
+    causes: 'Закоксований клапан EGR або його канали, несправний датчик положення клапана.',
+    parts: { label: 'Клапани EGR', href: '/katalog?search=EGR&filter=all' },
+  },
+  {
+    code: 'P0700',
+    title: 'Блок коробки передач зберіг власну помилку',
+    causes: 'Сам код лише сигналізує: точну причину показує блок АКПП — соленоїди, датчики, стан і рівень оливи.',
+    parts: { label: 'Фільтри АКПП', href: '/groups/detali-dlya-to/filtr-maslyanyy-akpp' },
+  },
+  {
+    code: 'P0562',
+    title: 'Низька напруга бортової мережі',
+    causes: 'Розряджений або зношений акумулятор, несправний генератор, окислені клеми чи погана маса.',
+    parts: { label: 'Генератори', href: '/katalog?search=%D0%B3%D0%B5%D0%BD%D0%B5%D1%80%D0%B0%D1%82%D0%BE%D1%80&filter=all' },
+  },
+  {
+    code: 'U0100',
+    title: 'Втрачено зв’язок із блоком керування двигуном',
+    causes: 'Живлення або маса блока, пошкоджена проводка шини CAN, рідше — несправний сам блок.',
+  },
+];
+
 export default function DiagnosticsSection() {
   return (
     <>
-      <Block id="booking" kicker="OBD-II / ECU / Check Engine" title="Комп'ютерна діагностика авто у Львові">
+      <Block id="booking" kicker="OBD-II / ECU / Check Engine" title="Запис на діагностику на Перфецького, 8">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)] lg:items-start">
           <div className="space-y-5">
             <Prose>
@@ -171,6 +236,39 @@ export default function DiagnosticsSection() {
         />
       </Block>
 
+      <Block
+        id="popular-codes"
+        kicker="Розшифрування"
+        title="Поширені коди помилок і що вони означають"
+        lead="Коди з табло сканера, з якими приїжджають найчастіше. Код вказує на систему й умову збою, а не на конкретну деталь — тому спершу перевіряємо причину, а вже потім міняємо запчастини."
+      >
+        <div
+          className="diagnostics-scan-panel relative overflow-hidden rounded-[22px] p-4 sm:p-6"
+          style={{ backgroundImage: 'url("/images/information/diagnostics-scan-bg.svg")' }}
+        >
+          <ul className="grid gap-3 md:grid-cols-2">
+            {POPULAR_CODES.map(({ code, title, causes, parts }) => (
+              <li key={code} className="diagnostics-code-card">
+                <div className="flex items-start gap-3">
+                  <span className="diagnostics-code-chip" aria-hidden="true">{code}</span>
+                  <h3 className="diagnostics-code-title">
+                    <span className="sr-only">Помилка {code}: </span>
+                    {title}
+                  </h3>
+                </div>
+                <p className="diagnostics-code-causes"><span>Типові причини:</span> {causes}</p>
+                {parts ? (
+                  <Link href={parts.href} prefetch={false} className="diagnostics-code-link">
+                    <ShoppingCart size={14} strokeWidth={2} aria-hidden="true" />
+                    {parts.label}
+                  </Link>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Block>
+
       <Block id="process" kicker="Крок за кроком" title="Як проходить діагностика">
         <Steps
           steps={[
@@ -191,6 +289,49 @@ export default function DiagnosticsSection() {
             <Li icon={Car} tone="rose">Потрібна перевірка перед купівлею авто або після ремонту.</Li>
           </List>
         </Card>
+      </Block>
+
+      <Block id="before-buying" kicker="Перевірка вживаного авто" title="Діагностика авто перед купівлею">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <Prose>
+            <p>
+              Перед оглядом продавець може просто стерти помилки — індикатори на панелі тоді не горять,
+              хоча несправність нікуди не ділася. <Strong>Комп&apos;ютерна діагностика перед купівлею</Strong>{' '}
+              показує стан електронних систем глибше, ніж зовнішній огляд і тест-драйв.
+            </p>
+            <p>
+              Зчитуємо всі доступні блоки, перевіряємо збережені й періодичні помилки та готовність
+              систем самодіагностики. Якщо готовність скинута, а помилок немає, — це привід уточнити в
+              продавця, чому їх нещодавно стирали.
+            </p>
+          </Prose>
+          <Card title="Що дізнаєтесь" icon={ClipboardCheck} tone="teal">
+            <List>
+              <Li icon={ClipboardCheck} tone="teal">Помилки двигуна, коробки, ABS, ESP і подушок безпеки — зокрема збережені.</Li>
+              <Li icon={ClipboardCheck} tone="teal">Чи не стирали коди перед продажем: стан моніторів готовності.</Li>
+              <Li icon={ClipboardCheck} tone="teal">Параметри двигуна в роботі: датчики, корекції суміші, температура.</Li>
+              <Li icon={ClipboardCheck} tone="teal">Які деталі, найімовірніше, доведеться замінити найближчим часом.</Li>
+            </List>
+          </Card>
+        </div>
+      </Block>
+
+      <Block id="parts" kicker="Чому PartsON" title="Діагностика і запчастини в одному місці">
+        <Prose>
+          <p>
+            PartsON — магазин автозапчастин, тож після діагностики не потрібно шукати деталь окремо.
+            Якщо причина у конкретній запчастині, одразу підбираємо її за VIN або артикулом, показуємо
+            оригінал і перевірені аналоги та перевіряємо сумісність. Частина деталей є в наявності
+            у Львові, решту привеземо або відправимо{' '}
+            <Link href="/inform/delivery" className="underline decoration-sky-300/70 underline-offset-4 hover:decoration-sky-500">Новою Поштою</Link>.
+          </p>
+          <p>
+            Шукаєте деталь самостійно? Перегляньте{' '}
+            <Link href="/katalog" className="underline decoration-sky-300/70 underline-offset-4 hover:decoration-sky-500">каталог автозапчастин</Link>{' '}
+            або{' '}
+            <Link href="/groups/datchyky-ta-elektronika" className="underline decoration-sky-300/70 underline-offset-4 hover:decoration-sky-500">датчики та електроніку</Link>.
+          </p>
+        </Prose>
       </Block>
 
       <Block

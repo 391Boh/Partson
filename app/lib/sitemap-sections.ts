@@ -536,6 +536,13 @@ const INFORMATION_SECTION_STORE_PHOTOS: Partial<
     title: "Магазин автозапчастин PartsON",
     caption: STORE_PHOTO_CAPTION,
   })),
+  diagnostics: [
+    {
+      loc: "/images/information/diagnostics-hero-v1.webp",
+      title: "Комп'ютерна діагностика авто у Львові",
+      caption: "Сканер OBD-II для комп'ютерної діагностики авто у PartsON, Львів",
+    },
+  ],
 };
 
 export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathEntry[]> => {
@@ -543,7 +550,11 @@ export const getInformationSitemapEntries = cache(async (): Promise<SitemapPathE
 
   return informationSections.map((section) => ({
     path: getInformationPath(section.key),
-    lastModified: contentLastModified,
+    // A section revised on its own (see its updatedAt) reports that date.
+    lastModified:
+      section.updatedAt && (!contentLastModified || new Date(section.updatedAt) > new Date(contentLastModified))
+        ? new Date(section.updatedAt).toISOString()
+        : contentLastModified,
     changeFrequency: "monthly",
     priority: section.key === "delivery" ? 0.74 : 0.64,
     // Real photos of the Lviv store for the store-facing sections — the same

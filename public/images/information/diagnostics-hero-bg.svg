@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="trace" x1="0" x2="1">
+      <stop offset="0" stop-color="#0ea5e9" stop-opacity="0"/>
+      <stop offset=".35" stop-color="#0ea5e9" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" x2="1">
+      <stop offset="0" stop-color="#0ea5e9" stop-opacity="0"/>
+      <stop offset=".25" stop-color="#0ea5e9" stop-opacity=".55"/>
+      <stop offset=".75" stop-color="#8b5cf6" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".82" cy=".2" r=".55">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#0f4c75" fill-opacity=".09"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="520" fill="url(#dots)"/>
+  <rect width="1200" height="520" fill="url(#glow)"/>
+  <!-- circuit traces -->
+  <g fill="none" stroke="url(#trace)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M-10 420 H180 l40 -40 H360 l30 30 H520"/>
+    <path d="M-10 460 H120 l30 -30 H300 l50 50 H470 l20 -20 H640"/>
+    <path d="M700 500 V430 l40 -40 H900 l40 40 H1210"/>
+    <path d="M760 520 V470 l24 -24 H1010 l30 30 H1210"/>
+  </g>
+  <g fill="#ffffff" stroke="#0ea5e9" stroke-opacity=".45" stroke-width="2">
+    <circle cx="520" cy="410" r="5"/><circle cx="640" cy="460" r="5"/><circle cx="900" cy="390" r="5"/><circle cx="1010" cy="446" r="5"/>
+  </g>
+  <!-- oscilloscope trace -->
+  <path fill="none" stroke="url(#wave)" stroke-width="2.5" stroke-linejoin="round" transform="translate(0 205)"
+    d="M0 300 H140 l18 -46 l16 92 l16 -120 l18 150 l14 -76 H330 c30 0 40 -40 70 -40 s40 40 70 40 H560 l12 -30 l12 60 l12 -30 H700 c40 0 50 -60 90 -60 s50 60 90 60 H1200"/>
+</svg>
