@@ -3,14 +3,15 @@
 import { usePanelTransition } from "app/lib/use-panel-transition";
 import { useCustomerDialog } from "app/lib/use-customer-dialog";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   Check,
   Clock3,
   Copy,
   ExternalLink,
+  Headset,
   MapPin,
   MessageCircle,
+  Navigation,
   Phone,
   PhoneCall,
   Send,
@@ -18,6 +19,8 @@ import {
   X,
 } from "lucide-react";
 import Zvyaz from "app/components/zvyaz";
+import ContactAvatar, { type ContactAvatarVariant } from "app/components/ContactAvatar";
+import WindowHubCover from "app/components/WindowHubCover";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -70,12 +73,13 @@ const CONTACT_PEOPLE: ReadonlyArray<{
   name: string;
   phone: string;
   role: string;
+  avatar: ContactAvatarVariant;
   actions: readonly ContactAction[];
 }> = [
-  { name: "Богдан", phone: "+38 (063) 421-18-51", role: "Менеджер по продажах", actions: ["call", "viber"] },
-  { name: "Роман", phone: "+38 (067) 739-00-73", role: "Директор", actions: ["call", "viber"] },
-  { name: "Роман", phone: "+38 (093) 480-42-61", role: "Комп'ютерна діагностика", actions: ["call", "viber"] },
-  { name: "Дмитро", phone: "+38 (068) 479-61-72", role: "Онлайн консультація", actions: ["viber", "telegram"] },
+  { name: "Богдан", phone: "+38 (063) 421-18-51", role: "Менеджер по продажах", avatar: "sales", actions: ["call", "viber"] },
+  { name: "Роман", phone: "+38 (067) 739-00-73", role: "Директор", avatar: "director", actions: ["call", "viber"] },
+  { name: "Роман", phone: "+38 (093) 480-42-61", role: "Комп'ютерна діагностика", avatar: "diagnostics", actions: ["call", "viber"] },
+  { name: "Дмитро", phone: "+38 (068) 479-61-72", role: "Онлайн консультація", avatar: "consultant", actions: ["viber", "telegram"] },
 ];
 
 const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
@@ -129,6 +133,8 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
     const id = setInterval(compute, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  const todayIndex = new Date().getDay();
 
   /* Close on outside click */
   useEffect(() => {
@@ -253,81 +259,68 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 rounded-full" />
 
-          <div className="soft-panel-header">
-            <div className="min-w-0">
-              <h2 id="contact-modal-title" className="soft-panel-title">Зв&apos;язок і підтримка</h2>
-              <p className="soft-panel-subtitle">
-                Телефонуйте, пишіть у Viber або Telegram — відповімо швидко.
-              </p>
+          <div className="cw-hub">
+            <WindowHubCover />
+            <div className="cw-hub-top">
+              <span className="cw-hub-icon" aria-hidden="true"><Headset size={20} /></span>
+              <div className="cw-hub-text">
+                <h2 id="contact-modal-title" className="cw-hub-title">Зв&apos;язок і підтримка</h2>
+                <p className="cw-hub-sub">
+                  {openStatus ? (
+                    <span className={`cw-open-state ${openStatus.open ? "is-open" : "is-closed"}`}>
+                      <span className="cw-open-dot" aria-hidden="true" />
+                      {openStatus.open ? "Відчинено" : "Зачинено"}
+                      {openStatus.note && <span className="cw-open-note"> · {openStatus.note}</span>}
+                    </span>
+                  ) : (
+                    "Дзвінок, Viber або Telegram"
+                  )}
+                </p>
+              </div>
+              <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+                <X size={20} strokeWidth={2.3} />
+              </button>
             </div>
-
-            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
-              <X size={22} strokeWidth={2.5} />
-            </button>
-          </div>
-
-          <div className="soft-panel-tabs">
-            <div className="grid w-full grid-cols-2 gap-1.5 sm:gap-2">
+            <div className="soft-panel-tabs cw-hub-tabs grid grid-cols-2">
               <button
                 aria-pressed={tab === "phones"}
-                onClick={() => {
-                  setTab("phones");
-                }}
-                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-[13px] font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
-                  tab === "phones"
-                    ? "soft-segment soft-segment--active"
-                    : "soft-segment"
-                }`}
+                onClick={() => setTab("phones")}
+                className={`soft-segment flex items-center justify-center gap-1.5 ${tab === "phones" ? "soft-segment--active" : ""}`}
               >
-                <Phone size={15} strokeWidth={2} />
-                Дзвінок
+                <Phone size={14} strokeWidth={2} />
+                Менеджери
               </button>
-
               <button
                 aria-pressed={tab === "address"}
-                onClick={() => {
-                  setTab("address");
-                }}
-                className={`flex items-center justify-center gap-1.5 rounded-[14px] px-2.5 py-2 text-[13px] font-semibold transition sm:gap-2 sm:rounded-[16px] sm:px-3 sm:py-2.5 ${
-                  tab === "address"
-                    ? "soft-segment soft-segment--active"
-                    : "soft-segment"
-                }`}
+                onClick={() => setTab("address")}
+                className={`soft-segment flex items-center justify-center gap-1.5 ${tab === "address" ? "soft-segment--active" : ""}`}
               >
-                <MapPin size={15} strokeWidth={2} />
+                <MapPin size={14} strokeWidth={2} />
                 Локація
               </button>
             </div>
           </div>
 
           <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
-            <div className="space-y-1.5 pb-1">
-              {tab === "phones" && (
-                <div className="space-y-1.5">
-                  <div className="customer-contact-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {CONTACT_PEOPLE.map((c) => {
-                      const operator = getOperatorInfo(c.phone);
-
-                      return (
-                        <div key={c.phone} className="customer-contact-card cw-contact-card">
-                          <div className="cw-contact-person">
-                            <span className="cw-contact-avatar" aria-hidden="true">
-                              {c.name.charAt(0)}
-                              {openStatus?.open && <span className="cw-contact-online" />}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="cw-contact-name">{c.name}</span>
-                              <span className="cw-contact-role">{c.role}</span>
-                            </span>
-                            <span className="cw-contact-operator" title={`Оператор: ${operator.label}`}>
-                              {operator.label}
-                            </span>
-                          </div>
-
-                          <div className="cw-contact-phone-row">
+            {tab === "phones" && (
+              <section className="cw-list" aria-labelledby="contact-people-title">
+                <h3 id="contact-people-title" className="cw-list-title">Менеджери PartsON</h3>
+                <ul className="cw-list-rows">
+                  {CONTACT_PEOPLE.map((c) => {
+                    const operator = getOperatorInfo(c.phone);
+                    return (
+                      <li key={c.phone} className="cw-row cw-contact-row">
+                        <span className="cw-contact-avatar" aria-hidden="true">
+                          <ContactAvatar variant={c.avatar} />
+                          {openStatus?.open && <span className="cw-contact-online" />}
+                        </span>
+                        <div className="cw-row-body cw-contact-info">
+                          <span className="cw-contact-name">{c.name}</span>
+                          <span className="cw-contact-role">{c.role}</span>
+                          <span className="cw-contact-line">
                             <a
                               href={`tel:+${c.phone.replace(/\D/g, "")}`}
-                              className="cw-contact-phone"
+                              className="cw-contact-number"
                               onClick={() =>
                                 pushAnalyticsEvent("contact_click", {
                                   contact_method: "call",
@@ -338,135 +331,121 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                             >
                               {c.phone}
                             </a>
+                            <span className="cw-contact-operator" title={`Оператор: ${operator.label}`}>{operator.label}</span>
+                          </span>
+                        </div>
+                        <span className="cw-contact-actions-bar" role="group" aria-label={`Зв'язатися: ${c.name}`}>
+                          {c.actions.map((action) => (
                             <button
+                              key={action}
                               type="button"
-                              onClick={() => handleCopyPhone(c.phone)}
-                              className="cw-contact-copy"
-                              aria-label={`Скопіювати номер ${c.phone}`}
-                              title="Скопіювати номер"
-                              data-contact-copy
+                              onClick={() => handleContactAction(c.phone, action, c.role)}
+                              className={`cw-contact-segment cw-contact-segment--${action}`}
+                              aria-label={`${action === "viber" ? "Написати у Viber" : action === "telegram" ? "Написати в Telegram" : "Зателефонувати"}: ${c.name}`}
                             >
-                              {copiedPhone === c.phone ? <Check size={15} /> : <Copy size={15} />}
-                              <span className="sr-only" aria-live="polite">
-                                {copiedPhone === c.phone ? "Скопійовано" : ""}
-                              </span>
+                              {action === "viber" ? <MessageCircle size={16} /> : action === "telegram" ? <Send size={16} /> : <Phone size={16} />}
+                              <span>{action === "viber" ? "Viber" : action === "telegram" ? "Telegram" : "Дзвінок"}</span>
                             </button>
-                          </div>
-
-                          <div className="customer-contact-actions cw-contact-actions">
-                            {c.actions.map((action) => (
-                              <button
-                                key={action}
-                                type="button"
-                                onClick={() => handleContactAction(c.phone, action, c.role)}
-                                className={`cw-contact-action cw-contact-action--${action}${c.actions.length === 1 ? " col-span-2" : ""}`}
-                              >
-                                {action === "viber" ? <MessageCircle size={13} /> : action === "telegram" ? <Send size={13} /> : <Phone size={13} />}
-                                {action === "viber" ? "Viber" : action === "telegram" ? "Telegram" : "Дзвінок"}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {tab === "address" && (
-                <div className="space-y-2">
-                  <div className="soft-panel-hero rounded-[18px] p-3 sm:rounded-[20px] sm:p-3.5">
-                    <div className="flex gap-2.5 sm:gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] border border-sky-100 bg-white/85 text-sky-700 shadow-[0_14px_28px_rgba(56,189,248,0.12)] sm:h-12 sm:w-12 sm:rounded-[19px]">
-                        <Store size={18} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                          <div className="min-w-0">
-                            <p className="text-[15px] font-bold text-slate-900 sm:text-base">
-                              <Link
-                                href="/"
-                                className="underline decoration-sky-300/70 underline-offset-4 transition hover:text-sky-700"
-                              >
-                                PartsON
-                              </Link>{" "}
-                              у Львові
-                            </p>
-                            <p className="mt-0.5 text-[12px] leading-relaxed text-slate-600 sm:text-[13px]">
-                              Магазин, консультація та самовивіз замовлень.
-                            </p>
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
-                              openStatus?.open
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border-amber-200 bg-amber-50 text-amber-700"
-                            }`}>
-                              {openStatus?.open ? <Check size={12} /> : <Clock3 size={12} />}
-                              {openStatus?.label ?? "Відчинено"}
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPhone(c.phone)}
+                            className="cw-contact-segment cw-contact-segment--copy"
+                            data-copied={copiedPhone === c.phone || undefined}
+                            aria-label={`Скопіювати номер ${c.phone}`}
+                            title="Скопіювати номер"
+                            data-contact-copy
+                          >
+                            {copiedPhone === c.phone ? <Check size={16} /> : <Copy size={16} />}
+                            <span className="sr-only" aria-live="polite">
+                              {copiedPhone === c.phone ? "Скопійовано" : ""}
                             </span>
-                            {openStatus?.note && (
-                              <span className="text-[10px] text-slate-400 pr-0.5">{openStatus.note}</span>
-                            )}
-                          </div>
-                        </div>
-                        <a
-                          href={STORE_MAPS_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          data-analytics-contact="manual"
-                          onClick={() =>
-                            pushAnalyticsEvent("contact_click", {
-                              contact_method: "map",
-                              placement: "contacts_modal",
-                              contact_role: "store",
-                            })
-                          }
-                          className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-[13px] border border-sky-200 bg-white/85 px-2.5 py-1.5 text-[13px] font-semibold leading-relaxed text-sky-700 shadow-[0_8px_16px_rgba(14,165,233,0.10)] transition hover:border-sky-300 hover:bg-white sm:mt-2.5 sm:text-sm"
-                        >
-                          <MapPin size={14} className="shrink-0 text-sky-500" />
-                          м. Львів, вул. Перфецького, 8
-                        </a>
-                        <div className="mt-2 grid gap-1.5 text-[11px] sm:mt-2.5 sm:grid-cols-3 sm:gap-2 sm:text-xs">
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-slate-200 bg-white/78 px-2.5 py-1.5 text-slate-600">
-                            <Clock3 size={13} className="shrink-0 text-sky-500" />
-                            <span>Пн-Сб: 08:00-18:00</span>
-                          </span>
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-slate-200 bg-white/78 px-2.5 py-1.5 text-slate-600">
-                            <Clock3 size={13} className="shrink-0 text-sky-500" />
-                            <span>Нд: 08:00-16:00</span>
-                          </span>
-                          <span className="inline-flex min-h-9 items-center gap-1.5 rounded-[13px] border border-cyan-200 bg-cyan-50 px-2.5 py-1.5 text-cyan-700">
-                            <Check size={13} className="shrink-0 text-cyan-500" />
-                            <span>Самовивіз</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
 
-              {tab === "phones" ? (
-                <button
-                  onClick={() => setShowZvyaz(true)}
-                  className="soft-primary-button mt-1 w-full py-2.5 text-sm font-semibold"
-                >
-                  <PhoneCall size={16} />
-                  Замовити зв&apos;язок
-                </button>
-              ) : (
-                <a
-                  href="https://www.google.com/maps?cid=11517394092669341405"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="soft-primary-button mt-1 flex w-full items-center justify-center gap-2 py-2.5 text-sm font-semibold"
-                >
-                  <ExternalLink size={16} />
-                  Переглянути на мапі
-                </a>
-              )}
-            </div>
+            {tab === "address" && (
+              <section className="cw-list" aria-labelledby="contact-store-title">
+                <h3 id="contact-store-title" className="cw-list-title">Магазин PartsON у Львові</h3>
+                <ul className="cw-list-rows">
+                  <li className="cw-row">
+                    <span className="cw-row-icon" aria-hidden="true"><MapPin size={16} /></span>
+                    <div className="cw-row-body">
+                      <span className="cw-row-label">Адреса</span>
+                      <span className="cw-row-value">м. Львів, вул. Перфецького, 8</span>
+                    </div>
+                    <span className="cw-row-actions">
+                      <a
+                        href={STORE_MAPS_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        data-analytics-contact="manual"
+                        onClick={() =>
+                          pushAnalyticsEvent("contact_click", {
+                            contact_method: "map",
+                            placement: "contacts_modal",
+                            contact_role: "store",
+                          })
+                        }
+                        className="cw-chip-button"
+                      >
+                        <Navigation size={15} />
+                        <span>Маршрут</span>
+                      </a>
+                    </span>
+                  </li>
+                  <li className="cw-row">
+                    <span className="cw-row-icon" aria-hidden="true"><Clock3 size={16} /></span>
+                    <div className="cw-row-body">
+                      <span className="cw-row-label">
+                        Графік
+                        {openStatus && (
+                          <span className={`cw-open-state ${openStatus.open ? "is-open" : "is-closed"}`}>
+                            <span className="cw-open-dot" aria-hidden="true" />
+                            {openStatus.open ? "Відчинено" : "Зачинено"}
+                          </span>
+                        )}
+                      </span>
+                      <span className="cw-schedule">
+                        <span data-today={todayIndex !== 0 || undefined}><span>Пн–Сб</span><strong>08:00–18:00</strong></span>
+                        <span data-today={todayIndex === 0 || undefined}><span>Неділя</span><strong>08:00–16:00</strong></span>
+                      </span>
+                    </div>
+                  </li>
+                  <li className="cw-row">
+                    <span className="cw-row-icon" aria-hidden="true"><Store size={16} /></span>
+                    <div className="cw-row-body">
+                      <span className="cw-row-label">Самовивіз і консультація</span>
+                      <span className="cw-row-text">Заберіть замовлення в магазині або підберіть деталі разом з менеджером.</span>
+                    </div>
+                  </li>
+                </ul>
+              </section>
+            )}
+          </div>
+
+          <div className="cw-footer-action">
+            {tab === "phones" ? (
+              <button onClick={() => setShowZvyaz(true)} className="soft-primary-button cw-footer-button">
+                <PhoneCall size={16} />
+                Замовити зворотний дзвінок
+              </button>
+            ) : (
+              <a
+                href="https://www.google.com/maps?cid=11517394092669341405"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="soft-primary-button cw-footer-button"
+              >
+                <ExternalLink size={16} />
+                Відкрити на Google Maps
+              </a>
+            )}
           </div>
         </div>
       </div>

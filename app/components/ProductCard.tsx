@@ -247,6 +247,10 @@ const ProductCard: React.FC<Props> = ({
     // mark it without revealing the discounted amount, reserved for verified
     // partners (see hasPromo's own comment above).
     const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
+    // Until the partner check answers, a returning partner's browser (see
+    // app/lib/partner-price-hint.ts) draws this row in the promo layout with a
+    // placeholder for the price, so the verified price drops into place.
+    const awaitsPartnerPrice = showPartnerDiscountTeaser && !isPartner;
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
     const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
@@ -680,8 +684,8 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                 партнера" — this corner is roughly a third of the card's
                                 width, nowhere near enough for the full phrase; "партнер"
                                 is already spelled out next to the price itself below. */}
-                            {hasPromoPrice && (
-                                <span className="pointer-events-none absolute right-1 top-1 z-10 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm">
+                            {(hasPromoPrice || awaitsPartnerPrice) && (
+                                <span className={`${hasPromoPrice ? "" : "catalog-card-promo-badge--awaiting "}pointer-events-none absolute right-1 top-1 z-10 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm`}>
                                     Акція
                                 </span>
                             )}
@@ -947,7 +951,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             </button>
                         </div>
                     ) : (
-                        <div className={`catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5 ${!showCostPrice && showPartnerDiscountTeaser ? "catalog-card-price-row--teaser" : ""}`}>
+                        <div className={`catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5 ${!showCostPrice && showPartnerDiscountTeaser ? "catalog-card-price-row--teaser" : ""} ${!showCostPrice && awaitsPartnerPrice ? "catalog-card-price-row--awaiting-partner" : ""} ${!showCostPrice && hasPromoPrice ? "catalog-card-price-row--promo" : ""}`}>
                             {/* Pill toggle Прод / Закуп — visible to any admin, even before a
                                 cost price has ever been saved, so they have a way to switch into
                                 "Закуп" mode and enter one for the first time via the pencil edit
@@ -1021,7 +1025,14 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                         </>
                                     ) : hasPrice ? (
                                         <>
-                                            <span className="text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
+                                            <span className="catalog-card-price-value text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
+                                            {awaitsPartnerPrice && (
+                                                <span
+                                                    className="catalog-card-promo-pending"
+                                                    aria-hidden="true"
+                                                    style={{ width: `${effectivePriceUAH!.toLocaleString('uk-UA').length * 0.62}em` }}
+                                                />
+                                            )}
                                             <span className="text-[10px] font-bold text-slate-400">грн</span>
                                         </>
                                     ) : isPriceLoading ? (

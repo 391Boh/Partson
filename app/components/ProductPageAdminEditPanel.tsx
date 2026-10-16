@@ -610,7 +610,7 @@ export default function ProductPageAdminEditPanel({
   };
 
   const uploadImage = async () => {
-    if (!imageFile || !imagePreview) return;
+    if (!imageFile || !imagePreview || imageProcessing || imageUploading) return;
     const token = await getToken();
     if (!token) { setImageError("Не авторизовано"); return; }
     setImageUploading(true);
@@ -629,8 +629,7 @@ export default function ProductPageAdminEditPanel({
       setImageUploadName("");
       setImageUploadSize(0);
       notifyProductImageUpdated(code, values.article || undefined, imagePreview);
-      invalidateCatalogClientCache();
-      refreshPage();
+      invalidateCatalogClientCache({ code });
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
   };
 
@@ -657,7 +656,7 @@ export default function ProductPageAdminEditPanel({
   };
 
   const uploadGalleryImage = async () => {
-    if (!galleryPreview) return;
+    if (!galleryPreview || galleryProcessing || galleryUploading) return;
     const token = await getToken();
     if (!token) { setGalleryError("Не авторизовано"); return; }
     setGalleryUploading(true);

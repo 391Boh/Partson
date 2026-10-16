@@ -17,7 +17,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type AvatarTier = "basic" | "partner" | "admin";
+import { findAvatarFrame, PROFILE_AVATAR_FRAMES, type AvatarTier } from "app/lib/profile-appearance";
+import { useAvatarMotion } from "app/lib/use-avatar-motion";
+export type { AvatarTier } from "app/lib/profile-appearance";
 
 type AvatarDefinition = {
   id: string;
@@ -335,39 +337,55 @@ type ProfileAvatarProps = {
   avatarId: string | null;
   initial: string;
   className?: string;
+  frameId?: string | null;
+  motionTier?: AvatarTier;
+  animated?: boolean;
 };
 
-/** The chosen avatar, or the name's first letter when none is picked. */
-export function ProfileAvatar({ avatarId, initial, className = "" }: ProfileAvatarProps) {
+/** Art, achievement frame and account animation are independent choices. */
+export function ProfileAvatar({ avatarId, initial, className = "", frameId = null, motionTier, animated = true }: ProfileAvatarProps) {
   const uid = useId().replace(/:/g, "");
   const avatar = findProfileAvatar(avatarId);
-
-  if (!avatar) {
-    return (
-      <span className={`profile-avatar profile-avatar--initial ${className}`}>
-        <span className="profile-avatar-face bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600">
-          {initial}
-        </span>
-      </span>
-    );
-  }
-
-  if (avatar.tier === "basic") {
-    const Icon = (avatar as BasicAvatar).icon;
-    return (
-      <span className={`profile-avatar profile-avatar--basic ${className}`}>
-        <span className={`profile-avatar-face bg-gradient-to-br ${(avatar as BasicAvatar).tone}`}>
-          <Icon strokeWidth={2.1} aria-hidden="true" />
-        </span>
-      </span>
-    );
-  }
-
+  const tier = motionTier ?? avatar?.tier ?? "basic";
+  const ref = useAvatarMotion(animated);
+  const frame = findAvatarFrame(frameId);
+  const Icon = avatar?.tier === "basic" ? avatar.icon : null;
   return (
-    <span className={`profile-avatar profile-avatar--${avatar.tier} ${className}`}>
-      <span className="profile-avatar-face">{(avatar as ArtAvatar).art(uid)}</span>
+    <span ref={ref} className={`profile-avatar profile-avatar--${avatar?.tier ?? "initial"} ${className}`}
+      data-motion-tier={tier} data-frame={frame?.tone ?? "default"} data-animated={animated}>
+      <span className={`profile-avatar-face ${avatar?.tier === "basic" ? `bg-gradient-to-br ${avatar.tone}` : !avatar ? "bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600" : ""}`}>
+        <span className="profile-avatar-glyph">
+          {Icon ? <Icon strokeWidth={2.1} aria-hidden="true" /> : avatar && avatar.tier !== "basic" ? avatar.art(uid) : initial}
+        </span>
+      </span>
     </span>
   );
+}
+
+export function ProfileAvatarFramesPicker({ selectedId, avatarId, initial, totalSpent, saving, onSelect, motionTier, statusError = false }: {
+  selectedId: string | null; avatarId: string | null; initial: string;
+  statusError?: boolean; motionTier?: AvatarTier; totalSpent: number | null; saving: boolean; onSelect: (id: string | null) => void;
+}) {
+  return <div className="profile-frame-picker">
+    <p className="profile-frame-hint">Рамки відкриваються за сумою ваших замовлень. Оберіть стиль для свого аватара.</p>
+    <div className="profile-frame-grid">
+      {[null, ...PROFILE_AVATAR_FRAMES].map(frame => {
+        const unlocked = !frame || (totalSpent !== null && totalSpent >= frame.threshold);
+        const selected = selectedId === (frame?.id ?? null);
+        const label = frame?.finish ?? "Класична";
+        return <button key={frame?.id ?? "default"} type="button" className="profile-frame-option"
+          aria-pressed={selected} disabled={saving || !unlocked}
+          aria-label={`${label}${!unlocked && frame ? ` — від ${frame.threshold.toLocaleString("uk-UA")} грн` : ""}`}
+          onClick={() => onSelect(frame?.id ?? null)}>
+          <ProfileAvatar avatarId={avatarId} initial={initial} frameId={frame?.id} motionTier={motionTier} animated={false} />
+          <span className="profile-frame-copy"><strong>{label}</strong><span>{frame ? frame.label : "Ваш базовий стиль"}</span>
+            {frame && <small>{frame.threshold.toLocaleString("uk-UA")} грн</small>}</span>
+          {selected ? <Check size={15} aria-hidden="true" /> : !unlocked ? <Lock size={14} aria-hidden="true" /> : null}
+        </button>;
+      })}
+    </div>
+    {totalSpent === null && !statusError && <p className="profile-frame-hint" role="status">Перевіряємо доступні рамки…</p>}
+  </div>;
 }
 
 type ProfileAvatarPickerProps = {
@@ -406,7 +424,7 @@ function PickerOption({
       disabled={locked || disabled}
       onClick={() => onSelect(id)}
     >
-      <ProfileAvatar avatarId={id} initial={initial} />
+      <ProfileAvatar avatarId={id} initial={initial} animated={false} />
       {selected && (
         <span className="profile-avatar-option-check" aria-hidden="true">
           <Check size={11} strokeWidth={3} />

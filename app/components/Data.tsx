@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { clearPartnerPriceHint, rememberPartnerPriceHint } from "app/lib/partner-price-hint";
 import { awaitWithAbortSignal, createAbortError, handleCatalogBackgroundError, isAbortLikeError, observeCatalogRequest } from "app/lib/catalog-request-lifecycle";
 import { useLiveCatalogRefresh, type LiveCatalogProduct } from 'app/lib/use-live-catalog-refresh';
 import { getCatalogPagePrefetch } from "app/lib/catalog-page-prefetch";
@@ -1992,6 +1993,7 @@ function useCatalogData(params: {
 
         if (resolvedPartnerStatus !== undefined) {
           setIsPartner(resolvedPartnerStatus);
+          rememberPartnerPriceHint(resolvedPartnerStatus);
           if (!resolvedPartnerStatus) {
             promoPricesRef.current = {};
             setPromoPrices({});
@@ -4262,6 +4264,13 @@ function useCatalogData(params: {
 
     if (!includePartnerPrices) {
       setIsPartner(false);
+      // includePartnerPrices is also false on the first render, before the
+      // stored session is read — only a real sign-out may drop the hint.
+      try {
+        if (!localStorage.getItem("user_id")) clearPartnerPriceHint();
+      } catch {
+        // ignore
+      }
       promoPricesRef.current = {};
       setPromoPrices({});
       return;
@@ -4399,6 +4408,7 @@ function useCatalogData(params: {
 
   const applyLiveCatalogProducts = useCallback((products: LiveCatalogProduct[], partner: boolean) => {
     setIsPartner(partner);
+    rememberPartnerPriceHint(partner);
     const promoUpdates: Record<string, number | null> = {};
     const costUpdates: Record<string, number | null> = {};
     for (const product of products) {

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useCustomerDialog } from "app/lib/use-customer-dialog";
-import { ArrowLeft, X, Send } from "lucide-react";
+import { ArrowLeft, PhoneCall, X, Send } from "lucide-react";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
@@ -13,6 +13,7 @@ import {
 import { app } from "../../firebase";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 import { pushGenerateLeadEvent } from "app/lib/gtm";
+import WindowHubCover from "app/components/WindowHubCover";
 
 interface ZvyazProps {
   onClose: () => void;
@@ -83,23 +84,22 @@ const Zvyaz: React.FC<ZvyazProps> = ({ onClose, onBack, userData }) => {
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />
 
-        <div className="soft-panel-header">
-          <div className="min-w-0">
-            <h3 id="callback-title" className="soft-panel-title">
-              Зворотний дзвінок
-            </h3>
-            <p className="soft-panel-subtitle">
-              Залиште номер і короткий коментар. Ми передзвонимо найближчим часом.
-            </p>
+        <div className="cw-hub">
+            <WindowHubCover />
+          <div className="cw-hub-top">
+            <span className="cw-hub-icon" aria-hidden="true"><PhoneCall size={20} /></span>
+            <div className="cw-hub-text">
+              <h3 id="callback-title" className="cw-hub-title">Зворотний дзвінок</h3>
+              <p className="cw-hub-sub">Залиште номер — менеджер передзвонить найближчим часом.</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+              aria-label="Закрити"
+            >
+              <X size={20} strokeWidth={2.3} />
+            </button>
           </div>
-
-          <button
-            onClick={onClose}
-            className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
-            aria-label="Закрити"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-2">

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 const importBundle=async(options)=>{const r=await build({bundle:true,write:false,platform:'node',format:'esm',...options});return import('data:text/javascript;base64,'+Buffer.from(r.outputFiles[0].text).toString('base64'))};
 const client=await importBundle({entryPoints:['app/lib/partner-status-client.ts']});
-const originalFetch=globalThis.fetch,originalNow=Date.now;
+const originalFetch=globalThis.fetch,originalNow=Date.now,originalStorage=globalThis.sessionStorage;
+const stored=new Map();
+globalThis.sessionStorage={getItem:key=>stored.get(key)??null,setItem:(key,value)=>stored.set(key,value),removeItem:key=>stored.delete(key)};
 let clock=originalNow(),requests=0,tokens=0,fail=false,invalid=false;
 Date.now=()=>clock;
 globalThis.fetch=async()=>{requests++;await new Promise(r=>setTimeout(r,20));if(fail)return new Response('{}',{status:503});return Response.json(invalid?{isPartner:true,totalSpent:-1}:{isPartner:true,totalSpent:12500})};
@@ -14,13 +16,22 @@ try{
  await client.fetchPartnerStatus(user('a'));assert.equal(requests,1);
  await client.fetchPartnerStatus(user('b'));assert.equal(requests,2,'Accounts must not share balances');
  clock+=31000;assert.equal(client.getCachedPartnerStatus('a'),null);
+ assert.equal(client.getPartnerStatusPreview('a').totalSpent,12500,'Achievement preview remains available while fresh pricing status expires');
+ assert.equal(client.getPartnerStatusPreview('unknown'),null,'Preview is isolated by UID');
+ stored.set('partson:achievement-preview:restored',JSON.stringify({value:{isPartner:true,totalSpent:50000},savedAt:clock-10000}));
+ assert.equal(client.getPartnerStatusPreview('restored').totalSpent,50000,'A new module/page can restore the session snapshot without network');
+ assert.equal(client.getCachedPartnerStatus('restored'),null,'Session snapshots never enter the pricing cache');
+ stored.set('partson:achievement-preview:expired',JSON.stringify({value:{isPartner:true,totalSpent:50000},savedAt:clock-86400001}));
+ assert.equal(client.getPartnerStatusPreview('expired'),null);
+ stored.set('partson:achievement-preview:invalid',JSON.stringify({value:{isPartner:true,totalSpent:-1},savedAt:clock}));
+ assert.equal(client.getPartnerStatusPreview('invalid'),null);
  await client.fetchPartnerStatus(user('a'));assert.equal(requests,3);
- client.invalidatePartnerStatusClient('a');fail=true;await assert.rejects(client.fetchPartnerStatus(user('a')));
+ client.invalidatePartnerStatusClient('a');assert.equal(client.getPartnerStatusPreview('a'),null);assert.equal(stored.has('partson:achievement-preview:a'),false);fail=true;await assert.rejects(client.fetchPartnerStatus(user('a')));
  fail=false;await client.fetchPartnerStatus(user('a'));assert.equal(requests,5,'Failures must remain retryable');
  invalid=true;await assert.rejects(client.fetchPartnerStatus(user('invalid')));assert.equal(client.getCachedPartnerStatus('invalid'),null);invalid=false;
  const stale=client.fetchPartnerStatus(user('race'));client.invalidatePartnerStatusClient('race');await stale;assert.equal(client.getCachedPartnerStatus('race'),null,'Invalidation must prevent an in-flight result from repopulating the cache');
  console.log('PASS client: three consumers share one token/API request, cache hits need no network, UID isolation, TTL, errors, validation and invalidation');
-}finally{globalThis.fetch=originalFetch;Date.now=originalNow}
+}finally{globalThis.fetch=originalFetch;Date.now=originalNow;if(originalStorage===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=originalStorage}
 let orderReads=0,grantReads=0,selected=[];let release;
 let gate=new Promise(r=>{release=r});
 globalThis.__partnerCacheTestDb={collection(name){if(name==='partnerGrants')return{doc(){return{async get(){grantReads++;await gate;return{data:()=>({active:false})}}}}};return{where(){return{select(...fields){selected.push(fields);return{async get(){orderReads++;await gate;return{docs:[{data:()=>({totalAmount:1500,total:9000})},{data:()=>({total:'750'})},{data:()=>({totalAmount:-10})},{data:()=>({totalAmount:'bad'})}]}}}}}}}}};

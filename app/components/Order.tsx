@@ -4,15 +4,13 @@ import { usePanelTransition } from "app/lib/use-panel-transition";
 import { useCustomerDialog } from "app/lib/use-customer-dialog";
 import { fetchPartnerStatus, getCachedPartnerStatus } from 'app/lib/partner-status-client';
 import ProfileOrderRewards from './ProfileOrderRewards';
+import WindowHubCover from 'app/components/WindowHubCover';
 import {
-  ArrowLeft,
   ChevronDown,
   CircleDot,
   Clock3,
   ArrowRight,
   LogIn,
-  Boxes,
-  CalendarClock,
   ShoppingCart,
   X,
   ClipboardList,
@@ -361,6 +359,27 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     });
   }, [showPastOrders, user]);
 
+  const shortDateFormatter = useMemo(
+    () => new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'short', timeZone: 'Europe/Kyiv' }),
+    []
+  );
+  const orderGroups = useMemo(() => {
+    const monthFormatter = new Intl.DateTimeFormat('uk-UA', { month: 'long', year: 'numeric', timeZone: 'Europe/Kyiv' });
+    const groups: { key: string; label: string; total: number; orders: PastOrder[] }[] = [];
+    for (const order of pastOrders) {
+      const seconds = order.createdAt?.seconds;
+      const label = seconds ? monthFormatter.format(new Date(seconds * 1000)).replace(/\s*р\.$/, '') : 'Без дати';
+      let group = groups.find((entry) => entry.key === label);
+      if (!group) {
+        group = { key: label, label: label.charAt(0).toUpperCase() + label.slice(1), total: 0, orders: [] };
+        groups.push(group);
+      }
+      group.orders.push(order);
+      group.total += Number(order.totalAmount || order.total || 0) || 0;
+    }
+    return groups;
+  }, [pastOrders]);
+
   const toggleExpandOrder = (orderId: string) => {
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
@@ -404,12 +423,6 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
     Boolean(user) &&
     (partnerDiscountStatus === 'active' ||
       partnerDiscountStatus === 'pending');
-  const firstOrderDiscountPanelClass =
-    firstOrderDiscountCopy.tone === 'active'
-      ? 'border-emerald-200/80 bg-gradient-to-r from-white via-emerald-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(16,185,129,0.08)]'
-      : firstOrderDiscountCopy.tone === 'warning'
-        ? 'border-amber-200/80 bg-gradient-to-r from-white via-amber-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(245,158,11,0.07)]'
-        : 'border-sky-200/80 bg-gradient-to-r from-white via-sky-50/85 to-white text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.08)]';
 
   const rewardsReady = partnerSummaryUid === user?.uid &&
     (partnerDiscountStatus === 'active' || partnerDiscountStatus === 'pending');
@@ -420,6 +433,55 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       onRetry={() => setPartnerRetry((value) => value + 1)}
     />
   ) : null;
+
+  const renderHub = (view: 'cart' | 'history') => (
+    <div className="cw-hub">
+            <WindowHubCover />
+      <div className="cw-hub-top">
+        <span className="cw-hub-icon" aria-hidden="true">
+          {view === 'cart' ? <ShoppingCart size={20} /> : <ClipboardList size={20} />}
+        </span>
+        <div className="cw-hub-text">
+          <h3 id={view === 'cart' ? 'my-order-modal-title' : 'past-orders-modal-title'} className="cw-hub-title">
+            {view === 'cart' ? 'Моє замовлення' : 'Історія замовлень'}
+          </h3>
+          <p className="cw-hub-sub">
+            {view === 'cart'
+              ? hasItems
+                ? `${cartItems.length} ${pluralizePositions(cartItems.length)} · ${totalUnits} шт. · ${currencyFormatter.format(payableAmount)} грн`
+                : 'Кошик порожній'
+              : user && pastOrders.length > 0
+                ? `${pastOrders.length} ${pluralizeUk(pastOrders.length, 'замовлення', 'замовлення', 'замовлень')} на ${currencyFormatter.format(totalPastOrdersAmount)} грн`
+                : 'Статус, доставка і склад кожного замовлення'}
+          </p>
+        </div>
+        <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
+          <X size={20} strokeWidth={2.3} />
+        </button>
+      </div>
+      <div className="soft-panel-tabs cw-hub-tabs grid grid-cols-2">
+        <button
+          type="button"
+          aria-pressed={view === 'cart'}
+          onClick={() => setShowPastOrders(false)}
+          className={`soft-segment flex items-center justify-center gap-1.5 ${view === 'cart' ? 'soft-segment--active' : ''}`}
+        >
+          <ShoppingCart size={14} aria-hidden="true" />
+          Кошик
+          {hasItems && <span className="cw-tab-count">{cartItems.length}</span>}
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === 'history'}
+          onClick={() => setShowPastOrders(true)}
+          className={`soft-segment flex items-center justify-center gap-1.5 ${view === 'history' ? 'soft-segment--active' : ''}`}
+        >
+          <ClipboardList size={14} aria-hidden="true" />
+          Історія
+        </button>
+      </div>
+    </div>
+  );
 
   if (isOrdering) {
     return (
@@ -454,29 +516,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
           <div className="soft-panel-accent h-1 rounded-full" />
 
-          <div className="soft-panel-header">
-            <div className="min-w-0">
-              <h3 id="past-orders-modal-title" className="soft-panel-title">Історія замовлень</h3>
-              <p className="soft-panel-subtitle">
-                {user && pastOrders.length > 0
-                  ? `${pastOrders.length} ${pluralizeUk(pastOrders.length, 'замовлення', 'замовлення', 'замовлень')} на ${currencyFormatter.format(totalPastOrdersAmount)} грн`
-                  : 'Дата, сума, доставка, склад і статус кожного замовлення.'}
-              </p>
-            </div>
-            <div className="cw-head-actions">
-              <button
-                type="button"
-                onClick={() => setShowPastOrders(false)}
-                className="cw-head-link"
-              >
-                <ArrowLeft size={16} aria-hidden="true" />
-                Кошик
-              </button>
-              <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
-                <X size={22} strokeWidth={2.5} />
-              </button>
-            </div>
-          </div>
+          {renderHub('history')}
 
           <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
             <div className="space-y-2 pb-1">
@@ -503,18 +543,32 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
               <div className="loader" />
             </div>
           ) : pastOrders.length > 0 ? (
-            <div className="space-y-2 sm:app-panel-scroll sm:max-h-[52vh] sm:space-y-2.5">
-              {pastOrders.map((order) => {
+            <div className="cw-order-groups">
+            {orderGroups.map((group) => (
+            <section key={group.key} className="cw-list" aria-label={`Замовлення: ${group.label}`}>
+              <h4 className="cw-list-title cw-order-group-title">
+                <span>{group.label}</span>
+                <span className="cw-order-group-total">
+                  {group.orders.length} · {currencyFormatter.format(group.total)} грн
+                </span>
+              </h4>
+              <ul className="cw-list-rows">
+              {group.orders.map((order) => {
                 const isExpanded = expandedOrderId === order.id;
                 const orderTotalAmount = Number(order.totalAmount || order.total || 0);
                 const orderDiscountAmount = Number(order.discountAmount || 0);
                 const orderItems = order.cartItems ?? [];
                 const orderNumber = order.orderId || order.id;
-                const orderDateLabel = order.createdAt?.seconds
-                  ? dateFormatter.format(new Date(order.createdAt.seconds * 1000))
-                  : 'Дата уточнюється';
+                const orderDate = order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000) : null;
                 const hasOrderDiscount =
                   Number.isFinite(orderDiscountAmount) && orderDiscountAmount > 0;
+                const trackingUrl = isNovaPoshtaDelivery(order.deliveryMethod) && order.trackingNumber
+                  ? getNovaPoshtaTrackingUrl(order.trackingNumber)
+                  : null;
+                const itemNames = orderItems.map((item) => item.name?.replace(/\s*\(.*?\)/g, '').trim() || 'Товар');
+                const itemsPreview = itemNames.length > 2
+                  ? `${itemNames.slice(0, 2).join(', ')} і ще ${itemNames.length - 2}`
+                  : itemNames.join(', ') || 'Склад не збережено';
 
                 const status = order.completed
                   ? { label: 'Виконано', tone: 'done', Icon: PackageCheck }
@@ -524,139 +578,105 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                       ? { label: 'Опрацьовується', tone: 'progress', Icon: Clock3 }
                       : { label: 'Нове', tone: 'new', Icon: CircleDot };
                 const StatusIcon = status.Icon;
+                const detailsId = `order-details-${order.id}`;
 
                 return (
-                  <div
-                    key={order.id}
-                    className={`cw-order-card${isExpanded ? ' is-expanded' : ''}`}
-                  >
+                  <li key={order.id} className={`cw-order-card${isExpanded ? ' is-expanded' : ''}`} data-status={status.tone}>
                     <button
                       type="button"
                       className="cw-order-summary"
                       aria-expanded={isExpanded}
+                      aria-controls={detailsId}
                       onClick={() => toggleExpandOrder(order.id)}
                     >
-                      <span className="min-w-0">
-                        <span className="cw-order-title">
+                      <span className={`cw-order-status-icon cw-status--${status.tone}`} aria-hidden="true">
+                        <StatusIcon size={16} />
+                      </span>
+                      <span className="cw-order-main">
+                        <span className="cw-order-headline">
                           <span className="cw-order-number">№{orderNumber}</span>
-                          <span className={`cw-status cw-status--${status.tone}`}>
-                            <StatusIcon size={13} aria-hidden="true" />
-                            {status.label}
+                          <span className="cw-order-sum">
+                            {currencyFormatter.format(orderTotalAmount)} <small>грн</small>
                           </span>
                         </span>
-                        <span className="cw-order-meta">
-                          <span><CalendarClock size={13} aria-hidden="true" />{orderDateLabel}</span>
-                          <span><Boxes size={13} aria-hidden="true" />{orderItems.length} {pluralizePositions(orderItems.length)}</span>
-                          {order.deliveryMethod && (
-                            <span><Truck size={13} aria-hidden="true" />{order.deliveryMethod}</span>
-                          )}
-                          {order.paymentMethod && (
-                            <span><CreditCard size={13} aria-hidden="true" />{order.paymentMethod}</span>
-                          )}
+                        <span className="cw-order-subline">
+                          <span className={`cw-status cw-status--${status.tone}`}>{status.label}</span>
+                          <span className="cw-order-preview" title={itemNames.join(', ')}>{itemsPreview}</span>
+                          <time className="cw-order-date" dateTime={orderDate?.toISOString()}>
+                            {orderDate ? shortDateFormatter.format(orderDate) : 'без дати'}
+                          </time>
                         </span>
                       </span>
-                      <span className="cw-order-amount">
-                        <span className="cw-order-sum">
-                          {currencyFormatter.format(orderTotalAmount)} <small>грн</small>
-                        </span>
-                        {hasOrderDiscount && (
-                          <span className="cw-order-discount">
-                            −{currencyFormatter.format(orderDiscountAmount)} грн
-                          </span>
-                        )}
-                        <ChevronDown size={18} className="cw-order-chevron" aria-hidden="true" />
-                      </span>
+                      <ChevronDown size={18} className="cw-order-chevron" aria-hidden="true" />
                     </button>
 
                     {isExpanded && (
-                      <div className="cw-order-details">
-                        <div className="cw-order-details-head">
-                          <span>Склад замовлення</span>
-                          <span>{orderItems.length} поз.</span>
-                        </div>
+                      <div id={detailsId} className="cw-order-details">
+                        <ul className="cw-order-lines">
+                          {orderItems.length > 0 ? (
+                            orderItems.map((item: PastOrderItem, idx: number) => {
+                              const itemQuantity = Math.max(1, Number(item.quantity || 1));
+                              const itemPrice = Number(item.price || 0);
+                              const hasItemPrice = Number.isFinite(itemPrice) && itemPrice > 0;
+                              const itemName =
+                                item.name?.replace(/\s*\(.*?\)/g, '').trim() || 'Товар';
 
-	                        <ul className="app-panel-scroll space-y-1.5 overflow-y-auto sm:max-h-44 sm:pr-1">
-	                          {orderItems.length > 0 ? (
-	                            orderItems.map((item: PastOrderItem, idx: number) => {
-	                              const itemQuantity = Math.max(1, Number(item.quantity || 1));
-	                              const itemPrice = Number(item.price || 0);
-	                              const hasItemPrice = Number.isFinite(itemPrice) && itemPrice > 0;
-	                              const itemTotal = itemPrice * itemQuantity;
-	                              const itemName =
-	                                item.name?.replace(/\s*\(.*?\)/g, '').trim() || 'Товар';
-
-	                              return (
-	                                <li
-	                                  key={item.code || item.article || item.name || idx}
-	                                  className="cw-order-line"
-	                                >
-	                                  <span className="cw-order-line-index">
-	                                    {idx + 1}
-	                                  </span>
-	                                  <span className="min-w-0">
-	                                    <span className="line-clamp-1 text-[12px] font-bold leading-4 text-slate-800 sm:text-[13px]">
-	                                      {itemName}
-	                                    </span>
-	                                    {item.article && (
-	                                      <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-500 sm:text-[11px]">
-	                                        Арт. {item.article}
-	                                      </span>
-	                                    )}
-	                                  </span>
-	                                  <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-	                                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700">
-	                                      {itemQuantity} шт.
-	                                    </span>
-	                                    {hasItemPrice && (
-	                                      <span className="text-[11px] font-bold text-emerald-700">
-	                                        {currencyFormatter.format(itemTotal)} грн
-	                                      </span>
-	                                    )}
-	                                  </span>
-	                                </li>
-	                              );
-	                            })
-	                          ) : (
-                            <li className="rounded-[13px] bg-slate-50/90 px-3 py-2 text-xs font-semibold text-slate-500">
+                              return (
+                                <li key={item.code || item.article || item.name || idx} className="cw-order-line">
+                                  <span className="cw-order-line-main">
+                                    <span className="cw-order-line-name">{itemName}</span>
+                                    {item.article && <span className="cw-order-line-article">Арт. {item.article}</span>}
+                                  </span>
+                                  <span className="cw-order-line-price">
+                                    <span>{itemQuantity} шт.{hasItemPrice && ` × ${currencyFormatter.format(itemPrice)}`}</span>
+                                    {hasItemPrice && <strong>{currencyFormatter.format(itemPrice * itemQuantity)} грн</strong>}
+                                  </span>
+                                </li>
+                              );
+                            })
+                          ) : (
+                            <li className="cw-order-line cw-order-line--empty">
                               Список товарів для цього замовлення не збережено.
                             </li>
                           )}
                         </ul>
 
-                        {isNovaPoshtaDelivery(order.deliveryMethod) && order.trackingNumber && getNovaPoshtaTrackingUrl(order.trackingNumber) && (
-                          <a href={getNovaPoshtaTrackingUrl(order.trackingNumber)!} target="_blank" rel="noopener noreferrer"
-                            className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm font-semibold text-sky-800 transition hover:bg-sky-100">
-                            <Truck size={18} aria-hidden="true" />
-                            <span>ТТН: <span className="font-mono">{order.trackingNumber}</span></span>
-                            <span className="ml-auto inline-flex items-center gap-1 text-xs">Відстежити <ArrowRight size={14} aria-hidden="true" /></span>
+                        <dl className="cw-order-facts">
+                          {orderDate && (
+                            <div><dt><Clock3 size={14} aria-hidden="true" />Оформлено</dt><dd>{dateFormatter.format(orderDate)}</dd></div>
+                          )}
+                          {order.deliveryMethod && (
+                            <div><dt><Truck size={14} aria-hidden="true" />Доставка</dt><dd>{order.deliveryMethod}</dd></div>
+                          )}
+                          {order.warehouse && (
+                            <div><dt><PackageCheck size={14} aria-hidden="true" />Відділення</dt><dd>{order.warehouse}</dd></div>
+                          )}
+                          {order.paymentMethod && (
+                            <div><dt><CreditCard size={14} aria-hidden="true" />Оплата</dt><dd>{order.paymentMethod}</dd></div>
+                          )}
+                          {hasOrderDiscount && (
+                            <div><dt><Percent size={14} aria-hidden="true" />Знижка</dt><dd className="is-positive">−{currencyFormatter.format(orderDiscountAmount)} грн</dd></div>
+                          )}
+                        </dl>
+
+                        {trackingUrl && (
+                          <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="cw-order-tracking">
+                            <Truck size={17} aria-hidden="true" />
+                            <span className="min-w-0">
+                              <span className="cw-order-tracking-label">ТТН Нової Пошти</span>
+                              <span className="cw-order-tracking-number">{order.trackingNumber}</span>
+                            </span>
+                            <span className="cw-order-tracking-cta">Відстежити <ArrowRight size={14} aria-hidden="true" /></span>
                           </a>
-                        )}
-                        {(hasOrderDiscount || order.warehouse) && (
-                          <div className="mt-2 grid gap-1.5 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-2 sm:text-xs">
-                            {hasOrderDiscount && (
-                              <div className="soft-chip min-h-9 justify-start gap-1.5 px-2.5 py-1.5 text-emerald-700 sm:px-3">
-                                <Percent size={15} />
-                                <span>
-                                  Знижка:{' '}
-                                  <span className="font-semibold">
-                                    -{currencyFormatter.format(orderDiscountAmount)} грн
-                                  </span>
-                                </span>
-                              </div>
-                            )}
-                            {order.warehouse && (
-                              <div className="soft-chip min-h-9 justify-start gap-1.5 px-2.5 py-1.5 sm:px-3">
-                                <PackageCheck size={15} />
-                                <span>{order.warehouse}</span>
-                              </div>
-                            )}
-                          </div>
                         )}
                       </div>
                     )}
-                  </div>
+                  </li>
                 );
               })}
+              </ul>
+            </section>
+            ))}
             </div>
           ) : (
             <div className="cw-empty">
@@ -689,221 +709,152 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />
 
-        <div className="soft-panel-header">
-          <div className="min-w-0">
-            <h3 id="my-order-modal-title" className="soft-panel-title">Моє замовлення</h3>
-            <p className="soft-panel-subtitle">
-              {hasItems
-                ? `${cartItems.length} ${pluralizePositions(cartItems.length)} · ${totalUnits} шт.`
-                : 'Перевірте товари, суму та перейдіть до оформлення.'}
-            </p>
-          </div>
-          <div className="cw-head-actions">
-            <button
-              type="button"
-              onClick={() => setShowPastOrders(true)}
-              className="cw-head-link"
-            >
-              <ClipboardList size={16} aria-hidden="true" />
-              Історія
-            </button>
-            <button onClick={onClose} aria-label="Закрити вікно" className="app-panel-close-button h-9 w-9 shrink-0 sm:h-10 sm:w-10">
-              <X size={22} strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
+        {renderHub('cart')}
 
         <div className="app-panel-scroll min-h-0 flex-1 overflow-y-auto sm:pr-1">
           <div className="space-y-2 pb-1">
         {orderRewards}
         {hasItems ? (
           <>
-            {shouldShowPartnerPanel && (
-              <div
-                className={`rounded-[16px] border px-3 py-2.5 transition-[border-color,box-shadow,background-color] sm:rounded-[18px] sm:px-3.5 ${
-                  partnerDiscountStatus === 'active'
-                    ? 'border-sky-300/60 bg-gradient-to-r from-sky-50/90 via-white to-indigo-50/80 text-slate-800 shadow-[0_10px_22px_rgba(14,165,233,0.10)]'
-                    : 'border-slate-200/80 bg-gradient-to-r from-white via-slate-50/80 to-white text-slate-800 shadow-[0_10px_22px_rgba(15,23,42,0.05)]'
-                }`}
-              >
-                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-white/80 bg-white/90 shadow-[0_8px_16px_rgba(15,23,42,0.05)] ${partnerDiscountStatus === 'active' ? 'text-sky-600' : 'text-slate-500'}`}>
-                      <Handshake size={17} strokeWidth={2} aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold leading-4 text-slate-900 sm:text-sm">
-                        {partnerDiscountStatus === 'active'
-                          ? `Партнер PartsON — знижка ${PARTNER_DISCOUNT_PERCENT}% активна`
-                          : 'Партнерська програма PartsON'}
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">
-                        {partnerDiscountStatus === 'active'
-                          ? hasPromoItems
-                            ? 'Знижку враховано лише для товарів без акційної ціни.'
-                            : 'Знижку враховано автоматично для цього замовлення.'
-                          : `До активації залишилось ${currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень`}
-                      </p>
-                    </div>
-                  </div>
-                  {partnerDiscountStatus === 'active' ? (
-                    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-sky-200/80 bg-white/90 px-2.5 py-1 text-xs font-bold text-sky-700 shadow-[0_6px_12px_rgba(14,165,233,0.08)]">
-                      -{PARTNER_DISCOUNT_PERCENT}%
-                    </span>
-                  ) : (
-                    <a
-                      href="/partnership"
-                      className="shrink-0 inline-flex items-center justify-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-[0_6px_12px_rgba(15,23,42,0.06)] transition hover:border-sky-200 hover:text-sky-700"
-                    >
-                      Деталі
-                    </a>
-                  )}
-                </div>
-                {partnerDiscountStatus === 'pending' && (
-                  <div className="mt-2.5 border-t border-slate-100 pt-2.5">
-                    <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold text-slate-500">
-                      <span>{currencyFormatter.format(Math.round(totalSpentOnOrders))} грн</span>
-                      <span>{currencyFormatter.format(PARTNER_THRESHOLD_UAH)} грн</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500 transition-all duration-500"
-                        style={{ width: `${partnerProgressPercent}%` }}
-                      />
-                    </div>
-                    <p className="mt-1 text-[10.5px] font-medium text-slate-400">
-                      {partnerProgressPercent}% до партнерства — ще {currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень
-                    </p>
-                  </div>
-                )}
-                {partnerDiscountStatus === 'active' && partnerDiscountTotals.isApplied && (
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-sky-100/80 pt-2 text-xs">
-                    <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-700">
-                      Знижка -{currencyFormatter.format(partnerDiscountTotals.discountAmount)} грн
-                    </span>
-                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-bold text-slate-900">
-                      До оплати {currencyFormatter.format(payableAmount)} грн
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {shouldShowFirstOrderDiscountPanel && (
-              <div
-                className={`rounded-[16px] border px-3 py-2.5 transition-[border-color,box-shadow,background-color] sm:rounded-[18px] sm:px-3.5 ${firstOrderDiscountPanelClass}`}
-              >
-                <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] border border-white/80 bg-white/90 text-emerald-600 shadow-[0_8px_16px_rgba(15,23,42,0.05)]">
-                      {discountTotals.isApplied ? (
-                        <Percent size={17} strokeWidth={2.2} aria-hidden="true" />
+            {(shouldShowPartnerPanel || shouldShowFirstOrderDiscountPanel || hasPromoItems) && (
+              <section className="cw-list cw-perks" aria-label="Знижки та вигоди">
+                <ul className="cw-list-rows">
+                  {shouldShowPartnerPanel && (
+                    <li className="cw-row cw-perk" data-tone={partnerDiscountStatus === 'active' ? 'partner' : 'muted'}>
+                      <span className="cw-row-icon" aria-hidden="true"><Handshake size={16} /></span>
+                      <div className="cw-row-body">
+                        <span className="cw-perk-title">
+                          {partnerDiscountStatus === 'active'
+                            ? `Партнер PartsON — знижка ${PARTNER_DISCOUNT_PERCENT}% активна`
+                            : 'Партнерська програма PartsON'}
+                        </span>
+                        <span className="cw-row-text">
+                          {partnerDiscountStatus === 'active'
+                            ? hasPromoItems
+                              ? 'Знижку враховано лише для товарів без акційної ціни.'
+                              : 'Знижку враховано автоматично для цього замовлення.'
+                            : `${partnerProgressPercent}% до партнерства — ще ${currencyFormatter.format(Math.ceil(partnerAmountLeft))} грн замовлень`}
+                        </span>
+                        {partnerDiscountStatus === 'pending' && (
+                          <span className="cw-perk-progress" role="progressbar" aria-label="Прогрес до партнерства"
+                            aria-valuenow={partnerProgressPercent} aria-valuemin={0} aria-valuemax={100}>
+                            <span style={{ width: `${partnerProgressPercent}%` }} />
+                          </span>
+                        )}
+                      </div>
+                      {partnerDiscountStatus === 'active' ? (
+                        <span className="cw-perk-badge">
+                          {partnerDiscountTotals.isApplied
+                            ? `−${currencyFormatter.format(partnerDiscountTotals.discountAmount)} грн`
+                            : `−${PARTNER_DISCOUNT_PERCENT}%`}
+                        </span>
                       ) : (
-                        <Gift size={17} strokeWidth={2} aria-hidden="true" />
+                        <a href="/partnership" className="cw-chip-button">Деталі</a>
                       )}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-bold leading-4 text-slate-900 sm:text-sm">
-                        {firstOrderDiscountCopy.title}
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs">
-                        {firstOrderDiscountCopy.text}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center rounded-full border border-white/80 bg-white/90 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-[0_6px_12px_rgba(16,185,129,0.08)]">
-                      -{FIRST_ORDER_DISCOUNT_PERCENT}%
-                    </span>
-                    {!user && (
-                      <button
-                        type="button"
-                        onClick={openAuthModal}
-                        className="inline-flex items-center justify-center rounded-full border border-sky-200/80 bg-white px-3 py-1.5 text-xs font-bold text-sky-700 shadow-[0_8px_16px_rgba(14,165,233,0.1)] transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800"
-                      >
-                        Увійти
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {discountTotals.isApplied && (
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/80 pt-2 text-xs">
-                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-semibold text-emerald-700">
-                      Знижка -{currencyFormatter.format(discountTotals.discountAmount)} грн
-                    </span>
-                    <span className="inline-flex rounded-full bg-white/85 px-2.5 py-1 font-bold text-slate-900">
-                      До оплати {currencyFormatter.format(payableAmount)} грн
-                    </span>
-                  </div>
-                )}
-              </div>
+                    </li>
+                  )}
+
+                  {shouldShowFirstOrderDiscountPanel && (
+                    <li className="cw-row cw-perk" data-tone={firstOrderDiscountCopy.tone}>
+                      <span className="cw-row-icon" aria-hidden="true">
+                        {discountTotals.isApplied ? <Percent size={16} /> : <Gift size={16} />}
+                      </span>
+                      <div className="cw-row-body">
+                        <span className="cw-perk-title">{firstOrderDiscountCopy.title}</span>
+                        <span className="cw-row-text">{firstOrderDiscountCopy.text}</span>
+                      </div>
+                      {!user ? (
+                        <button type="button" onClick={openAuthModal} className="cw-chip-button cw-chip-button--accent">
+                          Увійти
+                        </button>
+                      ) : (
+                        <span className="cw-perk-badge">
+                          {discountTotals.isApplied
+                            ? `−${currencyFormatter.format(discountTotals.discountAmount)} грн`
+                            : `−${FIRST_ORDER_DISCOUNT_PERCENT}%`}
+                        </span>
+                      )}
+                    </li>
+                  )}
+
+                  {hasPromoItems && (
+                    <li className="cw-row cw-perk" data-tone="promo">
+                      <span className="cw-row-icon" aria-hidden="true"><Percent size={16} /></span>
+                      <div className="cw-row-body">
+                        <span className="cw-row-text">
+                          Акційна ціна вже є максимальною вигодою, тому додаткові знижки до таких позицій не застосовуються.
+                        </span>
+                      </div>
+                    </li>
+                  )}
+                </ul>
+              </section>
             )}
 
-            {hasPromoItems && (
-              <div className="flex items-start gap-2 rounded-[14px] border border-rose-200/80 bg-rose-50/75 px-3 py-2 text-[11px] font-medium leading-4 text-rose-800">
-                <Percent size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-                Акційна ціна вже є максимальною вигодою, тому додаткові знижки до таких позицій не застосовуються.
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2 sm:app-panel-scroll sm:max-h-[40vh] sm:gap-2.5">
+            <section className="cw-list" aria-labelledby="cart-items-title">
+              <h4 id="cart-items-title" className="cw-list-title">
+                Товари <span className="cw-list-count">{totalUnits} шт.</span>
+              </h4>
+              <ul className="cw-list-rows">
               {cartItems.map((item, index) => {
                 const itemName = item.name?.replace(/\s*\(.*?\)/g, '') || 'Товар';
                 const lineTotal = (item.price || 0) * (item.quantity || 1);
                 const itemSearchHref = `/katalog?search=${encodeURIComponent(itemName)}&filter=all`;
 
-                  return (
-                    <div key={item.code || index} className="cw-cart-item">
-                      <Link
-                        href={itemSearchHref}
-                        className="cw-cart-thumb"
-                        aria-label={`Переглянути ${itemName}`}
-                      >
-                        <ProductCardImage
-                          productCode={item.code}
-                          articleHint={item.article}
-                          alt={itemName}
-                          loadingMode={index < 2 ? 'eager' : 'lazy'}
-                          fetchPriority={index < 2 ? 'high' : 'low'}
-                          className="rounded-[10px] bg-white [&_span]:hidden"
-                        />
+                return (
+                  <li key={item.code || index} className="cw-cart-row">
+                    <Link
+                      href={itemSearchHref}
+                      className="cw-cart-thumb"
+                      aria-label={`Переглянути ${itemName}`}
+                      tabIndex={-1}
+                    >
+                      <ProductCardImage
+                        productCode={item.code}
+                        articleHint={item.article}
+                        alt={itemName}
+                        loadingMode={index < 2 ? 'eager' : 'lazy'}
+                        fetchPriority={index < 2 ? 'high' : 'low'}
+                        className="rounded-[8px] bg-white [&_span]:hidden"
+                      />
+                    </Link>
+
+                    <div className="min-w-0">
+                      <Link href={itemSearchHref} className="cw-cart-name">
+                        {itemName}
                       </Link>
-
-                      <div className="min-w-0">
-                        <Link href={itemSearchHref} className="cw-cart-name">
-                          {itemName}
-                        </Link>
-                        <p className="cw-cart-meta">
-                          {item.article && <span className="block max-w-full truncate" title={item.article}>Арт. {item.article}</span>}
-                          {item.producer && <span>{item.producer}</span>}
-                          {item.isPromoPrice && <span className="cw-cart-promo">Акція</span>}
-                        </p>
-                        <p className="cw-cart-unit">
-                          {item.isPromoPrice && item.originalPrice ? (
-                            <s>{currencyFormatter.format(item.originalPrice)}</s>
-                          ) : null}
-                          {currencyFormatter.format(item.price || 0)} грн × {item.quantity} шт.
-                        </p>
-                      </div>
-
-                      <div className="cw-cart-side">
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(item.code)}
-                          className="cw-cart-remove"
-                          aria-label={`Видалити ${itemName}`}
-                          title="Видалити з кошика"
-                        >
-                          <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
-                        </button>
-                        <span className="cw-cart-total">
-                          {currencyFormatter.format(lineTotal)} <small>грн</small>
-                        </span>
-                      </div>
+                      <p className="cw-cart-meta">
+                        {item.article && <span className="max-w-full truncate" title={item.article}>{item.article}</span>}
+                        {item.producer && <span>{item.producer}</span>}
+                        {item.isPromoPrice && <span className="cw-cart-promo">Акція</span>}
+                      </p>
+                      <p className="cw-cart-unit">
+                        {item.isPromoPrice && item.originalPrice ? (
+                          <s>{currencyFormatter.format(item.originalPrice)}</s>
+                        ) : null}
+                        {currencyFormatter.format(item.price || 0)} грн × {item.quantity} шт.
+                      </p>
                     </div>
-                  );
+
+                    <div className="cw-cart-side">
+                      <span className="cw-cart-total">
+                        {currencyFormatter.format(lineTotal)} <small>грн</small>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.code)}
+                        className="cw-cart-remove"
+                        aria-label={`Видалити ${itemName}`}
+                        title="Видалити з кошика"
+                      >
+                        <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </li>
+                );
               })}
-            </div>
+              </ul>
+            </section>
           </>
         ) : (
           <div className="cw-empty">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
 import { db } from "../../firebase";
+import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 
 export type LayoutAccountRuntimeProps = {
@@ -163,6 +164,11 @@ export default function LayoutAccountRuntime({
   setTotalNotifications,
 }: LayoutAccountRuntimeProps) {
   const { ready: firebaseAuthReady, user: firebaseUser } = useFirebaseAuthState();
+  // Prepare milestones before the customer opens the profile. Other consumers
+  // share the same in-flight request and fresh cache.
+  useEffect(() => {
+    if (firebaseAuthReady && firebaseUser) void fetchPartnerStatus(firebaseUser).catch(() => undefined);
+  }, [firebaseAuthReady, firebaseUser]);
   const [adminCheckReady, setAdminCheckReady] = useState(false);
   const [authUserUid, setAuthUserUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

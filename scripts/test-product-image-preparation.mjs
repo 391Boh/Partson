@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import sharp from 'sharp';
+import {build} from 'esbuild';
+const {chromium}=await import(process.argv[2]||'playwright');
+const bundle=await build({entryPoints:['app/lib/product-image-upload-client.ts'],bundle:true,write:false,platform:'browser',format:'iife',globalName:'ImagePreparation'});
+const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles[0].text)}else{res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta charset="utf-8"><script src="/bundle.js"></script>')}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const jpeg=await sharp({create:{width:300,height:150,channels:3,background:'#e03131'}}).jpeg().toBuffer();
+const png=await sharp({create:{width:300,height:150,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();
+const large=await sharp({create:{width:4000,height:3000,channels:3,background:'#e03131'}}).jpeg().toBuffer();
+const exif=await sharp({create:{width:300,height:150,channels:3,background:'#e03131'}}).jpeg().withMetadata({orientation:6}).toBuffer();
+const webp=await sharp({create:{width:640,height:480,channels:3,background:'#e03131'}}).webp().toBuffer();
+try{const page=await browser.newPage();await page.goto(`http://127.0.0.1:${server.address().port}`);
+async function prepare(buffer,type,options={}){return page.evaluate(async({base64,type,options})=>{const bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));const file=new File([bytes],'Фото товару.'+type.split('/')[1],{type});const bitmap=window.createImageBitmap;const encode=HTMLCanvasElement.prototype.toBlob;const draw=CanvasRenderingContext2D.prototype.drawImage;let encodes=0,draws=0;HTMLCanvasElement.prototype.toBlob=function(cb,mime,quality){encodes++;if(encodes<=(options.forceOversized||0)){cb(new Blob([new Uint8Array(1900000)],{type:'image/jpeg'}));return;}return encode.call(this,cb,mime,quality)};CanvasRenderingContext2D.prototype.drawImage=function(...args){draws++;return draw.apply(this,args)};if(options.fallback)window.createImageBitmap=undefined;try{const start=performance.now();const result=await ImagePreparation.prepareProductImage(file);const duration=performance.now()-start;const encodesBeforeRead=encodes,drawsBeforeRead=draws;const image=new Image();image.src=result.dataUrl;await image.decode();const c=document.createElement('canvas');c.width=image.naturalWidth;c.height=image.naturalHeight;const context=c.getContext('2d');draw.call(context,image,0,0);const pixel=[...context.getImageData(0,0,1,1).data];return{...result,encodes:encodesBeforeRead,draws:drawsBeforeRead,pixel,duration}}finally{window.createImageBitmap=bitmap;HTMLCanvasElement.prototype.toBlob=encode;CanvasRenderingContext2D.prototype.drawImage=draw}}, {base64:buffer.toString('base64'),type,options})}
+const small=await prepare(jpeg,'image/jpeg');assert.equal(small.encodes,0);assert.equal(small.draws,0);assert.equal(small.dataUrl.split(',')[1],jpeg.toString('base64'));assert.deepEqual([small.width,small.height],[300,150]);
+const transparent=await prepare(png,'image/png');assert.equal(transparent.encodes,1);assert(transparent.pixel.slice(0,3).every(v=>v>245),'Transparent PNG must have a white background, including default canvas dimensions');
+const resized=await prepare(large,'image/jpeg');assert.deepEqual([resized.width,resized.height],[1400,1050]);assert(resized.outputBytes<1800000);assert(resized.pixel[0]>200&&resized.pixel[1]<90,'Resized photo must retain its pixels');
+const repeated=await prepare(png,'image/png',{forceOversized:2});assert.equal(repeated.encodes,3);assert.equal(repeated.draws,1,'Quality retries must reuse the drawn canvas');
+const rotated=await prepare(exif,'image/jpeg');assert.equal(rotated.encodes,1);assert.deepEqual([rotated.width,rotated.height],[150,300]);assert.equal((await sharp(Buffer.from(rotated.dataUrl.split(',')[1],'base64')).metadata()).orientation,undefined);
+const fallback=await prepare(webp,'image/webp',{fallback:true});assert.deepEqual([fallback.width,fallback.height],[640,480]);assert.equal(fallback.encodes,1);
+for(const [buffer,type,reason]of[[Buffer.from('bad'),'image/jpeg','unreadable'],[Buffer.alloc(0),'image/jpeg','empty'],[jpeg,'image/gif','type'],[Buffer.alloc(13*1024*1024),'image/jpeg','limit']]){await assert.rejects(()=>prepare(buffer,type),undefined,reason)}
+console.log('PASS: JPEG passthrough without re-encoding; bitmap decode and browser fallback; 1400px limit; alpha, EXIF rotation, canvas reuse, validation');console.log('Small JPEG preparation:',small.duration.toFixed(1)+'ms');await page.close();
+}finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r))}

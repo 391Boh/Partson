@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ProfileAvatar } from './ProfileAvatar';
+import { findAvatarFrame, getProfileAvatarTier, type AvatarTier } from 'app/lib/profile-appearance';
 import {
   ChatBubbleBottomCenterTextIcon,
   ShoppingBagIcon,
@@ -112,6 +114,7 @@ interface Order {
   trackingNumber?: string | null;
   paymentMethod?: string;
   totalAmount: number;
+  total?: number;
   cartItems?: CartItem[];
   city?: string | null;
   warehouse?: string | null;
@@ -146,6 +149,8 @@ interface UserRecord {
   isOnline?: boolean;
   lastSeenAt?: unknown;
   role?: string;
+  avatar?: string | null;
+  avatarFrame?: string | null;
 }
 
 interface Props {
@@ -339,10 +344,25 @@ export default function AdminChatPanel({
   const [roleError, setRoleError] = useState<string | null>(null);
   const [partnerUids, setPartnerUids] = useState<string[]>([]);
   const [partnersLoaded, setPartnersLoaded] = useState(false);
+  const orderTotalsByUser = useMemo(() => {
+    const totals = new Map<string, number>();
+    orders.forEach(order => {
+      const amount = Number(order.totalAmount ?? order.total);
+      if (order.uid && Number.isFinite(amount) && amount > 0) totals.set(order.uid, (totals.get(order.uid) ?? 0) + amount);
+    });
+    return totals;
+  }, [orders]);
+  const userAvatarTier = (user?: UserRecord | null): AvatarTier => {
+    if (!user) return "basic";
+    const envAdmin = !!user.email && (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").some(email => email.trim().toLowerCase() === user.email?.toLowerCase());
+    if (user.role === "admin" || envAdmin) return "admin";
+    return partnerUids.includes(user.id) || (orderTotalsByUser.get(user.id) ?? 0) >= 2000 ? "partner" : "basic";
+  };
+
   const [partnerUpdatingUid, setPartnerUpdatingUid] = useState<string | null>(null);
   const partnerLock = useRef(false);
   useEffect(() => {
-    if (!isOpen || tab !== 'users') return;
+    if (!isOpen) return;
     let cancelled = false;
     const refresh = async () => {
       try {
@@ -357,8 +377,10 @@ export default function AdminChatPanel({
       }
     };
     void refresh();
-    const timer = setInterval(refresh, 15000);
-    return () => { cancelled = true; clearInterval(timer); };
+    // Chat only needs an initial lookup; keep the existing periodic refresh
+    // for the role editor without adding background polling to conversations.
+    const timer = tab === 'users' ? setInterval(refresh, 15000) : null;
+    return () => { cancelled = true; if (timer !== null) clearInterval(timer); };
   }, [isOpen, tab]);
 
   const togglePartner = async (uid: string, active: boolean) => {
@@ -502,6 +524,8 @@ export default function AdminChatPanel({
           isOnline: data?.isOnline === true,
           lastSeenAt: data?.lastSeenAt,
           role: data?.role === 'admin' ? 'admin' : 'user',
+          avatar: typeof data?.avatar === "string" && getProfileAvatarTier(data.avatar) ? data.avatar : null,
+          avatarFrame: findAvatarFrame(data?.avatarFrame)?.id ?? null,
         });
       });
       setUserPhoneMap(nextMap);
@@ -1796,7 +1820,8 @@ export default function AdminChatPanel({
                     >
                       <div className="flex items-center gap-2.5">
                         <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-sky-200/15 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.18),rgba(255,255,255,0.05))] text-sm font-black uppercase text-sky-50 sm:h-11 sm:w-11">
-                          {(thread.label || '?').slice(0, 1)}
+                          <ProfileAvatar avatarId={thread.user?.avatar ?? null} frameId={thread.user?.avatarFrame}
+                            motionTier={userAvatarTier(thread.user)} initial={(thread.label || '?').slice(0, 1)} animated={false} className="h-10 w-10 text-sm sm:h-11 sm:w-11" />
                           {thread.user && isUserOnline(thread.user) && (
                             <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />
                           )}
@@ -1854,8 +1879,14 @@ export default function AdminChatPanel({
                     <input aria-label="Пошук діалогів" placeholder="Пошук діалогів…" value={messageSearch} onChange={event => setMessageSearch(event.target.value)} className="mb-2 w-full rounded-lg border border-white/10 bg-white/5 p-2 text-sm text-white" />
                     <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
                       {messageThreads.map(thread => <button key={thread.uid} disabled={replySending || productLoading} onClick={() => openChat(thread.uid)} aria-current={thread.uid === selectedUserId ? 'true' : undefined} className={`block w-full rounded-xl border p-2 text-left disabled:opacity-50 ${thread.uid === selectedUserId ? 'border-sky-400/40 bg-sky-500/15' : 'border-white/5 hover:bg-white/5'}`}>
-                        <span className="block truncate text-xs font-bold text-white">{thread.label}{thread.unread > 0 && ` · ${thread.unread} нових`}</span>
-                        <span className="mt-1 block truncate text-[11px] text-slate-400">{thread.preview}</span>
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <ProfileAvatar avatarId={thread.user?.avatar ?? null} frameId={thread.user?.avatarFrame}
+                            motionTier={userAvatarTier(thread.user)} initial={thread.label.slice(0, 1)} animated={false} className="h-9 w-9 text-sm" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-bold text-white">{thread.label}{thread.unread > 0 && ` · ${thread.unread} нових`}</span>
+                            <span className="mt-1 block truncate text-[11px] text-slate-400">{thread.preview}</span>
+                          </span>
+                        </span>
                       </button>)}
                       {!messageThreads.length && <p className="p-2 text-xs text-slate-400">Діалогів не знайдено</p>}
                     </div>
@@ -1873,7 +1904,8 @@ export default function AdminChatPanel({
                         <ArrowLeft className="h-4 w-4" />
                       </button>
                       <span className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-sky-200/15 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.2),rgba(255,255,255,0.06))] text-sm font-black uppercase text-sky-50">
-                        {(selectedDisplayName || '?').slice(0, 1)}
+                        <ProfileAvatar avatarId={selectedUserRecord?.avatar ?? null} frameId={selectedUserRecord?.avatarFrame}
+                          motionTier={userAvatarTier(selectedUserRecord)} initial={(selectedDisplayName || '?').slice(0, 1)} className="h-10 w-10 text-sm" />
                         {selectedUserRecord && isUserOnline(selectedUserRecord) && (
                           <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />
                         )}

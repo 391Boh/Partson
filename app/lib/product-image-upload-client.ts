@@ -15,6 +15,7 @@ const PRODUCT_IMAGE_MAX_OUTPUT_BYTES = 1_800_000;
 const PRODUCT_IMAGE_MAX_EDGE = 1400;
 const PRODUCT_IMAGE_START_QUALITY = 0.82;
 const MIN_JPEG_QUALITY = 0.58;
+const JPEG_PASSTHROUGH_MAX_BYTES = 64 * 1024;
 
 export type PreparedProductImage = {
   dataUrl: string;
@@ -39,6 +40,23 @@ const loadImage = (file: File) =>
     };
     image.src = objectUrl;
   });
+
+const decodeImage = async (file: File) => {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
+    } catch {
+      // Older browsers may support the API without supporting this format.
+    }
+  }
+  const image = await loadImage(file);
+  return { source: image, width: image.naturalWidth, height: image.naturalHeight, release: () => {
+    image.onload = null;
+    image.onerror = null;
+    image.src = "";
+  } };
+};
 
 const canvasToJpegBlob = (canvas: HTMLCanvasElement, quality: number) =>
   new Promise<Blob>((resolve, reject) => {
@@ -72,6 +90,17 @@ const buildJpegFileName = (originalName: string) => {
   return `${base || "product"}.jpg`;
 };
 
+const canKeepJpegBytes = async (file: File) => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return false;
+  // EXIF may carry rotation and location. Keep normalizing these files so
+  // server-generated thumbnails remain upright and upload metadata is removed.
+  for (let index = 2; index < bytes.length - 1; index += 1) {
+    if (bytes[index] === 0xff && bytes[index + 1] === 0xe1) return false;
+  }
+  return true;
+};
+
 export const formatProductImageSize = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "";
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
@@ -91,56 +120,74 @@ export const prepareProductImage = async (file: File): Promise<PreparedProductIm
     );
   }
 
-  const image = await loadImage(file);
-  const sourceWidth = image.naturalWidth;
-  const sourceHeight = image.naturalHeight;
-  if (!sourceWidth || !sourceHeight) {
-    throw new Error("Зображення має некоректні розміри.");
-  }
+  const image = await decodeImage(file);
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  let canvas: HTMLCanvasElement | null = null;
+  try {
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error("Зображення має некоректні розміри.");
+    }
 
-  let scale = Math.min(1, PRODUCT_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
-  let quality = PRODUCT_IMAGE_START_QUALITY;
-  let blob: Blob | null = null;
-  let canvas = document.createElement("canvas");
+    // Small, correctly sized JPEGs are already upload-ready. Keep their bytes
+    // and quality instead of decoding, drawing and encoding them a second time.
+    if (file.type.toLowerCase() === "image/jpeg" && file.size <= JPEG_PASSTHROUGH_MAX_BYTES &&
+        Math.max(sourceWidth, sourceHeight) <= PRODUCT_IMAGE_MAX_EDGE && await canKeepJpegBytes(file)) {
+      return {
+        dataUrl: await blobToDataUrl(file), fileName: buildJpegFileName(file.name),
+        width: sourceWidth, height: sourceHeight, outputBytes: file.size,
+      };
+    }
 
-  // Reduce quality first, then dimensions if a very detailed photo still does
-  // not fit. This guarantees the resulting JSON request remains below the API limit.
-  for (let attempt = 0; attempt < 9; attempt += 1) {
-    const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
+    let scale = Math.min(1, PRODUCT_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+    let quality = PRODUCT_IMAGE_START_QUALITY;
+    let blob: Blob | null = null;
     canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-
     const context = canvas.getContext("2d", { alpha: false });
-    if (!context) {
-      throw new Error("Браузер не підтримує обробку цього зображення.");
+    if (!context) throw new Error("Браузер не підтримує обробку цього зображення.");
+    let drawnWidth = 0;
+    let drawnHeight = 0;
+
+    // Reduce quality first, then dimensions if a very detailed photo still does
+    // not fit. This guarantees the resulting JSON request remains below the API limit.
+    for (let attempt = 0; attempt < 9; attempt += 1) {
+      const width = Math.max(1, Math.round(sourceWidth * scale));
+      const height = Math.max(1, Math.round(sourceHeight * scale));
+      if (drawnWidth !== width || drawnHeight !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(image.source, 0, 0, width, height);
+        drawnWidth = width;
+        drawnHeight = height;
+      }
+
+      blob = await canvasToJpegBlob(canvas, quality);
+      if (blob.size <= PRODUCT_IMAGE_MAX_OUTPUT_BYTES) break;
+
+      if (quality > MIN_JPEG_QUALITY) {
+        quality = Math.max(MIN_JPEG_QUALITY, quality - 0.08);
+      } else {
+        scale *= 0.82;
+      }
     }
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(image, 0, 0, width, height);
 
-    blob = await canvasToJpegBlob(canvas, quality);
-    if (blob.size <= PRODUCT_IMAGE_MAX_OUTPUT_BYTES) break;
-
-    if (quality > MIN_JPEG_QUALITY) {
-      quality = Math.max(MIN_JPEG_QUALITY, quality - 0.08);
-    } else {
-      scale *= 0.82;
+    if (!blob || blob.size > PRODUCT_IMAGE_MAX_OUTPUT_BYTES) {
+      throw new Error("Не вдалося зменшити фото до безпечного розміру. Оберіть менше зображення.");
     }
-  }
 
-  if (!blob || blob.size > PRODUCT_IMAGE_MAX_OUTPUT_BYTES) {
-    throw new Error("Не вдалося зменшити фото до безпечного розміру. Оберіть менше зображення.");
+    return {
+      dataUrl: await blobToDataUrl(blob),
+      fileName: buildJpegFileName(file.name),
+      width: canvas.width,
+      height: canvas.height,
+      outputBytes: blob.size,
+    };
+  } finally {
+    image.release();
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
   }
-
-  return {
-    dataUrl: await blobToDataUrl(blob),
-    fileName: buildJpegFileName(file.name),
-    width: canvas.width,
-    height: canvas.height,
-    outputBytes: blob.size,
-  };
 };

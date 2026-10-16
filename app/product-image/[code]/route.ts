@@ -482,6 +482,123 @@ const withTimeoutFallback = async <T,>(
   ]);
 };
 
+// Some catalog photos only resolve through the product page's path (by article,
+// or as a 1C download link) and take 2-4s — more than any thumbnail budget. A
+// timed-out lookup is abandoned, so each of the card's retries started from
+// scratch, failed the same way, and the card settled on a placeholder although
+// the product has a photo. After an inconclusive catalog lookup, fetch the
+// photo once in the background with a generous budget and cache the thumbnail;
+// the card's retries (and every later visitor) pick it up from the cache.
+const CATALOG_BACKGROUND_FETCH_BUDGET_MS = 9000;
+const CATALOG_BACKGROUND_FETCH_CONCURRENCY = 3;
+const CATALOG_BACKGROUND_FETCH_MAX_PENDING = 48;
+const CATALOG_BACKGROUND_WAIT_MS = 6500;
+const CATALOG_BACKGROUND_MISS_TTL_MS = 1000 * 60 * 30;
+type OptimizedImage = { buffer: Buffer; contentType: string };
+const catalogBackgroundFetches = new Map<string, Promise<OptimizedImage | null>>();
+const catalogBackgroundMisses = new Map<string, { until: number; revision: string }>();
+const catalogBackgroundQueue: Array<() => void> = [];
+let catalogBackgroundActive = 0;
+
+const buildCatalogProductKey = (code: string, article: string) =>
+  `${code.toLowerCase()}::${article.toLowerCase()}`;
+// Catalog thumbnails are always WebP and share one cache entry across retries.
+const buildCatalogBaseHitKey = (code: string, article: string) =>
+  ["normal", CATALOG_IMAGE_VARIANT, "redirect", 0, code.toLowerCase(), article.toLowerCase(), "webp"].join("::");
+
+const acquireCatalogBackgroundSlot = () =>
+  new Promise<void>((resolve) => {
+    if (catalogBackgroundActive < CATALOG_BACKGROUND_FETCH_CONCURRENCY) {
+      catalogBackgroundActive += 1;
+      resolve();
+      return;
+    }
+    catalogBackgroundQueue.push(() => {
+      catalogBackgroundActive += 1;
+      resolve();
+    });
+  });
+const releaseCatalogBackgroundSlot = () => {
+  catalogBackgroundActive -= 1;
+  catalogBackgroundQueue.shift()?.();
+};
+
+const resolveImageBase64LikeProductPage = async (code: string, article: string) => {
+  const lookupKeys = Array.from(new Set([code, article].map((value) => value.trim()).filter(Boolean)));
+  const direct = await getFirstResolvedImageBase64(lookupKeys, FULL_IMAGE_LOOKUP_OPTIONS).catch(() => null);
+  if (direct) return direct;
+  const product = await getFirstResolvedCatalogProduct(lookupKeys, IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS).catch(() => null);
+  const recoveryKeys = [(product?.article || "").trim(), (product?.code || "").trim()].filter(
+    (value) => value && !lookupKeys.some((key) => key.toLowerCase() === value.toLowerCase())
+  );
+  if (recoveryKeys.length === 0) return null;
+  return getFirstResolvedImageBase64(recoveryKeys, FULL_IMAGE_LOOKUP_OPTIONS).catch(() => null);
+};
+
+const getCatalogBackgroundFetch = (code: string, article: string) =>
+  catalogBackgroundFetches.get(buildCatalogProductKey(code, article)) ?? null;
+
+const startCatalogBackgroundFetch = (code: string, article: string) => {
+  const productKey = buildCatalogProductKey(code, article);
+  const existing = catalogBackgroundFetches.get(productKey);
+  if (existing) return existing;
+  const revision = getProductRouteImageCacheRevision(code, article);
+  const knownMiss = catalogBackgroundMisses.get(productKey);
+  if (knownMiss && knownMiss.until > Date.now() && knownMiss.revision === revision) return null;
+  if (catalogBackgroundFetches.size >= CATALOG_BACKGROUND_FETCH_MAX_PENDING) return null;
+
+  const promise = (async (): Promise<OptimizedImage | null> => {
+    await acquireCatalogBackgroundSlot();
+    try {
+      const imageBase64 = await withTimeoutFallback(
+        resolveImageBase64LikeProductPage(code, article),
+        CATALOG_BACKGROUND_FETCH_BUDGET_MS,
+        null
+      );
+      const imageBuffer = imageBase64 ? Buffer.from(imageBase64, "base64") : null;
+      const imageHash = imageBuffer?.length ? buildBufferHash(imageBuffer) : null;
+      const fallbackHash = await getFallbackImageHash();
+      if (!imageBuffer || !imageHash || imageHash === fallbackHash) {
+        catalogBackgroundMisses.set(productKey, { until: Date.now() + CATALOG_BACKGROUND_MISS_TTL_MS, revision });
+        return null;
+      }
+      const optimized = await optimizeImageBuffer(imageBuffer, {
+        hash: imageHash,
+        variant: "catalog",
+        originalContentType: detectContentType(imageBuffer),
+        acceptsAvif: false,
+      });
+      // An admin upload during the fetch makes this photo stale: serve it to the
+      // waiting card, but don't cache it.
+      if (
+        revision === getProductRouteImageCacheRevision(code, article) &&
+        !isRouteImageCacheInvalidating(code, article)
+      ) {
+        const baseHitKey = buildCatalogBaseHitKey(code, article);
+        routeImageHitCache.set(baseHitKey, { expiresAt: Date.now() + ROUTE_IMAGE_HIT_CACHE_TTL_MS, value: optimized });
+        void writePersistentRouteImage(baseHitKey, optimized);
+      }
+      return optimized;
+    } catch {
+      return null;
+    } finally {
+      releaseCatalogBackgroundSlot();
+    }
+  })();
+  catalogBackgroundFetches.set(productKey, promise);
+  void promise.finally(() => {
+    if (catalogBackgroundFetches.get(productKey) === promise) catalogBackgroundFetches.delete(productKey);
+  });
+  return promise;
+};
+
+const pruneCatalogBackgroundMisses = () => {
+  const now = Date.now();
+  for (const [key, entry] of catalogBackgroundMisses) {
+    if (entry.until <= now) catalogBackgroundMisses.delete(key);
+  }
+};
+
 const respondWithImage = (
   value: { buffer: Buffer; contentType: string },
   options: { cacheBust: boolean }
@@ -534,6 +651,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const normalizedCode = safeDecode(rawCode).trim();
   pruneRouteMissCache();
   pruneRouteImageHitCache();
+  pruneCatalogBackgroundMisses();
 
   if (!normalizedCode) {
     if (strictMode || catalogMode || noRedirectFallback) {
@@ -634,6 +752,22 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   const cachedHit = routeImageHitCache.get(routeHitCacheKey);
   if (cachedHit && cachedHit.expiresAt > Date.now()) {
     return respondWithImage(cachedHit.value, { cacheBust: false });
+  }
+
+  if (catalogMode && !strictMode) {
+    if (retryAttempt > 0) {
+      const baseHit = routeImageHitCache.get(buildCatalogBaseHitKey(normalizedCode, articleHint));
+      if (baseHit && baseHit.expiresAt > Date.now()) {
+        return respondWithImage(baseHit.value, { cacheBust: false });
+      }
+    }
+    const backgroundFetch = getCatalogBackgroundFetch(normalizedCode, articleHint);
+    if (backgroundFetch) {
+      const backgroundImage = await withTimeoutFallback(backgroundFetch, CATALOG_BACKGROUND_WAIT_MS, null);
+      if (backgroundImage) {
+        return respondWithImage(backgroundImage, { cacheBust: false });
+      }
+    }
   }
 
   const existingInFlight = routeImageInFlight.get(routeHitCacheKey);
@@ -826,6 +960,12 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       status: 503,
       headers: { "cache-control": "no-store", "retry-after": "120" },
     });
+  }
+
+  if (catalogMode && !strictMode) {
+    // The card asks again shortly (retry=1/2 and late recovery); the
+    // background fetch has the photo cached by then, or is awaited above.
+    void startCatalogBackgroundFetch(normalizedCode, articleHint);
   }
 
   if (strictMode || catalogMode || noRedirectFallback) {

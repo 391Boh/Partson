@@ -1,3 +1,4 @@
+import { partnerPriceHintBootstrap } from "app/lib/partner-price-hint";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Metadata } from "next";
@@ -437,6 +438,7 @@ export default function RootLayout({
             __html: buildStylesheetLoaderScript(globalStylesheetHref),
           }}
         />
+        <script dangerouslySetInnerHTML={{ __html: partnerPriceHintBootstrap }} />
         <noscript>
           <link rel="stylesheet" href={globalStylesheetHref} />
         </noscript>

@@ -653,9 +653,9 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
             data-overlay-toggle="auth"
             aria-expanded={modals.auth}
             aria-label="Профіль"
-            onPointerEnter={preloadAuthModal}
-            onFocus={preloadAuthModal}
-            onTouchStart={preloadAuthModal}
+            onPointerEnter={() => { preloadAuthModal(); if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
+            onFocus={() => { preloadAuthModal(); if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
+            onTouchStart={() => { preloadAuthModal(); if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();

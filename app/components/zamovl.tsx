@@ -13,7 +13,8 @@ import {
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
-import { Check, X } from "lucide-react";
+import { Check, ClipboardCheck, X } from "lucide-react";
+import WindowHubCover from "app/components/WindowHubCover";
 import { pluralizePositions } from "app/lib/pluralize-uk";
 
 import CustomerDetails from "./CustomerDetails";
@@ -508,47 +509,51 @@ const Zamovl: React.FC<ZamovlProps> = ({
     <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="checkout-title" className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-4">
         <div className="soft-panel-accent mb-3.5 h-[3px] rounded-full" />
-        <div className="soft-panel-header border-b border-slate-200/60 pb-3">
-          <div className="min-w-0">
-            <h3 id="checkout-title" className="soft-panel-title">Оформлення замовлення</h3>
-            <p className="soft-panel-subtitle">
-              {currentStep === 3 ? (
-                "Замовлення прийнято — деталі нижче."
-              ) : (
-                <>
-                  {cartItems.length} {pluralizePositions(cartItems.length)} · до оплати{" "}
-                  <strong className="cw-subtitle-amount">
-                    {new Intl.NumberFormat("uk-UA").format(payableAmount)} грн
-                  </strong>
-                </>
-              )}
-            </p>
+        <div className="cw-hub">
+            <WindowHubCover />
+          <div className="cw-hub-top">
+            <span className="cw-hub-icon" aria-hidden="true"><ClipboardCheck size={20} /></span>
+            <div className="cw-hub-text">
+              <h3 id="checkout-title" className="cw-hub-title">Оформлення замовлення</h3>
+              <p className="cw-hub-sub">
+                {currentStep === 3 ? (
+                  "Замовлення прийнято — деталі нижче."
+                ) : (
+                  <>
+                    {cartItems.length} {pluralizePositions(cartItems.length)} · до оплати{" "}
+                    <strong className="cw-subtitle-amount">
+                      {new Intl.NumberFormat("uk-UA").format(payableAmount)} грн
+                    </strong>
+                  </>
+                )}
+              </p>
+            </div>
+            <button
+              onClick={onCloseAll}
+              className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
+              aria-label="Закрити форму замовлення"
+            >
+              <X size={20} strokeWidth={2.3} />
+            </button>
           </div>
-          <button
-            onClick={onCloseAll}
-            className="app-panel-close-button h-9 w-9 shrink-0 p-1 sm:h-10 sm:w-10"
-            aria-label="Закрити форму замовлення"
-          >
-            <X size={18} />
-          </button>
+          <ol className="cw-stepper" aria-label="Кроки оформлення">
+            {steps.map((step, index) => {
+              const state = currentStep === index ? "active" : currentStep > index ? "done" : "todo";
+              return (
+                <li
+                  key={step}
+                  className={`cw-step cw-step--${state}`}
+                  aria-current={state === "active" ? "step" : undefined}
+                >
+                  <span className="cw-step-dot" aria-hidden="true">
+                    {state === "done" ? <Check size={14} strokeWidth={3} /> : index + 1}
+                  </span>
+                  <span className="cw-step-label">{step}</span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
-        <ol className="cw-stepper" aria-label="Кроки оформлення">
-          {steps.map((step, index) => {
-            const state = currentStep === index ? "active" : currentStep > index ? "done" : "todo";
-            return (
-              <li
-                key={step}
-                className={`cw-step cw-step--${state}`}
-                aria-current={state === "active" ? "step" : undefined}
-              >
-                <span className="cw-step-dot" aria-hidden="true">
-                  {state === "done" ? <Check size={14} strokeWidth={3} /> : index + 1}
-                </span>
-                <span className="cw-step-label">{step}</span>
-              </li>
-            );
-          })}
-        </ol>
 
         <div className="app-panel-scroll mt-3 min-h-0 flex-1 overflow-y-auto sm:pr-1">
           {renderStep()}

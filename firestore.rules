@@ -93,7 +93,13 @@ service cloud.firestore {
     // detection. Move that check to a server API route using the Admin SDK.
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId);
+      // Avatar access and achievement thresholds are verified by the
+      // profile-appearance API. Ordinary profile edits stay client-side.
+      allow create: if isOwner(userId) &&
+        !request.resource.data.keys().hasAny(['avatar', 'avatarFrame', 'profileBackground', 'role']);
+      allow update: if isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatar', 'avatarFrame', 'profileBackground', 'role']);
+      allow delete: if isOwner(userId);
     }
 
     // ── productGallery (extra product photos, separate from the 1C photo) ────

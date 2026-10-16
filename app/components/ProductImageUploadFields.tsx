@@ -1,9 +1,21 @@
 "use client";
 
 import { Check, ImagePlus, X } from "lucide-react";
-import type { RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
-import { formatProductImageSize, PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
+import { formatProductImageSize, PRODUCT_IMAGE_ACCEPT, PRODUCT_IMAGE_MAX_SOURCE_BYTES } from "app/lib/product-image-upload-client";
+
+function useImmediatePreview(processing: boolean) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => () => { if (src) URL.revokeObjectURL(src); }, [src]);
+  useEffect(() => { if (!processing && src) setSrc(null); }, [processing, src]);
+  const show = (file?: File) => {
+    setSrc(file && file.size > 0 && file.size <= PRODUCT_IMAGE_MAX_SOURCE_BYTES &&
+      PRODUCT_IMAGE_ACCEPT.split(",").includes(file.type.toLowerCase())
+      ? URL.createObjectURL(file) : null);
+  };
+  return [processing ? src : null, show] as const;
+}
 
 // Shared by ProductPageAdminEditPanel's own inline panel and
 // ProductFullEditModal — extracted so both surfaces upload through the exact
@@ -60,13 +72,17 @@ export default function ProductImageUploadFields({
   onUploadGallery,
   onCancelGallery,
 }: ProductImageUploadFieldsProps) {
+  const [immediateImage, showImage] = useImmediatePreview(imageProcessing);
+  const [immediateGallery, showGallery] = useImmediatePreview(galleryProcessing);
+  const displayedImage = immediateImage || imagePreview;
+  const displayedGallery = immediateGallery || galleryPreview;
   return (
     <div className="product-image-upload-fields">
-      <input ref={fileInputRef} aria-label="Основне фото товару" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onFileChange} />
-      <input ref={galleryFileInputRef} aria-label="Фото для галереї" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={onGalleryFileChange} />
+      <input ref={fileInputRef} aria-label="Основне фото товару" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={(event) => { showImage(event.target.files?.[0]); onFileChange(event); }} />
+      <input ref={galleryFileInputRef} aria-label="Фото для галереї" type="file" accept={PRODUCT_IMAGE_ACCEPT} className="hidden" onChange={(event) => { showGallery(event.target.files?.[0]); onGalleryFileChange(event); }} />
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="flex-1">
-          {!imagePreview ? (
+          {!displayedImage ? (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -88,19 +104,20 @@ export default function ProductImageUploadFields({
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={imagePreview}
+                  src={displayedImage}
+                  decoding="async"
                   alt="Попередній перегляд"
                   className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
                 />
                 <div className="min-w-0 flex-1">
                   <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
-                    {imageFileName}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}
+                    {imageProcessing ? "Готуємо фото…" : <>{imageFileName}{imageUploadSize ? ` · ${formatProductImageSize(imageUploadSize)}` : ""}</>}
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={onUploadImage}
-                      disabled={imageUploading}
+                      disabled={imageUploading || imageProcessing}
                       className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                     >
                       {imageUploading
@@ -111,7 +128,7 @@ export default function ProductImageUploadFields({
                     <button
                       type="button"
                       onClick={onCancelImage}
-                      disabled={imageUploading}
+                      disabled={imageUploading || imageProcessing}
                       className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
                     >
                       <X size={12} /> Скасувати
@@ -128,7 +145,7 @@ export default function ProductImageUploadFields({
         </div>
 
         <div className="flex-1">
-          {!galleryPreview ? (
+          {!displayedGallery ? (
             <button
               type="button"
               onClick={() => galleryFileInputRef.current?.click()}
@@ -150,19 +167,20 @@ export default function ProductImageUploadFields({
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={galleryPreview}
+                  src={displayedGallery}
+                  decoding="async"
                   alt="Попередній перегляд"
                   className="h-14 w-14 shrink-0 rounded-[10px] border border-slate-200 bg-white object-contain"
                 />
                 <div className="min-w-0 flex-1">
                   <p className="mb-2 truncate text-[11px] font-medium text-slate-500">
-                    {galleryFileName}{galleryUploadSize ? ` · ${formatProductImageSize(galleryUploadSize)}` : ""}
+                    {galleryProcessing ? "Готуємо фото…" : <>{galleryFileName}{galleryUploadSize ? ` · ${formatProductImageSize(galleryUploadSize)}` : ""}</>}
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={onUploadGallery}
-                      disabled={galleryUploading}
+                      disabled={galleryUploading || galleryProcessing}
                       className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                     >
                       {galleryUploading
@@ -173,7 +191,7 @@ export default function ProductImageUploadFields({
                     <button
                       type="button"
                       onClick={onCancelGallery}
-                      disabled={galleryUploading}
+                      disabled={galleryUploading || galleryProcessing}
                       className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
                     >
                       <X size={12} /> Скасувати

@@ -238,7 +238,7 @@ export default function ProductFullEditModal({
   };
 
   const uploadImage = async () => {
-    if (!imageFile || !imagePreview || imageUploadLock.current || submitLock.current) return;
+    if (!imageFile || !imagePreview || imageProcessing || imageUploadLock.current || submitLock.current) return;
     imageUploadLock.current = true;
     setImageUploading(true);
     setImageError(null);
@@ -286,7 +286,7 @@ export default function ProductFullEditModal({
   };
 
   const uploadGalleryImage = async () => {
-    if (!galleryPreview || galleryUploadLock.current || submitLock.current) return;
+    if (!galleryPreview || galleryProcessing || galleryUploadLock.current || submitLock.current) return;
     galleryUploadLock.current = true;
     setGalleryUploading(true);
     setGalleryError(null);
