@@ -16,9 +16,17 @@ const projectId =
 // the site never saw the result, so the visitor stayed signed out.
 // Requires https://partson.shop/__/auth/handler among the OAuth client's
 // authorized redirect URIs.
+// Off until both are in place: the server has no /__/auth/ proxy yet and the
+// redirect URIs are not added, so turning it on would break Google sign-in
+// everywhere. Flip to true once https://partson.shop/__/auth/handler answers.
+const SAME_ORIGIN_AUTH_ENABLED = false;
 const SAME_ORIGIN_AUTH_HOSTS = new Set(["partson.shop", "www.partson.shop"]);
 function resolveAuthDomain() {
-  if (typeof window !== "undefined" && SAME_ORIGIN_AUTH_HOSTS.has(window.location.hostname)) {
+  if (
+    SAME_ORIGIN_AUTH_ENABLED &&
+    typeof window !== "undefined" &&
+    SAME_ORIGIN_AUTH_HOSTS.has(window.location.hostname)
+  ) {
     return window.location.hostname;
   }
   return process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "";
