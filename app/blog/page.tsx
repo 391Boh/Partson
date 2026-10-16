@@ -47,6 +47,18 @@ export default async function BlogPage() {
   const featured = posts[0];
   const rest = posts.slice(1);
 
+  const coverSrc = (post: (typeof posts)[number]) =>
+    toPublicBlogImageSrc(
+      post.imageDataUrl,
+      post.slug,
+      null,
+      String(
+        new Date(
+          post.updatedAt || post.publishedAt || post.createdAt || 0,
+        ).getTime(),
+      ),
+    );
+
   const siteUrl = getSiteUrl();
   const blogJsonLd = {
     "@context": "https://schema.org",
@@ -70,21 +82,19 @@ export default async function BlogPage() {
       url: `${siteUrl.replace(/\/$/, "")}/blog/${p.slug}`,
       datePublished: p.publishedAt || p.createdAt,
       dateModified: p.updatedAt || p.publishedAt || p.createdAt,
-      author: { "@type": "Organization", name: "PartsON" },
+      author: {
+        "@type": "Organization",
+        "@id": `${siteUrl.replace(/\/$/, "")}/authors/partson#author`,
+        name: "Редакція PartsON",
+        url: `${siteUrl.replace(/\/$/, "")}/authors/partson`,
+      },
+      image: (() => {
+        const src = coverSrc(p);
+        if (!src) return undefined;
+        return /^https?:\/\//.test(src) ? src : `${siteUrl.replace(/\/$/, "")}${src}`;
+      })(),
     })),
   };
-
-  const coverSrc = (post: (typeof posts)[number]) =>
-    toPublicBlogImageSrc(
-      post.imageDataUrl,
-      post.slug,
-      null,
-      String(
-        new Date(
-          post.updatedAt || post.publishedAt || post.createdAt || 0,
-        ).getTime(),
-      ),
-    );
 
   return (
     <div className="blog-page font-ui">
@@ -97,11 +107,16 @@ export default async function BlogPage() {
             <span>Блог PartsON</span>
           </nav>
           <div className="blog-masthead-layout">
-            <h1 className="font-display">
-              Менше здогадок.
-              <br />
-              <span>Більше знань про авто.</span>
-            </h1>
+            <div>
+              <p className="blog-masthead-kicker">Менше здогадок — більше знань про авто</p>
+              {/* The H1 names what the page is ("блог", "автозапчастини"); the
+                  old slogan-only heading gave search engines no topic. */}
+              <h1 className="font-display">
+                Блог про автозапчастини{" "}
+                <br />
+                <span>та обслуговування авто</span>
+              </h1>
+            </div>
             <p>
               Як вибрати запчастини, розібратися в брендах і вчасно подбати про
               автомобіль. Практичні статті від команди PartsON у Львові.
@@ -220,30 +235,33 @@ export default async function BlogPage() {
           </p>
         </div>
         <div className="blog-topic-grid">
-          <div>
+          <Link href="/katalog">
             <Wrench size={24} aria-hidden="true" />
             <h3>Підбір запчастин</h3>
             <p>
               VIN, артикул та OEM-код. Як перевіряти сумісність і вибирати між
               оригіналом та аналогом.
             </p>
-          </div>
-          <div>
+            <span className="blog-topic-cta">До каталогу <ArrowUpRight size={16} aria-hidden="true" /></span>
+          </Link>
+          <Link href="/manufacturers">
             <ShieldCheck size={24} aria-hidden="true" />
             <h3>Виробники та якість</h3>
             <p>
               Bosch, SKF, Febi, Sachs та інші бренди. На що звертати увагу при
               виборі деталей.
             </p>
-          </div>
-          <div>
+            <span className="blog-topic-cta">Усі бренди <ArrowUpRight size={16} aria-hidden="true" /></span>
+          </Link>
+          <Link href="/groups/detali-dlya-to">
             <Gauge size={24} aria-hidden="true" />
             <h3>Обслуговування авто</h3>
             <p>
               Олива, фільтри, гальма й ремінь ГРМ. Ознаки зносу та поради з
               догляду за автомобілем.
             </p>
-          </div>
+            <span className="blog-topic-cta">Деталі для ТО <ArrowUpRight size={16} aria-hidden="true" /></span>
+          </Link>
         </div>
         <div className="blog-catalog-bridge">
           <p>Вже знаєте, яка деталь потрібна?</p>

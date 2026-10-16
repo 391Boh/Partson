@@ -3,7 +3,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Clock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BookOpen, Clock, ShieldCheck, ShoppingBag } from "lucide-react";
 import { blogReadingMinutes, formatBlogDate } from "app/lib/blog-presentation";
 import ArticleReadingProgress from "../ArticleReadingProgress";
 
@@ -18,6 +18,7 @@ import {
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { getSiteUrl } from "app/lib/site-url";
+import { findBlogTopics, linkBlogTopics } from "app/lib/blog-topic-links";
 import BlogAdminActions from "./BlogAdminActions";
 
 type BlogPostPageProps = { params: Promise<{ slug: string }> };
@@ -51,18 +52,23 @@ type BlockNode =
   | { type: "h3"; text: string }
   | { type: "ul"; items: string[] };
 
-const applyInline = (text: string): (string | React.ReactElement)[] => {
+// `linked` (body text only) turns the first mention of each catalog topic
+// into an internal link — see app/lib/blog-topic-links.ts.
+const applyInline = (
+  text: string,
+  linked?: Set<string>,
+): (string | React.ReactElement)[] => {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
-  return parts.map((part, i) => {
+  return parts.flatMap((part, i): (string | React.ReactElement)[] => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
+      return [<strong key={i}>{part.slice(2, -2)}</strong>];
     }
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
+      return [<em key={i}>{part.slice(1, -1)}</em>];
     }
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
-      return (
+      return [
         <a
           key={i}
           href={linkMatch[2]}
@@ -70,10 +76,19 @@ const applyInline = (text: string): (string | React.ReactElement)[] => {
           className="text-sky-600 underline decoration-sky-200 underline-offset-2 hover:text-sky-700"
         >
           {linkMatch[1]}
-        </a>
-      );
+        </a>,
+      ];
     }
-    return part;
+    if (!linked || !part) return [part];
+    return linkBlogTopics(part, linked).map((piece, j) =>
+      typeof piece === "string" ? (
+        piece
+      ) : (
+        <Link key={`${i}-${j}`} href={piece.href} prefetch={false} className="blog-topic-link">
+          {piece.text}
+        </Link>
+      ),
+    );
   });
 };
 
@@ -212,6 +227,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     : [`${siteOrigin}/opengraph-partson-v3.png`];
 
   const contentBlocks = parseContent(post.content);
+  const topics = findBlogTopics(post.content);
+  const linkedTopics = new Set<string>();
+  const otherPosts = (await getPublishedBlogPosts())
+    .filter((other) => other.slug !== post.slug)
+    .slice(0, 3);
+  const isSameDay = (a?: string, b?: string) =>
+    Boolean(a && b) && new Date(a!).toDateString() === new Date(b!).toDateString();
   // Legacy posts keep images as inline base64 — swap them for short proxy
   // URLs so the HTML doesn't carry megabytes of image data.
   const imageVersion = buildBlogImageVersion(post);
@@ -240,6 +262,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     dateModified: updated,
     wordCount: Math.round(post.content.split(/\s+/).length / 10) * 10,
     articleSection: "Автозапчастини",
+    ...(topics.length
+      ? { about: topics.map((entry) => ({ "@type": "Thing", name: entry.label, url: `${siteUrl.replace(/\/$/, "")}${entry.href}` })) }
+      : {}),
     inLanguage: "uk",
     author: {
       "@type": "Organization",
@@ -329,7 +354,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <span aria-hidden="true">/</span>
             <Link href="/blog">Блог</Link>
             <span aria-hidden="true">/</span>
-            <span>Стаття</span>
+            <span className="blog-breadcrumb-current" aria-current="page">{post.title}</span>
           </nav>
           <h1 className="font-display">{post.title}</h1>
           <p className="blog-article-deck">{post.excerpt}</p>
@@ -343,7 +368,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               <Clock size={15} aria-hidden="true" />
               {blogReadingMinutes(post.content)} хв читання
             </span>
-            {updated !== published && (
+            {!isSameDay(updated, published) && (
               <time dateTime={updated}>Оновлено {formatBlogDate(updated)}</time>
             )}
           </div>
@@ -398,7 +423,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                     return (
                       <ul key={idx}>
                         {block.items.map((item, index) => (
-                          <li key={index}>{applyInline(item)}</li>
+                          <li key={index}>{applyInline(item, linkedTopics)}</li>
                         ))}
                       </ul>
                     );
@@ -409,7 +434,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                       <p>
                         {block.lines.map((line, index) => (
                           <React.Fragment key={index}>
-                            {applyInline(line)}
+                            {applyInline(line, linkedTopics)}
                             {index < block.lines.length - 1 && <br />}
                           </React.Fragment>
                         ))}
@@ -454,6 +479,27 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 </div>
               </section>
             )}
+            {topics.length > 0 && (
+              <section className="blog-catalog-topics" aria-labelledby="blog-catalog-topics-title">
+                <div className="blog-catalog-topics-head">
+                  <ShoppingBag size={22} aria-hidden="true" />
+                  <div>
+                    <h2 id="blog-catalog-topics-title">Підібрати в каталозі PartsON</h2>
+                    <p>Товари з цієї статті — з перевіркою сумісності за VIN або артикулом.</p>
+                  </div>
+                </div>
+                <ul>
+                  {topics.map((entry) => (
+                    <li key={entry.href}>
+                      <Link href={entry.href} prefetch={false}>
+                        {entry.label}
+                        <ArrowUpRight size={16} aria-hidden="true" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <aside className="blog-author-note">
               <ShieldCheck size={24} aria-hidden="true" />
               <div>
@@ -470,6 +516,24 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 </Link>
               </div>
             </aside>
+            {otherPosts.length > 0 && (
+              <section className="blog-related" aria-labelledby="blog-related-title">
+                <h2 id="blog-related-title">Читайте також</h2>
+                <ul>
+                  {otherPosts.map((other) => (
+                    <li key={other.slug}>
+                      <Link href={`/blog/${other.slug}`}>
+                        <BookOpen size={18} aria-hidden="true" />
+                        <span>
+                          <strong>{other.title}</strong>
+                          <small>{blogReadingMinutes(other.content)} хв читання</small>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <div className="blog-article-next">
               <Link href="/blog">
                 <ArrowLeft size={18} aria-hidden="true" />
