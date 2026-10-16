@@ -601,34 +601,14 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
         <>
         <article
             className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[320px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
-            itemScope={hasPrice ? true : undefined}
-            itemType={hasPrice ? "https://schema.org/Product" : undefined}
             onMouseEnter={prepareDescriptionOnIntent}
             onMouseMove={prepareDescriptionOnIntent}
             onMouseLeave={clearHoverIntent}
         >
-            {hasPrice ? (
-                <>
-                    <meta itemProp="sku" content={article !== "-" ? article : code} />
-                    {code ? <meta itemProp="mpn" content={code} /> : null}
-                    {producer !== "-" ? <meta itemProp="brand" content={producer} /> : null}
-                    <meta itemProp="url" content={productHref} />
-                    <meta
-                        itemProp="image"
-                        content={prefetchedImageSrc || `/product-image/${encodeURIComponent(code)}`}
-                    />
-                    <div itemProp="offers" itemScope itemType="https://schema.org/Offer">
-                        <meta itemProp="priceCurrency" content="UAH" />
-                        <meta itemProp="price" content={String(effectivePriceUAH)} />
-                        <link
-                            itemProp="availability"
-                            href={isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock"}
-                        />
-                        <link itemProp="itemCondition" href="https://schema.org/NewCondition" />
-                        <meta itemProp="url" content={productHref} />
-                    </div>
-                </>
-            ) : null}
+            {/* No Product/Offer microdata here: Google limits product rich results
+                and merchant listings to single-product pages, and on the catalog it
+                flagged every card for missing description, shipping and returns.
+                The product page carries the full markup. */}
             <div
                 className={`relative w-full h-full cursor-pointer ${flipMotionClass}`}
                 style={{
