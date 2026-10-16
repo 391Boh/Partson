@@ -221,9 +221,19 @@ export default function BlogAdminComposer() {
   };
 
   return (
-    <section className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_12%_0%,rgba(14,165,233,0.16),transparent_32%),linear-gradient(180deg,#f8fafc,#eef6fb)]">
+    // Closed, the admin control floats over the page: it appears only after
+    // hydration, and an in-flow bar pushed the whole blog down by its height
+    // (CLS 0.13-0.17 for admins). Opening it is a click, which Google does
+    // not count as a layout shift.
+    <section
+      className={
+        isOpen
+          ? "border-b border-slate-200/80 bg-[radial-gradient(circle_at_12%_0%,rgba(14,165,233,0.16),transparent_32%),linear-gradient(180deg,#f8fafc,#eef6fb)]"
+          : "pointer-events-none fixed inset-x-0 top-[72px] z-30"
+      }
+    >
       <div className="page-shell-inline py-3">
-        <div className="flex items-center justify-end">
+        <div className="pointer-events-auto flex items-center justify-end">
           <button
             type="button"
             onClick={() => setIsOpen((v) => !v)}

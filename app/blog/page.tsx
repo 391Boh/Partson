@@ -17,6 +17,7 @@ import BlogAdminComposer from "app/blog/BlogAdminComposer";
 import { getPublishedBlogPostsOrThrow } from "app/lib/blog";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critical-css";
 import { getSiteUrl } from "app/lib/site-url";
 
 export const revalidate = 3600;
@@ -96,7 +97,15 @@ export default async function BlogPage() {
     })),
   };
 
+  // Own critical CSS (see app/lib/critical-css.ts): the full ~730 KB site
+  // stylesheet was render-blocking here and held back first paint.
+  const criticalCssHref = resolveCriticalCssHref("blog");
+
   return (
+    <>
+      {criticalCssHref ? (
+        <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
+      ) : null}
     <div className="blog-page font-ui">
       <BlogAdminComposer />
       <header className="blog-masthead">
@@ -275,5 +284,6 @@ export default async function BlogPage() {
         dangerouslySetInnerHTML={{ __html: safeJsonLd(blogJsonLd) }}
       />
     </div>
+    </>
   );
 }

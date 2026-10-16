@@ -47,6 +47,12 @@ export const CRITICAL_TARGETS = {
     "app/product/[code]/page.tsx",
     "app/components/Search.tsx",
   ],
+  blog: [
+    "app/layout.tsx",
+    "app/blog/page.tsx",
+    "app/blog/[slug]/page.tsx",
+    "app/components/Search.tsx",
+  ],
 };
 const EXTENSIONS = [".tsx", ".ts", ".jsx", ".js", ".mjs"];
 

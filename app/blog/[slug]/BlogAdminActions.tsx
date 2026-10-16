@@ -188,7 +188,9 @@ export default function BlogAdminActions({
   return (
     <>
       {/* admin bar */}
-      <div className="sticky top-14 z-30 border-b border-amber-200/60 bg-amber-50/95 backdrop-blur-sm">
+      {/* Fixed, not in flow: it mounts after hydration and an in-flow bar
+          pushed the article down by its height (layout shift for admins). */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-amber-200/60 bg-amber-50/95 backdrop-blur-sm">
         <div className="page-shell-inline flex items-center justify-between gap-3 py-2">
           <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
             Режим адміна

@@ -17,6 +17,7 @@ import {
 } from "app/lib/blog-media";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { safeJsonLd } from "app/lib/safe-json-ld";
+import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critical-css";
 import { getSiteUrl } from "app/lib/site-url";
 import { findBlogTopics, linkBlogTopics } from "app/lib/blog-topic-links";
 import BlogAdminActions from "./BlogAdminActions";
@@ -334,7 +335,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     </ol>
   );
 
+  // Own critical CSS (see app/lib/critical-css.ts): the full ~730 KB site
+  // stylesheet was render-blocking here and held back first paint.
+  const criticalCssHref = resolveCriticalCssHref("blog");
+
   return (
+    <>
+      {criticalCssHref ? (
+        <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
+      ) : null}
     <div className="blog-page blog-article-page font-ui">
       <ArticleReadingProgress />
       <BlogAdminActions
@@ -556,5 +565,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbJsonLd) }}
       />
     </div>
+    </>
   );
 }
