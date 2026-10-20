@@ -8,6 +8,7 @@ import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
 import SectionBoundary from "./SectionBoundary";
 import { prefetchManufacturerCounts } from "app/lib/manufacturer-counts-client";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import { HOME_SECTION_IDS } from "app/lib/home-sections";
 
 const MAX_SCROLL_MOUNT_DELAY_MS = 320;
 const SCROLL_SETTLE_RETRY_MS = 80;
@@ -46,6 +47,8 @@ const BrandCarousel = dynamic(loadBrandsSection, {
 type DeferredHomeSectionProps = {
   children: (onReady: () => void) => ReactNode;
   className: string;
+  /** Anchor the hero's part-finder buttons scroll to. */
+  id?: string;
   label: string;
   preload: () => Promise<unknown>;
   tone: "auto" | "product" | "brands";
@@ -54,6 +57,7 @@ type DeferredHomeSectionProps = {
 function DeferredHomeSection({
   children,
   className,
+  id,
   label,
   preload,
   tone,
@@ -231,6 +235,9 @@ function DeferredHomeSection({
   return (
     <section
       ref={sectionRef}
+      id={id}
+      // Focus target after a hero jump, so keyboard users continue from here.
+      tabIndex={id ? -1 : undefined}
       className={`section-reveal home-section-stage ${className} relative w-full ${ready ? "home-slot-ready" : ""}`}
       aria-busy={!ready}
       aria-label={label}
@@ -281,6 +288,7 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
     <>
       <DeferredHomeSection
         className="home-slot-auto"
+        id={HOME_SECTION_IDS.auto}
         label="Підбір запчастин за автомобілем"
         preload={loadAutoSection}
         tone="auto"
@@ -294,6 +302,7 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
 
       <DeferredHomeSection
         className="home-slot-product"
+        id={HOME_SECTION_IDS.categories}
         label="Каталог груп товарів"
         preload={loadProductSection}
         tone="product"

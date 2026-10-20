@@ -5,9 +5,10 @@ import {
   fetchEuroRate,
   fetchPriceEuroMapByLookupKeys,
   fetchPromoAvailabilityByLookupKeys,
+  fetchPromoOffersByLookupKeys,
   getSnapshotPriceLookup,
   toPriceUah,
-  type PromoAvailability,
+  type PromoOffer,
 } from "app/lib/catalog-server";
 import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
@@ -36,6 +37,21 @@ type ProductPricePayload = {
 
 const productPriceRouteInFlight = new Map<string, Promise<ProductPricePayload>>();
 
+const EMPTY_DETAILS = {
+  prices: {} as Record<string, number>,
+  costPrices: {} as Record<string, number>,
+  promoPrices: {} as Record<string, number>,
+};
+
+// A partner-mode request may only see the promo amount once its token checks
+// out; everything else in the payload is public.
+const withoutPartnerPrice = (payload: ProductPricePayload): ProductPricePayload => ({
+  ...payload,
+  promoPriceUah: null,
+  promoPriceEuro: null,
+  isPartner: false,
+});
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const lookupKeys = normalizeLookupKeys(url.searchParams.getAll("lookup"));
@@ -44,9 +60,18 @@ export async function GET(request: NextRequest) {
   // verifyPartnerRequest's spend-threshold check would reject most admin
   // accounts. Checked unconditionally, but verifyAdminRequest short-circuits
   // on the (near-universal, on this route) case of no bearer token at all.
-  const isPartner =
-    url.searchParams.get("mode") === "partner" &&
-    (Boolean(await verifyPartnerRequest(request)) || Boolean(await verifyAdminRequest(request)));
+  //
+  // The token check (Firebase verify + partner status) used to run before any
+  // price work started, and the admin check only after the partner one
+  // failed. Both now run alongside the 1C lookups; the promo amount is only
+  // released below once the check resolves true.
+  const wantsPartnerPrice = url.searchParams.get("mode") === "partner";
+  const partnerAccessPromise: Promise<boolean> = wantsPartnerPrice
+    ? Promise.all([
+        verifyPartnerRequest(request).catch(() => null),
+        verifyAdminRequest(request).catch(() => null),
+      ]).then(([partner, admin]) => Boolean(partner) || Boolean(admin))
+    : Promise.resolve(false);
 
   if (lookupKeys.length === 0) {
     return NextResponse.json(
@@ -56,7 +81,7 @@ export async function GET(request: NextRequest) {
         promoPriceEuro: null,
         hasPromo: false,
         promoPercent: null,
-        isPartner,
+        isPartner: await partnerAccessPromise,
         hasPhoto: null,
       },
       { status: 200, headers: { "cache-control": "no-store" } }
@@ -64,7 +89,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const cacheKey = `${isPartner ? "partner" : "public"}:` + lookupKeys
+    const cacheKey = `${wantsPartnerPrice ? "partner" : "public"}:` + lookupKeys
       .map((key) => key.trim().toLowerCase())
       .filter(Boolean)
       .sort()
@@ -98,38 +123,50 @@ export async function GET(request: NextRequest) {
           directConcurrency: 3,
           maxKeys: 8,
         }).catch(() => ({} as Record<string, number>));
-        const detailPromise = isPartner
-          ? fetchCatalogPriceDetailsByLookupKeys(lookupKeys, {
+        const euroRatePromise = fetchEuroRate().catch(() => null);
+        // Partner mode reads the promo row live from allgoods (~0.2 s): the
+        // same row carries both the "has promo" flag and the Акція amount, so
+        // the 1.8 s price-detail call is now only a fallback for a promo row
+        // without an amount. Public mode keeps the snapshot-fast teaser — see
+        // fetchPromoAvailabilityByLookupKeys's own comment.
+        const promoPromise = (
+          wantsPartnerPrice
+            ? fetchPromoOffersByLookupKeys(lookupKeys, {
+                live: true,
+                timeoutMs: 1500,
+                cacheTtlMs: 1000 * 20,
+                concurrency: 3,
+              })
+            : fetchPromoAvailabilityByLookupKeys(lookupKeys, {
+                timeoutMs: 900,
+                cacheTtlMs: 0,
+                concurrency: 3,
+              })
+        ).catch(() => ({} as Record<string, Partial<PromoOffer>>));
+
+        const [fallbackLookupPrices, lookupHasPromo] = await Promise.all([
+          priceMapPromise,
+          promoPromise as Promise<Record<string, Partial<PromoOffer>>>,
+        ]);
+        const needsDetailFallback =
+          wantsPartnerPrice &&
+          Object.values(lookupHasPromo).some(
+            (offer) => offer?.hasPromo === true && !(typeof offer.promoPriceEuro === "number" && offer.promoPriceEuro > 0)
+          );
+        const detail = needsDetailFallback
+          ? await fetchCatalogPriceDetailsByLookupKeys(lookupKeys, {
               timeoutMs: 2200,
               cacheTtlMs: 1000 * 20,
               includePricesPost: true,
               includeCostPrices: false,
-            }).catch(() => ({
-              prices: {} as Record<string, number>,
-              costPrices: {} as Record<string, number>,
-              promoPrices: {} as Record<string, number>,
-            }))
-          : Promise.resolve({
-              prices: {} as Record<string, number>,
-              costPrices: {} as Record<string, number>,
-              promoPrices: {} as Record<string, number>,
-            });
-        const euroRatePromise = fetchEuroRate().catch(() => null);
-        // Public-safe signal, fetched regardless of isPartner — see
-        // fetchPromoAvailabilityByLookupKeys's own comment. Shares its exact
-        // request shape with priceMapPromise's per-key allgoods fallback, so
-        // this rarely costs a second real 1C round trip.
-        const hasPromoPromise = fetchPromoAvailabilityByLookupKeys(lookupKeys, {
-          timeoutMs: 900,
-          cacheTtlMs: 0,
-          concurrency: 3,
-        }).catch(() => ({} as Record<string, PromoAvailability>));
-
-        const [fallbackLookupPrices, detail, lookupHasPromo] = await Promise.all([
-          priceMapPromise,
-          detailPromise,
-          hasPromoPromise,
-        ]);
+            }).catch(() => EMPTY_DETAILS)
+          : EMPTY_DETAILS;
+        const livePromoPrices: Record<string, number> = { ...detail.promoPrices };
+        for (const [key, offer] of Object.entries(lookupHasPromo)) {
+          if (typeof offer?.promoPriceEuro === "number" && offer.promoPriceEuro > 0) {
+            livePromoPrices[key] = offer.promoPriceEuro;
+          }
+        }
         const lookupPrices = { ...snapshotPrices, ...fallbackLookupPrices, ...detail.prices };
         // product-update/route.ts records the sell price 1C just confirmed
         // for `code` right after a successful edit (see
@@ -150,10 +187,10 @@ export async function GET(request: NextRequest) {
             .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
             .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
         const rawPromoPriceEuro = lookupKeys
-          .map((lookupKey) => detail.promoPrices[lookupKey.trim().toLowerCase()])
+          .map((lookupKey) => livePromoPrices[lookupKey.trim().toLowerCase()])
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
         const promoPriceEuro =
-          isPartner &&
+          wantsPartnerPrice &&
           typeof rawPromoPriceEuro === "number" &&
           Number.isFinite(rawPromoPriceEuro) &&
           rawPromoPriceEuro > 0 &&
@@ -195,7 +232,7 @@ export async function GET(request: NextRequest) {
           promoPriceEuro,
           hasPromo,
           promoPercent,
-          isPartner,
+          isPartner: wantsPartnerPrice,
           hasPhoto: null,
         };
       })();
@@ -207,7 +244,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const payload = await payloadPromise;
+    const [computedPayload, isPartner] = await Promise.all([payloadPromise, partnerAccessPromise]);
+    const payload = isPartner ? computedPayload : withoutPartnerPrice(computedPayload);
 
     return NextResponse.json(
       payload,

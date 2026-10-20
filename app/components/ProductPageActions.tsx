@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, MessageCircle, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 
 import { useCart } from "app/context/CartContext";
@@ -40,6 +40,9 @@ const ProductPageActions = ({
   const { addToCart, removeFromCart, cartItems } = useCart();
   const [orderQty, setOrderQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
+  const [feedbackSequence, setFeedbackSequence] = useState(0);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
 
   const hasPrice = typeof priceUah === "number" && Number.isFinite(priceUah) && priceUah > 0;
   const cartQty = useMemo(
@@ -112,7 +115,9 @@ const ProductPageActions = ({
     });
 
     setJustAdded(true);
-    window.setTimeout(() => setJustAdded(false), 1600);
+    setFeedbackSequence((sequence) => sequence + 1);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = setTimeout(() => setJustAdded(false), 1800);
   };
 
   const handleRequestManager = () => {
@@ -132,6 +137,7 @@ const ProductPageActions = ({
   const handleRemoveFromCart = () => {
     if (cartQty <= 0) return;
     removeFromCart(code);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     setJustAdded(false);
     setOrderQty(1);
   };
@@ -140,14 +146,14 @@ const ProductPageActions = ({
     <div
       className={
         compact
-          ? "flex w-full flex-col gap-2.5"
-          : "mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4"
+          ? "product-cart-controls flex w-full flex-col gap-2.5"
+          : "product-cart-controls mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4"
       }
     >
       {hasPrice ? (
         <>
-          <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-2 sm:grid-cols-[126px_minmax(0,1fr)]">
-            <div className={`inline-flex items-center justify-between rounded-[16px] border border-slate-200 bg-slate-50 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ${prominent ? "min-h-[52px]" : "min-h-12"}`}>
+          <div className="product-buy-row grid grid-cols-[112px_minmax(0,1fr)] gap-2 sm:grid-cols-[126px_minmax(0,1fr)]">
+            <div className={`product-qty-stepper inline-flex items-center justify-between rounded-[16px] border border-slate-200 bg-slate-50 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] ${prominent ? "min-h-[52px]" : "min-h-12"}`}>
               <button
                 type="button"
                 onClick={() => setOrderQty((prev) => Math.max(1, prev - 1))}
@@ -174,40 +180,39 @@ const ProductPageActions = ({
           <button
             type="button"
             onClick={handleAddToCart}
+            data-cart-state={justAdded ? "added" : isCartLimitReached ? "limit" : "ready"}
             disabled={isAddDisabled}
             title={
-              isCartLimitReached
-                ? "У кошику вже максимальна доступна кількість"
-                : justAdded
-                  ? "Товар додано"
+              justAdded
+                ? "Товар додано"
+                : isCartLimitReached
+                  ? `У кошику весь залишок: ${maxQty} шт.`
                   : "Додати в замовлення"
             }
             aria-label={
-              isCartLimitReached
-                ? "У кошику вже максимальна доступна кількість"
-                : justAdded
-                  ? "Товар додано"
+              justAdded
+                ? "Товар додано"
+                : isCartLimitReached
+                  ? `У кошику весь залишок: ${maxQty} шт.`
                   : "Додати в замовлення"
             }
-              className={`relative inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] border px-3 text-[11px] font-black text-white transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] sm:px-4 sm:text-sm ${prominent ? "min-h-[52px]" : "min-h-12"} ${
+              className={`product-cart-button relative inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] border px-3 text-[11px] font-black transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] sm:px-4 sm:text-sm ${prominent ? "min-h-[52px]" : "min-h-12"} ${
               isAddDisabled
-                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 shadow-none hover:translate-y-0"
+                ? justAdded
+                  ? "cursor-default border-emerald-400/50 bg-[linear-gradient(135deg,#059669,#10b981)] text-white hover:translate-y-0"
+                  : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-600 shadow-none hover:translate-y-0"
                 : justAdded
-                  ? "border-emerald-400/50 bg-[linear-gradient(135deg,#059669,#10b981)] shadow-[0_14px_28px_rgba(5,150,105,0.24)]"
-                  : "border-sky-400/40 bg-[linear-gradient(135deg,#0284c7,#2563eb)] shadow-[0_14px_28px_rgba(2,132,199,0.25)] hover:brightness-105 hover:shadow-[0_18px_34px_rgba(2,132,199,0.3)]"
+                  ? "border-emerald-400/50 bg-[linear-gradient(135deg,#059669,#10b981)] text-white shadow-[0_14px_28px_rgba(5,150,105,0.24)]"
+                  : "border-sky-400/40 bg-[linear-gradient(135deg,#0284c7,#2563eb)] text-white shadow-[0_14px_28px_rgba(2,132,199,0.25)] hover:brightness-105 hover:shadow-[0_18px_34px_rgba(2,132,199,0.3)]"
             }`}
           >
-            {cartQty > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 z-10 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
-                {cartQty}
-              </span>
-            )}
-              {justAdded ? <Check size={18} /> : <ShoppingCart size={18} />}
-              <span className="truncate">
-                {isCartLimitReached
-                  ? "У кошику максимум"
-                  : justAdded
-                    ? "Додано до кошика"
+              {justAdded ? <span key={`sweep-${feedbackSequence}`} className="product-cart-success-sweep" aria-hidden="true" /> : null}
+              <span key={`icon-${feedbackSequence}`} className="product-cart-button-icon" aria-hidden="true">{justAdded || isCartLimitReached ? <Check size={18} /> : <ShoppingCart size={18} />}</span>
+              <span key={`label-${feedbackSequence}`} className="product-cart-button-label">
+                {justAdded
+                  ? "Додано до кошика"
+                  : isCartLimitReached
+                    ? "Усе в кошику"
                     : cartQty > 0
                       ? "Додати ще"
                       : "Додати до кошика"}
@@ -215,24 +220,30 @@ const ProductPageActions = ({
           </button>
           </div>
 
-          {cartQty > 0 ? (
-            <div className="flex items-center justify-between gap-3 rounded-[13px] border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] font-bold text-emerald-800">
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <Check size={13} aria-hidden="true" />
-                У кошику: {cartQty} шт.
-              </span>
-              <button
-                type="button"
-                onClick={handleRemoveFromCart}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-rose-600 transition hover:bg-white hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
-                title="Видалити товар із кошика"
-                aria-label={`Видалити ${name} із кошика`}
-              >
-                <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
-                Видалити
-              </button>
+          <div className="product-cart-receipt-slot">
+            <div className="product-cart-receipt" role="status" aria-live="polite">
+              {cartQty > 0 ? (
+                <>
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <Check size={13} aria-hidden="true" />
+                    У кошику: {cartQty} шт.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFromCart}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-rose-600 transition hover:bg-white hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                    title="Видалити товар із кошика"
+                    aria-label={`Видалити ${name} із кошика`}
+                  >
+                    <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
+                    <span className="product-cart-remove-label">Видалити</span>
+                  </button>
+                </>
+              ) : (
+                <span className="product-cart-ready-note">Оберіть кількість і додайте до кошика</span>
+              )}
             </div>
-          ) : null}
+          </div>
         </>
       ) : (
         <button

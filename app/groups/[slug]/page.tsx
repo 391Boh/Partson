@@ -33,6 +33,7 @@ import {
   pluralizeUk,
 } from "app/lib/pluralize-uk";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { getGroupSeoCopy } from "app/lib/seo-copy";
@@ -378,7 +379,12 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
 export default async function GroupDetailPage({ params }: GroupPageProps) {
   const { slug } = await params;
   const group = await getGroupBySlug(slug);
-  if (!group) notFound();
+  if (!group) {
+    // The group may have been renamed from the admin panel.
+    const renamedPath = await resolveRenamedGroupRedirect([slug]);
+    if (renamedPath) permanentRedirect(renamedPath);
+    notFound();
+  }
   if (slug !== group.slug) {
     permanentRedirect(buildGroupPagePath(group.slug));
   }

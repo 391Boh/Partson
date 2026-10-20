@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Check, ImagePlus, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImagePlus, Loader2, X } from "lucide-react";
 
 import { useProductImageUpdate } from "app/lib/product-image-updates";
 import { buildProductImagePath } from "app/lib/product-image-path";
@@ -209,60 +209,76 @@ export default function ProductGallery({
     }
   };
 
-  if (images.length === 0 && !isAdmin) return null;
+  const photoUrls = [ ...(currentMainImageSrc ? [null] : []), ...images.map((image) => image.url) ];
+  const selectedIndex = Math.max(0, photoUrls.indexOf(selectedImageUrl));
+  const navigate = (direction: number) => {
+    if (photoUrls.length < 2) return;
+    selectImage(photoUrls[(selectedIndex + direction + photoUrls.length) % photoUrls.length]);
+  };
+
+  if (photoUrls.length === 0 && !isAdmin) return null;
+
+  const arrowButton = (direction: -1 | 1) => (
+    <button
+      type="button"
+      onClick={() => navigate(direction)}
+      aria-label={direction < 0 ? "Попереднє фото" : "Наступне фото"}
+      className="product-gallery-arrow"
+    >
+      {direction < 0 ? <ChevronLeft size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
+    </button>
+  );
 
   return (
-    <div className="relative z-20 shrink-0 border-t border-slate-100 bg-slate-50/70 px-3 py-2.5 sm:px-4 sm:py-3">
-      <p className="mb-2 text-[9px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
-        Фото · {images.length + (currentMainImageSrc ? 1 : 0)}
+    <div
+      role="region"
+      aria-label="Галерея фотографій товару"
+      data-photo-count={photoUrls.length}
+      data-admin={isAdmin ? "" : undefined}
+      onKeyDown={(event) => {
+        if (event.target instanceof HTMLInputElement) return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          navigate(event.key === "ArrowLeft" ? -1 : 1);
+        }
+      }}
+      className="product-gallery [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-sky-600"
+    >
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        Фото {photoUrls.length ? selectedIndex + 1 : 0} з {photoUrls.length}
       </p>
-      {/* Wraps onto as many rows as needed instead of scrolling sideways —
-          every photo (main + additional) stays visible at once. */}
-      <div className="flex flex-wrap gap-2">
+      <div className="product-gallery-strip">
+        {photoUrls.length > 1 ? arrowButton(-1) : null}
+        <div className="product-gallery-thumbs">
         {currentMainImageSrc ? (
-          <div className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
+          <div className="product-gallery-item">
             <button
               type="button"
               onClick={() => selectImage(null)}
               aria-label="Показати основне фото"
               aria-pressed={!selectedImageUrl}
-              className={`relative h-full w-full overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 ${
-                !selectedImageUrl
-                  ? "border-2 border-sky-500 shadow-[0_10px_22px_rgba(14,165,233,0.22)] ring-2 ring-sky-100"
-                  : "border border-slate-200/90 shadow-[0_3px_10px_rgba(15,23,42,0.07)] hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
-              }`}
+              className="product-gallery-thumb"
             >
               <Image
                 src={currentMainImageSrc}
                 alt={`${productName} — основне фото`}
                 fill
-                sizes="72px"
+                sizes="56px"
                 loading="lazy"
                 className="object-contain p-1"
               />
-              {!selectedImageUrl ? (
-                <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sky-600 text-white shadow-md">
-                  <Check size={12} strokeWidth={3} aria-hidden="true" />
-                </span>
-              ) : null}
             </button>
-            <span className="pointer-events-none absolute inset-x-1 bottom-1 truncate rounded-full bg-slate-900/60 px-1.5 py-0.5 text-center text-[7px] font-bold uppercase tracking-wide text-white">
-              Основне
-            </span>
+            {isAdmin ? <span className="product-gallery-badge">Основне</span> : null}
           </div>
         ) : null}
         {images.map((image, index) => (
-          <div key={image.id} className="group relative h-16 w-16 shrink-0 sm:h-[72px] sm:w-[72px]">
+          <div key={image.id} className="product-gallery-item">
             <button
               type="button"
               onClick={() => selectImage(image.url)}
               aria-label={`Показати як основне фото ${index + 1}`}
               aria-pressed={selectedImageUrl === image.url}
-              className={`relative h-full w-full overflow-hidden rounded-[14px] bg-white transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 ${
-                selectedImageUrl === image.url
-                  ? "border-2 border-sky-500 shadow-[0_10px_22px_rgba(14,165,233,0.22)] ring-2 ring-sky-100"
-                  : "border border-slate-200/90 shadow-[0_3px_10px_rgba(15,23,42,0.07)] hover:border-sky-300 hover:shadow-[0_10px_20px_rgba(14,165,233,0.16)]"
-              }`}
+              className="product-gallery-thumb"
             >
               {/* Thumbnails render at 64-72px CSS, but image.url points at the
                   raw, full-resolution Firebase Storage upload (up to 3MB) —
@@ -274,15 +290,10 @@ export default function ProductGallery({
                 src={image.url}
                 alt={`${productName} — додаткове фото ${index + 1}`}
                 fill
-                sizes="72px"
+                sizes="56px"
                 loading="lazy"
                 className="object-contain p-1"
               />
-              {selectedImageUrl === image.url ? (
-                <span className="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-sky-600 text-white shadow-md">
-                  <Check size={12} strokeWidth={3} aria-hidden="true" />
-                </span>
-              ) : null}
             </button>
             {isAdmin && (
               <button
@@ -290,7 +301,8 @@ export default function ProductGallery({
                 onClick={() => void removeImage(image.id)}
                 disabled={removingId === image.id}
                 title="Видалити фото"
-                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-500 opacity-0 shadow-[0_2px_6px_rgba(15,23,42,0.15)] transition hover:bg-rose-50 hover:scale-110 group-hover:opacity-100 disabled:opacity-60"
+                aria-label={`Видалити додаткове фото ${index + 1}`}
+                className="absolute -right-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-500 shadow-sm transition hover:scale-110 hover:bg-rose-50 disabled:opacity-60"
               >
                 {removingId === image.id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -308,16 +320,18 @@ export default function ProductGallery({
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             title="Додати фото"
-            className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-dashed border-sky-200 bg-sky-50/50 text-sky-600 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 disabled:opacity-60 sm:h-[72px] sm:w-[72px]"
+            className="product-gallery-add"
           >
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <ImagePlus className="h-4 w-4" />
             )}
-            <span className="text-[9px] font-semibold">Додати</span>
+            <span>Додати</span>
           </button>
         )}
+        </div>
+        {photoUrls.length > 1 ? arrowButton(1) : null}
       </div>
 
       {error && <p className="mt-2 text-[11px] font-semibold text-red-500">{error}</p>}

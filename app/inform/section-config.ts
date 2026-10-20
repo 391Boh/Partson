@@ -35,6 +35,8 @@ type InformationSection = {
   heroPhone?: { raw: string; display: string; label: string };
   /** Decorative background drawn behind the hero content. */
   heroBackground?: string;
+  /** Published services featured in the homepage article/service slider. */
+  homeFeature?: { image: string; imageAlt: string };
   /** Set when this section's content changed after INFORMATION_UPDATED_AT. */
   updatedAt?: string;
 };
@@ -337,6 +339,10 @@ export const informationSections: InformationSection[] = [
   },
   {
     key: "diagnostics",
+    homeFeature: {
+      image: "/images/information/diagnostics-hero-v1.webp",
+      imageAlt: "Сканер OBD та двигун автомобіля для комп’ютерної діагностики",
+    },
     title: "Діагностика",
     subtitle: "OBD, помилки, електроніка",
     intro: "Комп’ютерна OBD-діагностика авто у Львові: зчитування помилок, перевірка електронних систем і рекомендації щодо ремонту.",

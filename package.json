@@ -23,6 +23,7 @@
     "generate:feed": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-merchant-feed.ts",
     "generate:auto-model-sitemap": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/generate-auto-model-sitemap.ts",
     "warm:auto-model-breakdowns": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/warm-auto-model-breakdowns.ts",
+    "warm:product-pages": "node scripts/warm-product-pages.mjs",
     "indexnow:submit": "tsx --require ./scripts/preload.cjs --env-file=.env.local scripts/submit-indexnow.ts",
     "merchant:feed:update": "bash scripts/update-merchant-feed.sh",
     "merchant:cron:install": "bash scripts/install-merchant-feed-cron.sh",

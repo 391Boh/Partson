@@ -2,16 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BadgePercent, CreditCard, Headphones, Truck } from "lucide-react";
+import { BadgePercent, Clock3, CreditCard, Headphones, Truck } from "lucide-react";
 
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
 import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
-import {
-  getViewportParallaxProgress,
-  registerParallax,
-} from "app/lib/parallax-controller";
 
 type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
@@ -46,6 +42,42 @@ const PRODUCT_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
 const PRODUCT_PRICE_NEGATIVE_CACHE_TTL_MS = 1000 * 30;
 const PRODUCT_PRICE_REQUEST_TIMEOUT_MS = 950;
 const productPriceInFlightRequests = new Map<string, Promise<number | null>>();
+// A partner's confirmed promo price, per signed-in user and product: shown on
+// the next view straight away instead of after Firebase auth + token + the
+// live lookup, then re-confirmed in the background.
+const PARTNER_PRICE_CACHE_PREFIX = "partson:v1:partner-price:";
+const PARTNER_PRICE_CACHE_TTL_MS = 1000 * 60 * 10;
+
+type CachedPartnerPrice = { isPartner: boolean; promoPriceUah: number | null; t: number };
+
+const partnerPriceCacheKey = (requestUrl: string) => {
+  try {
+    const uid = window.localStorage.getItem("user_id");
+    return uid ? `${PARTNER_PRICE_CACHE_PREFIX}${uid}:${requestUrl}` : "";
+  } catch {
+    return "";
+  }
+};
+
+const readCachedPartnerPrice = (key: string): CachedPartnerPrice | null => {
+  if (!key) return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) || "null") as CachedPartnerPrice | null;
+    if (!parsed || typeof parsed.t !== "number" || Date.now() - parsed.t > PARTNER_PRICE_CACHE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedPartnerPrice = (key: string, value: Omit<CachedPartnerPrice, "t">) => {
+  if (!key) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ ...value, t: Date.now() }));
+  } catch {
+    // Storage full or blocked: the live lookup still applies.
+  }
+};
 
 const formatPriceUah = (priceUah: number | null) => {
   if (priceUah == null) return "За запитом";
@@ -386,7 +418,13 @@ export default function ProductPurchasePanelClient(
   // identical concurrent request to /api/product-price itself (same URL as
   // the main price fetch whenever that one also runs), so this adds a
   // same-origin round trip, not a second 1C lookup.
+  // The page resolves the teaser server-side (initialHasPromo), so a second
+  // public /api/product-price round trip on every view only re-asked 1C for
+  // the same flag (~2 s under load). Admin edits still refresh it through
+  // the "partson:price-updated" handler below.
+  const hasServerPromoTeaser = props.initialHasPromo !== undefined;
   useEffect(() => {
+    if (hasServerPromoTeaser) return;
     if (!publicPromoCheckUrl) {
       setHasPromo(false);
       setPromoPercent(null);
@@ -406,7 +444,7 @@ export default function ProductPurchasePanelClient(
     return () => {
       cancelled = true;
     };
-  }, [publicPromoCheckUrl]);
+  }, [hasServerPromoTeaser, publicPromoCheckUrl]);
 
   useEffect(() => {
     if (!hasAuthenticatedUser || !partnerRequestUrl) {
@@ -417,6 +455,12 @@ export default function ProductPurchasePanelClient(
 
     let cancelled = false;
     const controller = new AbortController();
+    const cacheKey = partnerPriceCacheKey(partnerRequestUrl);
+    const cached = readCachedPartnerPrice(cacheKey);
+    if (cached) {
+      setIsPartner(cached.isPartner);
+      setPromoPriceUah(cached.isPartner ? cached.promoPriceUah : null);
+    }
 
     const loadPartnerPrice = async () => {
       const snapshot = await waitForFirebaseAuthReady();
@@ -448,6 +492,7 @@ export default function ProductPurchasePanelClient(
           ? payload.promoPriceUah
           : null;
 
+      writeCachedPartnerPrice(cacheKey, { isPartner: partnerAccess, promoPriceUah: nextPromoPrice });
       if (!cancelled) {
         setIsPartner(partnerAccess);
         setPromoPriceUah(nextPromoPrice);
@@ -525,15 +570,19 @@ export default function ProductPurchasePanelClient(
         if (!isMountedRef.current || !partnerPayload) return;
 
         const partnerAccess = partnerPayload.isPartner === true;
-        setIsPartner(partnerAccess);
-        setPromoPriceUah(
+        const confirmedPromoPrice =
           partnerAccess &&
-            typeof partnerPayload.promoPriceUah === "number" &&
-            Number.isFinite(partnerPayload.promoPriceUah) &&
-            partnerPayload.promoPriceUah > 0
+          typeof partnerPayload.promoPriceUah === "number" &&
+          Number.isFinite(partnerPayload.promoPriceUah) &&
+          partnerPayload.promoPriceUah > 0
             ? partnerPayload.promoPriceUah
-            : null
-        );
+            : null;
+        writeCachedPartnerPrice(partnerPriceCacheKey(partnerRequestUrl), {
+          isPartner: partnerAccess,
+          promoPriceUah: confirmedPromoPrice,
+        });
+        setIsPartner(partnerAccess);
+        setPromoPriceUah(confirmedPromoPrice);
       })();
     };
 
@@ -569,55 +618,8 @@ export default function ProductPurchasePanelClient(
           : "Ціна актуальна. Після оформлення менеджер підтвердить замовлення."
       : "Залиште запит — менеджер швидко уточнить ціну та строк постачання.";
 
-  const panelRef = useRef<HTMLDivElement>(null);
-  const glowTopRef = useRef<HTMLSpanElement>(null);
-  const glowBottomRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const panel = panelRef.current;
-    const glowTop = glowTopRef.current;
-    const glowBottom = glowBottomRef.current;
-    if (!panel || !glowTop || !glowBottom) return;
-
-    const handle = registerParallax({
-      el: panel,
-      compute: getViewportParallaxProgress,
-      apply: (progress) => {
-        const shift = (progress - 0.5) * 24;
-        glowTop.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;
-        glowBottom.style.transform = `translate3d(0, ${(-shift).toFixed(2)}px, 0)`;
-      },
-    });
-
-    return () => handle.release();
-  }, []);
-
   return (
-    <div
-      ref={panelRef}
-      className="relative overflow-hidden rounded-[22px] border border-sky-200/70 bg-[linear-gradient(155deg,rgba(255,255,255,0.98)_0%,rgba(240,249,255,0.92)_46%,rgba(236,254,255,0.88)_100%)] text-slate-900 shadow-[0_22px_52px_-18px_rgba(14,116,144,0.26),inset_0_1px_0_rgba(255,255,255,0.9)] sm:rounded-[24px]"
-    >
-      {/* Subtle dot-grid texture — this panel is the page's actual "Offer"
-          (schema.org sense: price + buy action), so it gets its own,
-          slightly more tactile/premium treatment than the plain glows used
-          elsewhere on the page, instead of just another soft blur. Faint
-          enough to read as texture, not pattern, behind the price/CTA. */}
-      <span
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage: "radial-gradient(circle, #0369a1 1px, transparent 1.6px)",
-          backgroundSize: "16px 16px",
-        }}
-        aria-hidden="true"
-      />
-      {/* Soft glow anchored behind the price — same language as the other
-          homepage/product cards' heading glows, tinted to this panel's own
-          sky/teal accent. The two glows drift in opposite directions on
-          scroll (registered below) — a layered, multi-plane parallax
-          instead of a single flat drift. */}
-      <span ref={glowTopRef} className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl will-change-transform" aria-hidden="true" />
-      <span ref={glowBottomRef} className="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.18),transparent_70%)] blur-2xl will-change-transform" aria-hidden="true" />
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#0ea5e9,#22d3ee_50%,#14b8a6)]" />
+    <div className="product-purchase-panel overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-900">
       <ProductViewTracking
         item_id={product.code || resolvedCode}
         item_name={product.name}
@@ -628,10 +630,10 @@ export default function ProductPurchasePanelClient(
         item_variant={product.article || undefined}
         price={effectivePriceUah ?? null}
       />
-      <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(190px,0.72fr)_minmax(290px,1.28fr)] xl:items-center xl:gap-6">
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
+      <div className="product-purchase-body grid gap-6 p-5 sm:p-6">
+        <div className="product-purchase-offer min-w-0">
+          <div className="product-purchase-head flex items-center justify-between gap-3">
+            <p className="product-purchase-label text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
               {hasPromoPrice ? "Акційна ціна партнера" : "Ціна товару"}
             </p>
             {hasCostPrice ? (
@@ -653,23 +655,20 @@ export default function ProductPurchasePanelClient(
           </div>
 
           {isLoading && !showCostPrice ? (
-            <div className="mt-2 h-10 w-44 animate-pulse rounded-xl bg-slate-100" role="status" aria-label="Завантажуємо ціну" />
+            <div className="product-purchase-price-skeleton h-[30px] w-36 animate-pulse rounded-lg bg-slate-200/70" role="status" aria-label="Завантажуємо ціну" />
           ) : hasPromoPrice && !showCostPrice ? (
-            <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <div className="product-purchase-price-row flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span className="product-purchase-price break-words text-rose-600">
+                {formatPriceUah(promoPriceUah)}
+              </span>
               {typeof priceUah === "number" && (
-                <span className="text-base font-bold text-slate-400 line-through decoration-rose-400 decoration-2">
+                <span className="product-purchase-price-old font-bold text-slate-400 line-through decoration-rose-400 decoration-2">
                   {formatPriceUah(priceUah)}
                 </span>
               )}
-              <span className="break-words text-[clamp(1.75rem,4vw,2.35rem)] font-black leading-none tracking-[-0.035em] text-rose-600">
-                {formatPriceUah(promoPriceUah)}
-              </span>
-              <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-rose-700">
-                Для партнера
-              </span>
             </div>
           ) : (
-            <p className={`mt-1.5 break-words text-[clamp(1.75rem,4vw,2.35rem)] font-black leading-none tracking-[-0.035em] ${showCostPrice && hasCostPrice ? "text-amber-700" : hasPrice ? "text-slate-950" : "text-slate-800"}`}>
+            <p className={`product-purchase-price break-words ${showCostPrice && hasCostPrice ? "text-amber-700" : hasPrice ? "text-slate-950" : "text-slate-800"}`}>
               {showCostPrice && hasCostPrice
                 ? `${initialCostPriceUah!.toLocaleString("uk-UA")} грн`
                 : formatPriceUah(effectivePriceUah ?? null)}
@@ -679,25 +678,62 @@ export default function ProductPurchasePanelClient(
           {showPartnerDiscountTeaser && !isLoading && !showCostPrice && (
             <Link
               href="/partnership"
-              className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] transition hover:border-rose-300 hover:from-rose-100 hover:to-rose-200"
+              className="product-purchase-promo inline-flex w-fit items-center gap-1.5 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] transition hover:border-rose-300 hover:from-rose-100 hover:to-rose-200"
             >
               <BadgePercent size={12} strokeWidth={2.4} aria-hidden="true" />
-              {typeof promoPercent === "number" && promoPercent > 0
-                ? `Знижка -${promoPercent}% для партнерів`
-                : "Знижка для партнерів"}
+              <span className="product-purchase-promo-full">
+                {typeof promoPercent === "number" && promoPercent > 0
+                  ? `Знижка -${promoPercent}% для партнерів`
+                  : "Знижка для партнерів"}
+              </span>
+              <span className="product-purchase-promo-short">
+                {typeof promoPercent === "number" && promoPercent > 0
+                  ? `-${promoPercent}% партнерам`
+                  : "Знижка партнерам"}
+              </span>
             </Link>
           )}
 
-          <div className={`mt-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[10px] font-extrabold ${isInStock ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
-            <Truck size={14} aria-hidden="true" />
-            {isInStock
-              ? "Відправимо після підтвердження"
-              : "Уточнимо термін постачання"}
+          <div
+            aria-live="polite"
+            data-stock={isInStock ? "in" : "order"}
+            className={`product-purchase-stock flex items-center gap-2.5 rounded-xl border ${isInStock ? "border-emerald-200/80 bg-emerald-50/70" : "border-amber-200/80 bg-amber-50/70"}`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 shrink-0 rounded-full ring-4 ${isInStock ? "bg-emerald-500 ring-emerald-500/15" : "bg-amber-500 ring-amber-500/15"}`}
+            />
+            <span className="min-w-0 flex-1">
+              <span className={`product-purchase-stock-title block font-extrabold ${isInStock ? "text-emerald-900" : "text-amber-900"}`}>
+                {isInStock ? "В наявності" : "Під замовлення"}
+                {isInStock ? (
+                  <span className="font-bold tabular-nums text-emerald-700"> · {quantity} шт.</span>
+                ) : null}
+              </span>
+              <span className={`product-purchase-stock-note block font-medium ${isInStock ? "text-emerald-800/80" : "text-amber-800/80"}`}>
+                {isInStock ? "Відправимо після підтвердження" : "Уточнимо термін постачання"}
+              </span>
+            </span>
+            {isInStock ? (
+              <Truck size={16} className="product-purchase-stock-icon shrink-0 text-emerald-700/70" aria-hidden="true" />
+            ) : (
+              <Clock3 size={16} className="product-purchase-stock-icon shrink-0 text-amber-700/70" aria-hidden="true" />
+            )}
           </div>
         </div>
 
-        <div className="min-w-0 xl:border-l xl:border-slate-200 xl:pl-6">
-          <p className="mb-3 text-[12px] font-medium leading-5 text-slate-500">{helperText}</p>
+        <div className="product-purchase-actions min-w-0 border-t border-slate-200 pt-5">
+          <p className="mb-3 text-sm font-medium leading-6 text-slate-600">{helperText}</p>
+          <ul className="product-purchase-perks">
+            <li>
+              <CreditCard size={13} aria-hidden="true" />
+              Оплата при отриманні або онлайн
+            </li>
+            <li>
+              <Headphones size={13} aria-hidden="true" />
+              Менеджер підтвердить наявність
+            </li>
+          </ul>
           <ProductPageActions
             code={product.code || resolvedCode}
             article={product.article}
@@ -716,7 +752,7 @@ export default function ProductPurchasePanelClient(
         </div>
       </div>
 
-      <div className="grid border-t border-slate-200/80 bg-slate-50/80 sm:grid-cols-2">
+      <div className="product-purchase-services grid border-t border-slate-200/80 bg-slate-50/80 sm:grid-cols-2">
         <div className="flex items-center gap-3 border-b border-slate-200/80 px-4 py-3 sm:border-b-0 sm:border-r sm:px-5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/70">
             <CreditCard size={17} aria-hidden="true" />

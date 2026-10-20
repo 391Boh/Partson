@@ -6,6 +6,7 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
+import { invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
 
 export const runtime = "nodejs";
 
@@ -81,21 +82,31 @@ export async function POST(request: NextRequest) {
     value.costPriceEuro !== undefined && value.costPriceEuro !== null
       ? value.costPriceEuro
       : value["ЦінаЗакуп"];
+  // Promo price (1C Ціна.Акція), EUR. 0 removes the promo.
+  const promoPriceValue =
+    value.promoPriceEuro !== undefined && value.promoPriceEuro !== null
+      ? value.promoPriceEuro
+      : value["Акція"];
   const hasSalePrice = salePriceValue !== undefined && salePriceValue !== null;
   const hasCostPrice = costPriceValue !== undefined && costPriceValue !== null;
+  const hasPromoPrice = promoPriceValue !== undefined && promoPriceValue !== null;
 
-  if (!hasSalePrice && !hasCostPrice) {
-    return json({ ok: false, error: "Provide priceEuro/ЦінаПрод and/or costPriceEuro/ЦінаЗакуп" }, 400);
+  if (!hasSalePrice && !hasCostPrice && !hasPromoPrice) {
+    return json({ ok: false, error: "Provide priceEuro/ЦінаПрод, costPriceEuro/ЦінаЗакуп and/or promoPriceEuro/Акція" }, 400);
   }
 
   const priceEuro = hasSalePrice ? Number(salePriceValue) : undefined;
   const costPriceEuro = hasCostPrice ? Number(costPriceValue) : undefined;
+  const promoPriceEuro = hasPromoPrice ? Number(promoPriceValue) : undefined;
 
   if (priceEuro !== undefined && (!Number.isFinite(priceEuro) || priceEuro < 0)) {
     return json({ ok: false, error: "priceEuro must be a non-negative number" }, 400);
   }
   if (costPriceEuro !== undefined && (!Number.isFinite(costPriceEuro) || costPriceEuro < 0)) {
     return json({ ok: false, error: "costPriceEuro must be a non-negative number" }, 400);
+  }
+  if (promoPriceEuro !== undefined && (!Number.isFinite(promoPriceEuro) || promoPriceEuro < 0)) {
+    return json({ ok: false, error: "promoPriceEuro must be a non-negative number (0 removes the promo)" }, 400);
   }
 
   const oneCBody: Record<string, unknown> = { Код: code };
@@ -104,6 +115,7 @@ export async function POST(request: NextRequest) {
   if (article) oneCBody["артикул_ціни"] = article;
   if (priceEuro !== undefined) oneCBody["ЦінаПрод"] = priceEuro;
   if (costPriceEuro !== undefined) oneCBody["ЦінаЗакуп"] = costPriceEuro;
+  if (promoPriceEuro !== undefined) oneCBody["Акція"] = promoPriceEuro;
 
   const result = await oneCRequest(ONEC_PRICE_ADMIN_ENDPOINT, {
     method: "POST",
@@ -124,7 +136,15 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "1C returned an error", details: oneCError, status: result.status }, 502);
   }
 
-  let parsed: { success?: boolean; found?: boolean; updated?: boolean; message?: string; error_message?: string } = {};
+  let parsed: {
+    success?: boolean;
+    found?: boolean;
+    updated?: boolean;
+    message?: string;
+    error_message?: string;
+    // edit's price write; the top-level success only means "request handled".
+    price_result?: { success?: boolean; message?: string; ЦінаПрод?: number; ЦінаЗакуп?: number; Акція?: number };
+  } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
   } catch {
@@ -140,9 +160,21 @@ export async function POST(request: NextRequest) {
         (parsed.found === false ? "Товар не знайдено в 1С" : "1C повернула помилку"),
     }, 422);
   }
+  if (parsed.price_result?.success === false) {
+    return json({ ok: false, error: parsed.price_result.message || "1С не записала ціну" }, 422);
+  }
+  // An older 1C edit ignores Акція without saying so; only a stored value it
+  // echoes back proves the promo was written.
+  const confirmedPromoPriceEuro =
+    typeof parsed.price_result?.Акція === "number" ? parsed.price_result.Акція : undefined;
+  if (promoPriceEuro !== undefined && confirmedPromoPriceEuro === undefined) {
+    return json({ ok: false, error: "1С не підтвердила акційну ціну (потрібне оновлення модуля ОбщегоНазначения)" }, 502);
+  }
 
   clearAllOneCCache();
   clearCatalogPageRouteCache();
+  // Promo badges and partner promo prices are read from the full snapshot.
+  invalidateFullCatalogSnapshot();
   try {
     revalidateTag("product-page-data", "max");
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
@@ -164,6 +196,9 @@ export async function POST(request: NextRequest) {
     updatedBy: adminEmail,
     ...(priceEuro !== undefined ? { priceEuro, "ЦінаПрод": priceEuro } : {}),
     ...(costPriceEuro !== undefined ? { costPriceEuro, "ЦінаЗакуп": costPriceEuro } : {}),
+    ...(confirmedPromoPriceEuro !== undefined
+      ? { promoPriceEuro: confirmedPromoPriceEuro, "Акція": confirmedPromoPriceEuro }
+      : {}),
     hasPrice: hasUpdatedPrice,
     "ЕстьЦена": hasUpdatedPrice,
   });

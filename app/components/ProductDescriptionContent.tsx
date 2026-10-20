@@ -18,7 +18,7 @@ export default function ProductDescriptionContent({
   const compact = variant === "compact";
 
   return (
-    <div className={compact ? "space-y-1.5" : "space-y-2.5"}>
+    <div className={compact ? "space-y-1.5" : "product-description-content space-y-3"}>
       {paragraphs.map((paragraph, index) => (
         <p key={`${index}:${paragraph}`} className="break-words">
           {paragraph}

@@ -50,6 +50,7 @@ import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts, plurali
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
@@ -835,7 +836,12 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
 export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const { slug, itemSlug } = await params;
   const item = await getGroupItemBySlugs(slug, itemSlug);
-  if (!item) notFound();
+  if (!item) {
+    // The group may have been renamed from the admin panel.
+    const renamedPath = await resolveRenamedGroupRedirect([slug, itemSlug]);
+    if (renamedPath) permanentRedirect(renamedPath);
+    notFound();
+  }
   if (slug !== item.groupSlug || itemSlug !== item.itemSlug) {
     permanentRedirect(buildGroupItemPath(item.groupSlug, item.itemSlug));
   }

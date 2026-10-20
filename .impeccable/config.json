@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "app/product/[code]/page.tsx"
+        ],
+        "createdAt": "2026-10-19T17:55:17.282Z",
+        "reason": "Claude triage: L2408 is text-slate-600 on bg-slate-50 (neutral near-white chip, not a colored background); pre-existing review chip, not touched in this change"
+      }
+    ]
+  }
+}

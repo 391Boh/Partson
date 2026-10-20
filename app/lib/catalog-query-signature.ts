@@ -1,3 +1,5 @@
+import type { CatalogSortOrder } from "app/lib/catalog-sort";
+
 export type CatalogQuerySignatureInput = {
   normalizedSearch: string;
   searchFilter: string;
@@ -9,7 +11,7 @@ export type CatalogQuerySignatureInput = {
   expandHierarchy?: boolean;
   promoOnly?: boolean;
   paramFilters?: string;
-  sortOrder: "none" | "asc" | "desc";
+  sortOrder: CatalogSortOrder;
   pricedOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;

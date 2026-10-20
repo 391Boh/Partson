@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import { cleanCarModelForSearch } from 'app/lib/car-model-search';
+import { isCatalogSortOrder, priceSortOrder, type CatalogSortOrder } from 'app/lib/catalog-sort';
 import {
   CATALOG_RESTORE_STYLE_ID,
   CATALOG_RESULTS_ATTRIBUTE,
@@ -52,8 +53,6 @@ const STORAGE_KEYS = {
   pageBatchSize: 'partson:catalogPageBatchSize',
 };
 
-const isCatalogSortOrder = (value: unknown): value is 'none' | 'asc' | 'desc' =>
-  value === 'none' || value === 'asc' || value === 'desc';
 
 const isCatalogViewMode = (value: unknown): value is 'grid' | 'list' =>
   value === 'grid' || value === 'list';
@@ -167,7 +166,7 @@ const Katalog: React.FC<KatalogProps> = ({
 }) => {
   const [selectedCars, setSelectedCars] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [sortOrder, setSortOrder] = useState<CatalogSortOrder>('none');
   // Display preferences, not filters — deliberately kept out of the
   // filter-reset flow below (resetParam handling, STORAGE_KEYS.cars/sort
   // removal) so clearing filters never resets how the user likes to browse.
@@ -308,10 +307,11 @@ const Katalog: React.FC<KatalogProps> = ({
 
   const requestMessage = useMemo(() => {
     if (!hasCompleteRequestContext) return null;
+    const priceSort = priceSortOrder(sortOrder);
     const priceLine =
-      sortOrder === 'none'
+      priceSort === 'none'
         ? '💰 Ціна'
-        : `💰 Ціна: ${sortOrder === 'asc' ? 'низька' : 'висока'}`;
+        : `💰 Ціна: ${priceSort === 'asc' ? 'низька' : 'висока'}`;
     const lines = [`📩 Заявка`, `🔧 ${partLabel}`, priceLine];
     if (selectedVin) {
       lines.push(`🔢 VIN ${selectedVin}`);

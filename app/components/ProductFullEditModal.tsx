@@ -7,6 +7,7 @@ import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product
 
 import { useRouter } from "next/navigation";
 import { getAdminIdToken } from "app/lib/get-admin-token";
+import { useProductPhotoEdit } from "app/lib/use-product-photo-edit";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { QuantityStepper } from "app/components/QuantityStepper";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
@@ -236,6 +237,15 @@ export default function ProductFullEditModal({
       setImageProcessing(false);
     }
   };
+
+  const photoEdit = useProductPhotoEdit({
+    code,
+    article: initialArticle || undefined,
+    getToken: getAdminIdToken,
+    imagePreview,
+    onPreviewChange: (dataUrl, outputBytes) => { setImagePreview(dataUrl); setImageUploadSize(outputBytes); },
+    onError: setImageError,
+  });
 
   const uploadImage = async () => {
     if (!imageFile || !imagePreview || imageProcessing || imageUploadLock.current || submitLock.current) return;
@@ -693,6 +703,11 @@ export default function ProductFullEditModal({
                 imageUploadSize={imageUploadSize}
                 onUploadImage={() => void uploadImage()}
                 onCancelImage={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
+                onRotateImage={(direction) => void photoEdit.rotate(direction)}
+                imageRotating={photoEdit.rotating}
+                onRemoveImage={() => void photoEdit.remove()}
+                imageRemoving={photoEdit.removing}
+                imageRemoved={photoEdit.removed && !imageUploaded}
                 galleryPreview={galleryPreview}
                 galleryProcessing={galleryProcessing}
                 galleryUploading={galleryUploading}

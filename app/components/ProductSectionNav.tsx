@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
 
 type ProductSectionNavItem = {
   href: string;
@@ -22,24 +21,47 @@ export default function ProductSectionNav({
       .filter((section): section is HTMLElement => Boolean(section));
     if (sections.length === 0) return;
 
-    // Anchors near the top of the viewport count as "current" a bit before
-    // they're fully in view — feels right for a jump-to-section nav (you're
-    // reading it once it's mostly there), rather than waiting for the whole
-    // section to have scrolled past the very top edge.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]?.target.id) {
-          setActiveHref(`#${visible[0].target.id}`);
-        }
-      },
-      { rootMargin: "-15% 0px -70% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] }
-    );
+    let observer: IntersectionObserver | undefined;
+    const nav = railRef.current?.closest("nav");
+    if (!nav) return;
 
-    for (const section of sections) observer.observe(section);
-    return () => observer.disconnect();
+    const pinnedContainer = nav.closest<HTMLElement>(".product-navigation-row") || nav;
+    const observeSections = () => {
+      observer?.disconnect();
+      // Track the reading area beneath both the pinned offer and navigation.
+      const navTop = Number.parseFloat(getComputedStyle(pinnedContainer).top) || 0;
+      let coveredHeight = navTop + pinnedContainer.offsetHeight;
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        const offer = nav.closest(".product-page")?.querySelector<HTMLElement>(".product-hero-gallery");
+        if (offer) coveredHeight = Math.max(coveredHeight, (Number.parseFloat(getComputedStyle(offer).top) || 0) + offer.offsetHeight);
+      }
+      const identity = nav.closest(".product-page")?.querySelector<HTMLElement>(".product-identity-sticky");
+      if (identity) coveredHeight = Math.max(coveredHeight, (Number.parseFloat(getComputedStyle(identity).top) || 0) + identity.offsetHeight);
+      const top = Math.min(window.innerHeight - 40, coveredHeight + 8);
+      const readingHeight = Math.max(40, (window.innerHeight - top) * 0.45);
+      const bottom = Math.max(0, window.innerHeight - top - readingHeight);
+      observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          if (visible[0]?.target.id) setActiveHref(`#${visible[0].target.id}`);
+        },
+        { rootMargin: `-${top}px 0px -${bottom}px 0px`, threshold: 0 }
+      );
+      sections.forEach((section) => observer?.observe(section));
+    };
+    observeSections();
+    const resizeObserver = new ResizeObserver(observeSections);
+    resizeObserver.observe(pinnedContainer);
+    const identity = nav.closest(".product-page")?.querySelector(".product-identity-sticky");
+    if (identity) resizeObserver.observe(identity);
+    window.addEventListener("resize", observeSections);
+    return () => {
+      observer?.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", observeSections);
+    };
   }, [items]);
 
   useEffect(() => {
@@ -81,35 +103,24 @@ export default function ProductSectionNav({
   };
 
   return (
-    <nav aria-label="Розділи сторінки товару" className="select-none border-b border-slate-200/80 bg-white px-3 py-2.5 sm:px-5 lg:px-7">
-      <div
-        ref={railRef}
-        className="mx-auto flex max-w-[1280px] items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {items.map((item) => {
-          const isActive = item.href === activeHref;
-          return (
-            <a
-              key={item.href}
-              href={item.href}
-              onClick={(event) => handleClick(event, item.href)}
-              aria-current={isActive ? "true" : undefined}
-              // select-none — without it, clicking (especially a slightly
-              // imprecise or double click, which the smooth-scroll's own
-              // brief delay before the page visibly moves seems to invite)
-              // highlighted the label's text like a text-selection drag
-              // instead of reading as a clean navigation action.
-              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-[11px] font-extrabold tracking-[0.01em] transition sm:px-4 sm:text-[12px] ${
-                isActive
-                  ? "bg-slate-950 text-white shadow-[0_8px_18px_rgba(15,23,42,0.16)]"
-                  : "border border-slate-200 bg-slate-50 text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              }`}
-            >
-              {item.label}
-              <ChevronRight size={13} aria-hidden="true" />
-            </a>
-          );
-        })}
+    <nav aria-label="Розділи сторінки товару" className="product-details-nav">
+      <div className="product-details-nav-inner">
+        <div ref={railRef} className="product-details-nav-rail">
+          {items.map((item) => {
+            const isActive = item.href === activeHref;
+            return (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={(event) => handleClick(event, item.href)}
+                aria-current={isActive ? "location" : undefined}
+                className="product-details-nav-link"
+              >
+                {item.label}
+              </a>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

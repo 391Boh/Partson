@@ -30,6 +30,9 @@ export function useLiveCatalogRefresh(codes: string[], enabled: boolean, apply: 
       let failed = false;
       try {
         const token = mode === 'fast' ? null : await getAdminIdToken();
+        // Auth restoration is not a negative role check. A downgraded public
+        // refresh would erase already verified partner prices on the cards.
+        if (mode !== 'fast' && !token) return;
         for (let index = 0; index < requested.length && !disposed && generation === currentGeneration; index += 16) {
           const response = await fetch('/api/catalog-live', {
             method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },

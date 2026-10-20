@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { isCatalogSortOrder, type CatalogSortOrder } from "app/lib/catalog-sort";
+
 type CatalogViewState = {
-  sortOrder: "none" | "asc" | "desc";
+  sortOrder: CatalogSortOrder;
   pricedOnly: boolean;
   priceFrom: number | null;
   priceTo: number | null;
@@ -39,7 +41,7 @@ export default function CatalogSeoFilterSummaryClient({
   useEffect(() => {
     try {
       const storedSort = window.localStorage.getItem("partson:catalogSortOrder");
-      if (storedSort === "asc" || storedSort === "desc") {
+      if (isCatalogSortOrder(storedSort) && storedSort !== "none") {
         setViewState((current) => ({ ...current, sortOrder: storedSort }));
       }
     } catch {
@@ -78,7 +80,11 @@ export default function CatalogSeoFilterSummaryClient({
           ? "↑ Спочатку дешевші"
           : viewState.sortOrder === "desc"
             ? "↓ Спочатку дорожчі"
-            : "стандартний порядок",
+            : viewState.sortOrder === "name_asc"
+              ? "За назвою: А → Я"
+              : viewState.sortOrder === "name_desc"
+                ? "За назвою: Я → А"
+                : "стандартний порядок",
       active: viewState.sortOrder !== "none",
     },
     {

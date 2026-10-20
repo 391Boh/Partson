@@ -6,6 +6,7 @@ import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { replaceCatalogUrl } from 'app/lib/catalog-navigation';
+import type { CatalogSortOrder } from 'app/lib/catalog-sort';
 import dynamic from 'next/dynamic';
 import FilterLoadingState from 'app/components/FilterLoadingState';
 import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
@@ -53,10 +54,10 @@ interface FilterSidebarProps {
   handleCarChange: (car: string) => void;
   selectedCategories: string[];
   handleCategoryToggle: (category: string) => void;
-  sortOrder?: 'none' | 'asc' | 'desc';
+  sortOrder?: CatalogSortOrder;
   toggleSortOrder?: () => void;
   onResetSort?: () => void;
-  onSortOrderChange?: (order: 'none' | 'asc' | 'desc') => void;
+  onSortOrderChange?: (order: CatalogSortOrder) => void;
   selectedCarSelection?: PersistedCarSelection | null;
   onSelectedCarSelectionChange?: (selection: PersistedCarSelection | null) => void;
   onVinSelect?: (vin: string | null) => void;
@@ -92,7 +93,7 @@ interface CategoryProps {
   onSearchTermChange?: (value: string) => void;
   resetViewSignal?: number;
   selectedCars?: string[];
-  sortOrder?: 'none' | 'asc' | 'desc';
+  sortOrder?: CatalogSortOrder;
 }
 
 // One loading design for every filter tab (FilterLoadingState): a labelled
@@ -277,7 +278,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     [cancelPendingPriceCommit, onPriceRangeChange]
   );
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
-  const [localSortOrder, setLocalSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [localSortOrder, setLocalSortOrder] = useState<CatalogSortOrder>('none');
   const [collapsed, setCollapsed] = useState(true);
   const ignoreScrollCloseUntilRef = useRef(0);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
@@ -384,6 +385,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const effectiveSortOrder = sortOrderProp ?? localSortOrder;
   const isSortNone = effectiveSortOrder === 'none';
   const isSortAsc = effectiveSortOrder === 'asc';
+  const isNameSort = effectiveSortOrder === 'name_asc' || effectiveSortOrder === 'name_desc';
+  const setSortOrder = (order: CatalogSortOrder) => {
+    if (onSortOrderChange) onSortOrderChange(order);
+    else setLocalSortOrder(order);
+  };
 
   const groupParam = currentSearchParams.get('group');
   const subcategoryParam = currentSearchParams.get('subcategory');
@@ -854,7 +860,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       ? filterChipPurpleOutline
       : filterChipIdle;
   const sortButtonClass = hasPriceFilter
-    ? (isSortAsc ? filterChipBlue : filterChipEmerald)
+    ? (isSortAsc || effectiveSortOrder === 'name_asc' ? filterChipBlue : filterChipEmerald)
     : isPriceTabOpen
       ? filterChipBlueOutline
       : filterChipIdle;
@@ -1102,10 +1108,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   <button
                     key={order}
                     type="button"
-                    onClick={() => {
-                      if (onSortOrderChange) onSortOrderChange(order);
-                      else setLocalSortOrder(order);
-                    }}
+                    onClick={() => setSortOrder(order)}
+                    aria-pressed={isActive}
                     className={`flex flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
                       isActive
                         ? order === 'asc'
@@ -1120,6 +1124,37 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                       <span className="text-[10px] opacity-80">{config[order].icon}</span>
                     )}
                     {config[order].label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Alphabetical order. Same control style as the price sort
+                above; picking it replaces the price sort (1C orders by one
+                key), clicking the active option returns to the default. */}
+            <div
+              className="catalog-price-control-card mt-2 flex items-center rounded-[15px] border border-slate-200/60 bg-white/72 p-1 gap-1 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+              role="group"
+              aria-label="Сортування за назвою"
+            >
+              <span className="shrink-0 px-2 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Назва</span>
+              {(['name_asc', 'name_desc'] as const).map((order) => {
+                const isActive = effectiveSortOrder === order;
+                return (
+                  <button
+                    key={order}
+                    type="button"
+                    onClick={() => setSortOrder(isActive ? 'none' : order)}
+                    aria-pressed={isActive}
+                    className={`flex flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
+                      isActive
+                        ? order === 'name_asc'
+                          ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
+                          : 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
+                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                    }`}
+                  >
+                    {order === 'name_asc' ? 'А → Я' : 'Я → А'}
                   </button>
                 );
               })}
@@ -1383,7 +1418,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 handleOpenPriceTab();
               }}
               className={sortButtonClass}
-              aria-label="Фільтр та сортування за ціною"
+              aria-label="Ціна та сортування"
               aria-pressed={isPriceTabActive && !collapsed}
             >
               <span className="flex items-center gap-1 whitespace-nowrap sm:hidden">
@@ -1392,7 +1427,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 </span>
                 {!isSortNone && (
                   <span className="text-[11px] font-semibold leading-none">
-                    {isSortAsc ? '↑' : '↓'}
+                    {isNameSort
+                      ? (effectiveSortOrder === 'name_asc' ? 'А–Я' : 'Я–А')
+                      : isSortAsc ? '↑' : '↓'}
                   </span>
                 )}
               </span>
@@ -1402,7 +1439,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                   ₴
                 </span>
                 <span className="whitespace-nowrap">
-                  {isSortNone ? 'Ціна' : isSortAsc ? 'Низька' : 'Висока'}
+                  {isSortNone
+                    ? 'Ціна'
+                    : isNameSort
+                      ? (effectiveSortOrder === 'name_asc' ? 'А → Я' : 'Я → А')
+                      : isSortAsc ? 'Низька' : 'Висока'}
                 </span>
               </span>
             </button>

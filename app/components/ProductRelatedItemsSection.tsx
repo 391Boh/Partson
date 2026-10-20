@@ -34,6 +34,9 @@ type ProductRelatedItemsSectionProps = {
   euroRate?: number;
   // Cross-reference codes parsed from the product name, for the numbers block.
   crossReferenceCodes?: string[];
+  // The page's H1 text: names the block and its ItemList markup in the same
+  // readable words instead of the abbreviated 1C name.
+  displayName?: string;
 };
 
 const buildRecommendationItemListJsonLd = (
@@ -71,6 +74,7 @@ export default async function ProductRelatedItemsSection({
   product,
   euroRate = 50,
   crossReferenceCodes = [],
+  displayName = "",
 }: ProductRelatedItemsSectionProps) {
   const article = (product.article || "").trim();
   const code = (product.code || "").trim();
@@ -119,20 +123,31 @@ export default async function ProductRelatedItemsSection({
     initialSimilarResult ??
     (staticRecommendations.similar.length > 0 ? staticRecommendations.similar : null);
 
+  const productLabel = displayName.trim() || buildVisibleProductName(name || article || code);
   const recommendationItemListJsonLd = buildRecommendationItemListJsonLd(
     initialRelatedItems ?? [],
-    `Аналоги для ${buildVisibleProductName(name || article || code)}`
+    `Аналоги ${productLabel}`
   );
   const similarItemListJsonLd = buildRecommendationItemListJsonLd(
     initialSimilarItems ?? [],
-    `Схожі товари для ${buildVisibleProductName(name || article || code)}`
+    `Схожі товари: ${productLabel}`
   );
+  const heading = article
+    ? `Аналоги ${producer ? `${producer} ` : ""}${article}`
+    : "Аналоги та схожі товари";
 
   return (
-    <>
+    <section className="product-analogs" aria-labelledby="product-analogs-title">
+      <div className="product-analogs-head">
+        <p className="product-analogs-eyebrow">Аналоги та заміна</p>
+        <h2 id="product-analogs-title">{heading}</h2>
+        <p className="product-analogs-intro">
+          Замінники від інших виробників і крос-номери для позиції «{productLabel}». Порівняйте ціну
+          й наявність — сумісність з вашим авто звіримо за VIN.
+        </p>
+      </div>
       <ProductCrossReferences
         article={article}
-        code={code}
         producer={producer}
         crossReferenceCodes={crossReferenceCodes}
         analogs={initialRelatedItems ?? []}
@@ -143,6 +158,10 @@ export default async function ProductRelatedItemsSection({
         initialSimilarItems={initialSimilarItems}
         euroRate={euroRate}
       />
+      <p className="product-analogs-note">
+        Аналог має збігатися з оригіналом за розмірами й кріпленням. Надішліть VIN — менеджер звірить номер
+        з каталогом виробника до відправлення.
+      </p>
       {recommendationItemListJsonLd ? (
         <script
           type="application/ld+json"
@@ -159,6 +178,6 @@ export default async function ProductRelatedItemsSection({
           }}
         />
       ) : null}
-    </>
+    </section>
   );
 }

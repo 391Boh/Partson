@@ -13,7 +13,7 @@ import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
 export const runtime = "nodejs";
 
 // fast: public sale prices; partner: partner-only Акція prices; full:
-// admin-only purchase prices. Authorization is resolved before cache access,
+// admin purchase and promo prices. Authorization is resolved before cache access,
 // so a public request can never reuse a protected payload.
 
 type PriceBatchItem = {
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     const mode: "fast" | "partner" | "full" =
       requestedMode === "full" && (await verifyAdminRequest(request))
         ? "full"
-        : requestedMode === "partner" && (await verifyPartnerRequest(request))
+        : requestedMode === "partner" && ((await verifyAdminRequest(request)) || (await verifyPartnerRequest(request)))
           ? "partner"
           : "fast";
     const body = (await request.json().catch(() => ({}))) as {
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         promoPrices: {},
         hasPromo: {},
         promoPercent: {},
-        isPartner: mode === "partner",
+        isPartner: mode !== "fast",
       });
     }
 
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
         promoPrices: {},
         hasPromo: {},
         promoPercent: {},
-        isPartner: mode === "partner",
+        isPartner: mode !== "fast",
       });
     }
 
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
         promoPrices: cachedItemPromoPrices,
         hasPromo: cachedItemHasPromo,
         promoPercent: cachedItemPromoPercent,
-        isPartner: mode === "partner",
+        isPartner: mode !== "fast",
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         promoPrices: { ...cachedItemPromoPrices, ...missingPayload.promoPrices },
         hasPromo: { ...cachedItemHasPromo, ...missingPayload.hasPromo },
         promoPercent: { ...cachedItemPromoPercent, ...missingPayload.promoPercent },
-        isPartner: mode === "partner",
+        isPartner: mode !== "fast",
       };
       catalogPricesRouteCache.set(cacheKey, {
         payload,
@@ -277,8 +277,7 @@ export async function POST(request: NextRequest) {
       );
 
       const isFullMode = mode === "full";
-      const isPartnerMode = mode === "partner";
-      const needsProtectedDetails = isFullMode || isPartnerMode;
+      const needsProtectedDetails = mode !== "fast";
 
       // Resolve as much as the warm full-catalog snapshot already knows,
       // entirely in memory — see getSnapshotPriceLookup's own comment. This
@@ -401,7 +400,7 @@ export async function POST(request: NextRequest) {
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
         const regularPrice = prices[item.stateKey];
         promoPrices[item.stateKey] =
-          isPartnerMode &&
+          needsProtectedDetails &&
           typeof matchedPromo === "number" &&
           Number.isFinite(matchedPromo) &&
           matchedPromo > 0 &&
@@ -431,7 +430,7 @@ export async function POST(request: NextRequest) {
         promoPrices,
         hasPromo,
         promoPercent,
-        isPartner: isPartnerMode,
+        isPartner: needsProtectedDetails,
       };
     })();
 
@@ -480,7 +479,7 @@ export async function POST(request: NextRequest) {
       promoPrices: { ...cachedItemPromoPrices, ...missingPayload.promoPrices },
       hasPromo: { ...cachedItemHasPromo, ...missingPayload.hasPromo },
       promoPercent: { ...cachedItemPromoPercent, ...missingPayload.promoPercent },
-      isPartner: mode === "partner",
+      isPartner: mode !== "fast",
     };
 
     catalogPricesRouteCache.set(cacheKey, {

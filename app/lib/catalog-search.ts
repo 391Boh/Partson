@@ -44,30 +44,47 @@ export type SearchPage<T> = {
   items: T[]; hasMore: boolean; nextCursor: string; totalCount?: number | null;
 };
 
+// "asc"/"desc" order by price; "name_asc"/"name_desc" alphabetically.
+export type SearchSortOrder = "none" | "asc" | "desc" | "name_asc" | "name_desc";
+
+const nameCollator = new Intl.Collator("uk", { sensitivity: "base", numeric: true });
+const compareCodes = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+// Alphabetical (Ukrainian collation, numbers by value), then code — the same
+// tie-break 1C uses for its own name order.
+export const compareProductNames = (a: { name: string; code: string }, b: { name: string; code: string }) =>
+  nameCollator.compare(a.name || "", b.name || "") || compareCodes(a.code, b.code);
+
 // Sorted key shared by ordering and cursors: price (unpriced items last in
-// both directions), then code.
-type SortKey = { price: number; code: string };
-const sortKey = (item: SearchItem, sort: "asc" | "desc"): SortKey => ({
+// both directions) or name, then code.
+type SortKey = { price: number; name: string; code: string };
+const sortKey = (item: SearchItem, sort: Exclude<SearchSortOrder, "none">): SortKey => ({
   price: typeof item.priceEuro === "number" && item.priceEuro > 0
     ? item.priceEuro : sort === "asc" ? 999999999999 : -1,
+  name: item.name || "",
   code: item.code,
 });
-const compareSortKeys = (a: SortKey, b: SortKey, sort: "asc" | "desc") => {
+const compareSortKeys = (a: SortKey, b: SortKey, sort: Exclude<SearchSortOrder, "none">) => {
+  if (sort === "name_asc" || sort === "name_desc") {
+    const byName = nameCollator.compare(a.name, b.name);
+    if (byName) return sort === "name_asc" ? byName : -byName;
+    return compareCodes(a.code, b.code);
+  }
   if (a.price !== b.price) return sort === "asc" ? a.price - b.price : b.price - a.price;
-  return a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
+  return compareCodes(a.code, b.code);
 };
 const parseSortCursor = (cursor: string): SortKey | null => {
   try {
     const parsed = JSON.parse(cursor) as Partial<SortKey>;
     return typeof parsed.price === "number" && typeof parsed.code === "string"
-      ? { price: parsed.price, code: parsed.code } : null;
+      ? { price: parsed.price, name: typeof parsed.name === "string" ? parsed.name : "", code: parsed.code } : null;
   } catch { return null; }
 };
 
 // Unsorted: continue after the last emitted 1C code. Sorted: continue after
-// the last emitted (price, code). Never after the end of a source batch —
-// that would skip hits.
-export function searchItemCursor(item: SearchItem, sort: "none" | "asc" | "desc"): string {
+// the last emitted (price or name, code). Never after the end of a source
+// batch — that would skip hits.
+export function searchItemCursor(item: SearchItem, sort: SearchSortOrder): string {
   return sort === "none" ? item.code : JSON.stringify(sortKey(item, sort));
 }
 
@@ -79,7 +96,7 @@ export async function searchProductFields<T extends SearchItem>(options: {
   fields: SearchField[];
   limit: number;
   cursor: string;
-  sort: "none" | "asc" | "desc";
+  sort: SearchSortOrder;
   fetchPage: (field: SearchField, cursor: string, limit: number) => Promise<SearchPage<T>>;
 }): Promise<SearchPage<T>> {
   const sort = options.sort;
@@ -118,7 +135,7 @@ export async function searchProductFields<T extends SearchItem>(options: {
   const all = [...unique.values()].sort((a, b) =>
     sort !== "none"
       ? compareSortKeys(sortKey(a, sort), sortKey(b, sort), sort)
-      : a.code < b.code ? -1 : a.code > b.code ? 1 : 0
+      : compareCodes(a.code, b.code)
   );
   const after = scanAll && options.cursor ? parseSortCursor(options.cursor) : null;
   const visible = after && sort !== "none"

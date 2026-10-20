@@ -191,3 +191,43 @@ export const prepareProductImage = async (file: File): Promise<PreparedProductIm
     if (canvas) { canvas.width = 0; canvas.height = 0; }
   }
 };
+
+const dataUrlToImage = (dataUrl: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Не вдалося повернути зображення."));
+    image.src = dataUrl;
+  });
+
+/** Rotates an already prepared photo by 90° (phone photos often arrive on
+ *  their side). Re-encodes once at the same quality the upload uses. */
+export const rotatePreparedProductImage = async (
+  dataUrl: string,
+  direction: 1 | -1
+): Promise<Pick<PreparedProductImage, "dataUrl" | "width" | "height" | "outputBytes">> => {
+  const image = await dataUrlToImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  try {
+    canvas.width = image.naturalHeight;
+    canvas.height = image.naturalWidth;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Браузер не підтримує обробку цього зображення.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.translate(canvas.width / 2, canvas.height / 2);
+    context.rotate((direction * Math.PI) / 2);
+    context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+    const blob = await canvasToJpegBlob(canvas, PRODUCT_IMAGE_START_QUALITY);
+    return {
+      dataUrl: await blobToDataUrl(blob),
+      width: canvas.width,
+      height: canvas.height,
+      outputBytes: blob.size,
+    };
+  } finally {
+    image.src = "";
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+};

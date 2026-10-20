@@ -77,11 +77,13 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "code/Код is required" }, 400);
   }
 
+  // {remove: true} clears the main photo instead of replacing it.
+  const removePhoto = parsed.remove === true;
   const imageDataUrl = typeof parsed.imageDataUrl === "string" ? parsed.imageDataUrl.trim() : "";
   const rawImageBase64 =
     typeof parsed.image_base64 === "string" ? parsed.image_base64.trim() : "";
   const match = imageDataUrl ? DATA_URI_REGEX.exec(imageDataUrl) : null;
-  if (imageDataUrl && !match) {
+  if (!removePhoto && imageDataUrl && !match) {
     return json(
       { ok: false, error: "imageDataUrl must be a valid data URI (jpeg/png/webp/gif)" },
       400
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   const mimeType = match?.[1].toLowerCase() ?? "";
   const base64Data = (match?.[2] ?? rawImageBase64).replace(/[\r\n\s]/g, "");
-  if (!base64Data) {
+  if (!removePhoto && !base64Data) {
     return json({ ok: false, error: "imageDataUrl or image_base64 is required" }, 400);
   }
 
@@ -108,11 +110,9 @@ export async function POST(request: NextRequest) {
   // three — an extra `article` key was tried here (mirroring product-update's
   // combined-edit payload) but it triggers a "too many actual parameters"
   // error on the 1C side, so it stays out of this dedicated photo-only body.
-  const oneCBody: Record<string, unknown> = {
-    Код: code,
-    file_name: fileName,
-    image_base64: base64Data,
-  };
+  const oneCBody: Record<string, unknown> = removePhoto
+    ? { Код: code, ВидалитиФото: true }
+    : { Код: code, file_name: fileName, image_base64: base64Data };
 
   const result = await oneCRequest(ONEC_UPLOAD_IMAGE_ENDPOINT, {
     method: "POST",
@@ -170,6 +170,11 @@ export async function POST(request: NextRequest) {
     }, 422);
   }
 
+  // An older 1C edit ignores ВидалитиФото and answers "Фото не передано".
+  if (removePhoto && !/видален|немає фото/i.test(photoResult?.message || "")) {
+    return json({ ok: false, error: "1С ще не підтримує видалення фото: оновіть модуль ОбщегоНазначения" }, 501);
+  }
+
   const article = typeof parsed.article === "string" ? parsed.article.trim() : "";
   clearAllOneCCache();
   clearCatalogPageRouteCache();
@@ -179,7 +184,7 @@ export async function POST(request: NextRequest) {
   // clearCatalogImageResultCacheForProduct above.
   await clearRouteImageCacheForProduct(code, article || undefined);
   if (article) clearProductImageCacheForProduct(article);
-  seedProductImageBase64Cache([code, article], base64Data);
+  if (!removePhoto) seedProductImageBase64Cache([code, article], base64Data);
   try {
     revalidateTag("product-page-data", "max");
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
@@ -192,7 +197,7 @@ export async function POST(request: NextRequest) {
   return json({
     ok: true,
     code,
-    fileName,
+    ...(removePhoto ? { removed: true } : { fileName }),
     endpoint: ONEC_UPLOAD_IMAGE_ENDPOINT,
     uploadedBy: adminEmail,
   });

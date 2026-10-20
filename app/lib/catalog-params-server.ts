@@ -2,7 +2,7 @@ import "server-only";
 
 import { fetchCatalogProductsByQuery, type CatalogProduct, type CatalogSearchFilter } from "app/lib/catalog-server";
 import { catalogRouteCacheClearHooks } from "app/lib/catalog-page-route-cache";
-import { normalizeSearchQuery } from "app/lib/catalog-search";
+import { compareProductNames, normalizeSearchQuery } from "app/lib/catalog-search";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import {
   buildProductParamFacets,
@@ -35,6 +35,8 @@ export type CatalogParamsQuery = {
 // to 1C, so one category load serves every combination of them.
 export type CatalogParamsListOptions = {
   sortOrder: "none" | "asc" | "desc";
+  // Alphabetical order; only used when sortOrder (price) is "none".
+  nameSort: "none" | "asc" | "desc";
   pricedOnly: boolean;
   priceFrom: number | null; // EUR, as /api/catalog-page receives it
   priceTo: number | null;
@@ -70,6 +72,7 @@ export const readCatalogParamsQuery = (body: Record<string, unknown>): CatalogPa
 
 export const readCatalogParamsListOptions = (body: Record<string, unknown>): CatalogParamsListOptions => ({
   sortOrder: body.sortOrder === "asc" || body.sortOrder === "desc" ? body.sortOrder : "none",
+  nameSort: body.sortOrder === "name_asc" ? "asc" : body.sortOrder === "name_desc" ? "desc" : "none",
   pricedOnly: body.pricedOnly === true,
   priceFrom: readNonNegative(body.priceFrom),
   priceTo: readNonNegative(body.priceTo),
@@ -295,7 +298,11 @@ export const getCatalogProductsMatchingParams = async (
       return true;
     });
 
-  if (list.sortOrder === "none") return products;
+  if (list.sortOrder === "none") {
+    if (list.nameSort === "none") return products;
+    const nameDirection = list.nameSort === "asc" ? 1 : -1;
+    return [...products].sort((a, b) => compareProductNames(a, b) * nameDirection);
+  }
   const direction = list.sortOrder === "asc" ? 1 : -1;
   // Unpriced products go last in both directions, as in the 1C sort.
   return [...products].sort((a, b) => {

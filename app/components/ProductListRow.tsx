@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BadgePercent, Check, ChevronDown, ImagePlus, Minus, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import ProductCardImage from "app/components/ProductCardImage";
+import PriceLoadingSkeleton from "app/components/PriceLoadingSkeleton";
 import type { Product } from "app/components/Data";
 import { buildVisibleCategoryLabel, buildVisibleProductName } from "app/lib/product-url";
 import { useProductQuantity } from "app/lib/use-product-quantity";
@@ -106,6 +107,7 @@ const ProductListRow: React.FC<Props> = ({
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
     const hasPromoPrice =
+        !isPriceLoading &&
         isPartner &&
         typeof promoPriceUAH === "number" &&
         Number.isFinite(promoPriceUAH) &&
@@ -120,7 +122,7 @@ const ProductListRow: React.FC<Props> = ({
     // A promo exists but this visitor isn't a partner (or isn't logged in) —
     // mark it without revealing the discounted amount, reserved for verified
     // partners (see hasPromo's own comment above).
-    const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
+    const showPartnerDiscountTeaser = !isPriceLoading && !hasPromoPrice && hasPromo;
     const isRequestAction = priceStatus === "request";
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
@@ -545,8 +547,8 @@ const ProductListRow: React.FC<Props> = ({
                             </button>
                         </div>
                     ) : (
-                        <div className="group/price flex items-center gap-1">
-                            {showCostPrice ? (
+                        <div className="catalog-list-price-slot group/price flex items-center gap-1">
+                            {isPriceLoading ? <PriceLoadingSkeleton /> : showCostPrice ? (
                                 hasCostPrice ? (
                                     <span className="catalog-list-price-depth--cost text-[15px] font-black text-amber-700">
                                         {costPriceUAH!.toLocaleString("uk-UA")} <span className="text-[11px] font-bold text-amber-500">грн</span>
@@ -582,8 +584,6 @@ const ProductListRow: React.FC<Props> = ({
                                         </span>
                                     )}
                                 </span>
-                            ) : isPriceLoading ? (
-                                <span className="text-[11px] font-semibold text-slate-400">Ціна...</span>
                             ) : (
                                 <span className="text-[11px] font-semibold text-slate-400">За запитом</span>
                             )}

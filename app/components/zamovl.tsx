@@ -56,20 +56,25 @@ const estimateDeliveryDate = (deliveryMethod: DeliveryMethodType) => {
   return formatDateOnly(addBusinessDays(new Date(), businessDays));
 };
 
-const deductOrderStock = async (
-  items: { code: string; article: string; quantity: number }[]
-) => {
+// The server reads the items from the stored order and deducts it once; the
+// confirmed balances it returns update any product page already open.
+const deductOrderStock = async (orderId: string) => {
   try {
-    const secret = process.env.NEXT_PUBLIC_NOTIFY_SECRET || "";
-    await fetch("/api/orders/deduct-stock", {
+    const response = await fetch("/api/orders/deduct-stock", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(secret ? { "x-notify-secret": secret } : {}),
-      },
-      body: JSON.stringify({ items }),
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderId }),
       keepalive: true,
     });
+    if (!response.ok) return;
+    const payload = (await response.json()) as {
+      items?: { code?: string; stockAfter?: number | null }[];
+    };
+    for (const item of payload.items || []) {
+      if (item.code && typeof item.stockAfter === "number") {
+        invalidateCatalogClientCache({ code: item.code, quantity: item.stockAfter });
+      }
+    }
   } catch {
     // fire-and-forget — don't interrupt order confirmation
   }
@@ -384,7 +389,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       setCurrentStep(3);
 
       invalidateCatalogClientCache();
-      void deductOrderStock(normalizedCartItems);
+      void deductOrderStock(orderId);
     return { orderRef, resolvedPaymentStatus };
   };
 

@@ -8,6 +8,14 @@ export type ProductFaqItem = {
   answer: string;
 };
 
+// Ukrainian needs the product name inflected after most prepositions ("для
+// троса", "на шину"), which a template cannot do. Every sentence here keeps
+// the name as the subject, in the nominative, so it reads correctly for any
+// product. Mid-sentence it starts lower-case unless it opens with an
+// abbreviation or brand ("ГРМ", "ALPHA").
+const inSentence = (name: string) =>
+  /^\p{Lu}\p{Ll}/u.test(name) ? name.charAt(0).toLocaleLowerCase("uk-UA") + name.slice(1) : name;
+
 export const buildProductFaqItems = (options: {
   name: string;
   producer: string;
@@ -17,30 +25,32 @@ export const buildProductFaqItems = (options: {
   quantity: number;
 }): ProductFaqItem[] => {
   const { name, producer, group, subGroup, hasPrice, quantity } = options;
-  const productLabel = name || "цього товару";
-  const producerLabel = producer || "виробника";
-  const groupLabel = subGroup || group || "запчастин";
-  const availLabel =
-    quantity > 0 ? `є в наявності ${quantity} шт` : "доступний під замовлення";
+  const productName = name.trim();
+  const productLabel = productName ? inSentence(productName) : "ця деталь";
+  const catalogLabel = producer ? `каталогом ${producer}` : "каталогом виробника";
+  const groupLabel = (subGroup || group).trim();
 
   return [
     {
-      question: `Як замовити ${productLabel} у Львові?`,
+      question: `Чи підійде ${productLabel} до мого авто?`,
+      answer: `Надішліть VIN-код або марку, модель, рік і двигун автомобіля — менеджер PartsON звірить номер з ${catalogLabel} і підтвердить сумісність до відправлення.${groupLabel ? ` Якщо позиція не підходить, підберемо іншу з розділу «${groupLabel}» або аналог.` : " Якщо позиція не підходить, підберемо аналог."}`,
+    },
+    {
+      question: `Чи є ${productLabel} в наявності?`,
+      answer:
+        quantity > 0
+          ? `Так, зараз на складі у Львові ${quantity} шт. Після підтвердження замовлення відправляємо Новою Поштою, Укрпоштою або Meest — доставка по Україні зазвичай 1–2 робочі дні. Самовивіз з вул. Перфецького, 8 — у день замовлення.`
+          : `Зараз позиція під замовлення. Залиште запит — менеджер назве ціну й строк постачання, після чого відправимо Новою Поштою, Укрпоштою або Meest чи підготуємо до самовивозу у Львові.`,
+    },
+    {
+      question: hasPrice ? "Як оформити замовлення й оплатити?" : "Як дізнатися ціну?",
       answer: hasPrice
-        ? `Додайте ${productLabel} у кошик прямо на сторінці. Оплата: готівка, картка (термінал), онлайн або безготівково для юридичних осіб. Доставка Нова Пошта, Укрпошта, Meest по Україні або самовивіз у Львові.`
-        : `Для уточнення ціни на ${productLabel} надішліть запит менеджеру через чат. Ми підберемо оптимальний варіант від перевіреного постачальника.`,
+        ? "Натисніть «Додати до кошика» й оформіть замовлення — менеджер підтвердить наявність і доставку. Оплата готівкою, карткою, онлайн або безготівково для юридичних осіб."
+        : "Ціну на цю позицію уточнює менеджер. Напишіть у чат або зателефонуйте +38 (063) 421-18-51 — відповімо з ціною й строком постачання.",
     },
     {
-      question: `Як перевірити сумісність ${productLabel} з моїм авто?`,
-      answer: `Для перевірки сумісності ${productLabel} від ${producerLabel} надайте VIN-код або марку, модель і рік авто. Менеджер PartsON підбере запчастину категорії ${groupLabel}. Підбір також за оригінальним артикулом або кодом.`,
-    },
-    {
-      question: `Яка наявність і терміни доставки ${productLabel}?`,
-      answer: `Зараз ${productLabel} ${availLabel}. По Україні — Нова Пошта, Укрпошта або Meest, зазвичай 1–2 робочі дні після підтвердження замовлення. У Львові — самовивіз із магазину на Перфецького, 8 у день замовлення або доставка по місту за домовленістю з менеджером.`,
-    },
-    {
-      question: `Чи є гарантія на ${productLabel}?`,
-      answer: `Так. Товар із виробничим дефектом можна повернути або обміняти протягом гарантійного строку — з документом про покупку. Деталь належної якості, яка не підійшла, приймаємо протягом 14 днів, якщо її не встановлювали і збережено упаковку та комплектацію.`,
+      question: "Які умови гарантії та повернення?",
+      answer: "Деталь із виробничим дефектом повернемо або обміняємо протягом гарантійного строку за документом про покупку. Якщо деталь належної якості не підійшла, приймаємо її протягом 14 днів — за умови, що її не встановлювали й збережено упаковку та комплектацію.",
     },
   ];
 };

@@ -1,49 +1,57 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import { ChevronRight, Store } from 'lucide-react';
-import HeroBlogCard from './HeroBlogCard';
+import { HOME_SECTION_IDS } from 'app/lib/home-sections';
+import HeroSectionLink from './HeroSectionLink';
+import { Car, ChevronRight, LayoutGrid, MapPin, Truck } from 'lucide-react';
+import HeroVinCheckButton from './HeroVinCheckButton';
 
+// One job: get the visitor to a part. Search lives in the header, so the
+// hero offers the three ways to pick one: by car, by category, or a VIN
+// compatibility check from the profile.
 export default function HeroIntroCard() {
-
   return (
     <div className="home-intro home-intro-refined">
       <div className="home-intro-copy">
-        <div className="home-intro-identity">
-          <span className="home-intro-icon" aria-hidden="true"><Store size={17} strokeWidth={1.8} /></span>
-          <p className="home-intro-kicker">PartsON · магазин автозапчастин</p>
-        </div>
         <h1 className="font-display font-display-readable">
           Запчастини для авто <span>у Львові</span>
         </h1>
         <p className="home-intro-subtitle">
-          <strong>Запчастини для ТО та ремонту легкових авто.</strong>{" "}
-          Пошук запчастин за артикулом, маркою авто та виробником.
-          Обирайте групи товарів для двигуна, підвіски й гальмівної системи,
-          порівнюйте ціни та наявність деталей у каталозі.{" "}
-          Потрібна перевірка сумісності? Допоможемо з підбором за VIN.{" "}
-          <strong>Самовивіз у Львові та доставка по Україні.</strong>
+          Для ТО та ремонту легкових авто. Оберіть, як підібрати деталь:
         </p>
       </div>
 
-      <div className="home-intro-links home-feature-links">
-        <Link href="/inform/diagnostics" prefetch={false} className="home-feature-card">
-          <div className="home-feature-image home-feature-image-service">
-            <Image
-              src="/Katlogo/datchyky_ta_elektronika.png"
-              alt=""
-              fill
-              sizes="(max-width: 479px) 88px, 108px"
-              className="object-contain"
-            />
-          </div>
-          <div className="home-feature-copy">
-            <span className="home-feature-label">Послуга</span>
-            <h2>Комп’ютерна діагностика</h2>
-            <span className="home-feature-action">Дізнатися більше <ChevronRight size={14} aria-hidden="true" /></span>
-          </div>
-        </Link>
-        <HeroBlogCard />
-      </div>
+      <ul className="home-part-paths" aria-label="Способи підбору запчастин">
+        <li>
+          <HeroSectionLink targetId={HOME_SECTION_IDS.auto} className="home-part-path home-part-path-primary">
+            <span className="home-part-path-icon">
+              <Car size={20} strokeWidth={2} aria-hidden="true" />
+            </span>
+            <span className="home-part-path-text">
+              <span className="home-part-path-title">Підбір по авто</span>
+              <span className="home-part-path-hint">Марка, модель і рік — покажемо лише сумісні деталі</span>
+            </span>
+            <ChevronRight className="home-part-path-arrow" size={18} strokeWidth={2} aria-hidden="true" />
+          </HeroSectionLink>
+        </li>
+        <li>
+          <HeroSectionLink targetId={HOME_SECTION_IDS.categories} className="home-part-path">
+            <span className="home-part-path-icon">
+              <LayoutGrid size={20} strokeWidth={2} aria-hidden="true" />
+            </span>
+            <span className="home-part-path-text">
+              <span className="home-part-path-title">Вибір категорії</span>
+              <span className="home-part-path-hint">Гальма, підвіска, двигун, фільтри — від групи до потрібної деталі</span>
+            </span>
+            <ChevronRight className="home-part-path-arrow" size={18} strokeWidth={2} aria-hidden="true" />
+          </HeroSectionLink>
+        </li>
+        <li>
+          <HeroVinCheckButton />
+        </li>
+      </ul>
+
+      <p className="home-intro-trust-line">
+        <span><MapPin size={14} strokeWidth={2} aria-hidden="true" />Самовивіз у Львові</span>
+        <span><Truck size={14} strokeWidth={2} aria-hidden="true" />Доставка по Україні</span>
+      </p>
     </div>
   );
 }

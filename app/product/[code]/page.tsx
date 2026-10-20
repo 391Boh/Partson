@@ -1,5 +1,4 @@
-import ProductStockBadge from "app/components/ProductStockBadge";
-import { cache, Suspense, type CSSProperties } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
@@ -9,11 +8,11 @@ import { notFound, permanentRedirect } from "next/navigation";
 import {
   BadgeCheck,
   ChevronRight,
+  Hash,
   MapPin,
   PackageSearch,
   ShieldCheck,
   Star,
-  Tags,
   Truck,
 } from "lucide-react";
 
@@ -27,6 +26,7 @@ import {
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
+import ProductIdentitySticky from "app/components/ProductIdentitySticky";
 import ProductSectionNav from "app/components/ProductSectionNav";
 import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
@@ -292,22 +292,20 @@ const ProductDeferredRecommendations = dynamic(
 );
 
 const ProductRelatedItemsFallback = () => (
-  <section
-    aria-label="Завантаження рекомендованих товарів"
-    className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.92),rgba(248,250,252,0.98))] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.05)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4"
-  >
-    <div className="flex items-end justify-between gap-3 border-b border-slate-100 pb-2.5">
-      <div className="min-w-0 flex-1">
-        <div className="h-3 w-28 animate-pulse rounded-full bg-sky-100 motion-reduce:animate-none" />
-        <div className="mt-2 h-6 w-72 max-w-full animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
-      </div>
-      <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+  <section aria-label="Завантаження аналогів" aria-busy="true" className="product-analogs">
+    <div className="h-3 w-32 animate-pulse rounded-full bg-sky-100 motion-reduce:animate-none" />
+    <div className="mt-2 h-6 w-64 max-w-full animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+    <div className="mt-2 h-4 w-96 max-w-full animate-pulse rounded-full bg-slate-100 motion-reduce:animate-none" />
+    <div className="mt-4 h-[54px] animate-pulse rounded-xl border border-slate-100 bg-white motion-reduce:animate-none" />
+    <div className="product-analogs-tabs product-analogs-tabs-skeleton mt-[18px]" aria-hidden="true">
+      <span />
+      <span />
     </div>
-    <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
-      {Array.from({ length: 2 }).map((_, index) => (
+    <div className="mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-hidden sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]">
+      {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="h-[88px] animate-pulse rounded-[14px] border border-slate-200 bg-slate-100 motion-reduce:animate-none"
+          className="h-[166px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100 motion-reduce:animate-none"
         />
       ))}
     </div>
@@ -321,11 +319,6 @@ interface ProductPageParams {
 interface ProductPageProps {
   params: Promise<ProductPageParams>;
 }
-
-const pageBackground: CSSProperties = {
-  backgroundImage:
-    "radial-gradient(circle at 4% 0%, rgba(14,165,233,0.18), transparent 25%), radial-gradient(circle at 96% 10%, rgba(45,212,191,0.12), transparent 23%), radial-gradient(circle at 50% 72%, rgba(125,211,252,0.08), transparent 30%), linear-gradient(180deg, #edf6fb 0%, #f8fafc 38%, #f2f7fa 100%)",
-};
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -1025,8 +1018,8 @@ const PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS = 900;
 const resolveProductPromoTeaser = cache(
   async (
     lookupKeys: string[]
-  ): Promise<{ hasPromo: boolean; promoPercent: number | null }> => {
-    if (lookupKeys.length === 0) return { hasPromo: false, promoPercent: null };
+  ): Promise<{ hasPromo: boolean; promoPercent: number | null; resolved: boolean }> => {
+    if (lookupKeys.length === 0) return { hasPromo: false, promoPercent: null, resolved: true };
 
     const result = await resolveWithTimeout(
       () =>
@@ -1034,14 +1027,18 @@ const resolveProductPromoTeaser = cache(
           timeoutMs: PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS,
           cacheTtlMs: 1000 * 60 * 5,
         }),
-      {},
+      null,
       PRODUCT_PAGE_PROMO_TEASER_TIMEOUT_MS
     );
-    const match = Object.values(result).find((entry) => entry.hasPromo === true);
+    // null = timed out: unknown, so the panel asks again client-side.
+    const match = result
+      ? Object.values(result).find((entry) => entry.hasPromo === true)
+      : undefined;
 
     return {
       hasPromo: Boolean(match),
       promoPercent: typeof match?.promoPercent === "number" ? match.promoPercent : null,
+      resolved: result !== null,
     };
   }
 );
@@ -2085,6 +2082,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     resolveProductPromoTeaser(lookupKeys).catch(() => ({
       hasPromo: false,
       promoPercent: null,
+      resolved: false,
     })),
   ]);
   const initialPriceUah = pagePrice.priceUah;
@@ -2195,8 +2193,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? buildProductFaqJsonLd({
         name: visibleProductName,
         producer: product.producer,
-        group: productGroup,
-        subGroup: productSubgroup,
+        group: visibleProductGroup,
+        subGroup: visibleProductSubgroup,
         hasPrice: initialPriceUah != null,
         quantity: product.quantity,
       })
@@ -2205,12 +2203,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // lg:px-7 scale exactly — it used to be a smaller, independent p-2.5/
   // sm:p-3.5/lg:p-4 scale, so the content cards' left edge sat inset from
   // the nav pills' left edge instead of sharing the same grid line.
-  const contentGridClass = isModalView
-    ? "grid gap-2.5 px-2.5 py-2.5 sm:px-3 sm:py-3"
-    : "grid gap-3 px-3 py-2.5 sm:gap-3.5 sm:px-5 sm:py-3.5 lg:px-7 lg:py-4";
-  const heroProductImageClass = isModalView
-    ? "mx-auto aspect-square w-full max-w-[260px] rounded-[18px] border border-cyan-400/18 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.84),rgba(2,6,23,0.98))]"
-    : "mx-auto aspect-square w-full max-w-[280px] rounded-[20px] border border-sky-100/70 bg-[radial-gradient(circle_at_top,rgba(224,242,254,0.9),rgba(255,255,255,0.98)_48%,rgba(241,245,249,0.96))] sm:max-w-[460px] lg:max-w-[520px]";
+  const heroProductImageClass = "mx-auto aspect-square w-full max-w-[560px] rounded-none !bg-white";
   const descriptionTextClass = isModalView
     ? "mt-1.5 space-y-2 break-words text-sm font-medium leading-relaxed text-slate-700"
     : "mt-2.5 space-y-2.5 break-words text-[14px] font-medium leading-[1.62] text-slate-700 sm:text-[15px]";
@@ -2256,9 +2249,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       : "Ідентифікатор";
   const productIdentifierValue =
     normalizedProductArticle || normalizedProductCode || "-";
-  const productIdentifierHint = hasDistinctProductCode
-    ? `Код товару: ${normalizedProductCode}`
-    : null;
+  const hasProductIdentifier = productIdentifierValue !== "-";
   const productHeadingText = buildFrontendProductHeading(product.name, {
     producer: product.producer,
     article: product.article,
@@ -2277,8 +2268,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // visitor nothing they didn't already know from being on a product page.
   // The subgroup/group name is real, specific context (e.g. "Гальмівні
   // колодки"); only fall back to the generic phrase when neither is known.
-  const productEyebrowLabel =
-    visibleProductSubgroup || visibleProductGroup || "Деталь для автомобіля";
   const productHeroHighlights = [
     {
       label: "Перевіримо за VIN",
@@ -2300,8 +2289,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const criticalCssHref = resolveCriticalCssHref("product");
   return (
     <div
-      className={isModalView ? "min-h-screen bg-white text-slate-900" : "min-h-screen text-slate-900"}
-      style={isModalView ? undefined : pageBackground}
+      className={`product-page min-h-screen text-slate-900 ${isModalView ? "bg-white" : ""}`}
+      data-embedded={isModalView ? "true" : undefined}
     >
       {criticalCssHref ? (
         <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
@@ -2314,41 +2303,62 @@ export default async function ProductPage({ params }: ProductPageProps) {
         }
       >
         <article
-          className={`overflow-hidden border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)] ${
+          className={`overflow-clip border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)] ${
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[32px]"
           }`}
         >
-          <header className="relative overflow-hidden border-b border-slate-200/80 bg-[linear-gradient(145deg,#f8fbff_0%,#ffffff_48%,#f0fdfa_100%)] px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(186,230,253,0.3),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(204,251,241,0.3),transparent_55%)]" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#0ea5e9,#22d3ee_45%,#14b8a6)]" />
-
+          {/* Admins edit first, so the panel opens the card instead of
+              trailing every section below. Renders nothing for visitors. */}
+          <ProductPageAdminEditGate
+            code={product.code || resolvedCode}
+            article={product.article || ""}
+            name={product.name || ""}
+            producer={product.producer || ""}
+            priceEuro={product.priceEuro ?? null}
+            costPriceEuro={product.costPriceEuro ?? null}
+            group={product.group || ""}
+            subGroup={product.subGroup || ""}
+            category={product.category || ""}
+            quantity={product.quantity ?? 0}
+            description={product.description || ""}
+          />
+          <header className="product-hero relative border-b border-slate-200/80 bg-white px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
             <div className="relative mx-auto max-w-[1280px]">
               {!isModalView && (
-                <nav aria-label="Навігаційні хлібні крихти" className="mb-3 sm:mb-4">
-                  <ol className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-[11px] font-semibold text-slate-500 [scrollbar-width:none] sm:text-[12px] [&::-webkit-scrollbar]:hidden">
-                    {breadcrumbItems.map((item, index) => (
-                      <li
-                        key={`${item.href}:${item.label}:${index}`}
-                        className="inline-flex items-center gap-1"
-                      >
-                        {index > 0 ? (
-                          <ChevronRight size={13} className="text-slate-300" aria-hidden="true" />
-                        ) : null}
-                        <Link href={item.href} className="rounded-md px-1.5 py-1 transition hover:bg-white hover:text-sky-700">
-                          {item.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ol>
-                </nav>
+                <div className="product-navigation-row">
+                  <nav aria-label="Навігаційні хлібні крихти" className="product-breadcrumbs">
+                    <ol className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-[11px] font-semibold text-slate-500 [scrollbar-width:none] sm:text-[12px] [&::-webkit-scrollbar]:hidden">
+                      {breadcrumbItems.map((item, index) => (
+                        <li
+                          key={`${item.href}:${item.label}:${index}`}
+                          className="inline-flex items-center gap-1"
+                        >
+                          {index > 0 ? (
+                            <ChevronRight size={13} className="text-slate-300" aria-hidden="true" />
+                          ) : null}
+                          <Link href={item.href} className="rounded-md px-1.5 py-1 transition hover:bg-white hover:text-sky-700">
+                            {item.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ol>
+                  </nav>
+                  <ProductSectionNav
+                    items={[
+                      { href: "#product-description", label: "Опис і характеристики" },
+                      { href: "#product-alternatives", label: "Аналоги" },
+                      { href: "#product-reviews", label: "Відгуки" },
+                      { href: "#product-faq", label: "Популярні запитання" },
+                    ]}
+                  />
+                </div>
               )}
 
-              <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(340px,0.92fr)_minmax(0,1.08fr)] lg:gap-x-6 lg:gap-y-4 xl:grid-cols-[minmax(410px,0.9fr)_minmax(0,1.1fr)] xl:gap-x-8">
-                <div className="order-2 min-w-0 lg:order-1 lg:row-span-2">
-                  <div className="group/photo relative flex h-full min-h-[290px] flex-col overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_12px_32px_rgba(15,23,42,0.06)] ring-1 ring-slate-200/70 sm:min-h-[410px] sm:rounded-[26px] lg:min-h-[520px]">
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(224,242,254,0.78),transparent_48%),linear-gradient(155deg,rgba(255,255,255,0)_55%,rgba(20,184,166,0.07))]" />
-                    <span className="pointer-events-none absolute -left-1/2 top-0 z-10 h-full w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent transition-transform duration-1000 ease-out group-hover/photo:translate-x-[520%] motion-reduce:hidden" />
-                    <div className="relative flex min-h-[260px] flex-1 items-center justify-center p-3 sm:min-h-[350px] sm:p-6 lg:min-h-[430px]">
+              <div className="product-layout">
+                <ProductIdentitySticky>
+                <div className="product-hero-gallery flex min-w-0 flex-col gap-4">
+                  <div className="product-hero-media relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="product-hero-stage relative flex aspect-square items-center justify-center p-5 sm:p-8">
                       <ProductImageWithFallback
                         alt={buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article })}
                         width={720}
@@ -2380,266 +2390,230 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                   </div>
                 </div>
+                  <div className="product-identity-details">
+                    {hasDistinctProductCode ? (
+                      <p className="product-identifier-code">
+                        <span className="product-identifier-code-label">Код товару</span>
+                        <span className="product-identifier-code-value">{normalizedProductCode}</span>
+                      </p>
+                    ) : null}
+                    <div className="product-title-wrap relative">
+                      <h1
+                        title={productHeadingText}
+                        className="product-title font-display max-w-[27ch] break-words text-[clamp(1.45rem,3.2vw,2.65rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
+                      >
+                        {productHeadingText}
+                      </h1>
+                    </div>
 
-                <div className="order-1 min-w-0 lg:order-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">
-                      {productEyebrowLabel}
-                    </span>
-                    <span className="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true" />
-                    <ProductStockBadge code={product.code || resolvedCode} quantity={product.quantity} />
+                    {/* Sits on the facts row, bottom-right: the reviews are
+                        the last thing on the page, so this is a jump link,
+                        not part of the product's identity up top. */}
+                    <div className="product-review-row">
+                      <p className="product-overview-description">Потрібно перевірити сумісність? Надішліть VIN або дані автомобіля — менеджер допоможе з підбором.</p>
+                      <a href="#product-reviews" className="product-review-button">
+                        <Star size={14} className="fill-amber-400 text-amber-400" aria-hidden="true" />
+                        {reviewStats ? (
+                          <>
+                            <strong>{reviewStats.avgRating.toFixed(1)}</strong>
+                            <span className="product-review-count">· {reviewStats.ratingCount} відгуків</span>
+                          </>
+                        ) : (
+                          <span>Залишити відгук</span>
+                        )}
+                      </a>
+                    </div>
+
+                  <div className="product-summary-details">
+                    <dl className="product-specs">
+                      {product.producer ? (
+                        <div className="product-spec">
+                          <span className="product-spec-media" data-logo={producerLogoPath ? "true" : undefined}>
+                            {producerLogoPath ? (
+                              <Image
+                                src={producerLogoPath}
+                                alt={`Логотип виробника ${product.producer}`}
+                                width={64}
+                                height={36}
+                                loading="lazy"
+                              />
+                            ) : (
+                              <BadgeCheck size={18} aria-hidden="true" />
+                            )}
+                          </span>
+                          <div className="product-spec-text">
+                            <dt>Виробник</dt>
+                            <dd>
+                              {producerLandingPath ? (
+                                <Link href={producerLandingPath}>{product.producer}</Link>
+                              ) : (
+                                product.producer
+                              )}
+                            </dd>
+                          </div>
+                        </div>
+                      ) : null}
+                      {hasProductIdentifier ? (
+                        <div className="product-spec">
+                          <span className="product-spec-media">
+                            <Hash size={17} aria-hidden="true" />
+                          </span>
+                          <div className="product-spec-text">
+                            <dt>{productIdentifierLabel}</dt>
+                            <dd className="product-spec-code">{productIdentifierValue}</dd>
+                          </div>
+                        </div>
+                      ) : null}
+                      {visibleProductSubgroup || visibleProductGroup ? (
+                        <div className="product-spec" data-wide="true">
+                          <span className="product-spec-media">
+                            <PackageSearch size={18} aria-hidden="true" />
+                          </span>
+                          <div className="product-spec-text">
+                            <dt>Категорія</dt>
+                            <dd>
+                              <Link href={categoryLandingHref}>{visibleProductSubgroup || visibleProductGroup}</Link>
+                            </dd>
+                          </div>
+                        </div>
+                      ) : null}
+                    </dl>
                   </div>
 
-                  <div className="relative mt-3 sm:mt-4">
-                    <h1
-                      style={{ fontStyle: "normal" }}
-                      className="font-display max-w-[27ch] break-words text-[clamp(1.45rem,3.2vw,2.65rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
-                    >
-                      {productHeadingText}
-                    </h1>
-                    <span className="mt-3 block h-1 w-20 rounded-full bg-[linear-gradient(90deg,#0ea5e9,#22d3ee,#14b8a6)]" aria-hidden="true" />
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:mt-4 sm:text-[13px]">
-                    {/* Same pill treatment as the in-stock badge above, so this
-                        reads as a clickable chip at a glance instead of the
-                        page's only plain-text link among otherwise-styled
-                        supplementary facts. */}
-                    <a
-                      href="#product-reviews"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-                    >
-                      <Star size={16} className="fill-amber-400 text-amber-400" aria-hidden="true" />
-                      {reviewStats ? (
-                        <>
-                          <strong className="text-slate-900">{reviewStats.avgRating.toFixed(1)}</strong>
-                          <span>· {reviewStats.ratingCount} відгуків</span>
-                        </>
-                      ) : (
-                        <span>Залишити перший відгук</span>
-                      )}
-                    </a>
-                    <span className="h-4 w-px bg-slate-200" aria-hidden="true" />
-                    <span className="text-slate-500">
-                      {productIdentifierLabel}: <strong className="font-mono text-slate-800">{productIdentifierValue}</strong>
-                    </span>
-                    {productIdentifierHint ? <span className="text-slate-500">{productIdentifierHint}</span> : null}
-                  </div>
-
-                  {productAnalogCodes.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-3.5">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                        <Tags size={13} className="text-sky-500" aria-hidden="true" />
-                        Аналогові номери:
-                      </span>
-                      {productAnalogCodes.map((code) => (
-                        <span
-                          key={code}
-                          // rounded-[12px], not rounded-full — matches the
-                          // info-card radius family right below (rounded-[18px])
-                          // instead of the full-pill shape this page reserves
-                          // for status/availability badges (in-stock, above).
-                          className="inline-flex items-center rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-[-0.01em] text-sky-800"
-                        >
-                          {code}
+                    <div className="product-summary-highlights mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 px-1 text-xs font-medium text-slate-600">
+                      {productHeroHighlights.map(({ label, icon: HighlightIcon }) => (
+                        <span key={label} className="inline-flex items-center gap-1.5">
+                          <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
+                          {label}
                         </span>
                       ))}
                     </div>
-                  ) : null}
 
-                  <div className="mt-4 grid overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/80 shadow-[0_10px_30px_rgba(15,23,42,0.05)] grid-cols-2">
-                    {product.producer ? (
-                      <div className="flex min-h-[60px] items-center gap-3 border-r border-slate-200/80 px-3.5 py-2">
-                        {producerLogoPath ? (
-                          <div className="grid h-11 w-16 shrink-0 place-items-center rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm">
-                            <Image
-                              src={producerLogoPath}
-                              alt={`Логотип виробника ${product.producer}`}
-                              width={64}
-                              height={36}
-                              className="h-8 w-full object-contain"
-                              loading="lazy"
+                  </div>
+                  <div className="product-hero-purchase">
+                    <ProductPurchasePanelClient
+                      lookupKeys={lookupKeys}
+                      isModalView={isModalView}
+                      initialPriceUah={initialPriceUah}
+                      initialCostPriceUah={initialCostPriceUah}
+                      initialHasPromo={promoTeaser.resolved ? promoTeaser.hasPromo : undefined}
+                      initialPromoPercent={promoTeaser.promoPercent}
+                      hasKnownNoPrice={product.priceEuro === null}
+                      resolvedCode={resolvedCode}
+                      product={product}
+                      isInStock={isInStock}
+                    />
+                  </div>
+                </ProductIdentitySticky>
+                <div className="product-hero-content min-w-0">
+
+
+                  <div className="order-3 min-w-0 lg:order-3">
+                    <section id="product-description" className="mt-6 scroll-mt-24">
+                      <div className="grid gap-2.5">
+                        <Suspense
+                          fallback={
+                            <ProductDescriptionClientCard
+                              initialText={null}
+                              lookupKeys={descriptionLookupKeys}
+                              isModalView={isModalView}
+                              descriptionTextClass={descriptionTextClass}
+                              enableClientLookup
+                              fitmentText={productFitmentText}
+                              contactPhone={STORE_PHONE_DISPLAY}
+                              contactAddress={STORE_ADDRESS}
                             />
-                          </div>
-                        ) : (
-                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-                            <BadgeCheck size={21} aria-hidden="true" />
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Виробник</p>
-                          {producerLandingPath ? (
-                            <Link href={producerLandingPath} className="mt-1 block truncate text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">{product.producer}</Link>
-                          ) : (
-                            <p className="mt-1 truncate text-[13px] font-extrabold text-slate-900">{product.producer}</p>
-                          )}
-                        </div>
+                          }
+                        >
+                          <ProductDescriptionServerCard
+                            descriptionLookup={descriptionLookup}
+                            initialText={product.description || null}
+                            lookupKeys={descriptionLookupKeys}
+                            isModalView={isModalView}
+                            descriptionTextClass={descriptionTextClass}
+                            enableClientLookup
+                            fitmentText={productFitmentText}
+                            contactPhone={STORE_PHONE_DISPLAY}
+                            contactAddress={STORE_ADDRESS}
+                            chatButton={
+                              <OpenChatButton
+                                message={chatPrefillMessage}
+                                title="Відкрити чат з менеджером"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-sky-200 bg-white text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
+                              />
+                            }
+                          />
+                        </Suspense>
                       </div>
-                    ) : null}
-                    {visibleProductSubgroup || visibleProductGroup ? (
-                      <div className={`flex min-h-[60px] items-center gap-3 px-3.5 py-2 ${!product.producer ? "col-span-2" : ""}`}>
-                        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700">
-                          <PackageSearch size={21} aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Категорія</p>
-                          <Link href={categoryLandingHref} className="mt-1 block break-words text-[12px] leading-snug sm:text-[13px] font-extrabold text-slate-900 transition hover:text-sky-700">
-                            {visibleProductSubgroup || visibleProductGroup}
-                          </Link>
+                    </section>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      {!isModalView && (
+                        <div id="product-alternatives" className="scroll-mt-24 space-y-3">
+                          <Suspense fallback={<ProductRelatedItemsFallback />}>
+                            <ProductRelatedItemsSection
+                              product={{
+                                code: product.code,
+                                article: product.article,
+                                name: product.name,
+                                producer: product.producer,
+                                group: product.group,
+                                subGroup: product.subGroup,
+                                category: product.category,
+                              }}
+                              euroRate={recommendationEuroRate}
+                              crossReferenceCodes={productAnalogCodes}
+                              displayName={productHeadingText}
+                            />
+                          </Suspense>
+                          <ProductDeferredRecommendations
+                            product={{
+                              code: product.code,
+                              article: product.article,
+                              name: product.name,
+                              producer: product.producer,
+                              quantity: product.quantity,
+                              priceEuro: product.priceEuro,
+                              group: product.group,
+                              subGroup: product.subGroup,
+                              category: product.category,
+                              hasPhoto: product.hasPhoto,
+                            }}
+                            euroRate={recommendationEuroRate}
+                          />
                         </div>
-                      </div>
-                    ) : null}
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="order-3 min-w-0 lg:order-3">
-                  <ProductPurchasePanelClient
-                    lookupKeys={lookupKeys}
-                    isModalView={isModalView}
-                    initialPriceUah={initialPriceUah}
-                    initialCostPriceUah={initialCostPriceUah}
-                    initialHasPromo={promoTeaser.hasPromo}
-                    initialPromoPercent={promoTeaser.promoPercent}
-                    hasKnownNoPrice={product.priceEuro === null}
-                    resolvedCode={resolvedCode}
-                    product={product}
-                    isInStock={isInStock}
-                  />
+                  {!isModalView && resolvedCode && (
+                    <div id="product-reviews" className="scroll-mt-24">
+                      <ProductReviewsSection
+                        productCode={resolvedCode}
+                        initialReviews={initialReviews}
+                      />
+                    </div>
+                  )}
 
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[15px] border border-white bg-white/65 px-3.5 py-2 text-[10px] font-bold text-slate-600 shadow-[0_8px_20px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
-                    {productHeroHighlights.map(({ label, icon: HighlightIcon }) => (
-                      <span key={label} className="inline-flex items-center gap-1.5">
-                        <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
-                        {label}
-                      </span>
-                    ))}
-                  </div>
+                  {/* Questions close the page: buyers reach them after the
+                      analogs and reviews they came to compare. */}
+                  {!isModalView && (
+                    <div id="product-faq" className="scroll-mt-24">
+                      <ProductFaqSection
+                        name={visibleProductName}
+                        producer={product.producer}
+                        group={visibleProductGroup}
+                        subGroup={visibleProductSubgroup}
+                        hasPrice={initialPriceUah != null}
+                        quantity={product.quantity}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </header>
-
-          <ProductPageAdminEditGate
-            code={product.code || resolvedCode}
-            article={product.article || ""}
-            name={product.name || ""}
-            producer={product.producer || ""}
-            priceEuro={product.priceEuro ?? null}
-            costPriceEuro={product.costPriceEuro ?? null}
-            group={product.group || ""}
-            subGroup={product.subGroup || ""}
-            category={product.category || ""}
-            quantity={product.quantity ?? 0}
-            description={product.description || ""}
-          />
-
-          {!isModalView ? (
-            <ProductSectionNav
-              items={[
-                { href: "#product-description", label: "Опис і характеристики" },
-                { href: "#product-faq", label: "Популярні запитання" },
-                { href: "#product-alternatives", label: "Аналоги" },
-                { href: "#product-reviews", label: "Відгуки" },
-              ]}
-            />
-          ) : null}
-
-          <div className={contentGridClass}>
-            <section id="product-description" className="scroll-mt-24 space-y-3">
-              <div className="grid gap-2.5">
-                <Suspense
-                  fallback={
-                    <ProductDescriptionClientCard
-                      initialText={null}
-                      lookupKeys={descriptionLookupKeys}
-                      isModalView={isModalView}
-                      descriptionTextClass={descriptionTextClass}
-                      enableClientLookup
-                      fitmentText={productFitmentText}
-                      contactPhone={STORE_PHONE_DISPLAY}
-                      contactAddress={STORE_ADDRESS}
-                    />
-                  }
-                >
-                  <ProductDescriptionServerCard
-                    descriptionLookup={descriptionLookup}
-                    initialText={product.description || null}
-                    lookupKeys={descriptionLookupKeys}
-                    isModalView={isModalView}
-                    descriptionTextClass={descriptionTextClass}
-                    enableClientLookup
-                    fitmentText={productFitmentText}
-                    contactPhone={STORE_PHONE_DISPLAY}
-                    contactAddress={STORE_ADDRESS}
-                    chatButton={
-                      <OpenChatButton
-                        message={chatPrefillMessage}
-                        title="Відкрити чат з менеджером"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-sky-200 bg-white text-sky-700 shadow-[0_10px_20px_rgba(14,165,233,0.12)] transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
-                      />
-                    }
-                  />
-                </Suspense>
-              </div>
-
-              {!isModalView && (
-                <div id="product-faq" className="scroll-mt-24">
-                  <ProductFaqSection
-                    name={visibleProductName}
-                    producer={product.producer}
-                    group={productGroup}
-                    subGroup={productSubgroup}
-                    hasPrice={initialPriceUah != null}
-                    quantity={product.quantity}
-                  />
-                </div>
-              )}
-
-              {!isModalView && (
-                <div id="product-alternatives" className="scroll-mt-24 space-y-3">
-                  <Suspense fallback={<ProductRelatedItemsFallback />}>
-                    <ProductRelatedItemsSection
-                      product={{
-                        code: product.code,
-                        article: product.article,
-                        name: product.name,
-                        producer: product.producer,
-                        group: product.group,
-                        subGroup: product.subGroup,
-                        category: product.category,
-                      }}
-                      euroRate={recommendationEuroRate}
-                      crossReferenceCodes={productAnalogCodes}
-                    />
-                  </Suspense>
-                  <ProductDeferredRecommendations
-                    product={{
-                      code: product.code,
-                      article: product.article,
-                      name: product.name,
-                      producer: product.producer,
-                      quantity: product.quantity,
-                      priceEuro: product.priceEuro,
-                      group: product.group,
-                      subGroup: product.subGroup,
-                      category: product.category,
-                      hasPhoto: product.hasPhoto,
-                    }}
-                    euroRate={recommendationEuroRate}
-                  />
-                </div>
-              )}
-            </section>
-          </div>
-
-          {!isModalView && resolvedCode && (
-            <div id="product-reviews" className="scroll-mt-24">
-              <ProductReviewsSection
-                productCode={resolvedCode}
-                initialReviews={initialReviews}
-              />
-            </div>
-          )}
 
         </article>
       </div>

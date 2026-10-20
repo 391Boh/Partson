@@ -50,6 +50,19 @@ const toNonNegativeNumber = (value: unknown) => {
   return parsed;
 };
 
+// The catalog sends one sort value: "asc"/"desc" (price) or
+// "name_asc"/"name_desc" (alphabetical). Price wins if both are somehow set.
+const readPriceSortOrder = (body: Record<string, unknown>): "none" | "asc" | "desc" =>
+  body.sortOrder === "asc" || body.sortOrder === "desc" ? body.sortOrder : "none";
+const readNameSortOrder = (body: Record<string, unknown>): "none" | "asc" | "desc" =>
+  readPriceSortOrder(body) !== "none"
+    ? "none"
+    : body.sortOrder === "name_asc"
+      ? "asc"
+      : body.sortOrder === "name_desc"
+        ? "desc"
+        : "none";
+
 const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawFilter =
     body.searchFilter === "article" ||
@@ -77,10 +90,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
     subcategory: toTrimmedString(body.subcategory),
     producer: toTrimmedString(body.producer),
     hierarchy: body.expandHierarchy === true,
-    sortOrder:
-      body.sortOrder === "asc" || body.sortOrder === "desc"
-        ? body.sortOrder
-        : "none",
+    sortOrder: readPriceSortOrder(body),
+    nameSort: readNameSortOrder(body),
     pricedOnly: body.pricedOnly === true,
     priceFrom: toNonNegativeNumber(body.priceFrom),
     priceTo: toNonNegativeNumber(body.priceTo),
@@ -370,10 +381,8 @@ export async function POST(request: Request) {
       subcategory: normalizedSubcategory,
       producer: normalizedProducer,
       expandHierarchy,
-      sortOrder:
-        body.sortOrder === "asc" || body.sortOrder === "desc"
-          ? body.sortOrder
-          : "none",
+      sortOrder: readPriceSortOrder(body),
+      nameSort: readNameSortOrder(body),
       pricedOnly: body.pricedOnly === true,
       priceFrom: toNonNegativeNumber(body.priceFrom),
       priceTo: toNonNegativeNumber(body.priceTo),
@@ -403,6 +412,7 @@ export async function POST(request: Request) {
       !normalizedProducer &&
       !expandHierarchy &&
       queryBase.sortOrder === "none" &&
+      queryBase.nameSort === "none" &&
       !queryBase.pricedOnly &&
       queryBase.priceFrom === null &&
       queryBase.priceTo === null &&
@@ -473,6 +483,7 @@ export async function POST(request: Request) {
         queryBase.priceFrom !== null ||
         queryBase.priceTo !== null ||
         queryBase.sortOrder !== "none" ||
+        queryBase.nameSort !== "none" ||
         isDescriptionSearch;
 
       const runAllgoodsQuery = () =>
@@ -501,7 +512,12 @@ export async function POST(request: Request) {
 
       // One shared search pipeline performs all field queries and fallbacks.
       // Do not retry a valid empty result through the same cached source.
-      if (queryBase.directOffset !== undefined || (queryBase.searchQuery && canUseCompleteAllgoodsCatalog)) return runAllgoodsQuery();
+      // Only allgoods knows the alphabetical order, so no legacy fallbacks.
+      if (
+        queryBase.directOffset !== undefined ||
+        (queryBase.searchQuery && canUseCompleteAllgoodsCatalog) ||
+        (queryBase.nameSort !== "none" && canUseCompleteAllgoodsCatalog)
+      ) return runAllgoodsQuery();
 
       if (canUseCompleteAllgoodsCatalog) {
         allgoodsPrimary = await runAllgoodsQuery().catch(() => null);

@@ -6,6 +6,7 @@ import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
 import HomeSeoLinks from "./components/HomeSeoLinks";
+import HomeHighlightsSection from "./components/HomeHighlightsSection";
 
 // The root page shares the root layout's segment, so the layout's
 // "%s | PartsON" title template doesn't apply here — name the brand directly.
@@ -63,6 +64,7 @@ export default function HomePage() {
       {criticalCssHref ? (
         <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
       ) : null}
+      <HomeHighlightsSection />
       <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />

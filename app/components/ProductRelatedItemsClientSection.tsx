@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
@@ -170,20 +170,14 @@ const buildDirectProductPath = (item: RelatedItem) => {
   });
 };
 
+// Same shape as the loaded block (tab row + one card row), so filling it in
+// does not move the page.
 const Skeleton = () => (
-  <section className="overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
-      <div className="min-w-0">
-        <div className="h-3 w-28 animate-pulse rounded-full bg-sky-100" />
-        <div className="mt-2 h-7 w-72 max-w-full animate-pulse rounded-full bg-slate-100" />
-        <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded-full bg-slate-100" />
-      </div>
-      <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
+  <div className="product-analogs-browser" aria-busy="true">
+    <div className="product-analogs-tabs product-analogs-tabs-skeleton" aria-hidden="true">
+      <span />
+      <span />
     </div>
-    {/* Matches the real card row's shape (height + column width) exactly —
-        a skeleton sized differently from what replaces it just moves the
-        layout-shift problem from "section pops in" to "section resizes
-        when it fills in", which is the same CLS hit under another name. */}
     <div className="mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-hidden sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
@@ -192,85 +186,53 @@ const Skeleton = () => (
         />
       ))}
     </div>
-  </section>
+  </div>
 );
 
-const RecommendationBlock = ({
-  eyebrow,
-  title,
-  description,
-  badgeLabel,
+const RecommendationList = ({
   items,
   articleLabel,
   euroRate,
   resolvedPrices,
   resolvedImages,
-  tone = "sky",
 }: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  badgeLabel: string;
   items: RelatedItem[];
   articleLabel: string;
   euroRate: number;
   resolvedPrices: Record<string, number | null>;
   resolvedImages: Record<string, string>;
-  tone?: "sky" | "teal";
-}) => {
-  if (items.length === 0) return null;
+}) => (
+  <div className={getRecommendationListClass(items.length)}>
+    {items.map((item, index) => {
+      const stateKey = buildPriceStateKey(item);
+      const resolvedPriceEuro = stateKey in resolvedPrices
+        ? resolvedPrices[stateKey]
+        : item.priceEuro;
+      const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
+      const imageKey = buildRecommendationImageKey(item, articleLabel);
 
-  return (
-    <section className={`relative overflow-hidden rounded-[22px] border p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4 ${tone === "teal" ? "border-teal-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,253,250,0.94),rgba(248,250,252,0.98))]" : "border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(248,250,252,0.98))]"}`}>
-      <div className={`absolute inset-x-6 top-0 h-px ${tone === "teal" ? "bg-gradient-to-r from-transparent via-teal-400/70 to-transparent" : "bg-gradient-to-r from-transparent via-sky-400/70 to-transparent"}`} />
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-900/8 pb-3">
-        <div className="min-w-0 max-w-3xl">
-          <p className={`mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${tone === "teal" ? "text-teal-800" : "text-sky-800"}`}>
-            {eyebrow}
-          </p>
-          <h2 className="font-display mt-0.5 break-words text-[1.05rem] font-extrabold leading-tight tracking-[-0.015em] text-slate-800 sm:text-[1.18rem]">
-            {title}
-          </h2>
-          <p className="mt-1 max-w-2xl text-[11px] font-medium leading-relaxed text-slate-600 sm:text-[11.5px]">
-            {description}
-          </p>
-        </div>
-        <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.09em] ${tone === "teal" ? "border-teal-200 bg-teal-50 text-teal-800" : "border-sky-200 bg-sky-50 text-sky-800"}`}>
-          {badgeLabel}
-        </span>
-      </div>
+      return (
+        <ProductCompactRecommendationCard
+          key={[
+            normalizeRelatedKeyPart(item.code),
+            normalizeRelatedKeyPart(item.article),
+            normalizeRelatedKeyPart(item.name),
+            normalizeRelatedKeyPart(item.producer),
+            index,
+          ].join("-")}
+          href={buildDirectProductPath(item)}
+          item={item}
+          priceLabel={priceLabel}
+          sourceArticle={articleLabel}
+          imagePriority={false}
+          prefetchedImageSrc={resolvedImages[imageKey] || ""}
+        />
+      );
+    })}
+  </div>
+);
 
-      <div className={getRecommendationListClass(items.length)}>
-        {items.map((item, index) => {
-          const stateKey = buildPriceStateKey(item);
-          const resolvedPriceEuro = stateKey in resolvedPrices
-            ? resolvedPrices[stateKey]
-            : item.priceEuro;
-          const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
-          const imageKey = buildRecommendationImageKey(item, articleLabel);
-
-          return (
-            <ProductCompactRecommendationCard
-              key={[
-                normalizeRelatedKeyPart(item.code),
-                normalizeRelatedKeyPart(item.article),
-                normalizeRelatedKeyPart(item.name),
-                normalizeRelatedKeyPart(item.producer),
-                index,
-              ].join("-")}
-              href={buildDirectProductPath(item)}
-              item={item}
-              priceLabel={priceLabel}
-              sourceArticle={articleLabel}
-              imagePriority={false}
-              prefetchedImageSrc={resolvedImages[imageKey] || ""}
-            />
-          );
-        })}
-      </div>
-    </section>
-  );
-};
+type RecommendationTab = "analogs" | "similar";
 
 export default function ProductRelatedItemsClientSection({
   product,
@@ -294,6 +256,32 @@ export default function ProductRelatedItemsClientSection({
     [initialSimilarItems]
   );
 
+  // Lists the server could not resolve load once the block is ~600px from the
+  // viewport, not right after hydration: each is a 1C query that otherwise
+  // competes with the above-the-fold requests on every product view.
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const viewportObserverRef = useRef<IntersectionObserver | null>(null);
+  // Callback ref: the skeleton and the loaded block are different elements.
+  const rootRef = useCallback((element: HTMLDivElement | null) => {
+    viewportObserverRef.current?.disconnect();
+    viewportObserverRef.current = null;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setIsNearViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setIsNearViewport(true);
+        observer.disconnect();
+      },
+      { rootMargin: "600px 0px" }
+    );
+    observer.observe(element);
+    viewportObserverRef.current = observer;
+  }, []);
+
   // null = still loading, [] = loaded & empty, [...] = loaded with results
   const [relatedItems, setRelatedItems] = useState<RelatedItem[] | null>(
     normalizedInitialRelatedItems
@@ -301,6 +289,8 @@ export default function ProductRelatedItemsClientSection({
   const [similarItems, setSimilarItems] = useState<RelatedItem[] | null>(
     normalizedInitialSimilarItems
   );
+  const tabsId = useId();
+  const [activeTab, setActiveTab] = useState<RecommendationTab>("analogs");
   const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
@@ -486,6 +476,7 @@ export default function ProductRelatedItemsClientSection({
     }
 
     setRelatedItems(null);
+    if (!isNearViewport) return;
     let cancelled = false;
 
     const load = async () => {
@@ -505,7 +496,7 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancel();
     };
-  }, [normalizedInitialRelatedItems, requestUrl, cacheKey]);
+  }, [normalizedInitialRelatedItems, requestUrl, cacheKey, isNearViewport]);
 
   // Load схожі товари (by subgroup) — independent from analogs
   useEffect(() => {
@@ -529,6 +520,7 @@ export default function ProductRelatedItemsClientSection({
     }
 
     setSimilarItems(null);
+    if (!isNearViewport) return;
     let cancelled = false;
 
     const load = async () => {
@@ -548,7 +540,7 @@ export default function ProductRelatedItemsClientSection({
       cancelled = true;
       cancel();
     };
-  }, [normalizedInitialSimilarItems, similarRequestUrl, similarCacheKey]);
+  }, [normalizedInitialSimilarItems, similarRequestUrl, similarCacheKey, isNearViewport]);
 
   const visibleRelatedItems = useMemo(
     () => (relatedItems ?? []).slice(0, RELATED_ITEMS_VISIBLE_LIMIT),
@@ -794,48 +786,93 @@ export default function ProductRelatedItemsClientSection({
   const hasAnalogs = visibleRelatedItems.length > 0;
   const hasSimilar = visibleSimilarItems.length > 0;
   if (isLoading && !hasAnalogs && !hasSimilar) {
-    return <Skeleton />;
+    return (
+      <div ref={rootRef}>
+        <Skeleton />
+      </div>
+    );
   }
 
-  if (relatedItems !== null && similarItems !== null && !hasAnalogs && !hasSimilar) return null;
+  if (!hasAnalogs && !hasSimilar) return null;
+
+  const hasTabs = hasAnalogs && hasSimilar;
+  const currentTab: RecommendationTab = hasAnalogs ? (hasTabs ? activeTab : "analogs") : "similar";
+  const groupLabel = buildVisibleProductName(product.subGroup || product.group || "");
+  type TabSpec = { id: RecommendationTab; label: string; detail: string; items: RelatedItem[] };
+  const tabs = ([
+    { id: "analogs", label: "Аналоги", detail: "", items: visibleRelatedItems },
+    {
+      id: "similar",
+      label: groupLabel ? "Схожі" : "Схожі товари",
+      // The group name is dropped on phones, where it would truncate the tab.
+      detail: groupLabel ? `: ${groupLabel}` : "",
+      items: visibleSimilarItems,
+    },
+  ] satisfies TabSpec[]).filter((tab) => tab.items.length > 0);
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next: RecommendationTab = currentTab === "analogs" ? "similar" : "analogs";
+    setActiveTab(next);
+    document.getElementById(`${tabsId}-tab-${next}`)?.focus();
+  };
 
   return (
-    <div className="space-y-2.5">
-      {hasAnalogs ? (
-        <RecommendationBlock
-          eyebrow="Перевірені альтернативи"
-          title={
-            articleLabel
-              ? `Аналоги для артикулу ${articleLabel}`
-              : "Аналоги та сумісні альтернативи"
-          }
-          description="Позиції, знайдені за крос-номером і даними товару. Перед замовленням звірте сумісність з автомобілем."
-          badgeLabel={`${visibleRelatedItems.length} позицій`}
-          items={visibleRelatedItems}
-          articleLabel={articleLabel}
-          euroRate={euroRate}
-          resolvedPrices={resolvedPrices}
-          resolvedImages={resolvedImages}
-          tone="teal"
-        />
-      ) : null}
-      {hasSimilar ? (
-        <RecommendationBlock
-          eyebrow="Добірка з каталогу"
-          title={`Схожі товари${
-            product.subGroup || product.group
-              ? `: ${buildVisibleProductName(product.subGroup || product.group || "")}`
-              : ""
-          }`}
-          description="Інші товари з тієї ж групи — для швидкого порівняння ціни, бренду та наявності."
-          badgeLabel={`${visibleSimilarItems.length} позицій`}
-          items={visibleSimilarItems}
-          articleLabel={articleLabel}
-          euroRate={euroRate}
-          resolvedPrices={resolvedPrices}
-          resolvedImages={resolvedImages}
-        />
-      ) : null}
+    <div ref={rootRef} className="product-analogs-browser">
+      {hasTabs ? (
+        <div
+          role="tablist"
+          aria-label="Аналоги та схожі товари"
+          className="product-analogs-tabs"
+          onKeyDown={onTabKeyDown}
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`${tabsId}-tab-${tab.id}`}
+              aria-selected={currentTab === tab.id}
+              aria-controls={`${tabsId}-panel-${tab.id}`}
+              tabIndex={currentTab === tab.id ? 0 : -1}
+              onClick={() => setActiveTab(tab.id)}
+              className="product-analogs-tab"
+            >
+              <span className="truncate">
+                {tab.label}
+                {tab.detail ? <span className="product-analogs-tab-detail">{tab.detail}</span> : null}
+              </span>
+              <span className="product-analogs-count">{tab.items.length}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="product-analogs-list-title">
+          {tabs[0].label}
+          {tabs[0].detail}
+          <span className="product-analogs-count">{tabs[0].items.length}</span>
+        </p>
+      )}
+      {tabs.map((tab) => (
+        <div
+          key={tab.id}
+          id={`${tabsId}-panel-${tab.id}`}
+          role={hasTabs ? "tabpanel" : undefined}
+          aria-labelledby={hasTabs ? `${tabsId}-tab-${tab.id}` : undefined}
+          // Inactive panels stay in the HTML (hidden), so crawlers see both lists.
+          hidden={hasTabs && currentTab !== tab.id}
+          className="product-analogs-panel"
+        >
+          <RecommendationList
+            items={tab.items}
+            articleLabel={articleLabel}
+            euroRate={euroRate}
+            resolvedPrices={resolvedPrices}
+            resolvedImages={resolvedImages}
+          />
+        </div>
+      ))}
     </div>
   );
 }

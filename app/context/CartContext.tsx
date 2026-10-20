@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
+import CartAddedFeedback from "app/components/CartAddedFeedback";
+import { CART_ADDED_EVENT, type CartAddedDetail } from "app/lib/cart-feedback";
+
 import { pushEcommerceEvent } from 'app/lib/gtm';
 
 interface CartItem {
@@ -22,6 +25,7 @@ interface CartContextType {
   cartItems: CartItem[];
   addToCart: (item: CartItem) => void;
   removeFromCart: (code: string) => void;
+  undoAddToCart: (code: string, quantity: number) => void;
   getCartQuantity: () => number;
   clearCart: () => void;
 }
@@ -131,6 +135,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [...prev, item];
       }
     });
+    window.dispatchEvent(new CustomEvent<CartAddedDetail>(CART_ADDED_EVENT, { detail: item }));
   }, []);
 
   const removeFromCart = useCallback((code: string) => {
@@ -157,6 +162,36 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCartItems(prev => prev.some(p => p.code === code) ? prev.filter(p => p.code !== code) : prev);
   }, [cartItems]);
 
+  // Reverts one addToCart: takes back only the quantity that add contributed,
+  // so an item already in the cart before it stays there.
+  const undoAddToCart = useCallback((code: string, quantity: number) => {
+    const current = cartItems.find(p => p.code === code);
+    if (!current || quantity <= 0) return;
+    const undone = Math.min(quantity, current.quantity);
+    pushEcommerceEvent("remove_from_cart", {
+      currency: "UAH",
+      value: current.price * undone,
+      items: [
+        {
+          item_id: current.code,
+          item_name: current.name,
+          ...(current.producer ? { item_brand: current.producer } : {}),
+          ...(current.category ? { item_category: current.category } : {}),
+          ...(current.group ? { item_category2: current.group } : {}),
+          ...(current.subGroup ? { item_category3: current.subGroup } : {}),
+          ...(current.article ? { item_variant: current.article } : {}),
+          price: current.price,
+          quantity: undone,
+        },
+      ],
+    });
+    setCartItems(prev => prev.flatMap(p => {
+      if (p.code !== code) return [p];
+      const left = p.quantity - quantity;
+      return left > 0 ? [{ ...p, quantity: left }] : [];
+    }));
+  }, [cartItems]);
+
   const getCartQuantity = useCallback(() => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
   }, [cartItems]);
@@ -166,14 +201,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const value = useMemo(() => ({
-    cartItems, addToCart, removeFromCart, getCartQuantity, clearCart,
-  }), [cartItems, addToCart, removeFromCart, getCartQuantity, clearCart]);
+    cartItems, addToCart, removeFromCart, undoAddToCart, getCartQuantity, clearCart,
+  }), [cartItems, addToCart, removeFromCart, undoAddToCart, getCartQuantity, clearCart]);
 
   return (
     <CartContext.Provider
       value={value}
     >
       {children}
+      <CartAddedFeedback />
     </CartContext.Provider>
   );
 };

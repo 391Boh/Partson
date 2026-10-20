@@ -4,6 +4,7 @@ import React, { memo, startTransition, useEffect, useMemo, useRef, useState } fr
 import Image from "next/image";
 import { Info, ShoppingCart, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent, ArrowUpRight, RotateCcw } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
+import PriceLoadingSkeleton from "app/components/PriceLoadingSkeleton";
 import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
 import { buildManufacturerPathFromLabel } from "app/lib/catalog-links";
@@ -232,6 +233,7 @@ const ProductCard: React.FC<Props> = ({
         Number.isFinite(costPriceUAH) &&
         costPriceUAH > 0;
     const hasPromoPrice =
+        !isPriceLoading &&
         isPartner &&
         typeof promoPriceUAH === "number" &&
         Number.isFinite(promoPriceUAH) &&
@@ -246,16 +248,12 @@ const ProductCard: React.FC<Props> = ({
     // A promo exists but this visitor isn't a partner (or isn't logged in) —
     // mark it without revealing the discounted amount, reserved for verified
     // partners (see hasPromo's own comment above).
-    const showPartnerDiscountTeaser = !hasPromoPrice && hasPromo;
-    // Until the partner check answers, a returning partner's browser (see
-    // app/lib/partner-price-hint.ts) draws this row in the promo layout with a
-    // placeholder for the price, so the verified price drops into place.
-    const awaitsPartnerPrice = showPartnerDiscountTeaser && !isPartner;
+    const showPartnerDiscountTeaser = !isPriceLoading && !hasPromoPrice && hasPromo;
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
     const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
     const isRequestAction = priceStatus === "request";
-    const isCounterDisabled = !isAvailable;
+    const isCounterDisabled = !isAvailable || !hasPrice;
     const [justAdded, setJustAdded] = useState(false);
     const [showCostPrice, setShowCostPrice] = useState(false);
     const prevCartQty = useRef(cartQty);
@@ -664,8 +662,8 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                 партнера" — this corner is roughly a third of the card's
                                 width, nowhere near enough for the full phrase; "партнер"
                                 is already spelled out next to the price itself below. */}
-                            {(hasPromoPrice || awaitsPartnerPrice) && (
-                                <span className={`${hasPromoPrice ? "" : "catalog-card-promo-badge--awaiting "}pointer-events-none absolute right-1 top-1 z-10 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm`}>
+                            {hasPromoPrice && (
+                                <span className="pointer-events-none absolute right-1 top-1 z-10 inline-flex items-center rounded-full border border-rose-200 bg-rose-50/95 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.06em] text-rose-700 shadow-sm">
                                     Акція
                                 </span>
                             )}
@@ -931,7 +929,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             </button>
                         </div>
                     ) : (
-                        <div className={`catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5 ${!showCostPrice && showPartnerDiscountTeaser ? "catalog-card-price-row--teaser" : ""} ${!showCostPrice && awaitsPartnerPrice ? "catalog-card-price-row--awaiting-partner" : ""} ${!showCostPrice && hasPromoPrice ? "catalog-card-price-row--promo" : ""}`}>
+                        <div className={`catalog-card-price-row group/price mt-2 flex w-full flex-wrap items-center gap-1.5 gap-y-1 sm:mt-2.5 ${!showCostPrice && showPartnerDiscountTeaser ? "catalog-card-price-row--teaser" : ""} ${!showCostPrice && hasPromoPrice ? "catalog-card-price-row--promo" : ""}`}>
                             {/* Pill toggle Прод / Закуп — visible to any admin, even before a
                                 cost price has ever been saved, so they have a way to switch into
                                 "Закуп" mode and enter one for the first time via the pencil edit
@@ -980,11 +978,11 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             )}
                             {/* Price display */}
                             <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
-                                <span className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
+                                <span hidden={isPriceLoading} className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
                                     {showCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>
                                 <span className="flex items-center gap-1 tabular-nums">
-                                    {showCostPrice ? (
+                                    {isPriceLoading ? <PriceLoadingSkeleton /> : showCostPrice ? (
                                         hasCostPrice ? (
                                             <>
                                                 <span className="text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
@@ -1006,17 +1004,8 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     ) : hasPrice ? (
                                         <>
                                             <span className="catalog-card-price-value text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
-                                            {awaitsPartnerPrice && (
-                                                <span
-                                                    className="catalog-card-promo-pending"
-                                                    aria-hidden="true"
-                                                    style={{ width: `${effectivePriceUAH!.toLocaleString('uk-UA').length * 0.62}em` }}
-                                                />
-                                            )}
                                             <span className="text-[10px] font-bold text-slate-400">грн</span>
                                         </>
-                                    ) : isPriceLoading ? (
-                                        <span className="text-[10px] font-bold text-blue-400">ціна...</span>
                                     ) : (
                                         <span className="text-slate-400 italic text-[10px] font-bold">за запитом</span>
                                     )}
@@ -1084,8 +1073,10 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     size="sm"
                                     autoFocus
                                 />
-                            ) : hasPrice ? (
+                            ) : (
                             <div
+                                style={{ visibility: hasPrice || isPriceLoading ? "visible" : "hidden" }}
+                                aria-hidden={!hasPrice && !isPriceLoading}
                                 className={`catalog-stock-control-stepper flex items-center ${
                                     isCounterDisabled ? "pointer-events-none opacity-50" : ""
                                 }`}
@@ -1130,7 +1121,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     <Plus size={14} strokeWidth={2.5} />
                                 </button>
                             </div>
-                            ) : null}
+                            )}
                         </div>
 
                          <div className="flex shrink-0 items-center gap-1">

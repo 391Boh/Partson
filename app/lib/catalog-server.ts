@@ -2,7 +2,7 @@ import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, searchAlternatives, searchProductFields, WEAK_LITERAL_HITS, type SearchField } from "app/lib/catalog-search";
+import { compareProductNames, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, searchAlternatives, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -176,6 +176,7 @@ const ALLGOODS_PRODUCER_FIELD = "\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u043
 const ALLGOODS_PRODUCER_PREFIX_SEARCH_FIELD = "\u041f\u043e\u0438\u0441\u043a\u041f\u0440\u043e\u0438\u0437\u0432\u043e\u0434\u0438\u0442\u0435\u043b\u044f";
 const ALLGOODS_GROUP_FIELD = "\u0413\u0440\u0443\u043f\u043f\u0430";
 const ALLGOODS_SUBGROUP_FIELD = "\u041f\u043e\u0434\u0433\u0440\u0443\u043f\u043f\u0430";
+const ALLGOODS_SORT_NAME_FIELD = "СортировкаПоНазве";
 const ALLGOODS_SORT_PRICE_FIELD = "\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430\u041f\u043e\u0426\u0435\u043d\u0435";
 const ALLGOODS_INCLUDE_DESCRIPTION_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435";
 const ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0424\u043e\u0442\u043eBase64";
@@ -1427,6 +1428,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
   subcategory?: string | null;
   producer?: string | null;
   sortOrder?: "none" | "asc" | "desc";
+  // Alphabetical order (А→Я / Я→А). Ignored when sortOrder (price) is set.
+  nameSort?: "none" | "asc" | "desc";
   cursor?: string | null;
   cursorField?: string | null;
   timeoutMs?: number;
@@ -1464,6 +1467,10 @@ const fetchCatalogProductsByQueryInner = async (options: {
   const subcategory = (options.subcategory || "").trim();
   const producer = (options.producer || "").trim();
   const sortOrder = options.sortOrder || "none";
+  const nameSort = sortOrder === "none" ? options.nameSort || "none" : "none";
+  // searchProductFields orders merged search hits itself, by price or name.
+  const searchSort: SearchSortOrder =
+    nameSort !== "none" ? (nameSort === "asc" ? "name_asc" : "name_desc") : sortOrder;
   const cursor = typeof options.cursor === "string" ? options.cursor.trim() : "";
   const forceAllgoodsSource = options.forceAllgoodsSource === true;
   const expandHierarchy = options.expandHierarchy === true;
@@ -1481,6 +1488,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
     (typeof options.priceTo === "number" && Number.isFinite(options.priceTo) && options.priceTo > 0);
   const shouldPreferLegacyGetdata =
     sortOrder === "none" &&
+    nameSort === "none" &&
     !cursor &&
     !forceAllgoodsSource &&
     !searchQuery &&
@@ -1565,6 +1573,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
           if (!leftHasPrice || !rightHasPrice) return 0;
           return ((left.priceEuro as number) - (right.priceEuro as number)) * direction;
         });
+      } else if (nameSort !== "none") {
+        merged.sort((left, right) => compareProductNames(left, right) * (nameSort === "asc" ? 1 : -1));
       }
 
       return {
@@ -1670,6 +1680,9 @@ const fetchCatalogProductsByQueryInner = async (options: {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "ASC";
     } else if (sortOrder === "desc") {
       allgoodsBaseBody[ALLGOODS_SORT_PRICE_FIELD] = "DESC";
+    } else if (nameSort !== "none") {
+      // 1C pages this order itself: next_cursor is {"name","code"} JSON.
+      allgoodsBaseBody[ALLGOODS_SORT_NAME_FIELD] = nameSort === "asc" ? "ASC" : "DESC";
     }
 
     if (options.pricedItemsOnly) {
@@ -1722,7 +1735,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
       // 1C ignores Смещение for Поиск requests, and a price-sorted search is
       // ordered by searchProductFields — a direct page here could not match
       // the cursor-paged listing. The client falls back to cursor paging.
-      if (searchQuery && sortOrder !== "none") {
+      if (searchQuery && searchSort !== "none") {
         throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
       }
       const body = { ...allgoodsBaseBody };
@@ -1748,13 +1761,14 @@ const fetchCatalogProductsByQueryInner = async (options: {
           ? ["name", "article", "code", "producer", "description"]
           : [searchFilter as SearchField];
         const runSearchPage = (after: string) => searchProductFields({
-          query: searchQuery, fields, limit, cursor: after, sort: sortOrder,
+          query: searchQuery, fields, limit, cursor: after, sort: searchSort,
           fetchPage: (field, sourceCursor, batchLimit) => {
             const body = { ...allgoodsBaseBody, [fieldKeys[field]]:
               field === "article" || field === "code" ? compactSearchQuery : searchQuery };
             // 1C can't page a price-sorted search (no next_cursor, cursor
             // ignored); searchProductFields sorts the unsorted matches itself.
             delete body[ALLGOODS_SORT_PRICE_FIELD];
+            delete body[ALLGOODS_SORT_NAME_FIELD];
             if (field === "producer") {
               if (producer) {
                 if (!producer.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -1794,6 +1808,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
       if (
         options.includeDescription === true ||
         sortOrder !== "none" ||
+        nameSort !== "none" ||
         options.pricedItemsOnly === true ||
         options.priceFrom != null ||
         options.priceTo != null
@@ -2482,16 +2497,38 @@ export type PromoAvailability = {
   promoPercent: number | null;
 };
 
+// PromoAvailability plus the promo amount itself. The same allgoods row that
+// answers "is there a promo" (~0.2 s) already carries Акція, so partner
+// pricing reads it here instead of a separate 1.8 s price-detail call.
+// Server-side only: callers must reveal promoPriceEuro to verified partners
+// alone (see /api/product-price).
+export type PromoOffer = PromoAvailability & { promoPriceEuro: number | null };
+
+type PromoLookupOptions = {
+  // Skip the snapshot shortcut: the snapshot can trail 1C by up to its fresh
+  // window (30 min), fine for a teaser badge but not for a price a partner pays.
+  live?: boolean;
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  cacheTtlMs?: number;
+  concurrency?: number;
+};
+
 export const fetchPromoAvailabilityByLookupKeys = async (
   lookupKeys: string[],
-  options?: {
-    timeoutMs?: number;
-    retries?: number;
-    retryDelayMs?: number;
-    cacheTtlMs?: number;
-    concurrency?: number;
-  }
+  options?: PromoLookupOptions
 ): Promise<Record<string, PromoAvailability>> => {
+  const offers = await fetchPromoOffersByLookupKeys(lookupKeys, options);
+  return Object.fromEntries(
+    Object.entries(offers).map(([key, { hasPromo, promoPercent }]) => [key, { hasPromo, promoPercent }])
+  );
+};
+
+export const fetchPromoOffersByLookupKeys = async (
+  lookupKeys: string[],
+  options?: PromoLookupOptions
+): Promise<Record<string, PromoOffer>> => {
   const normalizedKeys = Array.from(
     new Set(lookupKeys.map((key) => normalizeFacetValue(key)).filter(Boolean))
   );
@@ -2506,18 +2543,20 @@ export const fetchPromoAvailabilityByLookupKeys = async (
   // then article) before the badge could render. Only a cold snapshot (right
   // after a restart, before instrumentation.ts's warm-up finishes) falls
   // through to that live per-key lookup below.
-  if (fullCatalogCache) {
+  if (fullCatalogCache && !options?.live) {
     // Reading the cache directly (not awaiting getFullCatalogSnapshot) means
     // this never blocks on a refresh — a stale-but-present snapshot still
     // answers instantly. Still nudge it to revalidate in the background if
     // it's aged past its fresh window, same as every other reader of it.
     void getFullCatalogSnapshot().catch(() => undefined);
 
-    const snapshotResult: Record<string, PromoAvailability> = {};
+    const snapshotResult: Record<string, PromoOffer> = {};
     for (const key of normalizedKeys) {
+      const hasPromo = fullCatalogCache.promoKeys.has(key);
       snapshotResult[key] = {
-        hasPromo: fullCatalogCache.promoKeys.has(key),
+        hasPromo,
         promoPercent: fullCatalogCache.promoPercents.get(key) ?? null,
+        promoPriceEuro: hasPromo ? fullCatalogCache.promoPrices.get(key) ?? null : null,
       };
     }
     return snapshotResult;
@@ -2538,7 +2577,7 @@ export const fetchPromoAvailabilityByLookupKeys = async (
     normalizedKeys.length
   );
 
-  const resolved = new Map<string, PromoAvailability>();
+  const resolved = new Map<string, PromoOffer>();
   let keyCursor = 0;
 
   const lookupPromoForKey = async (key: string): Promise<void> => {
@@ -2593,7 +2632,7 @@ export const fetchPromoAvailabilityByLookupKeys = async (
             promoPercent = percent > 0 ? percent : null;
           }
         }
-        resolved.set(key, { hasPromo, promoPercent });
+        resolved.set(key, { hasPromo, promoPercent, promoPriceEuro: hasPromo ? promoPriceEuro : null });
         return;
       }
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { ProfileAvatar } from './ProfileAvatar';
 import { findAvatarFrame, getProfileAvatarTier, type AvatarTier } from 'app/lib/profile-appearance';
 import {
@@ -22,6 +23,7 @@ import {
   ChevronUp,
   Clock3,
   Copy,
+  FolderTree,
   Handshake,
   ImagePlus,
   Mail,
@@ -280,6 +282,18 @@ const resizeImageForBroadcast = (file: File): Promise<string> =>
     image.src = objectUrl;
   });
 
+// The catalog editor is only needed once an admin opens its tab.
+const AdminCatalogPanel = dynamic(() => import('./AdminCatalogPanel'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-1.5 pt-2" aria-busy="true" aria-label="Завантаження каталогу">
+      {[0, 1, 2, 3].map((index) => (
+        <div key={index} className="h-12 animate-pulse rounded-[14px] border border-white/6 bg-white/[0.04]" />
+      ))}
+    </div>
+  ),
+});
+
 export default function AdminChatPanel({
   isOpen,
   isPinned = false,
@@ -287,7 +301,7 @@ export default function AdminChatPanel({
   onPinnedChange,
   onNotificationCountChange,
 }: Props) {
-  const [tab, setTab] = useState<'messages' | 'orders' | 'calls' | 'users'>(
+  const [tab, setTab] = useState<'messages' | 'orders' | 'calls' | 'users' | 'catalog'>(
     'messages'
   );
   // Resolved once per panel session so chat replies and order status
@@ -1438,7 +1452,7 @@ export default function AdminChatPanel({
         </div>
       </div>
 
-      <div className="sticky top-0 z-10 grid grid-cols-2 gap-1 border-b border-white/10 bg-slate-950/70 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-4 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
+      <div className="sticky top-0 z-10 grid grid-cols-3 gap-1 border-b border-white/10 bg-slate-950/70 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-5 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
         <Tab
           icon={<ChatBubbleBottomCenterTextIcon className="h-5 w-5" />}
           label="Повідомлення"
@@ -1473,6 +1487,13 @@ export default function AdminChatPanel({
           badgeCount={unreadCalls}
           active={tab === 'calls'}
           onClick={() => setTab('calls')}
+        />
+        <Tab
+          icon={<FolderTree className="h-5 w-5" />}
+          label="Каталог"
+          meta="Групи, виробники"
+          active={tab === 'catalog'}
+          onClick={() => setTab('catalog')}
         />
       </div>
 
@@ -2368,6 +2389,8 @@ export default function AdminChatPanel({
           </div>
         )}
 
+        {tab === 'catalog' && <AdminCatalogPanel />}
+
         {tab === 'orders' && (
           <>
             <SearchDock>
@@ -2602,7 +2625,7 @@ function Tab({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number;
+  value?: number;
   meta: string;
   badgeCount?: number;
   active: boolean;
@@ -2641,9 +2664,11 @@ function Tab({
               {meta}
             </div>
           </div>
-          <div className="shrink-0 text-[12px] font-black tracking-[-0.04em] text-white sm:text-sm">
-            {value}
-          </div>
+          {value !== undefined && (
+            <div className="shrink-0 text-[12px] font-black tracking-[-0.04em] text-white sm:text-sm">
+              {value}
+            </div>
+          )}
         </div>
       </div>
     </button>

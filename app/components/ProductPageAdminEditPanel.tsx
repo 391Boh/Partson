@@ -10,6 +10,7 @@ import { getAdminIdToken } from "app/lib/get-admin-token";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { notifyProductImageUpdated } from "app/lib/product-image-updates";
+import { useProductPhotoEdit } from "app/lib/use-product-photo-edit";
 import { prepareProductImage } from "app/lib/product-image-upload-client";
 import type { ProductFullEditTarget } from "app/components/ProductFullEditModal";
 import ProductImageUploadFields from "app/components/ProductImageUploadFields";
@@ -494,14 +495,9 @@ export default function ProductPageAdminEditPanel({
     } else if (editing === "promoPriceEuro") {
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
+      // 0 removes the promo. 1C's edit writes Акція on its own and echoes
+      // the stored value back, which product-update confirms.
       fields.promoPriceEuro = n;
-      // 1C's price-record update in ОбновитьТовар appears to only touch that
-      // record at all when ЦінаПрод/ЦінаЗакуп is present in the request —
-      // sending Акція alone came back ok:true (nothing in 1C's own response
-      // said it failed) but never actually persisted. Resending the current,
-      // unchanged sell price alongside it is a harmless no-op price-wise and
-      // reliably wakes up that branch.
-      if (typeof values.priceEuro === "number") fields.priceEuro = values.priceEuro;
     }
 
     setSaving(true);
@@ -544,9 +540,8 @@ export default function ProductPageAdminEditPanel({
           [field]: Number(raw.replace(",", ".")),
         });
       } else if (field === "promoPriceEuro") {
-        // Promo price isn't shown in the catalog grid, but this save also
-        // resends the current, unchanged sell price (see the comment above
-        // where fields.priceEuro is set) — nothing new to patch there.
+        // Promo price isn't a field of the catalog grid rows; drop cached
+        // pages so promo badges/filters pick up the change.
         invalidateCatalogClientCache();
       } else if (field === "name" || field === "producer" || field === "article") {
         invalidateCatalogClientCache({ code, [field]: raw });
@@ -632,6 +627,15 @@ export default function ProductPageAdminEditPanel({
       invalidateCatalogClientCache({ code });
     } catch { setImageError("Помилка мережі"); } finally { setImageUploading(false); }
   };
+
+  const photoEdit = useProductPhotoEdit({
+    code,
+    article: values.article || undefined,
+    getToken,
+    imagePreview,
+    onPreviewChange: (dataUrl, outputBytes) => { setImagePreview(dataUrl); setImageUploadSize(outputBytes); },
+    onError: setImageError,
+  });
 
   const handleGalleryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -745,7 +749,7 @@ export default function ProductPageAdminEditPanel({
     if (isEditing && key === "category") {
       // Combined classification form: category + group + subGroup together
       return (
-        <div key={key} className="relative col-span-2 py-1">
+        <div key={key} className="relative col-span-full py-1">
           <div className="space-y-2">
             {/* Category */}
             <div className="flex items-center gap-2">
@@ -846,7 +850,7 @@ export default function ProductPageAdminEditPanel({
 
     if (isEditing) {
       return (
-        <div key={key} className="relative col-span-2 py-1">
+        <div key={key} className="relative col-span-full py-1">
           <div className="flex items-center gap-2">
             <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
               key === "costPriceEuro" ? "text-amber-500" : "text-slate-400"
@@ -895,7 +899,7 @@ export default function ProductPageAdminEditPanel({
 
     return (
       <button key={key} type="button" onClick={() => openEdit(key)}
-        className="group/row flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-left transition hover:bg-slate-50/80 active:bg-slate-100/80">
+        className="group/row flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left transition hover:bg-slate-50/80 active:bg-slate-100/80">
         <div className="min-w-0 flex-1 overflow-hidden">
           <p className={`mb-0.5 text-[10px] font-bold uppercase tracking-wide leading-none ${
             isMeta
@@ -919,22 +923,40 @@ export default function ProductPageAdminEditPanel({
     );
   };
 
+  // Collapsed, the bar still answers the usual admin questions (price, cost,
+  // stock) without opening anything; expanded, the sections sit side by side.
+  const summary = [
+    { label: "Продаж", value: `${fmt(values.priceEuro)} €` },
+    { label: "Закуп", value: `${fmt(values.costPriceEuro)} €`, tone: "text-amber-700" },
+    { label: "Залишок", value: `${quantity} шт.`, tone: quantity > 0 ? "text-emerald-700" : "text-orange-700" },
+  ];
+
   return (
-    <div className="border-b border-slate-100 px-3 py-3 sm:px-4">
+    // mb-3: the sticky breadcrumb row paints a white backdrop ~35px above
+    // itself (product-navigation-row::before); this keeps the bar clear of it.
+    <div className="mb-3 px-3 pt-3 pb-2 sm:px-5 lg:px-7">
       {/* Collapse toggle + full-edit shortcut */}
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setExpanded((p) => !p)}
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[14px] border border-violet-200/60 bg-gradient-to-br from-violet-50/70 via-white to-white px-3.5 py-2.5 text-left shadow-[0_1px_4px_rgba(109,40,217,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all hover:border-violet-300/80 hover:shadow-[0_2px_10px_rgba(109,40,217,0.12)]"
+          aria-expanded={expanded}
+          className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-violet-200/70 bg-white px-2.5 text-left transition hover:border-violet-300"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-violet-100 text-violet-600">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-100 text-violet-600">
             <Settings2 size={12} />
           </span>
-          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-500">Адмін-панель</span>
+          <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em] text-violet-600">Адмін</span>
+          <span className="flex min-w-0 items-center gap-3 overflow-hidden pl-1 text-[11px] text-slate-500">
+            {summary.map(({ label, value, tone }) => (
+              <span key={label} className="shrink-0 whitespace-nowrap max-sm:[&:nth-child(n+2)]:hidden">
+                {label} <strong className={`font-bold tabular-nums ${tone || "text-slate-800"}`}>{value}</strong>
+              </span>
+            ))}
+          </span>
           <ChevronDown
             size={14}
-            className={`ml-auto text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+            className={`ml-auto shrink-0 text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
           />
         </button>
         {/* One form with every field pre-filled, same idea as the "new
@@ -962,36 +984,31 @@ export default function ProductPageAdminEditPanel({
             window.dispatchEvent(new CustomEvent("partson:open-product-edit", { detail }));
           }}
           title="Редагувати всі поля одразу"
-          className="flex h-[42px] shrink-0 items-center justify-center rounded-[14px] border border-violet-200/60 bg-white px-3 text-violet-600 shadow-[0_1px_4px_rgba(109,40,217,0.06)] transition-all hover:border-violet-300/80 hover:bg-violet-50"
+          aria-label="Редагувати всі поля одразу"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-violet-200/70 bg-white text-violet-600 transition hover:border-violet-300 hover:bg-violet-50"
         >
           <PenSquare size={14} />
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-2 overflow-hidden rounded-[18px] border border-violet-100 bg-white shadow-[0_4px_20px_rgba(109,40,217,0.1),inset_0_1px_0_rgba(255,255,255,1)]">
-
-          {SECTIONS.map((section, si) => (
-            <div key={section.title} className={si > 0 ? "border-t border-slate-100" : ""}>
-              <div className="px-3.5 pt-3 pb-2">
-                <p className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${section.titleColor}`}>
-                  {section.title}
-                </p>
-                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                  {section.fields.map(({ key, label, isNum }) => renderField(key, label, isNum))}
-                </div>
+        <div className="mt-2 overflow-hidden rounded-[12px] border border-violet-100 bg-white shadow-[0_4px_16px_rgba(109,40,217,0.08)]">
+          <div className="grid divide-slate-100 max-xl:divide-y md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_0.9fr] xl:divide-x">
+          {SECTIONS.map((section) => (
+            <div key={section.title} className="min-w-0 px-2.5 pt-2.5 pb-1.5">
+              <p className={`mb-0.5 px-2 text-[9px] font-black uppercase tracking-[0.12em] ${section.titleColor}`}>
+                {section.title}
+              </p>
+              <div className="grid grid-cols-1">
+                {section.fields.map(({ key, label, isNum }) => renderField(key, label, isNum))}
               </div>
             </div>
           ))}
 
           {/* Quantity management */}
-          <div className="border-t border-slate-100 px-3.5 py-3">
+          <div className="min-w-0 px-4 pt-2.5 pb-3">
             <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-orange-500">Залишки</p>
-              <span className="flex items-center gap-1 rounded-[7px] border border-orange-200 bg-orange-50 px-2 py-0.5">
-                <Package size={10} className="text-orange-500" />
-                <span className="text-[11px] font-bold text-orange-700">{quantity} шт.</span>
-              </span>
+              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-500">Залишки</p>
               {qtySavedType && (
                 <span className="inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
                   <Check size={9} />
@@ -999,6 +1016,10 @@ export default function ProductPageAdminEditPanel({
                 </span>
               )}
             </div>
+            <p className="mb-2 flex items-center gap-1.5 text-[18px] font-black tabular-nums text-slate-900">
+              <Package size={14} className="text-orange-500" aria-hidden="true" />
+              {quantity} <span className="text-[12px] font-bold text-slate-500">шт.</span>
+            </p>
             {stockEditing ? (
               <AdminStockStepper
                 stock={quantity}
@@ -1010,17 +1031,19 @@ export default function ProductPageAdminEditPanel({
               <button
                 type="button"
                 onClick={() => setStockEditing(true)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-orange-200 bg-orange-50 px-3 text-[12px] font-bold text-orange-700 transition hover:bg-orange-100"
+                className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-orange-200 bg-orange-50 px-2.5 text-[11px] font-bold text-orange-700 transition hover:bg-orange-100"
               >
-                <Pencil size={12} />
+                <Pencil size={11} />
                 Змінити залишок
               </button>
             )}
           </div>
+          </div>
 
+          <div className="grid border-t border-slate-100 lg:grid-cols-2 lg:divide-x lg:divide-slate-100">
           {/* Image upload */}
-          <div className="border-t border-slate-100 px-3.5 py-3">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
+          <div className="min-w-0 px-4 py-2.5">
+            <p className="mb-2 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Фото</p>
             <ProductImageUploadFields
               fileInputRef={fileInputRef}
               galleryFileInputRef={galleryFileInputRef}
@@ -1035,6 +1058,11 @@ export default function ProductPageAdminEditPanel({
               imageUploadSize={imageUploadSize}
               onUploadImage={() => void uploadImage()}
               onCancelImage={() => { setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); }}
+              onRotateImage={(direction) => void photoEdit.rotate(direction)}
+              imageRotating={photoEdit.rotating}
+              onRemoveImage={() => void photoEdit.remove()}
+              imageRemoving={photoEdit.removing}
+              imageRemoved={photoEdit.removed && !imageUploaded}
               galleryPreview={galleryPreview}
               galleryProcessing={galleryProcessing}
               galleryUploading={galleryUploading}
@@ -1048,9 +1076,9 @@ export default function ProductPageAdminEditPanel({
           </div>
 
           {/* Description edit */}
-          <div className="border-t border-slate-100 px-3.5 py-3">
+          <div className="min-w-0 border-t border-slate-100 px-4 py-2.5 lg:border-t-0">
             <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Опис</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Опис</p>
               {descSaved && (
                 <span className="inline-flex items-center gap-1 rounded-[6px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
                   <Check size={9} /> Збережено
@@ -1095,16 +1123,17 @@ export default function ProductPageAdminEditPanel({
                 tabIndex={0}
                 onClick={() => setDescEditing(true)}
                 onKeyDown={(e) => e.key === "Enter" && setDescEditing(true)}
-                className="group/desc min-h-[44px] cursor-pointer rounded-[10px] border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 transition hover:border-violet-200 hover:bg-violet-50/30"
+                className="group/desc min-h-[40px] cursor-pointer rounded-[8px] border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2 transition hover:border-violet-200 hover:bg-violet-50/30"
               >
                 {descVal ? (
-                  <p className="text-[12px] leading-relaxed text-slate-600 line-clamp-3 whitespace-pre-line">{descVal}</p>
+                  <p className="text-[12px] leading-relaxed text-slate-600 line-clamp-2 whitespace-pre-line">{descVal}</p>
                 ) : (
                   <p className="text-[12px] italic text-slate-400">Опис відсутній — натисніть для редагування</p>
                 )}
                 <p className="mt-1 text-[10px] text-violet-400 opacity-0 group-hover/desc:opacity-100 transition">Редагувати</p>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}

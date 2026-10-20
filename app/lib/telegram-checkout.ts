@@ -3,7 +3,7 @@ import "server-only";
 import { Timestamp } from "firebase-admin/firestore";
 
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
-import { oneCRequest, clearAllOneCCache } from "app/api/_lib/oneC";
+import { deductOrderStock } from "app/api/_lib/order-stock";
 import { sendTelegramNotification } from "app/lib/telegram-notify";
 import { formatOrderMoney } from "app/lib/telegram-order-message";
 import type { CartItem } from "app/lib/telegram-cart";
@@ -110,26 +110,6 @@ const buildOrderNotifyText = (order: {
     .join("\n");
 };
 
-// Same 1C call app/api/orders/deduct-stock/route.ts makes, per item —
-// deliberately omits `article`: 1C's ОбновитьТовар treats its presence as
-// a catalog-number change request and throws on a quantity-only update.
-const deductStock = async (cartItems: CartItem[]) => {
-  const endpoint = (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "ОбновитьТовар").trim();
-  await Promise.allSettled(
-    cartItems.map((item) =>
-      oneCRequest(endpoint, {
-        method: "POST",
-        body: { Код: item.code, Реалізація: item.quantity },
-        timeoutMs: 15_000,
-        retries: 1,
-        retryDelayMs: 300,
-        cacheTtlMs: 0,
-      })
-    )
-  );
-  clearAllOneCCache();
-};
-
 export type CheckoutDelivery = {
   method: DeliveryMethod;
   city: string | null;
@@ -210,7 +190,7 @@ export const createCashOrder = async (input: {
   void sendTelegramNotification(notifyText).catch((error) => {
     console.error("Order shop-notify failed:", error);
   });
-  void deductStock(cart).catch((error) => {
+  void deductOrderStock(orderId).catch((error) => {
     console.error("Order stock deduction failed:", error);
   });
 

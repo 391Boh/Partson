@@ -32,6 +32,15 @@ const DESCRIPTION_CACHE_TTL_MS = 1000 * 60 * 30;
 // reintroduce false "not filled in" states for products that do have one.
 const DESCRIPTION_REQUEST_TIMEOUT_MS = 4500;
 
+const isStoredAdminViewer = () => {
+  try {
+    const uid = window.localStorage.getItem("user_id");
+    return Boolean(uid && window.localStorage.getItem(`partson:isAdmin:${uid}`) === "1");
+  } catch {
+    return false;
+  }
+};
+
 export default function ProductDescriptionClientCard({
   initialText,
   lookupKeys,
@@ -147,6 +156,11 @@ export default function ProductDescriptionClientCard({
         // Ignore localStorage quota issues.
       }
     };
+
+    // Server-rendered text is at most one ISR period old, and the live recheck
+    // costs a 1.9-3.7 s 1C call on every view, competing with the page's
+    // other 1C lookups. Only admins, who edit descriptions, still recheck.
+    if (normalizedInitialText && !isStoredAdminViewer()) return;
 
     // Skip the client-cache shortcut when the server already rendered a
     // description — we want this pass to check against live 1C data, not
@@ -359,7 +373,7 @@ export default function ProductDescriptionClientCard({
                     <Phone size={15} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
                       Телефон
                     </span>
                     <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
@@ -374,7 +388,7 @@ export default function ProductDescriptionClientCard({
                     <MapPin size={15} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-sky-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
                       Адреса
                     </span>
                     <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
