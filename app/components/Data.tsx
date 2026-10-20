@@ -1748,7 +1748,7 @@ function useCatalogData(params: {
       const allowFullLookup = options?.allowFullLookup === true;
       const nowTs = Date.now();
       const immediateUpdates: Record<string, number | null> = {};
-      const requestItems: Array<{ stateKey: string; lookupKeys: string[] }> = [];
+      const requestItems: Array<{ stateKey: string; lookupKeys: string[]; listedPrice?: number }> = [];
 
       for (const item of items.slice(0, PRICE_PAGE_BATCH_SIZE)) {
         const stateKey = getProductPriceStateKey(item);
@@ -1879,7 +1879,16 @@ function useCatalogData(params: {
           delete priceRetryCooldownUntilRef.current[stateKey];
         }
 
-        requestItems.push({ stateKey, lookupKeys });
+        // The listing just came from 1C with this item's sell price (0 = none).
+        // Sending it lets the price route skip a live 1C re-lookup — the batch
+        // is mostly here for the promo signal (needsPromoPrice).
+        const listedPrice =
+          typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro >= 0
+            ? item.priceEuro
+            : item.hasPrice === false
+              ? 0
+              : undefined;
+        requestItems.push({ stateKey, lookupKeys, ...(listedPrice !== undefined ? { listedPrice } : {}) });
       }
 
       if (Object.keys(immediateUpdates).length > 0) {

@@ -28,15 +28,18 @@ export default function ProductSectionNav({
     const pinnedContainer = nav.closest<HTMLElement>(".product-navigation-row") || nav;
     const observeSections = () => {
       observer?.disconnect();
-      // Track the reading area beneath both the pinned offer and navigation.
-      const navTop = Number.parseFloat(getComputedStyle(pinnedContainer).top) || 0;
-      let coveredHeight = navTop + pinnedContainer.offsetHeight;
-      if (window.matchMedia("(max-width: 767px)").matches) {
-        const offer = nav.closest(".product-page")?.querySelector<HTMLElement>(".product-hero-gallery");
-        if (offer) coveredHeight = Math.max(coveredHeight, (Number.parseFloat(getComputedStyle(offer).top) || 0) + offer.offsetHeight);
-      }
+      // Track the reading area beneath whatever is actually pinned. On phones
+      // nothing is (globals.css), so only the site header covers the page.
+      const pinnedBottom = (element: HTMLElement | null | undefined) => {
+        if (!element) return 0;
+        const style = getComputedStyle(element);
+        if (style.position !== "sticky" && style.position !== "fixed") return 0;
+        return (Number.parseFloat(style.top) || 0) + element.offsetHeight;
+      };
+      const headerVar = getComputedStyle(nav).getPropertyValue("--header-height").trim();
+      const headerHeight = (Number.parseFloat(headerVar) || 4) * (headerVar.endsWith("px") ? 1 : 16);
       const identity = nav.closest(".product-page")?.querySelector<HTMLElement>(".product-identity-sticky");
-      if (identity) coveredHeight = Math.max(coveredHeight, (Number.parseFloat(getComputedStyle(identity).top) || 0) + identity.offsetHeight);
+      const coveredHeight = Math.max(headerHeight, pinnedBottom(pinnedContainer), pinnedBottom(identity));
       const top = Math.min(window.innerHeight - 40, coveredHeight + 8);
       const readingHeight = Math.max(40, (window.innerHeight - top) * 0.45);
       const bottom = Math.max(0, window.innerHeight - top - readingHeight);

@@ -14590,3 +14590,85 @@ button[aria-label="Відкрити вкладку параметрів това
   .cart-added-notice[data-leaving="true"] { animation: cart-notice-opacity 120ms ease-in reverse both; }
   @keyframes cart-notice-opacity { from { opacity: 0; } to { opacity: 1; } }
 }
+
+/* Phones: nothing on the product page is pinned. The overview reads top to
+   bottom at a comfortable size — photo, code and title, the compatibility
+   note and reviews, the facts, then the offer — instead of a squeezed sticky
+   panel with its own inner scroll. */
+@media (max-width: 767px) {
+  .product-page .product-navigation-row { position: relative; top: auto; z-index: 1; margin-bottom: 12px; }
+  .product-page .product-navigation-row::before,
+  .product-page .product-navigation-row::after { display: none; }
+  .product-page .product-identity-sticky {
+    position: relative; top: auto; z-index: auto;
+    border-bottom: 0; background: transparent; box-shadow: none;
+  }
+  .product-page .product-identity-sticky::before { display: none; }
+  .product-page [id^="product-"] { scroll-margin-top: calc(var(--header-height, 4rem) + 12px); }
+
+  .product-page .product-overview-sticky .product-identity-content {
+    display: flex; flex-direction: column; gap: 16px;
+    max-height: none; overflow: visible; padding: 0 0 8px; grid-template-rows: none;
+  }
+
+  .product-page .product-overview-sticky .product-hero-gallery { position: static; height: auto; overflow: visible; }
+  .product-page .product-overview-sticky .product-hero-gallery::before { display: none; }
+  .product-page .product-overview-sticky .product-hero-media,
+  .product-page .product-overview-sticky .product-hero-media:has(.product-gallery[data-photo-count="1"]:not([data-admin])) {
+    height: auto; border-radius: 18px; box-shadow: 0 10px 28px -22px rgb(15 23 42 / 45%);
+  }
+  .product-page .product-overview-sticky .product-hero-stage { aspect-ratio: 4 / 3; min-height: 0; padding: 16px; }
+  .product-page .product-overview-sticky .product-hero-stage > div { max-width: min(100%, 280px); max-height: 100%; }
+  .product-page .product-gallery { padding: 8px 10px 10px; }
+  .product-page .product-gallery-item,
+  .product-page .product-gallery-add { width: 52px; height: 52px; }
+
+  .product-page .product-overview-sticky .product-identity-details { height: auto; overflow: visible; padding: 0; }
+  .product-page .product-identifier-code { margin-bottom: 6px; font-size: 12px; }
+  .product-page .product-overview-sticky .product-identity-details h1.product-title {
+    display: block; max-width: none; overflow: visible; -webkit-line-clamp: unset;
+    font-size: 23px; line-height: 1.15;
+  }
+  .product-page .product-title-wrap { padding-bottom: 12px; }
+  .product-page .product-title-wrap::after { width: 40px; height: 3px; }
+  .product-page .product-review-row { flex-wrap: wrap; justify-content: flex-start; gap: 10px; padding-top: 12px; margin-top: 0; }
+  .product-page .product-overview-sticky .product-review-row .product-overview-description {
+    flex-basis: 100%; max-width: none; font-size: 14px; line-height: 1.55;
+  }
+  .product-page .product-review-button { min-height: 40px; gap: 6px; padding: 6px 14px 6px 12px; font-size: 13px; }
+
+  .product-page .product-overview-sticky .product-summary-details > .product-specs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; column-gap: 12px;
+    margin-top: 14px; padding-block: 14px;
+  }
+  .product-page .product-overview-sticky .product-summary-details .product-spec { gap: 10px; padding: 0; border-left: 0; }
+  .product-page .product-spec-media { display: grid; width: 36px; height: 36px; }
+  .product-page .product-spec-media[data-logo] { width: 48px; }
+  .product-page .product-overview-sticky .product-summary-details .product-spec dt { font-size: 10px; line-height: 13px; }
+  .product-page .product-overview-sticky .product-summary-details .product-spec dd { margin-top: 3px; font-size: 14px; line-height: 18px; }
+
+  .product-page .product-overview-sticky .product-hero-purchase,
+  .product-page .product-overview-sticky .product-hero-purchase .product-purchase-panel { height: auto; }
+  .product-page .product-overview-sticky .product-purchase-body { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+  .product-page .product-purchase-price { font-size: 30px; }
+  .product-page .product-purchase-promo { font-size: 12px; }
+  .product-page .product-overview-sticky .product-purchase-promo-full { display: inline; }
+  .product-page .product-overview-sticky .product-purchase-promo-short { display: none; }
+  .product-page .product-purchase-stock { margin-top: 12px; padding: 10px 12px; gap: 10px; border-radius: 12px; }
+  .product-page .product-purchase-stock-title { font-size: 14px; line-height: 19px; white-space: normal; }
+  .product-page .product-purchase-stock-note { display: block; font-size: 12px; line-height: 16px; }
+  .product-page .product-purchase-stock-icon { display: grid; }
+  .product-page .product-overview-sticky .product-purchase-actions { padding-top: 14px; border-top: 1px solid #dce7eb; }
+  .product-page .product-overview-sticky .product-buy-row { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+  .product-page .product-overview-sticky .product-qty-stepper { min-height: 50px; }
+  .product-page .product-overview-sticky .product-qty-stepper button { width: 34px; height: 44px; min-height: 44px; }
+  .product-page .product-overview-sticky .product-cart-button { min-height: 50px; font-size: 15px; }
+  .product-page .product-overview-sticky .product-purchase-services { display: grid; }
+  .product-page .product-summary-highlights {
+    flex-wrap: wrap; gap: 8px 16px; margin-top: 12px;
+    overflow: visible; white-space: normal; font-size: 12px;
+  }
+  .product-page .product-summary-highlights svg { width: 14px; height: 14px; }
+  /* An older phone rule shrank links in the facts to 10px. */
+  .product-page .product-summary-details .product-spec dd a { font-size: inherit; }
+}

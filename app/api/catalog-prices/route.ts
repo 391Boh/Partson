@@ -19,6 +19,8 @@ export const runtime = "nodejs";
 type PriceBatchItem = {
   stateKey?: unknown;
   lookupKeys?: unknown;
+  // Sell price the catalog listing already got from 1C (0 = no price).
+  listedPrice?: unknown;
 };
 
 type CatalogPricesPayload = {
@@ -178,6 +180,10 @@ export async function POST(request: NextRequest) {
       .map((item) => ({
         stateKey: normalizeStateKey(item?.stateKey),
         lookupKeys: normalizeLookupKeys(item?.lookupKeys),
+        listedPrice:
+          typeof item?.listedPrice === "number" && Number.isFinite(item.listedPrice) && item.listedPrice >= 0
+            ? item.listedPrice
+            : undefined,
       }))
       .filter((item) => item.stateKey && item.lookupKeys.length > 0);
 
@@ -307,6 +313,7 @@ export async function POST(request: NextRequest) {
           missingItems
             .filter(
               (item) =>
+                item.listedPrice === undefined &&
                 !item.lookupKeys.some(
                   (key) => snapshotPriceByKey[key.trim().toLowerCase()] !== undefined
                 )
@@ -387,7 +394,9 @@ export async function POST(request: NextRequest) {
         prices[item.stateKey] =
           typeof matched === "number" && Number.isFinite(matched) && matched > 0
             ? matched
-            : null;
+            : item.listedPrice !== undefined && item.listedPrice > 0
+              ? item.listedPrice
+              : null;
 
         const matchedCost = item.lookupKeys
           .map((lookupKey) => lookupCostPrices[lookupKey.trim().toLowerCase()])
