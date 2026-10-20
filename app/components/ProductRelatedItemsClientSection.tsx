@@ -116,7 +116,7 @@ const buildRecommendationIdentityKeys = (
 // Single row at every breakpoint — a 2-row desktop layout worked for the
 // old short cards but would make this section very tall with taller ones.
 const getRecommendationListClass = (count: number) =>
-  `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-x-auto overscroll-x-contain ${count > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]`;
+  `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[172px] gap-2.5 overflow-x-auto overscroll-x-contain ${count > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[176px] sm:gap-3 lg:auto-cols-[188px]`;
 
 const scheduleProductRecommendationTask = (task: () => void) => {
   if (typeof window === "undefined") {
@@ -178,11 +178,11 @@ const Skeleton = () => (
       <span />
       <span />
     </div>
-    <div className="mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-hidden sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]">
+    <div className="mt-3 grid grid-flow-col grid-rows-1 auto-cols-[172px] gap-2.5 overflow-hidden sm:auto-cols-[176px] sm:gap-3 lg:auto-cols-[188px]">
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={`rel-skeleton-${index}`}
-          className="h-[166px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100"
+          className="h-[184px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100"
         />
       ))}
     </div>

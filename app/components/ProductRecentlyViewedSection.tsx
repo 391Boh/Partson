@@ -313,7 +313,7 @@ export default function ProductRecentlyViewedSection({
   // Same narrower, single-row, fade-masked treatment as the analogs/similar
   // carousels (ProductRelatedItemsClientSection) — kept in sync so every
   // horizontal product strip on the page swipes and looks the same way.
-  const listClass = `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[150px] gap-2.5 overflow-x-auto overscroll-x-contain ${visibleItems.length > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[168px] sm:gap-3 lg:auto-cols-[180px]`;
+  const listClass = `mt-3 grid grid-flow-col grid-rows-1 auto-cols-[172px] gap-2.5 overflow-x-auto overscroll-x-contain ${visibleItems.length > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[176px] sm:gap-3 lg:auto-cols-[188px]`;
 
   return (
     <section className="relative overflow-hidden rounded-[22px] border border-amber-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(255,251,235,0.88),rgba(248,250,252,0.98))] p-3 text-left shadow-[0_18px_42px_rgba(15,23,42,0.075)] ring-1 ring-white/80 sm:rounded-[24px] sm:p-4">
