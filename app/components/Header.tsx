@@ -757,7 +757,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
               <button
                 onClick={() => setShowSearchModal(false)}
                 aria-label="Закрити пошук"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[11px] border border-white/[0.16] bg-white/[0.09] text-slate-300 transition-all duration-150 hover:-translate-y-px hover:border-rose-300/40 hover:bg-rose-500/[0.14] hover:text-rose-200 active:translate-y-0 active:scale-95"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-white/[0.16] sm:h-8 sm:w-8 sm:rounded-[11px] bg-white/[0.09] text-slate-300 transition-all duration-150 hover:-translate-y-px hover:border-rose-300/40 hover:bg-rose-500/[0.14] hover:text-rose-200 active:translate-y-0 active:scale-95"
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
@@ -767,12 +767,12 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
             {renderSearchBar(() => setShowSearchModal(false))}
 
             {/* hint chips */}
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <div className="mt-3 flex flex-wrap gap-2 sm:gap-1.5">
               {["Фільтр масляний", "Гальмівні колодки", "Амортизатор"].map(hint => (
                 <button
                   key={hint}
                   type="button"
-                  className="font-ui rounded-full border border-sky-400/[0.22] bg-sky-500/[0.08] px-2.5 py-1 text-[11px] font-semibold text-sky-300 transition-all duration-150 hover:border-sky-300/40 hover:bg-sky-400/[0.16] hover:text-sky-100 hover:-translate-y-px active:translate-y-0 active:scale-95"
+                  className="font-ui rounded-full border border-sky-400/[0.22] bg-sky-500/[0.08] min-h-9 px-3 py-1.5 text-[13px] font-semibold text-sky-300 sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-[11px] transition-all duration-150 hover:border-sky-300/40 hover:bg-sky-400/[0.16] hover:text-sky-100 hover:-translate-y-px active:translate-y-0 active:scale-95"
                   onClick={() => {
                     const input = searchModalRef.current?.querySelector<HTMLInputElement>('[data-search="true"]');
                     if (input) {

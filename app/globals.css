@@ -14728,3 +14728,48 @@ button[aria-label="Відкрити вкладку параметрів това
 @media (max-width: 639px) {
   .catalog-product-card.catalog-product-card--admin { height: 436px !important; }
 }
+
+/* Customer windows on phones: a full-screen sheet over the visual viewport
+   (keyboard-aware via useCustomerDialog) instead of a card floating over the
+   header and an undimmed page. The title row with the close button sticks,
+   the whole sheet scrolls, and small labels stay at 12px or larger. */
+@media (max-width: 639px) {
+  .customer-window.customer-overlay-panel.app-overlay-panel,
+  .customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel {
+    top: var(--dialog-viewport-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    max-width: none;
+    height: var(--dialog-viewport-height, 100dvh);
+    max-height: var(--dialog-viewport-height, 100dvh);
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    z-index: 100;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-content {
+    --sheet-top: max(12px, env(safe-area-inset-top));
+    --sheet-side: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+    min-height: 100%;
+    padding: var(--sheet-top) var(--sheet-side) max(20px, env(safe-area-inset-bottom)) !important;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-header:not(.profile-cover-header) {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: calc(-1 * var(--sheet-top)) calc(-1 * var(--sheet-side)) 0;
+    padding: var(--sheet-top) var(--sheet-side) 12px;
+    border-bottom: 1px solid rgba(148,163,184,.18);
+    background: #15253a;
+  }
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-segment,
+  .customer-window.customer-overlay-panel.app-overlay-panel .soft-panel-tabs button { font-size: 14px !important; }
+  .customer-window.customer-overlay-panel.app-overlay-panel :is(.cw-list-title, .cw-contact-row .cw-contact-operator, .profile-hub-progress-label, .profile-hub-complete) { font-size: 12px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel .profile-hub-missing button { min-height: 32px; font-size: 12px; }
+  .customer-window.customer-overlay-panel.app-overlay-panel.auth-form-panel .text-\[10px\] { font-size: 12px; }
+}
