@@ -2345,10 +2345,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </nav>
                   <ProductSectionNav
                     items={[
-                      { href: "#product-description", label: "Опис і характеристики" },
+                      { href: "#product-description", label: "Опис і характеристики", shortLabel: "Опис" },
                       { href: "#product-alternatives", label: "Аналоги" },
                       { href: "#product-reviews", label: "Відгуки" },
-                      { href: "#product-faq", label: "Популярні запитання" },
+                      { href: "#product-faq", label: "Популярні запитання", shortLabel: "Питання" },
                     ]}
                   />
                 </div>

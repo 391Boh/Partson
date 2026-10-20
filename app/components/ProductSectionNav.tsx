@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 type ProductSectionNavItem = {
   href: string;
   label: string;
+  /** Shown instead of `label` on phones, where the rail is a row of pills. */
+  shortLabel?: string;
 };
 
 export default function ProductSectionNav({
@@ -25,6 +27,8 @@ export default function ProductSectionNav({
     const nav = railRef.current?.closest("nav");
     if (!nav) return;
 
+    // Desktop pins the whole navigation row; phones pin only this nav (the
+    // row is `display: contents` there, globals.css).
     const pinnedContainer = nav.closest<HTMLElement>(".product-navigation-row") || nav;
     const observeSections = () => {
       observer?.disconnect();
@@ -39,7 +43,7 @@ export default function ProductSectionNav({
       const headerVar = getComputedStyle(nav).getPropertyValue("--header-height").trim();
       const headerHeight = (Number.parseFloat(headerVar) || 4) * (headerVar.endsWith("px") ? 1 : 16);
       const identity = nav.closest(".product-page")?.querySelector<HTMLElement>(".product-identity-sticky");
-      const coveredHeight = Math.max(headerHeight, pinnedBottom(pinnedContainer), pinnedBottom(identity));
+      const coveredHeight = Math.max(headerHeight, pinnedBottom(pinnedContainer), pinnedBottom(nav), pinnedBottom(identity));
       const top = Math.min(window.innerHeight - 40, coveredHeight + 8);
       const readingHeight = Math.max(40, (window.innerHeight - top) * 0.45);
       const bottom = Math.max(0, window.innerHeight - top - readingHeight);
@@ -57,6 +61,7 @@ export default function ProductSectionNav({
     observeSections();
     const resizeObserver = new ResizeObserver(observeSections);
     resizeObserver.observe(pinnedContainer);
+    if (pinnedContainer !== nav) resizeObserver.observe(nav);
     const identity = nav.closest(".product-page")?.querySelector(".product-identity-sticky");
     if (identity) resizeObserver.observe(identity);
     window.addEventListener("resize", observeSections);
@@ -119,7 +124,14 @@ export default function ProductSectionNav({
                 aria-current={isActive ? "location" : undefined}
                 className="product-details-nav-link"
               >
-                {item.label}
+                {item.shortLabel ? (
+                  <>
+                    <span className="product-details-nav-label">{item.label}</span>
+                    <span className="product-details-nav-label-short" aria-hidden="true">{item.shortLabel}</span>
+                  </>
+                ) : (
+                  item.label
+                )}
               </a>
             );
           })}

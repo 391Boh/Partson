@@ -186,8 +186,8 @@ export default function ProductReviewsSection({
   const visible = showAll ? reviews : reviews.slice(0, 3);
 
   return (
-    <section className="border-t border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
-      <div className="overflow-hidden rounded-[16px] border border-slate-200/80 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
+    <section className="product-reviews border-t border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
+      <div className="product-reviews-card overflow-hidden rounded-[16px] border border-slate-200/80 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
         {/* ── header ── */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 bg-[linear-gradient(135deg,rgba(248,250,252,0.99),rgba(240,249,255,0.97)_50%,rgba(255,255,255,0.94)_100%)] px-3.5 py-2.5 sm:px-4">
           <div className="flex items-center gap-2.5">
@@ -195,9 +195,9 @@ export default function ProductReviewsSection({
               <MessageSquare size={13} />
             </span>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+              <h2 className="product-reviews-title text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                 Відгуки покупців
-              </p>
+              </h2>
               {!loading && reviews.length > 0 && (
                 <div className="mt-0.5 flex items-center gap-2">
                   <Stars rating={Math.round(avgRating)} size={12} />
