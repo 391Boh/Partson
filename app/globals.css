@@ -14958,3 +14958,43 @@ button[aria-label="Відкрити вкладку параметрів това
   .product-page .product-gallery-thumb[aria-pressed="true"] { opacity: 1; border-width: 2px; }
   .product-page .product-hero-media > .product-hero-stage button { right: 12px; bottom: 12px; }
 }
+
+/* Scrollbars: the page gets a slim brand-teal thumb on a mist track that
+   matches the page background; dark windows (profile, order, contacts,
+   header menus, dialogs) get a translucent light thumb on no track instead
+   of the light track that showed as a pale stripe on navy. */
+:root {
+  --scrollbar-track: #e9f1f3;
+  --scrollbar-thumb: #8db8bd;
+  --scrollbar-thumb-hover: #3f8f98;
+  --scrollbar-thumb-active: #0b7285;
+}
+:where(.customer-window, .app-header-dropdown, .app-overlay-panel.soft-modal-shell, .floating-dialog-shell, .site-header-shell) {
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgb(186 214 230 / 34%);
+  --scrollbar-thumb-hover: rgb(186 214 230 / 55%);
+  --scrollbar-thumb-active: rgb(125 211 252 / 70%);
+}
+@media (pointer: fine) {
+  html::-webkit-scrollbar { width: 11px; }
+  html::-webkit-scrollbar-track { border-radius: 0; background: var(--scrollbar-track); box-shadow: inset 1px 0 0 rgb(15 23 42 / 6%); }
+  html::-webkit-scrollbar-thumb {
+    border: 3px solid transparent; border-radius: 999px; background-clip: padding-box;
+    background-image: linear-gradient(180deg, #7fb6bd, #5d9ba5);
+  }
+  html::-webkit-scrollbar-thumb:hover { background-image: linear-gradient(180deg, #3f98a1, #0b7285); }
+  html::-webkit-scrollbar-thumb:active { background-image: linear-gradient(180deg, #0b7285, #075569); }
+}
+
+/* Swipeable product photo: horizontal gestures belong to the gallery. */
+.product-hero-stage[data-swipe="true"] { touch-action: pan-y pinch-zoom; }
+.product-gallery-counter { display: none; }
+@media (max-width: 767px) {
+  .product-page .product-gallery-counter {
+    position: absolute; bottom: calc(100% + 12px); left: max(12px, env(safe-area-inset-left));
+    display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px;
+    border-radius: 999px; background: rgb(15 23 42 / 62%); color: #fff;
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em;
+    pointer-events: none;
+  }
+}

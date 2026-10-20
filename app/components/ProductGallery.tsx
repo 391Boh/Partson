@@ -44,6 +44,7 @@ export default function ProductGallery({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkStoredAdminFlag = () => {
@@ -215,6 +216,53 @@ export default function ProductGallery({
     if (photoUrls.length < 2) return;
     selectImage(photoUrls[(selectedIndex + direction + photoUrls.length) % photoUrls.length]);
   };
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  });
+
+  // Phones: a horizontal swipe on the main photo above this strip switches
+  // to the next/previous photo; vertical drags keep scrolling the page.
+  const canSwipe = photoUrls.length > 1;
+  useEffect(() => {
+    const stage = regionRef.current
+      ?.closest(".product-hero-media")
+      ?.querySelector<HTMLElement>(".product-hero-stage");
+    if (!stage || !canSwipe) return;
+    stage.dataset.swipe = "true";
+    let start: { x: number; y: number } | null = null;
+    const onStart = (event: TouchEvent) => {
+      const touch = event.touches.length === 1 ? event.touches[0] : null;
+      start = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    };
+    const onEnd = (event: TouchEvent) => {
+      const touch = event.changedTouches[0];
+      if (!start || !touch) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      start = null;
+      if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      const direction = dx < 0 ? 1 : -1;
+      navigateRef.current(direction);
+      const photo = stage.firstElementChild;
+      if (photo instanceof HTMLElement && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        photo.animate(
+          [{ transform: `translateX(${direction * 28}px)`, opacity: 0.35 }, { transform: "none", opacity: 1 }],
+          { duration: 240, easing: "cubic-bezier(.16, 1, .3, 1)" }
+        );
+      }
+    };
+    const onCancel = () => { start = null; };
+    stage.addEventListener("touchstart", onStart, { passive: true });
+    stage.addEventListener("touchend", onEnd, { passive: true });
+    stage.addEventListener("touchcancel", onCancel, { passive: true });
+    return () => {
+      delete stage.dataset.swipe;
+      stage.removeEventListener("touchstart", onStart);
+      stage.removeEventListener("touchend", onEnd);
+      stage.removeEventListener("touchcancel", onCancel);
+    };
+  }, [canSwipe]);
 
   if (photoUrls.length === 0 && !isAdmin) return null;
 
@@ -231,6 +279,7 @@ export default function ProductGallery({
 
   return (
     <div
+      ref={regionRef}
       role="region"
       aria-label="Галерея фотографій товару"
       data-photo-count={photoUrls.length}
@@ -247,6 +296,11 @@ export default function ProductGallery({
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         Фото {photoUrls.length ? selectedIndex + 1 : 0} з {photoUrls.length}
       </p>
+      {canSwipe ? (
+        <span className="product-gallery-counter" aria-hidden="true">
+          {selectedIndex + 1} / {photoUrls.length}
+        </span>
+      ) : null}
       <div className="product-gallery-strip">
         {photoUrls.length > 1 ? arrowButton(-1) : null}
         <div className="product-gallery-thumbs">
