@@ -64,4 +64,22 @@ const searchDesc = await api.fetchCatalogProductsByQuery({ page: 1, limit: 2, se
 assert.equal(JSON.stringify(searchDesc.items.map((product) => product.name)), JSON.stringify(["Ялинка фільтр", "Фільтр 10"]));
 assert.equal(searchDesc.hasMore, true);
 
-console.log("Catalog name sort passed: 1C order + cursor round trip, price precedence, direct pages, Ukrainian search ordering.");
+// An older 1C ignores СортировкаПоНазве (no sort_mode): the site collects
+// the filtered set and pages it alphabetically with its own cursor.
+requests.length = 0;
+const unsorted = [item("010", "Шланг"), item("011", "Амортизатор"), item("012", "Ґумка"), item("013", "Гальмо"), item("014", "Ящик")];
+respond = (body) => ({
+  success: true, has_more: false, next_cursor: "",
+  items: body.Лимит === 500 ? unsorted : unsorted.slice(0, body.Лимит),
+});
+const legacyFirst = await api.fetchCatalogProductsByQuery({ page: 1, limit: 2, group: "Фільтри", nameSort: "asc", forceAllgoodsSource: true });
+assert.equal(JSON.stringify(legacyFirst.items.map((product) => product.name)), JSON.stringify(["Амортизатор", "Гальмо"]));
+assert.equal(legacyFirst.totalCount, 5);
+assert.equal(legacyFirst.nextCursor, "nl1:2");
+const legacySecond = await api.fetchCatalogProductsByQuery({ page: 2, limit: 2, group: "Фільтри", nameSort: "asc", cursor: legacyFirst.nextCursor, forceAllgoodsSource: true });
+assert.equal(JSON.stringify(legacySecond.items.map((product) => product.name)), JSON.stringify(["Ґумка", "Шланг"]));
+const legacyLast = await api.fetchCatalogProductsByQuery({ page: 3, limit: 2, group: "Фільтри", nameSort: "asc", cursor: legacySecond.nextCursor, forceAllgoodsSource: true });
+assert.equal(JSON.stringify(legacyLast.items.map((product) => product.name)), JSON.stringify(["Ящик"]));
+assert.equal(legacyLast.hasMore, false);
+
+console.log("Catalog name sort passed: 1C order + cursor round trip, price precedence, direct pages, Ukrainian search ordering, local fallback for an older 1C.");

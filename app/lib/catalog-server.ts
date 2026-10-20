@@ -377,6 +377,8 @@ const parseAllgoodsPayload = (payload: string) => {
     return {
       items: records.map(normalizeProduct),
       directOffset: parsed.pagination_mode === "offset_v1" && typeof parsed.offset === "number" ? parsed.offset : undefined,
+      // "name_v1" once 1C applies СортировкаПоНазве itself.
+      sortMode: typeof parsed.sort_mode === "string" ? parsed.sort_mode : "",
       hasMore,
       nextCursor: typeof nextCursor === "string" ? nextCursor.trim() : "",
       totalCount,
@@ -610,6 +612,31 @@ const extractResponseErrorDetails = (responseText: string) => {
   }
 };
 
+const LOCAL_NAME_CURSOR_PREFIX = "nl1:";
+const LOCAL_NAME_SORT_TTL_MS = 1000 * 60 * 3;
+const LOCAL_NAME_SORT_MAX_ENTRIES = 24;
+const LOCAL_NAME_SORT_MAX_BATCHES = 24;
+const localNameSortCache = new Map<string, { items: CatalogProduct[]; expiresAt: number }>();
+// Request fields that shape the response rather than narrow the product set.
+const LOCAL_NAME_SORT_NON_FACET_KEYS = new Set<string>([
+  ALLGOODS_INCLUDE_DESCRIPTION_FIELD,
+  ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD,
+  ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD,
+  ALLGOODS_INCLUDE_COST_PRICE_FIELD,
+  ALLGOODS_ONLY_IN_STOCK_FIELD,
+  ALLGOODS_ONLY_WITH_PRICE_FIELD,
+  ALLGOODS_LIMIT_FIELD,
+  ALLGOODS_CURSOR_FIELD,
+  ALLGOODS_SORT_NAME_FIELD,
+  "ЦенаОт",
+  "ЦенаДо",
+  "selectedCars",
+  "selectedCategories",
+  "page",
+  "Смещение",
+  "НомерСтраницы",
+]);
+
 const fetchAllgoodsProductsPageDetailed = async (options: {
   directOffset?: number;
   page?: number;
@@ -635,6 +662,8 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   const requestBodyBase = { ...(options.body || {}) };
   const isPriceSorted =
     typeof requestBodyBase[ALLGOODS_SORT_PRICE_FIELD] === "string";
+  const nameSortDirection = isPriceSorted ? "" : requestBodyBase[ALLGOODS_SORT_NAME_FIELD];
+  const isNameSorted = nameSortDirection === "ASC" || nameSortDirection === "DESC";
   const requestedCursor =
     typeof options.cursor === "string" ? options.cursor.trim() : "";
 
@@ -721,6 +750,11 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
 
     return parseAllgoodsPayload(response.text);
   };
+
+  if (isNameSorted) {
+    const local = await fetchLocallyNameSortedPage();
+    if (local) return local;
+  }
 
   if (options.directOffset !== undefined && !isPriceSorted) {
     const parsed = await requestAllgoodsPage({
@@ -963,6 +997,111 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       totalCount,
       ...(options.directOffset !== undefined ? { directOffset: options.directOffset } : {}),
     };
+  }
+
+  // Alphabetical order while 1C ignores СортировкаПоНазве (no sort_mode in
+  // its answer): collect the whole filtered set, order it here and page it
+  // with our own "nl1:<offset>" cursor. Returns null when 1C sorts itself.
+  async function fetchLocallyNameSortedPage(): Promise<CatalogQueryPageResult | null> {
+    const localCursor = requestedCursor.startsWith(LOCAL_NAME_CURSOR_PREFIX)
+      ? Number(requestedCursor.slice(LOCAL_NAME_CURSOR_PREFIX.length))
+      : null;
+    // A cursor 1C issued means 1C already sorts this listing.
+    if (requestedCursor && localCursor === null) return null;
+
+    const unsortedBody = { ...requestBodyBase };
+    delete unsortedBody[ALLGOODS_SORT_NAME_FIELD];
+    const cacheKey = `${nameSortDirection}:${JSON.stringify(unsortedBody)}`;
+
+    let sorted = localNameSortCache.get(cacheKey);
+    if (!sorted || sorted.expiresAt <= Date.now()) {
+      if (localCursor === null) {
+        // The probe is the request this page needs anyway, so a 1C that
+        // sorts by name costs no extra round trip.
+        const direct = options.directOffset !== undefined;
+        const probe = await requestAllgoodsPage(
+          direct
+            ? { ...requestBodyBase, ПрямаяСтраница: true, Смещение: options.directOffset, [ALLGOODS_LIMIT_FIELD]: limit }
+            : { ...requestBodyBase, [ALLGOODS_LIMIT_FIELD]: limit },
+          direct ? 0 : undefined
+        );
+        if (probe.sortMode === "name_v1") {
+          if (direct) {
+            if (probe.directOffset !== options.directOffset) throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+            return { ...probe, items: probe.items.slice(0, limit), cursorField: null };
+          }
+          if (page === 1) {
+            return {
+              items: filterPricedItems(probe.items).slice(0, limit),
+              hasMore: probe.hasMore,
+              nextCursor: probe.nextCursor,
+              cursorField: null,
+              totalCount: probe.totalCount,
+            };
+          }
+          return null;
+        }
+      }
+      const items = await collectForLocalNameSort(unsortedBody);
+      items.sort((left, right) => compareProductNames(left, right, nameSortDirection === "DESC" ? -1 : 1));
+      sorted = { items, expiresAt: Date.now() + LOCAL_NAME_SORT_TTL_MS };
+      localNameSortCache.set(cacheKey, sorted);
+      if (localNameSortCache.size > LOCAL_NAME_SORT_MAX_ENTRIES) {
+        localNameSortCache.delete(localNameSortCache.keys().next().value as string);
+      }
+    }
+
+    const offset = Math.max(
+      0,
+      options.directOffset ?? (localCursor !== null && Number.isFinite(localCursor) ? localCursor : (page - 1) * limit)
+    );
+    const pageItems = sorted.items.slice(offset, offset + limit);
+    const hasMore = offset + limit < sorted.items.length;
+    return {
+      items: pageItems,
+      hasMore,
+      nextCursor: hasMore ? `${LOCAL_NAME_CURSOR_PREFIX}${offset + limit}` : "",
+      cursorField: null,
+      totalCount: sorted.items.length,
+      ...(options.directOffset !== undefined ? { directOffset: options.directOffset } : {}),
+    };
+  }
+
+  // The whole filtered set for local ordering. Without facets or search the
+  // warm full-catalog snapshot already holds it; otherwise walk 1C in
+  // 500-row pages (facet listings are a few hundred items).
+  async function collectForLocalNameSort(body: Record<string, unknown>): Promise<CatalogProduct[]> {
+    const facetKeys = Object.keys(body).filter((key) => !LOCAL_NAME_SORT_NON_FACET_KEYS.has(key));
+    const hasFacet = facetKeys.some((key) => {
+      const value = body[key];
+      return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== "" && value !== false;
+    });
+    if (!hasFacet) {
+      const { snapshot } = await getFullCatalogSnapshot();
+      return snapshot.products.filter((item) => {
+        if (body[ALLGOODS_ONLY_IN_STOCK_FIELD] === true && !(item.inStock || (item.quantity ?? 0) > 0)) return false;
+        if (options.pricedItemsOnly && !hasUsablePrice(item)) return false;
+        const price = typeof item.priceEuro === "number" && item.priceEuro > 0 ? item.priceEuro : null;
+        if (typeof options.priceFrom === "number" && (price === null || price < options.priceFrom)) return false;
+        if (typeof options.priceTo === "number" && (price === null || price > options.priceTo)) return false;
+        return true;
+      });
+    }
+
+    const collected: CatalogProduct[] = [];
+    let cursor = "";
+    for (let batch = 0; batch < LOCAL_NAME_SORT_MAX_BATCHES; batch += 1) {
+      const parsed = await requestAllgoodsPage({
+        ...body,
+        [ALLGOODS_LIMIT_FIELD]: 500,
+        ...(cursor ? { [ALLGOODS_CURSOR_FIELD]: cursor } : {}),
+      });
+      collected.push(...filterPricedItems(parsed.items));
+      const next = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+      if (!parsed.hasMore || !next || next === cursor) break;
+      cursor = next;
+    }
+    return collected;
   }
 
   async function fetchAllgoodsPageByNumber(): Promise<CatalogQueryPageResult> {
@@ -1574,7 +1713,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
           return ((left.priceEuro as number) - (right.priceEuro as number)) * direction;
         });
       } else if (nameSort !== "none") {
-        merged.sort((left, right) => compareProductNames(left, right) * (nameSort === "asc" ? 1 : -1));
+        merged.sort((left, right) => compareProductNames(left, right, nameSort === "asc" ? 1 : -1));
       }
 
       return {

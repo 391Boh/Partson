@@ -65,7 +65,17 @@ export function useLiveCatalogRefresh(codes: string[], enabled: boolean, apply: 
       refreshPending = true;
       if (!busy) void refresh();
     };
-    const initial = window.setTimeout(refresh, 150);
+    // The listing itself just came from 1C; a live pass right away (it was
+    // 150ms) queued up to 16 per-code 1C lookups in front of the next page,
+    // prices and uncached photos. Run it once the page has settled instead.
+    let idleHandle: number | null = null;
+    const initial = window.setTimeout(() => {
+      if (typeof window.requestIdleCallback === 'function') {
+        idleHandle = window.requestIdleCallback(() => void refresh(), { timeout: 3000 });
+      } else {
+        void refresh();
+      }
+    }, 2500);
     const timer = window.setInterval(refresh, 30000);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
@@ -73,6 +83,7 @@ export function useLiveCatalogRefresh(codes: string[], enabled: boolean, apply: 
     window.addEventListener('partson:catalog-invalidated', invalidate);
     return () => {
       disposed = true; controller.abort(); clearTimeout(initial); clearInterval(timer);
+      if (idleHandle !== null && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleHandle);
       window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh);
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('partson:catalog-invalidated', invalidate);

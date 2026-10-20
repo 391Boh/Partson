@@ -298,13 +298,17 @@ export async function POST(request: NextRequest) {
       // article key never matches even when its code already gave the price —
       // filtering keys one by one sent every card's article to a live 1C
       // lookup anyway (queued behind allgoods' concurrency limit, 4-5s).
+      // A product the snapshot knows is answered by it, including "no price"
+      // — only products missing from the snapshot need a live lookup.
+      // Treating a known price-less product as unresolved sent it to 1C on
+      // every page, and the whole batch waited ~2s for that timeout.
       const unresolvedPriceLookupKeys = Array.from(
         new Set(
           missingItems
             .filter(
               (item) =>
                 !item.lookupKeys.some(
-                  (key) => snapshotPrices[key.trim().toLowerCase()] != null
+                  (key) => snapshotPriceByKey[key.trim().toLowerCase()] !== undefined
                 )
             )
             .flatMap((item) => item.lookupKeys)

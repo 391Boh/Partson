@@ -300,8 +300,7 @@ export const getCatalogProductsMatchingParams = async (
 
   if (list.sortOrder === "none") {
     if (list.nameSort === "none") return products;
-    const nameDirection = list.nameSort === "asc" ? 1 : -1;
-    return [...products].sort((a, b) => compareProductNames(a, b) * nameDirection);
+    return [...products].sort((a, b) => compareProductNames(a, b, list.nameSort === "asc" ? 1 : -1));
   }
   const direction = list.sortOrder === "asc" ? 1 : -1;
   // Unpriced products go last in both directions, as in the 1C sort.

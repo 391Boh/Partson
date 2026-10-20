@@ -50,10 +50,25 @@ export type SearchSortOrder = "none" | "asc" | "desc" | "name_asc" | "name_desc"
 const nameCollator = new Intl.Collator("uk", { sensitivity: "base", numeric: true });
 const compareCodes = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-// Alphabetical (Ukrainian collation, numbers by value), then code — the same
-// tie-break 1C uses for its own name order.
-export const compareProductNames = (a: { name: string; code: string }, b: { name: string; code: string }) =>
-  nameCollator.compare(a.name || "", b.name || "") || compareCodes(a.code, b.code);
+// Cyrillic names first, then Latin ("MERCEDES …"), then digits and the rest,
+// in both directions: А→Я starts at "А", Я→А at "Я" rather than at Latin.
+const scriptRank = (name: string) => {
+  const first = name.trim().charAt(0);
+  if (/\p{Script=Cyrillic}/u.test(first)) return 0;
+  if (/[A-Za-z]/.test(first)) return 1;
+  return 2;
+};
+
+// Alphabetical (Ukrainian collation, numbers by value) within each script
+// group, then code — the same tie-break 1C uses for its own name order.
+export const compareProductNames = (
+  a: { name: string; code: string },
+  b: { name: string; code: string },
+  direction: 1 | -1 = 1
+) =>
+  scriptRank(a.name || "") - scriptRank(b.name || "") ||
+  nameCollator.compare(a.name || "", b.name || "") * direction ||
+  compareCodes(a.code, b.code);
 
 // Sorted key shared by ordering and cursors: price (unpriced items last in
 // both directions) or name, then code.
@@ -66,9 +81,7 @@ const sortKey = (item: SearchItem, sort: Exclude<SearchSortOrder, "none">): Sort
 });
 const compareSortKeys = (a: SortKey, b: SortKey, sort: Exclude<SearchSortOrder, "none">) => {
   if (sort === "name_asc" || sort === "name_desc") {
-    const byName = nameCollator.compare(a.name, b.name);
-    if (byName) return sort === "name_asc" ? byName : -byName;
-    return compareCodes(a.code, b.code);
+    return compareProductNames(a, b, sort === "name_asc" ? 1 : -1);
   }
   if (a.price !== b.price) return sort === "asc" ? a.price - b.price : b.price - a.price;
   return compareCodes(a.code, b.code);
