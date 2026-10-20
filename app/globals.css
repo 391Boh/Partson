@@ -8443,7 +8443,9 @@ html:active-view-transition-type(info-nav)::view-transition-new(root) {
   font-size: 11px;
   font-weight: 650;
 }
-.catalog-product-card .catalog-card-price-pill > span:last-child > span:first-child:not(.line-through) {
+/* Only the amount is set large — "за запитом" used to inherit 18px from a
+   :first-child match and wrap out of the pill. */
+.catalog-product-card .catalog-card-price-pill .catalog-card-price-amount {
   font-size: 18px;
 }
 /* Partner discount teaser: one compact line, the height of the price pill.
@@ -14671,4 +14673,58 @@ button[aria-label="Відкрити вкладку параметрів това
   .product-page .product-summary-highlights svg { width: 14px; height: 14px; }
   /* An older phone rule shrank links in the facts to 10px. */
   .product-page .product-summary-details .product-spec dd a { font-size: inherit; }
+}
+
+/* Catalog card alignment, every width: the price row sits right above the
+   purchase row, so prices and buttons line up across a grid row however long
+   the title is, and the leftover height of the fixed-height card collects
+   above the price instead of opening a gap between the price and the cart.
+   The doubled class out-ranks the earlier :not(--admin)/--admin layers. */
+.catalog-product-card.catalog-product-card .catalog-card-price-row,
+.catalog-product-card.catalog-product-card .catalog-admin-price-editor {
+  margin-top: auto; padding-top: 8px;
+}
+.catalog-product-card.catalog-product-card .catalog-card-actions { margin-top: 8px; }
+
+/* Customer card: discount teaser, price pill and nothing else, one line. */
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-card-price-row {
+  flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 6px; min-height: 44px;
+}
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-card-price-row > * { flex-shrink: 0; }
+.catalog-product-card:not(.catalog-product-card--admin) .catalog-card-price-row > .catalog-card-price-pill {
+  flex: 0 1 auto; min-width: 0; max-width: 100%; margin-left: auto;
+}
+
+/* Admin card: the teaser row exists only when there is a teaser — the fixed
+   36/44/30px rows reserved an empty 30px strip under most prices. */
+.catalog-product-card.catalog-product-card--admin .catalog-card-price-row {
+  grid-template-rows: auto auto; row-gap: 6px;
+}
+.catalog-product-card.catalog-product-card--admin .catalog-card-price-row:not(:has(.catalog-card-discount-teaser)) {
+  grid-template-rows: auto;
+}
+@media (min-width: 1280px) {
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row { grid-template-rows: auto auto; }
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row:not(:has(.catalog-card-discount-teaser)) {
+    grid-template-rows: auto;
+  }
+}
+@media (max-width: 1279px) {
+  .catalog-product-card.catalog-product-card--admin .catalog-card-price-row:not(:has(.catalog-card-discount-teaser)) {
+    grid-template-rows: auto auto;
+  }
+}
+
+.catalog-product-card .catalog-card-price-request {
+  color: #5b6b80; font-size: 13px; font-style: normal; font-weight: 700;
+  font-variation-settings: "wght" 700; line-height: 1; white-space: nowrap;
+}
+.catalog-product-card .catalog-stock-control-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 479px) {
+  .catalog-product-card .catalog-card-price-pill { padding-inline: 8px; }
+}
+/* Phone admin card: 468px covered the reserved teaser strip that is now
+   collapsed; 436px still fits a card with price, stepper and cart. */
+@media (max-width: 639px) {
+  .catalog-product-card.catalog-product-card--admin { height: 436px !important; }
 }

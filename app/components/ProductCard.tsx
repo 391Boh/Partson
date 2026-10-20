@@ -985,11 +985,11 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     {isPriceLoading ? <PriceLoadingSkeleton /> : showCostPrice ? (
                                         hasCostPrice ? (
                                             <>
-                                                <span className="text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
+                                                <span className="catalog-card-price-amount text-amber-700 font-black text-[13px] leading-none">{costPriceUAH.toLocaleString('uk-UA')}</span>
                                                 <span className="text-[10px] font-bold text-amber-500">грн</span>
                                             </>
                                         ) : (
-                                            <span className="text-slate-400 italic text-[10px] font-bold">не вказано</span>
+                                            <span className="catalog-card-price-request">не вказано</span>
                                         )
                                     ) : hasPromoPrice ? (
                                         <>
@@ -998,16 +998,16 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                                     {priceUAH.toLocaleString('uk-UA')}
                                                 </span>
                                             )}
-                                            <span className="text-rose-600 font-black text-[14px] leading-none">{promoPriceUAH.toLocaleString('uk-UA')}</span>
+                                            <span className="catalog-card-price-amount text-rose-600 font-black text-[14px] leading-none">{promoPriceUAH.toLocaleString('uk-UA')}</span>
                                             <span className="text-[10px] font-bold text-rose-400">грн</span>
                                         </>
                                     ) : hasPrice ? (
                                         <>
-                                            <span className="catalog-card-price-value text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
+                                            <span className="catalog-card-price-value catalog-card-price-amount text-blue-600 font-black text-[13px] leading-none">{effectivePriceUAH!.toLocaleString('uk-UA')}</span>
                                             <span className="text-[10px] font-bold text-slate-400">грн</span>
                                         </>
                                     ) : (
-                                        <span className="text-slate-400 italic text-[10px] font-bold">за запитом</span>
+                                        <span className="catalog-card-price-request">за запитом</span>
                                     )}
                                 </span>
                             </div>
@@ -1075,7 +1075,9 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                 />
                             ) : (
                             <div
-                                style={{ visibility: hasPrice || isPriceLoading ? "visible" : "hidden" }}
+                                // Without a price there is nothing to order here: drop the
+                                // stepper instead of keeping an invisible block in the box.
+                                style={{ display: hasPrice || isPriceLoading ? undefined : "none" }}
                                 aria-hidden={!hasPrice && !isPriceLoading}
                                 className={`catalog-stock-control-stepper flex items-center ${
                                     isCounterDisabled ? "pointer-events-none opacity-50" : ""
