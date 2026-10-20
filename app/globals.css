@@ -15010,3 +15010,56 @@ button[aria-label="Відкрити вкладку параметрів това
     display: block; width: 100%; height: auto; max-height: 80svh; object-fit: contain;
   }
 }
+
+/* Touch devices (phones, tablets, "desktop site" on a phone): the two
+   offer reassurances repeat the payment/manager row below the offer. */
+@media (pointer: coarse), (max-width: 1100px) {
+  .product-overview-sticky .product-purchase-perks { display: none; }
+}
+
+/* Phones: colour accents. Each card gets a 3px top stripe in its own brand
+   hue (description sky, analogs teal, recently viewed amber, reviews rose,
+   questions emerald), the eyebrows follow it, the identity and offer cards
+   pick up a soft tint, and the facts and perks use tinted icon tiles. */
+@media (max-width: 767px) {
+  .product-page #product-description { --product-accent: #0284c7; --product-eyebrow: #0369a1; }
+  .product-page #product-alternatives { --product-accent: #0b7285; --product-eyebrow: #0b7285; }
+  .product-page #product-alternatives .deferred-section-content { --product-accent: #d97706; --product-eyebrow: #b45309; }
+  .product-page #product-reviews { --product-accent: #e11d48; --product-eyebrow: #be123c; }
+  .product-page #product-faq { --product-accent: #0d9488; --product-eyebrow: #0f766e; }
+  .product-page #product-description > .grid > section,
+  .product-page #product-alternatives > div > section:not(.product-analogs),
+  .product-page #product-alternatives .deferred-section-content > section,
+  .product-page #product-faq > div,
+  .product-page #product-reviews .product-reviews-card {
+    box-shadow: inset 0 3px 0 var(--product-accent), 0 12px 28px -24px rgb(15 23 42 / 40%);
+  }
+  .product-page #product-reviews .product-reviews-card > div:first-child { padding-top: 17px; background: transparent; }
+
+  .product-page .product-overview-sticky .product-identity-details {
+    background: linear-gradient(180deg, #eef8fc 0, #fff 150px);
+    box-shadow: inset 0 3px 0 #0ea5e9, 0 12px 28px -24px rgb(15 23 42 / 40%);
+  }
+  .product-page .product-identifier-code-label { color: #0369a1; }
+  .product-page .product-identifier-code-value {
+    padding: 2px 8px; border-radius: 6px; background: #e0f2fe; color: #075985;
+  }
+  .product-page .product-title-wrap::after { background: linear-gradient(90deg, #0ea5e9, #0d9488); }
+  .product-page .product-spec:nth-child(2) .product-spec-media { background: #e0f2fe; color: #0369a1; }
+  .product-page .product-spec:nth-child(3) .product-spec-media { background: #ede9fe; color: #6d28d9; }
+  .product-page .product-summary-highlights > span:nth-child(1) { background: #e6f6f4; color: #0f5f58; }
+  .product-page .product-summary-highlights > span:nth-child(2) { background: #e0f2fe; color: #075985; }
+  .product-page .product-summary-highlights > span:nth-child(3) { background: #fef3c7; color: #92400e; }
+  .product-page .product-summary-highlights > span svg { color: currentColor; }
+
+  .product-page .product-hero-purchase .product-purchase-panel {
+    background: linear-gradient(180deg, #eaf7f5 0, #fff 140px);
+    box-shadow: inset 0 3px 0 #0d9488, 0 12px 28px -24px rgb(15 23 42 / 40%);
+  }
+  .product-page .product-purchase-label { color: #0f766e; }
+  .product-page .product-purchase-services { background: #fff; }
+  .product-page .product-purchase-services > div:first-child > span:first-child { background: #ccfbf1; color: #0f766e; box-shadow: none; }
+  .product-page .product-purchase-services > div:last-child > span:first-child { background: #e0f2fe; color: #0369a1; box-shadow: none; }
+
+  .product-page .product-details-nav-link:not([aria-current]) { color: #0b5f73; }
+}
