@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-const load=(file,mocks)=>{const module={exports:{}};new Function('require','module','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{assert(name in mocks,name);return mocks[name]},module,module.exports);return module.exports;};
+const load=(file,mocks)=>{const cjs={exports:{}};new Function('require','module','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{assert(name in mocks,name);return mocks[name]},cjs,cjs.exports);return cjs.exports;};
 const params=load('app/lib/product-params.ts',{});
 const products=Array.from({length:10},(_,index)=>({code:String(index),name:'Колодки',producer:index<2?'A':'B',description:`Монтажна позиція\t${index%2?'задня':'передня'}\nШирина\t${10+index} мм\nТип\t${index<2?'Zulu':'Alpha'}`,quantity:1}));
 let reads=0;

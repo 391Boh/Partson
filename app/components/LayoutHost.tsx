@@ -921,7 +921,6 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
         if (!res.ok) return;
         const result = await res.json();
-        const items = Array.isArray(result?.items) ? result.items : [];
 
         try {
           const now = Date.now();
@@ -931,29 +930,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           );
         } catch {}
 
-        if (items.length === 0) return;
-
-        const warmPriceCodes = Array.from(
-          new Set(
-            items
-              .map((item: Record<string, unknown>) => {
-                const article = item?.["НомерПоКаталогу"] ?? item?.article;
-                const code = item?.["НоменклатураКод"] ?? item?.code;
-                return typeof article === "string" ? article : code;
-              })
-              .map((code: unknown) => (typeof code === "string" ? code.trim() : ""))
-              .filter(Boolean)
-          )
-        ).slice(0, 8);
-
-        const priceWarmupLimit = enableAggressiveWarmup ? 8 : 4;
-        warmPriceCodes.slice(0, priceWarmupLimit).forEach((code) => {
-          void fetch("/api/proxy?endpoint=prices", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ Код: code }),
-          }).catch(() => {});
-        });
+        // No price warm-up here: /api/proxy?endpoint=prices is uncached
+        // (no-store, cacheTtlMs 0), so warming only sent 4–8 extra 1C
+        // requests per session whose answers were thrown away.
       } catch {}
     };
 

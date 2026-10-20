@@ -32,6 +32,11 @@ async function checkFlow(updateOk) {
     'app/lib/catalog-client-cache': { invalidateCatalogClientCache: noop },
     'app/lib/firebase-auth-state': { waitForFirebaseAuthReady: async () => ({ user: { getIdToken: async () => 'test' } }) },
     'app/lib/product-image-upload-client': {},
+    './ProductEditorUI': {
+      ProductEditorTabs: () => null, ProductEditorField: ({ children }) => children,
+      productEditorFieldClass: '', useProductEditorPanel: () => ({ current: null }),
+    },
+    'app/components/QuantityStepper': { QuantityStepper: () => null },
   };
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync('app/components/ProductCreateModal.tsx', 'utf8'), {

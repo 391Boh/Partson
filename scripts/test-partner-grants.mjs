@@ -6,7 +6,7 @@ const records = new Map([['users/customer', { name: 'Test' }]]);
 let totalSpent = 0;
 const db = { collection: name => ({
   doc: uid => ({ get: async () => ({ exists: records.has(`${name}/${uid}`), data: () => records.get(`${name}/${uid}`) }), set: async data => records.set(`${name}/${uid}`, data) }),
-  where: () => ({ get: async () => ({ docs: name === 'orders' ? [{ data: () => ({ totalAmount: totalSpent }) }] : [...records.entries()].filter(([key, data]) => key.startsWith('partnerGrants/') && data.active).map(([key]) => ({ id: key.split('/')[1] })) }) }),
+  where: () => { const query = { select: () => query, get: async () => ({ docs: name === 'orders' ? [{ data: () => ({ totalAmount: totalSpent }) }] : [...records.entries()].filter(([key, data]) => key.startsWith('partnerGrants/') && data.active).map(([key]) => ({ id: key.split('/')[1] })) }) }; return query; },
 }) };
 const load = path => {
   const exports = {};

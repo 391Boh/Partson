@@ -3,13 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { oneCRequest } from "app/api/_lib/oneC";
 import { fetchEuroRate } from "app/lib/catalog-server";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
+import { stripPurchasePricesFromText } from "app/api/_lib/strip-purchase-prices";
 
+// Public, unauthenticated: only what the browser itself needs. allgoods and
+// getdata stay server-side (catalog-server.ts) — their raw answers carry
+// purchase prices.
 const ALLOWED_ENDPOINTS = new Set([
   "getprod",
   "getauto",
   "prices",
-  "getdata",
-  "allgoods",
 ]);
 
 const buildJsonResponse = (payload: unknown, status = 200) =>
@@ -44,7 +46,10 @@ const forwardToOneC = async (endpoint: string, request: Request) => {
     cacheTtlMs: endpoint === "getprod" ? 1000 * 60 * 30 : endpoint === "getauto" ? 1000 * 60 * 10 : 0,
   });
 
-  return new NextResponse(result.text, {
+  // Until 1C's module is updated, "prices" also carries the purchase price.
+  const text = endpoint === "prices" ? stripPurchasePricesFromText(result.text) : result.text;
+
+  return new NextResponse(text, {
     status: result.status,
     headers: {
       "content-type": result.contentType || "application/json; charset=utf-8",

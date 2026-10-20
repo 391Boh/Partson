@@ -273,6 +273,7 @@ export async function POST(request: NextRequest) {
     Кількість?: number | string;
     quantity?: number | string;
     quantity_result?: { success?: boolean; message?: string; error_message?: string; Кількість?: number | string; КількістьДо?: number | string };
+    group_result?: { success?: boolean; message?: string; error_message?: string; Група?: string };
   } = {};
   let replyText = "";
   try {
@@ -325,7 +326,12 @@ export async function POST(request: NextRequest) {
   const priceOk = !parsed.price_result || parsed.price_result.success !== false;
   const photoOk = !parsed.photo_result || parsed.photo_result.success !== false;
   const quantityOk = !parsed.quantity_result || parsed.quantity_result.success !== false;
-  if (!productOk || !priceOk || !photoOk || !quantityOk) {
+  // 1C answers an unknown group name with success: true and only a
+  // "Групу не знайдено" note, leaving the product where it was — without this
+  // the admin saw "saved" while the group never changed.
+  const groupMissing = /не\s+знайдено|не\s+найден/i.test(parsed.group_result?.message || "");
+  const groupOk = !parsed.group_result || (parsed.group_result.success !== false && !groupMissing);
+  if (!productOk || !priceOk || !photoOk || !quantityOk || !groupOk) {
     // Each sub-result follows the same 1C convention as the top-level
     // success:false case above: `message` is only filled on success,
     // `error_message` carries the actual reason on failure.
@@ -334,6 +340,16 @@ export async function POST(request: NextRequest) {
     if (!priceOk) errors.push(parsed.price_result?.message || parsed.price_result?.error_message || "Помилка оновлення ціни");
     if (!photoOk) errors.push(parsed.photo_result?.message || parsed.photo_result?.error_message || "Помилка оновлення фото");
     if (!quantityOk) errors.push(parsed.quantity_result?.message || parsed.quantity_result?.error_message || "Помилка оновлення кількості");
+    if (!groupOk) {
+      errors.push(groupMissing
+        ? `${parsed.group_result?.message}. Оберіть групу з підказок — 1С шукає її за точною назвою`
+        : parsed.group_result?.error_message || parsed.group_result?.message || "Помилка зміни групи");
+    }
+    // The parts that did succeed are already written in 1C: drop cached
+    // catalog answers so the page doesn't keep showing the old values.
+    clearAllOneCCache();
+    clearCatalogPageRouteCache();
+    invalidateFullCatalogSnapshot();
     return json({ ok: false, error: errors.join("; ") }, 422);
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { oneCRequest } from "../_lib/oneC";
+import { stripPurchasePricesFromText } from "../_lib/strip-purchase-prices";
 
 export async function GET() {
   try {
@@ -11,7 +12,7 @@ export async function GET() {
       cacheKey: 'POST:allgoods:{"Лимит":100}',
     });
 
-    return new NextResponse(res.text, {
+    return new NextResponse(stripPurchasePricesFromText(res.text), {
       status: res.status,
       headers: {
         "content-type": res.contentType || "application/json; charset=utf-8",
