@@ -14938,3 +14938,23 @@ button[aria-label="Відкрити вкладку параметрів това
   .product-page .product-details-nav-label-short { display: inline; }
   .product-page .product-details-nav-link { font-size: 13px; }
 }
+
+/* Phones: the main photo runs edge to edge as a full-width square, and the
+   extra photos sit under it as a larger thumbnail row. */
+@media (max-width: 767px) {
+  .product-page { overflow-x: clip; }
+  .product-page .product-overview-sticky .product-hero-gallery { align-self: stretch; width: auto; }
+  .product-page .product-overview-sticky .product-hero-media,
+  .product-page .product-overview-sticky .product-hero-media:has(.product-gallery[data-photo-count="1"]:not([data-admin])) {
+    width: auto; margin-inline: calc(50% - 50vw);
+    border-inline: 0; border-radius: 0; box-shadow: none;
+  }
+  .product-page .product-overview-sticky .product-hero-stage { max-height: none; padding: 0; }
+  .product-page .product-gallery { padding: 10px max(14px, env(safe-area-inset-left)) 12px; border-top-color: #e2e8f0; }
+  .product-page .product-gallery-thumbs { gap: 8px; padding: 2px; }
+  .product-page .product-gallery-item,
+  .product-page .product-gallery-add { width: 64px; height: 64px; }
+  .product-page .product-gallery-thumb { border-radius: 12px; opacity: .8; }
+  .product-page .product-gallery-thumb[aria-pressed="true"] { opacity: 1; border-width: 2px; }
+  .product-page .product-hero-media > .product-hero-stage button { right: 12px; bottom: 12px; }
+}
