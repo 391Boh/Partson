@@ -14998,3 +14998,15 @@ button[aria-label="Відкрити вкладку параметрів това
     pointer-events: none;
   }
 }
+
+/* Phones: the photo block takes the photo's own proportions (720×720 from
+   the img attributes until it loads), so a landscape photo has no empty
+   bands above and below it. Without an image the stage stays 4:3. */
+@media (max-width: 767px) {
+  .product-page .product-overview-sticky .product-hero-stage { aspect-ratio: auto; height: auto; }
+  .product-page .product-overview-sticky .product-hero-stage > div { aspect-ratio: auto; height: auto; }
+  .product-page .product-overview-sticky .product-hero-stage > div:not(:has(img)) { aspect-ratio: 4 / 3; }
+  .product-page .product-overview-sticky .product-hero-stage > div img {
+    display: block; width: 100%; height: auto; max-height: 80svh; object-fit: contain;
+  }
+}
