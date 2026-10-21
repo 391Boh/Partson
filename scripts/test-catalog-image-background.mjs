@@ -29,6 +29,7 @@ try {
          const wait = ms => new Promise(r => setTimeout(r, ms));
          // Catalog batch lookup: 1C never answers within the thumbnail budget.
          export const fetchProductImageBase64BatchDetailed = async (keys, o) => { t.catalogLookups++; await wait(Math.min(o.timeoutMs, 300)); return { resolved: {}, handledKeys: new Set(), endpointAvailable: true }; };
+         export const wasImageAuthoritativelyMissing = () => false;
          // Product-page lookup: the code finds nothing, the article finds the photo slowly.
          export const fetchProductImageBase64 = async (key) => { if (key !== 'ART-1') return null; t.slowLookups++; await wait(t.articleDelayMs); return t.hasPhoto ? t.png : null; };` }));
     } }],

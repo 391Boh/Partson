@@ -1,6 +1,7 @@
 "use client";
 
 import { writeCatalogBrowserCache, readCatalogBrowserCache } from "./catalog-client-cache";
+import { fetchCatalogTree } from "./onec-proxy-client";
 
 let prefetchStarted = false;
 
@@ -18,11 +19,7 @@ export function scheduleCatalogPrefetch(): void {
 
   // Fire-and-forget after a short yield so critical-path work goes first
   setTimeout(() => {
-    void fetch("/api/proxy?endpoint=getprod", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    })
+    void fetchCatalogTree()
       .then(async (res) => {
         if (!res.ok) return;
         const raw = await res.json();

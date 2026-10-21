@@ -6,7 +6,7 @@ import Image from "next/image";
 import SmartLink from "app/components/SmartLink";
 import {
   Search, Clock, X, ImageOff, ChevronRight,
-  PackageCheck, PackageX, SlidersHorizontal, ChevronDown,
+  PackageCheck, PackageX, SlidersHorizontal, ChevronDown, LayoutGrid, Factory,
 } from "lucide-react";
 import {
   safeGetStorageItem,
@@ -17,6 +17,7 @@ import { buildProductImagePath } from "app/lib/product-image-path";
 import { loadEuroRate, readCachedEuroRate } from "app/lib/euro-rate-client";
 import { buildProductPath } from "app/lib/product-url";
 import { normalizeSearchQuery, suggestionDisplayName } from "app/lib/catalog-search";
+import { pluralizeProducts } from "app/lib/pluralize-uk";
 import {
   pushAnalyticsEvent,
   pushEcommerceEvent,
@@ -40,12 +41,16 @@ type SuggestionProduct = {
   hasPhoto?: boolean;
 };
 
+type SuggestionFacet = { label: string; count: number; href: string };
+type SuggestionFacets = { categories: SuggestionFacet[]; producers: SuggestionFacet[] };
+
 type SuggestionResult = {
   items: SuggestionProduct[];
   totalCount: number | null;
   correctedQuery?: string;
   hasMore: boolean;
   nextCursor: string;
+  facets: SuggestionFacets | null;
 };
 
 const MAX_HISTORY          = 8;
@@ -116,7 +121,7 @@ const fetchSuggestions = async (
   }).then(async (res) => {
     const data = await res.json() as {
       items?: SuggestionProduct[]; totalCount?: number | null; correctedQuery?: string;
-      hasMore?: boolean; nextCursor?: string;
+      hasMore?: boolean; nextCursor?: string; facets?: SuggestionFacets;
       serviceUnavailable?: boolean; message?: string;
     };
     if (!res.ok || data.serviceUnavailable || !Array.isArray(data.items)) {
@@ -127,6 +132,7 @@ const fetchSuggestions = async (
       hasMore: data.hasMore === true && typeof data.nextCursor === "string" && !!data.nextCursor,
       nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : "",
       correctedQuery: data.correctedQuery,
+      facets: data.facets && (data.facets.categories?.length || data.facets.producers?.length) ? data.facets : null,
       totalCount:
         typeof data.totalCount === "number" && Number.isFinite(data.totalCount)
           ? Math.max(0, data.totalCount)
@@ -200,6 +206,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [moreError, setMoreError] = useState<string | null>(null);
   const moreRequestRef = useRef<AbortController | null>(null);
   const [fallback,    setFallback]    = useState<string | null>(null);
+  const [facets,      setFacets]      = useState<SuggestionFacets | null>(null);
   const [euroRate,    setEuroRate]    = useState<number | null>(null);
 
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -274,6 +281,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     setSuggestions([]);
     setTotalCount(null);
     setFallback(null);
+    setFacets(null);
     if (!dropdown || isComposing || trimmed.length < SUGGESTION_MIN_CHARS) {
       setLoading(false);
       return;
@@ -284,6 +292,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
       setNextCursor(result.hasMore ? result.nextCursor : "");
       setTotalCount(result.totalCount);
       setFallback(result.correctedQuery || null);
+      setFacets(result.facets);
       setLoading(false);
     };
     const cached = cGet(key);
@@ -511,20 +520,22 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
       {/* ── Suggestions dropdown (≥ 2 chars) ────────────────────────── */}
       {dropdown && hasSugg && (
-        <div className={dropClass}>
+        <div className={`${dropClass} search-suggest-panel`}>
 
           {/* header */}
           <div className="flex min-h-12 items-center justify-between border-b border-white/[0.08] bg-white/[0.035] px-3.5 py-2.5 sm:px-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.13em] text-sky-300/90">
-              {fallback
-                ? <><span>Пошук за запитом:</span><span className="font-mono normal-case tracking-normal text-amber-300">&nbsp;{fallback}</span></>
-                : filter !== "all"
-                ? <span>Результати · {activeLabel}</span>
-                : "Знайдені товари"
-              }
+              <p className="truncate text-[13px] font-bold text-slate-100">
+                {totalCount != null
+                  ? <>Знайдено <span className="tabular-nums text-sky-200">{formattedTotalCount}</span> {pluralizeProducts(totalCount)}</>
+                  : "Пошук товарів"}
+                {filter !== "all" ? <span className="font-semibold text-slate-400"> · {activeLabel}</span> : null}
               </p>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">Оберіть товар або перегляньте всі результати</p>
+              {fallback ? (
+                <p className="mt-0.5 truncate text-[12px] font-medium text-slate-400">
+                  Показано результати для <span className="font-semibold text-amber-300">«{fallback}»</span>
+                </p>
+              ) : null}
             </div>
             {loading
               ? <span className="ml-3 inline-flex items-center gap-2 rounded-full border border-sky-300/10 bg-sky-400/[0.06] px-2.5 py-1 text-[10px] font-semibold text-sky-300/80"><span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-600 border-t-sky-400" />Оновлення</span>
@@ -560,8 +571,33 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
             </div>
           )}
 
+          {/* Desktop: categories/producers beside the products; phones: a row of chips above them. */}
+          <div className="search-suggest-body" data-has-facets={facets ? "" : undefined}>
+          {facets ? (
+            <nav aria-label="Категорії та виробники" className="search-facets">
+              {facets.categories.length ? <p className="search-facets-title">Категорії</p> : null}
+              {facets.categories.map((facet) => (
+                <SmartLink key={`c:${facet.href}`} href={facet.href} className="search-facet"
+                  onClick={() => { setDropdown(false); setQuery(""); }}>
+                  <LayoutGrid size={13} aria-hidden="true" />
+                  <span className="search-facet-label">{facet.label}</span>
+                  <span className="search-facet-count">{facet.count.toLocaleString("uk-UA")}</span>
+                </SmartLink>
+              ))}
+              {facets.producers.length ? <p className="search-facets-title">Виробники</p> : null}
+              {facets.producers.map((facet) => (
+                <SmartLink key={`p:${facet.href}`} href={facet.href} className="search-facet" data-kind="producer"
+                  onClick={() => { setDropdown(false); setQuery(""); }}>
+                  <Factory size={13} aria-hidden="true" />
+                  <span className="search-facet-label">{facet.label}</span>
+                  <span className="search-facet-count">{facet.count.toLocaleString("uk-UA")}</span>
+                </SmartLink>
+              ))}
+            </nav>
+          ) : null}
+
           {/* items */}
-          <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading || loadingMore} className="max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
+          <div id={listId} role="listbox" aria-label="Знайдені товари" aria-busy={loading || loadingMore} className="search-suggest-list max-h-[min(62svh,410px)] space-y-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-gutter:stable] sm:p-2">
           {suggestions.map((p, i) => {
             const displayName = suggestionDisplayName(p.name) || p.article || p.code;
             const priceStr = formatUAH(p.priceEuro, euroRate);
@@ -645,6 +681,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
               </SmartLink>
             );
           })}
+          </div>
           </div>
 
           {moreError ? <p role="alert" className="px-4 py-2 text-xs text-rose-300">{moreError}</p> : null}

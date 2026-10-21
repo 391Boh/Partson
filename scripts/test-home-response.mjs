@@ -20,11 +20,14 @@ ratingPromise = Promise.reject(new Error('unavailable'));
 assert.equal(await rating.getGoogleRatingForRender(), null);
 const teaserRequest = { url: 'http://localhost/api/home-blog' };
 let posts = [{ slug: 'test', title: 'Стаття', content: 'private large body', imageDataUrl: 'data:image/png;base64,AAAA', updatedAt: '2026-01-01' }];
+const previewBuilder = load('app/lib/home-blog-highlights.ts', {
+  './blog-presentation': { blogReadingMinutes: () => 1 },
+});
 const api = load('app/api/home-blog/route.ts', {
   'next/server': { NextResponse: { json: (body, options) => ({ body, options }) } },
   'app/lib/blog': { getPublishedBlogPosts: async () => posts },
   'app/lib/blog-media': { isStorageMediaUrl: () => false },
-  'app/lib/blog-presentation': { blogReadingMinutes: () => 1 },
+  'app/lib/home-blog-highlights': previewBuilder,
 });
 const response = await api.GET(teaserRequest);
 assert.equal(response.body.title, 'Стаття');
@@ -37,7 +40,7 @@ const apiThrows = load('app/api/home-blog/route.ts', {
   'next/server': { NextResponse: { json: (body, options) => ({ body, options }) } },
   'app/lib/blog': { getPublishedBlogPosts: async () => { throw new Error('firestore unavailable'); } },
   'app/lib/blog-media': { isStorageMediaUrl: () => false },
-  'app/lib/blog-presentation': { blogReadingMinutes: () => 1 },
+  'app/lib/home-blog-highlights': previewBuilder,
 });
 assert.equal((await apiThrows.GET(teaserRequest)).body, null);
 console.log('Homepage response passed: bounded optional rating, failure fallback, small teaser payload without inline images, uncached empty result, resilient to a failed blog read.');

@@ -13,7 +13,7 @@ const api = loadCatalogSearch(async (endpoint, options) => {
   }) };
 });
 const result = await api.fetchCatalogProductsByQuery({
-  page: 632, limit: 16, directOffset: 10096, sortOrder: "none",
+  page: 632, limit: 16, directOffset: 10096, sortOrder: "none", pricedItemsOnly: true,
 });
 assert.equal(requests.length, 1, "Direct page must not walk previous pages");
 assert.equal(requests[0].endpoint, "allgoods");
@@ -47,6 +47,8 @@ assert.equal(requests.length, 0);
 
 supported = false;
 requests.length = 0;
-await assert.rejects(api.fetchCatalogProductsByQuery({ page: 632, limit: 16, directOffset: 10096 }), /DIRECT_PAGINATION_UNSUPPORTED/);
+await assert.rejects(api.fetchCatalogProductsByQuery({
+  page: 632, limit: 16, directOffset: 10096, pricedItemsOnly: true,
+}), /DIRECT_PAGINATION_UNSUPPORTED/);
 assert.equal(requests.length, 1, "An old service must not silently return page one or walk the catalog");
 console.log("Direct server pagination passed: one request, offset acknowledgement, filters and safe legacy detection.");

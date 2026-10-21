@@ -28,6 +28,7 @@ export type ProductFullEditTarget = {
   subGroup: string;
   priceEuro: number | null;
   costPriceEuro: number | null;
+  promoPriceEuro?: number | null;
   quantity: number;
   description: string;
 };
@@ -66,6 +67,7 @@ export default function ProductFullEditModal({
   subGroup: initialSubGroup,
   priceEuro: initialPriceEuro,
   costPriceEuro: initialCostPriceEuro,
+  promoPriceEuro: initialPromoPriceEuro = null,
   quantity: initialQuantity,
   description: initialDescription,
 }: Props) {
@@ -74,7 +76,7 @@ export default function ProductFullEditModal({
   const [tab, setTab] = useState<"main" | "description" | "photos">("main");
   const baseline = useRef({ name: initialName, article: initialArticle, producer: initialProducer,
     category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
-    priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro,
+    priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro, promoPriceEuro: initialPromoPriceEuro,
     quantity: initialQuantity, description: initialDescription });
   const [name, setName] = useState(initialName);
   const [articleVal, setArticleVal] = useState(initialArticle);
@@ -84,6 +86,8 @@ export default function ProductFullEditModal({
   const [subGroup, setSubGroup] = useState(initialSubGroup);
   const [priceEuro, setPriceEuro] = useState(numToStr(initialPriceEuro));
   const [costPriceEuro, setCostPriceEuro] = useState(numToStr(initialCostPriceEuro));
+  const [promoPriceEuro, setPromoPriceEuro] = useState(numToStr(initialPromoPriceEuro));
+  const promoTouched = useRef(false);
   const [quantity, setQuantity] = useState(String(initialQuantity));
   const [description, setDescription] = useState(initialDescription);
 
@@ -133,7 +137,7 @@ export default function ProductFullEditModal({
     if (!isOpen) return;
     baseline.current = { name: initialName, article: initialArticle, producer: initialProducer,
       category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
-      priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro,
+      priceEuro: initialPriceEuro, costPriceEuro: initialCostPriceEuro, promoPriceEuro: initialPromoPriceEuro,
       quantity: initialQuantity, description: initialDescription };
     setTab("main");
     setName(initialName);
@@ -144,6 +148,8 @@ export default function ProductFullEditModal({
     setSubGroup(initialSubGroup);
     setPriceEuro(numToStr(initialPriceEuro));
     setCostPriceEuro(numToStr(initialCostPriceEuro));
+    setPromoPriceEuro(numToStr(initialPromoPriceEuro));
+    promoTouched.current = false;
     setQuantity(String(initialQuantity));
     setDescription(initialDescription);
     setError(null);
@@ -158,6 +164,30 @@ export default function ProductFullEditModal({
     return () => clearTimeout(focusTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, code]);
+
+  // Opening the editor before the page's partner-price lookup finishes
+  // must still populate the existing promotion without overwriting a draft.
+  useEffect(() => {
+    if (!isOpen || initialPromoPriceEuro != null) return;
+    const controller = new AbortController();
+    void (async () => {
+      const token = await getAdminIdToken();
+      if (!token || controller.signal.aborted) return;
+      const params = new URLSearchParams({ mode: "partner" });
+      if (code) params.append("lookup", code);
+      if (initialArticle) params.append("lookup", initialArticle);
+      const response = await fetch(`/api/product-price?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: "no-store",
+      });
+      if (!response.ok) return;
+      const payload = await response.json() as { promoPriceEuro?: number | null };
+      if (controller.signal.aborted || promoTouched.current || payload.promoPriceEuro === undefined) return;
+      const price = typeof payload.promoPriceEuro === "number" && Number.isFinite(payload.promoPriceEuro) && payload.promoPriceEuro > 0 ? payload.promoPriceEuro : null;
+      baseline.current.promoPriceEuro = price;
+      setPromoPriceEuro(numToStr(price));
+    })().catch(() => {});
+    return () => controller.abort();
+  }, [isOpen, code, initialArticle, initialPromoPriceEuro]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -330,7 +360,8 @@ export default function ProductFullEditModal({
 
     const price = parseProductFormPrice(priceEuro);
     const cost = parseProductFormPrice(costPriceEuro);
-    if (price === null || cost === null) { setTab("main"); setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return; }
+    const promo = parseProductFormPrice(promoPriceEuro);
+    if (price === null || cost === null || promo === null) { setTab("main"); setError("Введіть невід’ємну ціну, максимум 2 знаки після коми"); return; }
     const qty = parseProductFormQuantity(quantity);
     if (qty === null) { setTab("main"); setError("Введіть цілу кількість від 0"); return; }
 
@@ -351,6 +382,13 @@ export default function ProductFullEditModal({
     }
     if (price !== undefined && price !== baseline.current.priceEuro) fields.priceEuro = price;
     if (cost !== undefined && cost !== baseline.current.costPriceEuro) fields.costPriceEuro = cost;
+    if (promo !== undefined && promo !== baseline.current.promoPriceEuro) fields.promoPriceEuro = promo;
+    // A promo shows only below the sale price (ProductCard/purchase panel).
+    const salePrice = price ?? baseline.current.priceEuro;
+    if (fields.promoPriceEuro !== undefined && fields.promoPriceEuro > 0) {
+      if (!(typeof salePrice === "number" && salePrice > 0)) { setTab("main"); setError("Спочатку задайте ціну продажу"); return; }
+      if (fields.promoPriceEuro >= salePrice) { setTab("main"); setError("Акційна ціна має бути нижчою за ціну продажу"); return; }
+    }
     if (qty !== undefined && qty !== baseline.current.quantity) fields.quantity = qty;
     if (description.trim() !== baseline.current.description) fields.description = description.trim();
 
@@ -381,6 +419,7 @@ export default function ProductFullEditModal({
       if (confirmed) {
         if (confirmed.priceEuro !== undefined) fields.priceEuro = confirmed.priceEuro;
         if (confirmed.costPriceEuro !== undefined) fields.costPriceEuro = confirmed.costPriceEuro;
+        if (confirmed.promoPriceEuro !== undefined) fields.promoPriceEuro = confirmed.promoPriceEuro;
         if (confirmed.quantity !== undefined) fields.quantity = confirmed.quantity;
       }
       setSaved(true);
@@ -396,7 +435,7 @@ export default function ProductFullEditModal({
         ...(fields.costPriceEuro !== undefined ? { costPriceEuro: fields.costPriceEuro } : {}),
         ...(fields.quantity !== undefined ? { quantity: fields.quantity } : {}),
       });
-      if (fields.priceEuro !== undefined || fields.costPriceEuro !== undefined) {
+      if (fields.priceEuro !== undefined || fields.costPriceEuro !== undefined || fields.promoPriceEuro !== undefined) {
         window.dispatchEvent(new Event("partson:price-updated"));
       }
       baseline.current = { name: fields.name ?? baseline.current.name,
@@ -407,10 +446,12 @@ export default function ProductFullEditModal({
         subGroup: fields.subGroup ?? baseline.current.subGroup,
         priceEuro: fields.priceEuro ?? baseline.current.priceEuro,
         costPriceEuro: fields.costPriceEuro ?? baseline.current.costPriceEuro,
+        promoPriceEuro: fields.promoPriceEuro ?? baseline.current.promoPriceEuro,
         quantity: fields.quantity ?? baseline.current.quantity,
         description: fields.description ?? baseline.current.description };
       setPriceEuro(numToStr(baseline.current.priceEuro));
       setCostPriceEuro(numToStr(baseline.current.costPriceEuro));
+      setPromoPriceEuro(numToStr(baseline.current.promoPriceEuro));
       setQuantity(String(baseline.current.quantity));
       router.refresh();
     } catch {
@@ -659,6 +700,14 @@ export default function ProductFullEditModal({
                   onChange={(e) => setCostPriceEuro(e.target.value)}
                   placeholder="0.00" className={fieldClass} />
               </Field>
+              <div className="col-span-2">
+                <Field label="Акційна ціна €">
+                  <input type="text" inputMode="decimal" value={promoPriceEuro}
+                    onChange={(e) => { promoTouched.current = true; setPromoPriceEuro(e.target.value); }}
+                    placeholder="Без акції" className={fieldClass} aria-describedby="product-edit-promo-help" />
+                </Field>
+                <p id="product-edit-promo-help" className="mt-1 text-xs text-slate-500">0 — прибрати акцію. Порожнє поле — залишити без змін.</p>
+              </div>
             </div>
 
             <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Порожня ціна — без змін. Кількість — повний залишок; 0 означає відсутність товару.</p>

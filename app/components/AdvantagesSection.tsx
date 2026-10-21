@@ -39,24 +39,24 @@ const catalogScope = [
 // доставка/оплата/повернення), so the duplicate CTA row was dropped.
 const serviceCards = [
   {
-    title: "Підбір автозапчастин за VIN",
+    title: "Підбір за VIN-кодом",
     eyebrow: "VIN · артикул · модель",
     icon: PackageSearch,
-    text: "Одна модель може мати різні двигуни, гальма й комплектації. Надішліть менеджеру VIN-код та назву потрібної деталі: перевіримо застосування для вашого авто. Якщо маєте артикул або номер зі старої запчастини, додайте його до запиту.",
+    text: "Одна модель має різні двигуни, гальма й комплектації. Надішліть VIN-код і назву деталі (або номер зі старої) — перевіримо, що вона підходить саме вашому авто.",
     tone: "sky" as const,
   },
   {
-    title: "Оригінальні запчастини та аналоги",
+    title: "Оригінали й аналоги",
     eyebrow: "Актуальні залишки складу",
     icon: Wrench,
-    text: "Порівнюйте виробника, характеристики й ціну, а не лише назву деталі. Допоможемо зіставити оригінальний номер із сумісними аналогами та уточнимо наявність перед замовленням. Вибір залежить від комплектації авто й вашого бюджету.",
+    text: "Порівнюйте виробника, характеристики й ціну, а не лише назву. Підберемо сумісні аналоги до оригінального номера й уточнимо наявність перед замовленням.",
     tone: "cyan" as const,
   },
   {
-    title: "Самовивіз у Львові та доставка",
+    title: "Самовивіз і доставка",
     eyebrow: "Львів і вся Україна",
     icon: Truck,
-    text: "Забирайте підтверджене замовлення в PartsON на вул. Перфецького, 8 або отримуйте автозапчастини Новою Поштою по Україні. До відправлення узгодимо спосіб оплати й строк отримання; вартість перевезення залежить від тарифів перевізника.",
+    text: "Забирайте замовлення на вул. Перфецького, 8 у Львові або отримуйте Новою Поштою по Україні. Оплату й строк узгодимо до відправлення; доставка — за тарифами перевізника.",
     tone: "blue" as const,
   },
 ] as const;
@@ -126,14 +126,12 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               </span>
             </div>
             <h2 className="ml-auto mt-4 max-w-[20ch] text-right font-display font-display-readable text-[27px] font-black leading-[1.08] tracking-[-0.025em] text-slate-950 min-[480px]:text-[30px] sm:text-[34px] lg:text-[31px] xl:text-[35px]">
-              Каталог запчастин <span className="text-teal-600">для ТО та ремонту</span>
+              Магазин запчастин <span className="text-teal-600">у Львові</span>
             </h2>
             <p className="home-description ml-auto mt-3.5 max-w-[50ch] text-right text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
-              Плануєте заміну фільтрів, обслуговування гальм чи ремонт підвіски?
-              У PartsON можна купити автозапчастини для цих робіт і порівняти
-              доступні варіанти в одному каталозі. Шукайте за артикулом або
-              переходьте до потрібної групи деталей; підбір за VIN допоможе
-              уточнити сумісність перед покупкою.
+              Запчастини для <strong className="font-semibold text-slate-800">ТО, гальм, підвіски й двигуна</strong> в
+              одному каталозі. Шукайте за артикулом або групою деталей —
+              сумісність уточнимо за VIN-кодом.
             </p>
 
             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:mt-6 sm:p-5">
@@ -154,11 +152,10 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               </dl>
             </div>
             <p className="home-description mt-5 text-[14px] leading-[1.7] text-slate-600">
-              Для планового ТО важливі специфікація оливи та застосування фільтра,
-              а для гальм і підвіски — розміри й виконання деталі. Звіряйте
-              характеристики в <Link href="/katalog" className="font-semibold text-teal-700 underline underline-offset-4">каталозі автозапчастин</Link>,
-              а умови отримання — у розділі <Link href="/inform/delivery" className="font-semibold text-teal-700 underline underline-offset-4">доставки та самовивозу</Link>.
-              Якщо даних недостатньо, зверніться до менеджера з VIN і номером деталі.
+              Для ТО важливі специфікація оливи й застосування фільтра, для гальм
+              і підвіски — розміри деталі. Звіряйте їх у <Link href="/katalog" className="font-semibold text-teal-700 underline underline-offset-4">каталозі автозапчастин</Link>,
+              умови отримання — у розділі <Link href="/inform/delivery" className="font-semibold text-teal-700 underline underline-offset-4">доставки та самовивозу</Link>.
+              Сумніваєтеся? Напишіть менеджеру VIN і номер деталі.
             </p>
           </div>
 

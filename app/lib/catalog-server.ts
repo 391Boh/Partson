@@ -1,8 +1,9 @@
 import "server-only";
 
 import { oneCRequest } from "app/api/_lib/oneC";
+import { getProductPromoPriceOverride } from "./product-promo-overrides";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { compareProductNames, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, searchAlternatives, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
+import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -128,6 +129,10 @@ const PURCHASE_PRICE_FIELDS = [
 const PROMO_PRICE_FIELDS = [
   "\u0410\u043a\u0446\u0456\u044f", // Акція — exact 1C column name
   "\u0410\u043a\u0446\u0438\u044f",
+  "\u0426\u0456\u043d\u0430\u0410\u043a\u0446\u0456\u0457", // ЦінаАкції
+  "\u0426\u0435\u043d\u0430\u0410\u043a\u0446\u0438\u0438", // ЦенаАкции
+  "\u0426\u0435\u043d\u0430\u0410\u043a\u0446\u0438\u044f", // ЦенаАкция
+  "\u0410\u043a\u0446\u0438\u043e\u043d\u043d\u0430\u044f\u0426\u0435\u043d\u0430", // АкционнаяЦена
   "promoPriceEuro",
   "promo_price_euro",
   "actionPriceEuro",
@@ -186,6 +191,21 @@ const ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430
 // Only ever set this for admin-authenticated cost-price lookups.
 const ALLGOODS_INCLUDE_COST_PRICE_FIELD = "\u0412\u043a\u043b\u044e\u0447\u0430\u0442\u044c\u0426\u0456\u043d\u0443\u0417\u0430\u043a\u0443\u043f";
 const ALLGOODS_ONLY_WITH_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0421\u0426\u0435\u043d\u043e\u0439";
+// Exact product codes, up to 50, in one allgoods call (1C module from 21.10).
+const ALLGOODS_CODES_FIELD = "Коди";
+const ALLGOODS_CODES_MAX = 50;
+// An older 1C ignores Коди and answers with the unfiltered catalog.
+let allgoodsCodesUnsupportedUntil = 0;
+/** lookupFields for a lookup by 1C code only (no article/alt-article calls). */
+export const CATALOG_CODE_LOOKUP_FIELDS = [ALLGOODS_CODE_FIELD];
+const ALLGOODS_ONLY_WITHOUT_PRICE_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0411\u0435\u0437\u0426\u0435\u043d\u044b"; // ТолькоБезЦены
+// 1C reports it once ТолькоСЦеной means a sale price and ТолькоБезЦены exists.
+const ALLGOODS_SALE_PRICE_FILTER_MODE = "sale_v1";
+let allgoodsSupportsSalePriceFilter = false;
+// An older 1C ignores ПрямаяСтраница with a price filter; don't ask it on
+// every direct jump.
+let pricedFirstDirectUnsupportedUntil = 0;
+const PRICED_FIRST_DIRECT_RECHECK_MS = 1000 * 60 * 10;
 
 const INFO_ARTICLE_FIELD = "\u041d\u043e\u043c\u0435\u0440\u041f\u043e\u041a\u0430\u0442\u0430\u043b\u043e\u0433\u0443";
 const INFO_DESC_FIELDS = ["\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", "\u041e\u043f\u0438\u0441"];
@@ -379,6 +399,7 @@ const parseAllgoodsPayload = (payload: string) => {
       directOffset: parsed.pagination_mode === "offset_v1" && typeof parsed.offset === "number" ? parsed.offset : undefined,
       // "name_v1" once 1C applies СортировкаПоНазве itself.
       sortMode: typeof parsed.sort_mode === "string" ? parsed.sort_mode : "",
+      priceFilterMode: typeof parsed.price_filter === "string" ? parsed.price_filter : "",
       hasMore,
       nextCursor: typeof nextCursor === "string" ? nextCursor.trim() : "",
       totalCount,
@@ -599,6 +620,49 @@ export const fetchExactCatalogProductByLookup = async (
   return exactMatches.find((item) => isExactCatalogLookupMatch(item, normalized)) ?? null;
 };
 
+/**
+ * Products by exact 1C code in one request (catalog-live's card refresh).
+ * Null when 1C cannot answer this way — the request failed or the module
+ * predates Коди — so the caller falls back to one lookup per code.
+ */
+export const fetchCatalogProductsByCodes = async (
+  codes: string[],
+  options?: { timeoutMs?: number; cacheTtlMs?: number }
+): Promise<Map<string, CatalogProduct> | null> => {
+  const requested = [...new Set(codes.map((code) => code.trim()).filter(Boolean))].sort();
+  if (requested.length === 0) return new Map();
+  if (requested.length > ALLGOODS_CODES_MAX || Date.now() < allgoodsCodesUnsupportedUntil) return null;
+
+  const body = {
+    [ALLGOODS_CODES_FIELD]: requested,
+    [ALLGOODS_LIMIT_FIELD]: requested.length,
+    [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: false,
+    [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
+  };
+  const response = await oneCRequest("allgoods", {
+    method: "POST",
+    body,
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 30,
+    cacheKey: JSON.stringify({ endpoint: "allgoods", body }),
+  });
+  if (response.status < 200 || response.status >= 300) return null;
+
+  const wanted = new Set(requested.map((code) => code.toLowerCase()));
+  const found = new Map<string, CatalogProduct>();
+  for (const item of parseAllgoodsPayload(response.text).items) {
+    const key = item.code.trim().toLowerCase();
+    if (!wanted.has(key)) {
+      // A product nobody asked for: this 1C does not know Коди yet.
+      allgoodsCodesUnsupportedUntil = Date.now() + 1000 * 60 * 10;
+      return null;
+    }
+    found.set(key, item);
+  }
+  return found;
+};
+
 const extractResponseErrorDetails = (responseText: string) => {
   try {
     const parsed = JSON.parse(responseText) as { details?: unknown; error?: unknown };
@@ -613,6 +677,15 @@ const extractResponseErrorDetails = (responseText: string) => {
 };
 
 const LOCAL_NAME_CURSOR_PREFIX = "nl1:";
+const PRICED_FIRST_CURSOR_PREFIX = "pf1:";
+// Request fields that do not narrow the listing.
+const PRICED_FIRST_NEUTRAL_FIELDS = new Set([
+  ALLGOODS_INCLUDE_DESCRIPTION_FIELD,
+  ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD,
+  ALLGOODS_INCLUDE_COST_PRICE_FIELD,
+  ALLGOODS_INCLUDE_TOTAL_COUNT_FIELD,
+  ALLGOODS_LIMIT_FIELD,
+]);
 const LOCAL_NAME_SORT_TTL_MS = 1000 * 60 * 3;
 const LOCAL_NAME_SORT_MAX_ENTRIES = 24;
 const LOCAL_NAME_SORT_MAX_BATCHES = 24;
@@ -650,6 +723,8 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   pricedItemsOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
+  /** Default browse order: products with a sale price before the rest. */
+  pricedFirst?: boolean;
 }): Promise<CatalogQueryPageResult> => {
   const page =
     Number.isFinite(options.page) && (options.page || 0) > 0
@@ -683,11 +758,12 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     requestBodyBase["ЦенаДо"] = options.priceTo;
   }
 
+  const hasSalePrice = (item: CatalogProduct) =>
+    typeof item.priceEuro === "number" &&
+    Number.isFinite(item.priceEuro) &&
+    item.priceEuro > 0;
   const hasUsablePrice = (item: CatalogProduct) =>
-    (typeof item.priceEuro === "number" &&
-      Number.isFinite(item.priceEuro) &&
-      item.priceEuro > 0) ||
-    item.hasPrice === true;
+    hasSalePrice(item) || item.hasPrice === true;
 
   const filterPricedItems = (items: CatalogProduct[]) =>
     options.pricedItemsOnly ? items.filter(hasUsablePrice) : items;
@@ -754,6 +830,18 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (isNameSorted) {
     const local = await fetchLocallyNameSortedPage();
     if (local) return local;
+  }
+
+  if (
+    options.pricedFirst === true &&
+    !isPriceSorted &&
+    !isNameSorted &&
+    !options.pricedItemsOnly &&
+    options.priceFrom == null &&
+    options.priceTo == null &&
+    (!requestedCursor || requestedCursor.startsWith(PRICED_FIRST_CURSOR_PREFIX))
+  ) {
+    return fetchPricedFirstPage();
   }
 
   if (options.directOffset !== undefined && !isPriceSorted) {
@@ -996,6 +1084,242 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       cursorField: null,
       totalCount,
       ...(options.directOffset !== undefined ? { directOffset: options.directOffset } : {}),
+    };
+  }
+
+  // Default order: products with a sale price first, then the rest, each part
+  // in 1C's own code order. 1C filters priced rows itself (ТолькоСЦеной; an
+  // older module also counts a purchase-only price, so rows are re-checked
+  // here). Without ТолькоБезЦены (price_filter "sale_v1") the second part
+  // walks the unfiltered list and keeps the price-less rows. Cursor
+  // "pf1:{u,c,s,w?,f?}": u — inside the price-less part, c — 1C's code cursor
+  // of the current window, s — qualifying rows of that window already shown
+  // (so consecutive pages reuse one cached window request), w — the window's
+  // size (500 when absent), f — the price-less part is filtered by 1C,
+  // a — the whole listing fits one plain window, which both parts split.
+  async function fetchPricedFirstPage(): Promise<CatalogQueryPageResult> {
+    type State = { u: boolean; c: string; s: number; w?: number; f?: boolean; a?: boolean };
+    const WINDOW = 500;
+    // The first window only has to fill the first page: 1C answers ~50 rows
+    // in ~0.3s against ~0.7s for 500.
+    const FIRST_WINDOW = Math.min(WINDOW, Math.max(48, limit * 2));
+    const windowOf = (state: State) => state.w ?? WINDOW;
+    const decode = (value: string): State | null => {
+      if (!value.startsWith(PRICED_FIRST_CURSOR_PREFIX)) return null;
+      try {
+        const parsed = JSON.parse(value.slice(PRICED_FIRST_CURSOR_PREFIX.length)) as Partial<State>;
+        const w = parsed.w === undefined ? WINDOW : parsed.w;
+        return typeof parsed.u === "boolean" && typeof parsed.c === "string" &&
+          typeof w === "number" && Number.isSafeInteger(w) && w >= 1 && w <= WINDOW &&
+          typeof parsed.s === "number" && Number.isSafeInteger(parsed.s) && parsed.s >= 0 && parsed.s <= w
+          ? {
+              u: parsed.u, c: parsed.c, s: parsed.s,
+              ...(w !== WINDOW ? { w } : {}),
+              ...(parsed.u && parsed.f === true ? { f: true } : {}),
+              ...(!parsed.u && parsed.a === true ? { a: true } : {}),
+            }
+          : null;
+      } catch {
+        return null;
+      }
+    };
+    const encode = (state: State) => PRICED_FIRST_CURSOR_PREFIX + JSON.stringify(state);
+    const baseBody = () => {
+      const body: Record<string, unknown> = { ...requestBodyBase };
+      delete body[ALLGOODS_CURSOR_FIELD];
+      delete body[ALLGOODS_ONLY_WITH_PRICE_FIELD];
+      delete body[ALLGOODS_ONLY_WITHOUT_PRICE_FIELD];
+      return body;
+    };
+    const requestPageWithCursorRecovery = async (body: Record<string, unknown>) => {
+      let parsed = await requestAllgoodsPage(body);
+      if (parsed.items.length === 0 && parsed.hasMore) {
+        parsed = await requestAllgoodsPage(body, 0);
+      }
+
+      const currentCursor =
+        typeof body[ALLGOODS_CURSOR_FIELD] === "string"
+          ? (body[ALLGOODS_CURSOR_FIELD] as string).trim()
+          : "";
+      const nextCursor = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+      if (parsed.hasMore && (!nextCursor || nextCursor === currentCursor)) {
+        throw new Error("CATALOG_PAGINATION_STALLED");
+      }
+      if (parsed.priceFilterMode === ALLGOODS_SALE_PRICE_FILTER_MODE) {
+        allgoodsSupportsSalePriceFilter = true;
+      }
+
+      return parsed;
+    };
+    const startOfUnpriced = (singleWindow = false): State =>
+      allgoodsSupportsSalePriceFilter && !singleWindow ? { u: true, c: "", s: 0, f: true } : { u: true, c: "", s: 0 };
+
+    // Advances `count` rows from `start`, keeping them only when `keep`.
+    const advance = async (start: State, count: number, keep: boolean, maxRequests: number) => {
+      const items: CatalogProduct[] = [];
+      let state = start;
+      let remaining = count;
+      let requests = 0;
+      let hasMore = true;
+
+      while (remaining > 0 && !state.u && requests < maxRequests) {
+        const parsed = await requestPageWithCursorRecovery({
+          ...baseBody(),
+          ...(state.a ? {} : { [ALLGOODS_ONLY_WITH_PRICE_FIELD]: true }),
+          [ALLGOODS_LIMIT_FIELD]: windowOf(state),
+          ...(state.c ? { [ALLGOODS_CURSOR_FIELD]: state.c } : {}),
+        });
+        requests += 1;
+        const priced = parsed.items.filter(hasSalePrice).slice(state.s);
+        const taken = priced.slice(0, remaining);
+        if (keep) items.push(...taken);
+        remaining -= taken.length;
+        if (taken.length < priced.length) {
+          state = { ...state, s: state.s + taken.length };
+          break;
+        }
+        const end = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+        state = !parsed.hasMore || !end || end === state.c
+          ? startOfUnpriced(state.a)
+          : { u: false, c: end, s: 0 };
+      }
+
+      while (remaining > 0 && state.u && requests < maxRequests) {
+        const parsed = await requestPageWithCursorRecovery({
+          ...baseBody(),
+          ...(state.f ? { [ALLGOODS_ONLY_WITHOUT_PRICE_FIELD]: true } : {}),
+          [ALLGOODS_LIMIT_FIELD]: windowOf(state),
+          ...(state.c ? { [ALLGOODS_CURSOR_FIELD]: state.c } : {}),
+        });
+        requests += 1;
+        const unpriced = parsed.items.filter((item) => !hasSalePrice(item)).slice(state.s);
+        const taken = unpriced.slice(0, remaining);
+        if (keep) items.push(...taken);
+        remaining -= taken.length;
+        if (taken.length < unpriced.length) {
+          state = { ...state, s: state.s + taken.length };
+          break;
+        }
+        const end = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+        if (!parsed.hasMore || !end || end === state.c) {
+          hasMore = false;
+          break;
+        }
+        state = { u: true, c: end, s: 0, ...(state.f ? { f: true } : {}) };
+      }
+
+      return { items, state, remaining, hasMore: hasMore && (remaining === 0 || requests >= maxRequests) };
+    };
+
+    // A 1C module with ТолькоБезЦены opens any page of either part directly:
+    // one ПрямаяСтраница request (two on the boundary page). Null when 1C
+    // does not acknowledge the offset — the caller then skips windows.
+    const fetchDirectPage = async (offset: number) => {
+      const directRequest = async (filterField: string, directOffset: number, count: number) => {
+        const parsed = await requestAllgoodsPage({
+          ...baseBody(),
+          [filterField]: true,
+          ПрямаяСтраница: true,
+          Смещение: directOffset,
+          [ALLGOODS_LIMIT_FIELD]: count,
+        });
+        return parsed.directOffset === directOffset &&
+          parsed.priceFilterMode === ALLGOODS_SALE_PRICE_FILTER_MODE &&
+          typeof parsed.totalCount === "number"
+          ? { ...parsed, totalCount: parsed.totalCount }
+          : null;
+      };
+      if (pricedFirstDirectUnsupportedUntil > Date.now()) return null;
+      const priced = await directRequest(ALLGOODS_ONLY_WITH_PRICE_FIELD, offset, limit);
+      if (!priced) {
+        pricedFirstDirectUnsupportedUntil = Date.now() + PRICED_FIRST_DIRECT_RECHECK_MS;
+        return null;
+      }
+      allgoodsSupportsSalePriceFilter = true;
+      const pricedItems = priced.items.filter(hasSalePrice).slice(0, limit);
+      if (offset + pricedItems.length < priced.totalCount) {
+        const last = deriveAllgoodsFallbackCursor(pricedItems);
+        if (!last || pricedItems.length < limit) return null;
+        return { items: pricedItems, hasMore: true, state: { u: false, c: last, s: 0 } as State };
+      }
+
+      const unpricedOffset = Math.max(0, offset - priced.totalCount);
+      const missing = limit - pricedItems.length;
+      // The page ends exactly on the last priced row.
+      if (missing === 0) return { items: pricedItems, hasMore: true, state: startOfUnpriced() };
+      const unpriced = await directRequest(ALLGOODS_ONLY_WITHOUT_PRICE_FIELD, unpricedOffset, missing);
+      if (!unpriced) return null;
+      const unpricedItems = unpriced.items.filter((item) => !hasSalePrice(item)).slice(0, missing);
+      const hasMore = unpricedOffset + unpricedItems.length < unpriced.totalCount;
+      const last = deriveAllgoodsFallbackCursor(unpricedItems);
+      if (hasMore && !last) return null;
+      return {
+        items: [...pricedItems, ...unpricedItems],
+        hasMore,
+        state: last ? { u: true, c: last, s: 0, f: true } as State : startOfUnpriced(),
+      };
+    };
+
+    const cursorState = decode(requestedCursor);
+    let state: State = cursorState ?? { u: false, c: "", s: 0, w: FIRST_WINDOW };
+    const targetPage =
+      options.directOffset !== undefined ? Math.floor(options.directOffset / limit) + 1 : page;
+    // The grand total, for the first page and direct jumps: a cheap 1-row
+    // request, cached like every other call.
+    const totalCountPromise = cursorState
+      ? Promise.resolve<number | null | undefined>(undefined)
+      : requestAllgoodsPage({ ...baseBody(), [ALLGOODS_LIMIT_FIELD]: 1 })
+          .then((parsed) => parsed.totalCount)
+          .catch(() => null);
+    // A filtered listing (producer, group, search) is usually small, and the
+    // current 1C answers ТолькоСЦеной with a filter in ~4.7s against ~1s for
+    // the plain filtered list. When the whole listing fits one window, read it
+    // once and split it here.
+    const isFilteredListing = Object.keys(baseBody()).some(
+      (key) => !PRICED_FIRST_NEUTRAL_FIELDS.has(key)
+    );
+    let singleWindow = false;
+    if (!cursorState && isFilteredListing) {
+      const total = await totalCountPromise;
+      if (typeof total === "number" && total <= WINDOW) {
+        singleWindow = true;
+        state = { u: false, c: "", s: 0, a: true };
+      }
+    }
+    const directOffsetField = options.directOffset !== undefined ? { directOffset: options.directOffset } : {};
+    if (!cursorState && targetPage > 1) {
+      const skipCount = (targetPage - 1) * limit;
+      const direct = singleWindow ? null : await fetchDirectPage(skipCount).catch(() => null);
+      if (direct) {
+        return {
+          items: direct.items,
+          hasMore: direct.hasMore,
+          nextCursor: direct.hasMore ? encode(direct.state) : "",
+          cursorField: null,
+          totalCount: await totalCountPromise,
+          ...directOffsetField,
+        };
+      }
+      // Skipping costs one 1C request per ~500 rows; past that budget the
+      // client falls back to cursor paging, as for price-sorted listings.
+      const skipped = await advance(singleWindow ? state : { u: false, c: "", s: 0 }, skipCount, false, 8);
+      if (skipped.remaining > 0 && skipped.hasMore) {
+        throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+      }
+      if (!skipped.hasMore) {
+        return { items: [], hasMore: false, nextCursor: "", cursorField: null, totalCount: await totalCountPromise };
+      }
+      state = skipped.state;
+    }
+
+    const result = await advance(state, limit, true, 12);
+    return {
+      items: result.items,
+      hasMore: result.hasMore,
+      nextCursor: result.hasMore ? encode(result.state) : "",
+      cursorField: null,
+      totalCount: await totalCountPromise,
+      ...directOffsetField,
     };
   }
 
@@ -1867,6 +2191,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
         pricedItemsOnly: options.pricedItemsOnly,
         priceFrom: options.priceFrom,
         priceTo: options.priceTo,
+        pricedFirst: !q,
       });
     };
 
@@ -1886,6 +2211,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
         page, limit, body, directOffset: options.directOffset,
         timeoutMs: options.timeoutMs, retries: 0, cacheTtlMs: options.cacheTtlMs,
         pricedItemsOnly: options.pricedItemsOnly, priceFrom: options.priceFrom, priceTo: options.priceTo,
+        pricedFirst: !searchQuery,
       });
     }
 
@@ -1945,6 +2271,13 @@ const fetchCatalogProductsByQueryInner = async (options: {
       // returns a fast-looking but unsorted/unfiltered page, which is worse than
       // retrying the correct source (and previously broke ASC intermittently).
       if (
+        err instanceof Error &&
+        err.message === "CATALOG_PAGINATION_STALLED"
+      ) {
+        throw err;
+      }
+      if (
+        forceAllgoodsSource ||
         options.includeDescription === true ||
         sortOrder !== "none" ||
         nameSort !== "none" ||
@@ -2134,7 +2467,16 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
       }
     }
     if (!result.items.length && firstPage) {
-      const alternatives = searchAlternatives(originalQuery);
+      // Layout/transliteration first, then a misspelt word and a shorter
+      // article (see searchCatalogIndex), the spelling from the warm snapshot.
+      const vocabulary = getSearchVocabulary();
+      const spelling = vocabulary ? correctSearchSpelling(originalQuery, vocabulary) : null;
+      const alternatives = [
+        ...stemVariants(originalQuery).slice(0, 1),
+        ...searchAlternatives(originalQuery),
+        ...(spelling ? [spelling] : []),
+        ...articleRelaxations(originalQuery).slice(0, 2),
+      ];
       // Start alternatives together, but return the preferred correction as
       // soon as it succeeds instead of waiting for unrelated slower variants.
       const pendingAttempts = alternatives.map((searchQuery) =>
@@ -2151,8 +2493,13 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
           return wrapSearchResult(attempt.value, alternatives[i]);
         }
       }
+      // The literal query itself answered (with nothing). One failed or
+      // timed-out alternative must not turn that into an error; only report
+      // 1C trouble when every alternative failed.
       const failed = attempts.find((attempt) => attempt.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
+      if (failed?.status === "rejected" && attempts.every((attempt) => attempt.status === "rejected")) {
+        throw failed.reason;
+      }
     }
     return wrapSearchResult(result, originalQuery);
   }
@@ -2691,12 +3038,7 @@ export const fetchPromoOffersByLookupKeys = async (
 
     const snapshotResult: Record<string, PromoOffer> = {};
     for (const key of normalizedKeys) {
-      const hasPromo = fullCatalogCache.promoKeys.has(key);
-      snapshotResult[key] = {
-        hasPromo,
-        promoPercent: fullCatalogCache.promoPercents.get(key) ?? null,
-        promoPriceEuro: hasPromo ? fullCatalogCache.promoPrices.get(key) ?? null : null,
-      };
+      snapshotResult[key] = readSnapshotPromoOffer(key, fullCatalogCache, getSnapshotProductIndex()?.get(key)?.priceEuro);
     }
     return snapshotResult;
   }
@@ -2705,7 +3047,7 @@ export const fetchPromoOffersByLookupKeys = async (
     Number.isFinite(options?.timeoutMs) && (options?.timeoutMs || 0) > 0
       ? Math.floor(options?.timeoutMs as number)
       : 1800;
-  const cacheTtlMs =
+  const cacheTtlMs = options?.live ? 0 :
     Number.isFinite(options?.cacheTtlMs) && (options?.cacheTtlMs || 0) > 0
       ? Math.floor(options?.cacheTtlMs as number)
       : 1000 * 60 * 3;
@@ -3027,8 +3369,8 @@ const getFullCatalogSnapshot = async (): Promise<{
           // starts a rescan that sees the edit.
           const fetchedAt =
             scanGeneration === fullCatalogGeneration
-              ? Date.now()
-              : Date.now() - FULL_CATALOG_FRESH_TTL_MS - 1000;
+              ? scanStartedAt
+              : scanStartedAt - FULL_CATALOG_FRESH_TTL_MS - 1000;
           fullCatalogCache = { ...snapshot, fetchedAt };
           return snapshot;
         })
@@ -3053,9 +3395,10 @@ export const fetchPromoCatalogProducts = async (): Promise<{
   stale: boolean;
 }> => {
   const { snapshot, stale } = await getFullCatalogSnapshot();
+  const promoSnapshot = { ...snapshot, fetchedAt: fullCatalogCache?.fetchedAt ?? 0 };
   const products = snapshot.products.filter((product) => {
     const key = catalogItemKey(product);
-    return key ? snapshot.promoKeys.has(key) : false;
+    return key ? readSnapshotPromoOffer(key, promoSnapshot, product.priceEuro).hasPromo : false;
   });
   return { products, stale };
 };
@@ -3070,13 +3413,66 @@ export const fetchPromoCatalogProducts = async (): Promise<{
 // facet filter, sorting, a price range, or pagination past page 1 — still
 // goes through the live path unchanged. Returns null when the snapshot isn't
 // warm yet (cold start right after a restart) so the caller falls back.
+export type SearchFacet = { label: string; count: number; group: string; subGroup: string };
+export type SearchFacets = { categories: SearchFacet[]; producers: Array<{ label: string; count: number }> };
+
+// Words of the warm snapshot for spelling correction, rebuilt only when the
+// snapshot object itself changes.
+let searchVocabulary: { snapshot: FullCatalogSnapshot; words: Map<string, number> } | null = null;
+export const getSearchVocabulary = (): Map<string, number> | null => {
+  if (!fullCatalogCache) return null;
+  if (searchVocabulary?.snapshot !== fullCatalogCache) {
+    searchVocabulary = { snapshot: fullCatalogCache, words: buildSearchVocabulary(fullCatalogCache.products) };
+  }
+  return searchVocabulary.words;
+};
+
+// The categories and producers most of the matches belong to — "Гальмівні
+// колодки · 680" for "колодки" — shown above the product suggestions.
+const buildSearchFacets = (matches: CatalogProduct[]): SearchFacets => {
+  const categories = new Map<string, SearchFacet>();
+  const producers = new Map<string, { label: string; count: number }>();
+  for (const product of matches) {
+    const subGroup = (product.subGroup || "").trim();
+    const group = (product.group || product.category || "").trim();
+    const label = subGroup || group;
+    if (label) {
+      const key = `${group}\u0000${subGroup}`.toLowerCase();
+      const entry = categories.get(key) ?? { label, count: 0, group, subGroup };
+      entry.count += 1;
+      categories.set(key, entry);
+    }
+    const producer = (product.producer || "").trim();
+    if (producer) {
+      const entry = producers.get(producer.toLowerCase()) ?? { label: producer, count: 0 };
+      entry.count += 1;
+      producers.set(producer.toLowerCase(), entry);
+    }
+  }
+  // Only groups that hold a real share of the matches (5% of the largest),
+  // not one stray hit in a description.
+  const top = <T extends { count: number }>(values: Iterable<T>, limit: number) => {
+    const sorted = [...values].sort((a, b) => b.count - a.count);
+    const floor = Math.max(2, (sorted[0]?.count ?? 0) * 0.05);
+    return sorted.filter((value) => value.count >= floor).slice(0, limit);
+  };
+  return { categories: top(categories.values(), 3), producers: top(producers.values(), 2) };
+};
+
 export const searchCatalogIndex = async (
   query: string,
-  options: { filter: SearchField | "all"; limit: number }
+  options: {
+    filter: SearchField | "all";
+    limit: number;
+    /** Quick-search suggestions: most relevant first, paged by position. */
+    rank?: boolean;
+    offset?: number;
+  }
 ): Promise<{
   items: CatalogProduct[];
   totalCount: number;
   correctedQuery?: string;
+  facets?: SearchFacets;
 } | null> => {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) return null;
@@ -3103,44 +3499,60 @@ export const searchCatalogIndex = async (
     // Same tie-break searchProductFields itself falls back to when sortOrder
     // is "none" (alphabetical by code) — keeps result order identical
     // regardless of whether a request was answered from this index or the
-    // live path.
+    // live path. Ranked suggestions reorder after this (stable).
     matches.sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
     return matches;
   };
 
-  const matches = matchAgainst(trimmedQuery);
-  if (matches.length > WEAK_LITERAL_HITS) {
-    return { items: matches.slice(0, options.limit), totalCount: matches.length };
+  const offset = Math.max(0, Math.floor(options.offset || 0));
+  const respond = (matches: CatalogProduct[], usedQuery: string, correctedQuery?: string) => {
+    const ordered = options.rank ? rankSearchMatches(matches, usedQuery) : matches;
+    return {
+      items: ordered.slice(offset, offset + options.limit),
+      totalCount: matches.length,
+      ...(correctedQuery ? { correctedQuery } : {}),
+      ...(options.rank && offset === 0 && matches.length > 3 ? { facets: buildSearchFacets(matches) } : {}),
+    };
+  };
+
+  const literal = matchAgainst(trimmedQuery);
+  // Few literal hits: add what the word stems find ("свічки" → "Свіча",
+  // "ремен" → "Ремінь"), literal matches kept first in ranked order.
+  const STEM_UNION_BELOW = 5;
+  let matches = literal;
+  if (literal.length < STEM_UNION_BELOW) {
+    const byCode = new Map(literal.map((product) => [product.code, product]));
+    for (const variant of stemVariants(trimmedQuery)) {
+      for (const product of matchAgainst(variant)) byCode.set(product.code, product);
+    }
+    if (byCode.size > literal.length) {
+      matches = [...byCode.values()].sort((a, b) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+    }
   }
+  if (matches.length > WEAK_LITERAL_HITS) return respond(matches, trimmedQuery);
   if (matches.length > 0) {
     // Same weak-hit check as the live path: prefer the wrong-layout reading
     // when it finds more than the couple of accidental literal matches.
     for (const alternative of layoutAlternatives(trimmedQuery)) {
       const altMatches = matchAgainst(alternative);
-      if (altMatches.length > matches.length) {
-        return {
-          items: altMatches.slice(0, options.limit),
-          totalCount: altMatches.length,
-          correctedQuery: alternative,
-        };
-      }
+      if (altMatches.length > matches.length) return respond(altMatches, alternative, alternative);
     }
-    return { items: matches.slice(0, options.limit), totalCount: matches.length };
+    return respond(matches, trimmedQuery);
   }
 
-  // No hits on the literal query — same typo/layout/transliteration recovery
-  // the live path applies (see fetchCatalogProductsByQuery's own use of
-  // searchAlternatives), just run against the in-memory snapshot instead of
-  // firing off another round of live 1C requests per candidate.
-  for (const alternative of searchAlternatives(trimmedQuery)) {
+  // No hits on the literal query: the wrong layout / transliteration, then a
+  // misspelt word ("калодки" → "колодки"), then a shorter article ("W 712/95"
+  // → "W 712") — all against the in-memory snapshot, no extra 1C requests.
+  const vocabulary = getSearchVocabulary();
+  const spelling = vocabulary ? correctSearchSpelling(trimmedQuery, vocabulary) : null;
+  const recoveries = [
+    ...searchAlternatives(trimmedQuery),
+    ...(spelling ? [spelling] : []),
+    ...articleRelaxations(trimmedQuery),
+  ];
+  for (const alternative of recoveries) {
     const altMatches = matchAgainst(alternative);
-    if (altMatches.length > 0) {
-      return {
-        items: altMatches.slice(0, options.limit),
-        totalCount: altMatches.length,
-        correctedQuery: alternative,
-      };
-    }
+    if (altMatches.length > 0) return respond(altMatches, alternative, alternative);
   }
 
   return { items: [], totalCount: 0 };
@@ -3166,6 +3578,18 @@ const getSnapshotProductIndex = (): Map<string, CatalogProduct> | null => {
   snapshotProductIndex = { snapshot: fullCatalogCache, byKey };
   return byKey;
 };
+
+function readSnapshotPromoOffer(key: string, snapshot: FullCatalogSnapshot & { fetchedAt: number }, regularPrice?: number | null): PromoOffer {
+  const override = getProductPromoPriceOverride(key, snapshot.fetchedAt);
+  if (override === undefined) {
+    const hasPromo = snapshot.promoKeys.has(key);
+    return { hasPromo, promoPriceEuro: hasPromo ? snapshot.promoPrices.get(key) ?? null : null, promoPercent: snapshot.promoPercents.get(key) ?? null };
+  }
+  const hasPromo = override > 0;
+  const percent = hasPromo && typeof regularPrice === "number" && regularPrice > override
+    ? Math.round((1 - override / regularPrice) * 100) : 0;
+  return { hasPromo, promoPriceEuro: hasPromo ? override : null, promoPercent: percent > 0 ? percent : null };
+}
 
 export type SnapshotPriceEntry = {
   priceEuro: number | null;
@@ -3201,12 +3625,8 @@ export const getSnapshotPriceLookup = (
       typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0
         ? product.priceEuro
         : null;
-    const hasPromo = cache.promoKeys.has(key);
-    result[key] = {
-      priceEuro,
-      promoPriceEuro: hasPromo ? cache.promoPrices.get(key) ?? null : null,
-      promoPercent: hasPromo ? cache.promoPercents.get(key) ?? null : null,
-    };
+    const promo = readSnapshotPromoOffer(key, cache, priceEuro);
+    result[key] = { priceEuro, promoPriceEuro: promo.promoPriceEuro, promoPercent: promo.promoPercent };
   }
   return result;
 };
@@ -3529,7 +3949,7 @@ const lookupDescriptionByIdentifiers = async (
   // blew past that timeout even when a later candidate would have answered
   // quickly on its own.
   const skipped = Promise.resolve<string | null | undefined>(undefined);
-  const [byCode, byArticle, byInfo] = await Promise.all([
+  const lookups = [
     code
       ? runAllgoodsLookup(
           {
@@ -3551,11 +3971,21 @@ const lookupDescriptionByIdentifiers = async (
         )
       : skipped,
     article ? runGetInfoLookup() : skipped,
-  ]);
+  ];
 
+  // Same priority as before (code, then catalog number, then getinfo), but
+  // the answer no longer waits for lower-priority calls once a higher one
+  // has text: under load one 1C call takes 2-4 s, and the page waited for
+  // the slowest of all three.
+  const results: Array<string | null | undefined> = [];
+  for (const lookup of lookups) {
+    const value = await lookup;
+    if (value) return { description: value, answered: true };
+    results.push(value);
+  }
   return {
-    description: byCode || byArticle || byInfo || null,
-    answered: [byCode, byArticle, byInfo].some((value) => value !== undefined),
+    description: null,
+    answered: results.some((value) => value !== undefined),
   };
 };
 

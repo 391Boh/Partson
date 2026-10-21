@@ -16,6 +16,7 @@ import {
 import { getFirestore, doc, updateDoc, Timestamp } from "firebase/firestore";
 import GoogleCustomerReviewsOptIn from "./GoogleCustomerReviewsOptIn";
 import OrderProductReviews, { type OrderReviewItem } from "./OrderProductReviews";
+import OrderCancelControl from "./OrderCancelControl";
 
 // Same PartsON Google Business Profile link used across the site (Contact.tsx,
 // AdvantagesSection.tsx, DeliveryMethod.tsx) — opens straight to the place
@@ -319,6 +320,14 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
       </a>
 
       {items.length > 0 && <OrderProductReviews items={items} />}
+
+      {/* Prepaid orders are cancelled by the manager (refund). */}
+      {paymentStatus === "cash_on_delivery" ? (
+        <OrderCancelControl
+          orderId={orderId}
+          hint="Передумали? Скасувати можна, доки менеджер не взяв замовлення в роботу."
+        />
+      ) : null}
 
       <div className="flex justify-center">
         <button

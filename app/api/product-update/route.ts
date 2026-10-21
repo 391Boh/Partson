@@ -15,6 +15,9 @@ import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
+import { readOneCPriceResultValue } from "app/api/_lib/onec-price-result";
+import { setProductPromoPriceOverride } from "app/lib/product-promo-overrides";
+import { confirmOneCPromoPrice, promoConfirmationError } from "app/api/_lib/confirm-onec-promo-price";
 
 export const runtime = "nodejs";
 
@@ -256,6 +259,7 @@ export async function POST(request: NextRequest) {
   }
 
   let parsed: {
+    [key: string]: unknown;
     success?: boolean;
     found?: boolean;
     updated?: boolean;
@@ -268,7 +272,7 @@ export async function POST(request: NextRequest) {
     has_more?: boolean;
     next_cursor?: string;
     product_result?: { success?: boolean; message?: string; error_message?: string; Наименование?: string; НомерПоКаталогу?: string; ПроизводительНаименование?: string };
-    price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Акція?: number | null; Артикул?: string };
+    price_result?: { success?: boolean; message?: string; error_message?: string; ЦінаПрод?: number | null; ЦінаЗакуп?: number | null; Акція?: number | null; Артикул?: string; [key: string]: unknown };
     photo_result?: { success?: boolean; message?: string; error_message?: string; file_name?: string };
     Кількість?: number | string;
     quantity?: number | string;
@@ -446,33 +450,29 @@ export async function POST(request: NextRequest) {
   const confirmedPriceEuro =
     priceEuro === undefined
       ? undefined
-      : typeof parsed.price_result?.ЦінаПрод === "number"
-        ? parsed.price_result.ЦінаПрод
-        : priceEuro;
+      : readOneCPriceResultValue(parsed.price_result, "sale") ??
+        priceEuro;
   const confirmedCostPriceEuro =
     costPriceEuro === undefined
       ? undefined
-      : typeof parsed.price_result?.ЦінаЗакуп === "number"
-        ? parsed.price_result.ЦінаЗакуп
-        : costPriceEuro;
-  const confirmedPromoPriceEuro =
-    promoPriceEuro === undefined
-      ? undefined
-      : typeof parsed.price_result?.Акція === "number"
-        ? parsed.price_result.Акція
-        : promoPriceEuro;
+      : readOneCPriceResultValue(parsed.price_result, "cost") ??
+        costPriceEuro;
   if (value.requirePriceConfirmation === true && hasPriceUpdate) {
-    const confirmed = parsed.price_result;
-    const matches = (expected: number | undefined, actual: unknown) => expected === undefined ||
-      (typeof actual === "number" && Number.isFinite(actual) && Math.abs(actual - expected) < 0.000001);
-    if (
-      !matches(priceEuro, confirmed?.ЦінаПрод) ||
-      !matches(costPriceEuro, confirmed?.ЦінаЗакуп) ||
-      !matches(promoPriceEuro, confirmed?.Акція)
-    ) {
+    const matches = (expected: number | undefined, field: "sale" | "cost") => {
+      const actual = readOneCPriceResultValue(parsed.price_result, field) ?? readOneCPriceResultValue(parsed, field);
+      return expected === undefined || (actual !== undefined && Math.abs(actual - expected) < 0.000001);
+    };
+    if (!matches(priceEuro, "sale") || !matches(costPriceEuro, "cost")) {
       return json({ ok: false, error: "1С не підтвердила введену ціну. Перевірте запис ціни за артикулом товару." }, 502);
     }
   }
+  // Confirm promo writes even for older callers without requirePriceConfirmation,
+  // and when a full edit changes regular and promo prices together.
+  if (promoPriceEuro !== undefined && !await confirmOneCPromoPrice(promoPriceEuro, parsed, catalogNumber || article || code)) {
+    return json({ ok: false, error: promoConfirmationError(parsed) }, 502);
+  }
+  const confirmedPromoPriceEuro = promoPriceEuro;
+  if (confirmedPromoPriceEuro !== undefined) setProductPromoPriceOverride(code, catalogNumber || article, confirmedPromoPriceEuro);
   const confirmedName = parsed.product_result?.Наименование ?? productName;
   const confirmedCatalogNumber = parsed.product_result?.НомерПоКаталогу ?? catalogNumber;
 

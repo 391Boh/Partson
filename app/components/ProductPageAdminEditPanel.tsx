@@ -495,6 +495,9 @@ export default function ProductPageAdminEditPanel({
     } else if (editing === "promoPriceEuro") {
       const n = Number(raw.replace(",", "."));
       if (!Number.isFinite(n) || n < 0) { setError("Невірне число"); return; }
+      // A promo shows only below the sale price (ProductCard/purchase panel).
+      if (n > 0 && !(typeof values.priceEuro === "number" && values.priceEuro > 0)) { setError("Спочатку задайте ціну продажу"); return; }
+      if (n > 0 && n >= (values.priceEuro as number)) { setError("Акційна ціна має бути нижчою за ціну продажу"); return; }
       // 0 removes the promo. 1C's edit writes Акція on its own and echoes
       // the stored value back, which product-update confirms.
       fields.promoPriceEuro = n;
@@ -978,6 +981,7 @@ export default function ProductPageAdminEditPanel({
               subGroup: values.subGroup,
               priceEuro: values.priceEuro,
               costPriceEuro: values.costPriceEuro,
+              promoPriceEuro: values.promoPriceEuro,
               quantity,
               description: descVal,
             };

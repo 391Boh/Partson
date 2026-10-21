@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchAutoDirectory } from "app/lib/onec-proxy-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
@@ -84,7 +85,6 @@ const isValidModelLabel = (value: string, selectedBrand?: string) => {
   return true;
 };
 
-const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
 const LABEL_SEARCH_MODEL = "\u041f\u043e\u0448\u0443\u043a \u043c\u043e\u0434\u0435\u043b\u0456...";
 const LABEL_NO_MODELS = "\u041c\u043e\u0434\u0435\u043b\u0456 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e.";
 const LABEL_YEAR_EMPTY = "\u0420\u043e\u043a\u0438 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0456.";
@@ -255,11 +255,7 @@ const normalizeAutoRows = (payload: unknown): unknown[] => {
 // 1C's getauto only accepts the Cyrillic field name (verified live: "brand"/"Brand"
 // always fail with "\u041f\u043e\u0442\u0440\u0456\u0431\u043d\u0430 '\u041c\u0430\u0440\u043a\u0430'") \u2014 a single request is enough, no fallback needed.
 const fetchAutoRowsByBrand = async (selectedBrand: string) => {
-  const res = await fetch(AUTO_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [AUTO_FIELDS.brand]: selectedBrand }),
-  });
+  const res = await fetchAutoDirectory({ [AUTO_FIELDS.brand]: selectedBrand });
 
   const jsonText = await res.text();
   if (!res.ok) {

@@ -17,6 +17,7 @@ type FirebaseAuthDeps = {
 
 let authDepsPromise: Promise<FirebaseAuthDeps> | null = null;
 let unsubscribeAuth: (() => void) | null = null;
+let authInitialization: Promise<void> | null = null;
 let authSubscriptionScheduled = false;
 
 const getInitialClientSnapshot = (): FirebaseAuthSnapshot => {
@@ -57,9 +58,9 @@ const loadFirebaseAuthDeps = () => {
 };
 
 const ensureFirebaseAuthSubscription = () => {
-  if (unsubscribeAuth) return;
+  if (unsubscribeAuth || authInitialization) return;
 
-  void loadFirebaseAuthDeps()
+  authInitialization = loadFirebaseAuthDeps()
     .then(async ({ auth, getRedirectResult, onAuthStateChanged }) => {
       let redirectUser: User | null = null;
       let hasPendingGoogleRedirect = false;
@@ -80,6 +81,9 @@ const ensureFirebaseAuthSubscription = () => {
         }
       }
 
+      // currentUser is null until IndexedDB restoration finishes. Publishing
+      // it earlier briefly displayed guest buttons for signed-in visitors.
+      await auth.authStateReady();
       emitSnapshot({
         ready: true,
         user: redirectUser ?? auth.currentUser ?? null,
@@ -94,10 +98,14 @@ const ensureFirebaseAuthSubscription = () => {
     })
     .catch((error) => {
       console.error("Failed to initialize Firebase auth state:", error);
+      authDepsPromise = null;
+      authSubscriptionScheduled = false;
       emitSnapshot({
         ready: true,
         user: null,
       });
+    }).finally(() => {
+      authInitialization = null;
     });
 };
 

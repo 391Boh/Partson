@@ -9,6 +9,7 @@ import {
  *  filter (Next applies the URL inside a transition), so the results can show
  *  at once that they are being replaced. */
 export const CATALOG_FILTER_PENDING_EVENT = "partson:catalog-filter-pending";
+export const CATALOG_FILTER_SELECTION_FINAL_EVENT = "partson:catalog-filter-selection-final";
 
 type CatalogRouter = {
   replace: (href: string, options?: { scroll?: boolean }) => void;

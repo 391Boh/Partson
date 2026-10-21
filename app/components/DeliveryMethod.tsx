@@ -70,29 +70,44 @@ const DeliveryMethod: React.FC<Props> = ({
   const [lvivStreet, setLvivStreet] = useState(() => selectedLvivStreet ?? '');
   const [lvivStreets, setLvivStreets] = useState<string[]>([]);
 
+  // Warm the server's city list as soon as Nova Poshta is chosen, then search
+  // it as the visitor types: ~20 matches per pause instead of downloading
+  // every city in Ukraine (~6.7 MB, ~5 s) up front.
   useEffect(() => {
     if (deliveryMethod !== 'Нова Пошта') return;
-
-    let isCancelled = false;
-
-    fetch('/api/novaposhta', {
+    void fetch('/api/novaposhta', {
       method: 'POST',
-      body: JSON.stringify({
-        modelName: 'Address',
-        calledMethod: 'getCities'
+      body: JSON.stringify({ modelName: 'Address', calledMethod: 'getCities', methodProperties: { Limit: 1 } }),
+    }).catch(() => undefined);
+  }, [deliveryMethod]);
+
+  useEffect(() => {
+    const query = cityInput.trim();
+    if (deliveryMethod !== 'Нова Пошта' || selectedCity || !query) return;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      fetch('/api/novaposhta', {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          modelName: 'Address',
+          calledMethod: 'getCities',
+          methodProperties: { FindByString: query, Limit: 20 },
+        }),
       })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (!isCancelled && data?.data) {
-          setCities(data.data);
-        }
-      });
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data?.data)) setCities(data.data);
+        })
+        .catch(() => undefined);
+    }, 150);
 
     return () => {
-      isCancelled = true;
+      window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [deliveryMethod]);
+  }, [cityInput, deliveryMethod, selectedCity]);
 
   useEffect(() => {
     if (!selectedCity) return;

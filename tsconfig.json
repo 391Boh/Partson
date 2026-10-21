@@ -43,7 +43,9 @@
     ".next-home-perf/types/**/*.ts",
     ".next-home-perf/dev/types/**/*.ts",
     ".next-audit/types/**/*.ts",
-    ".next-audit/dev/types/**/*.ts"
+    ".next-audit/dev/types/**/*.ts",
+    ".next-perf/types/**/*.ts",
+    ".next-perf/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

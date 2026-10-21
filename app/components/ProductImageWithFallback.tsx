@@ -115,6 +115,9 @@ export default function ProductImageWithFallback({
     [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
   );
 
+  // The page's primary photo: server HTML requests and paints it (and the
+  // page preloads it), so nothing may cover or replace it after hydration.
+  const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
   const [requestSrc, setRequestSrc] = useState(primarySrc || "");
   const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
   const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
@@ -204,7 +207,9 @@ export default function ProductImageWithFallback({
         // Reuse the already downloaded thumbnail while the full request continues.
         setCachedPreviewSrc(cached);
       }
-      if (cached && !(variant === "full" && isCatalogImageSrc(cached))) {
+      // Swapping the primary photo for a cached copy (often a data: URL)
+      // remounted it after hydration and made that the page's LCP paint.
+      if (cached && !(variant === "full" && isCatalogImageSrc(cached)) && !(preferImmediateDecode && primarySrc)) {
         const isAlreadyShowingSameSrc =
           statusRef.current === "loaded" && requestSrcRef.current === cached;
         setRequestSrc(cached);
@@ -228,6 +233,7 @@ export default function ProductImageWithFallback({
     normalizedArticleHint,
     normalizedProductCode,
     preferCachedPreview,
+    preferImmediateDecode,
     primarySrc,
     variant,
   ]);
@@ -338,9 +344,10 @@ export default function ProductImageWithFallback({
   const isLoaded = status === "loaded";
   const showPlaceholder = (!hasKnownPhoto && !selectedGallerySrc) || status === "missing";
   const showCachedPreview = Boolean(cachedPreviewSrc && !selectedGallerySrc && !showPlaceholder && !isLoaded);
-  const showSkeleton = !showPlaceholder && !isLoaded && !showCachedPreview;
+  // The primary photo shows its blur placeholder until it decodes; an opaque
+  // skeleton over it hid the server-rendered image until hydration.
+  const showSkeleton = !showPlaceholder && !isLoaded && !showCachedPreview && !preferImmediateDecode;
   const canOpen = zoomEnabled && isLoaded;
-  const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
 
   const openLightbox = useCallback(() => {
     if (!canOpen) return;

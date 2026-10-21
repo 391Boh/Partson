@@ -6,9 +6,10 @@ import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-reac
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights";
 
-export default function HomeHighlightsSlider({ services }: { services: HomeHighlight[] }) {
-  const [articles, setArticles] = useState<HomeHighlight[]>([HOME_BLOG_OVERVIEW]);
-  const [selection, setSelection] = useState({ id: HOME_BLOG_OVERVIEW.id, previousId: "" });
+export default function HomeHighlightsSlider({ services, initialArticles = [], serverResolved = false }: { services: HomeHighlight[]; initialArticles?: HomeHighlight[]; serverResolved?: boolean }) {
+  const [articles, setArticles] = useState<HomeHighlight[]>(() => initialArticles.length ? initialArticles : [HOME_BLOG_OVERVIEW]);
+  const [selection, setSelection] = useState<{ current: HomeHighlight; previous: HomeHighlight | null }>(() => ({ current: initialArticles[0] ?? HOME_BLOG_OVERVIEW, previous: null }));
+  const [pendingSlide, setPendingSlide] = useState<HomeHighlight | null>(null);
   const [inView, setInView] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const [announcement, setAnnouncement] = useState("");
@@ -18,30 +19,48 @@ export default function HomeHighlightsSlider({ services }: { services: HomeHighl
   const hasNewContent = articles.length > 1 || services.length > 1;
   const items = useMemo(() => hasNewContent ? [...articles, ...services] : articles, [articles, services, hasNewContent]);
   const hasSlides = items.length > 1;
-  const selectedIndex = Math.max(0, items.findIndex((item) => item.id === selection.id));
-  const selected = items[selectedIndex];
-  const previous = items.find((item) => item.id === selection.previousId && item.id !== selected?.id);
+  const selected = selection.current;
+  const selectedIndex = Math.max(0, items.findIndex((item) => item.id === selected.id));
+  const previous = selection.previous;
+  const selectedRef = useRef(selected);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  // Keep the visible slide until next/image has decoded its replacement.
+  // Its old snapshot survives API refreshes even when it leaves the item list.
+  const commitPendingSlide = () => {
+    if (!pendingSlide) return;
+    setSelection(current => ({
+      current: pendingSlide,
+      previous: current.current.id === pendingSlide.id && current.current.image === pendingSlide.image ? null : current.current,
+    }));
+    setPendingSlide(null);
+  };
+
+  useEffect(() => {
+    if (!previous) return;
+    const timer = window.setTimeout(() => {
+      setSelection(current => current === selection ? { ...current, previous: null } : current);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [previous, selection]);
   const rotating = inView && pageVisible && hasSlides;
 
   useEffect(() => {
+    if (!serverResolved) return;
     const controller = new AbortController();
-    let observer: IntersectionObserver | undefined;
-    const load = () => {
-      observer?.disconnect();
-      void fetch("/api/home-blog?view=all", { signal: controller.signal })
-        .then((response) => response.ok ? response.json() : null)
-        .then((payload: { items?: HomeHighlight[] } | null) => {
-          if (!controller.signal.aborted && payload?.items?.length) setArticles(payload.items);
-        })
-        .catch(() => {});
-    };
-    if (typeof IntersectionObserver === "undefined") load();
-    else {
-      observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) load(); }, { rootMargin: "160px" });
-      if (sectionRef.current) observer.observe(sectionRef.current);
-    }
-    return () => { observer?.disconnect(); controller.abort(); };
-  }, []);
+    // Revalidate the small preview payload at hydration. The server-provided
+    // cover is already downloading; API latency never gates its first paint.
+    void fetch("/api/home-blog?view=all", { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then((payload: { items?: HomeHighlight[] } | null) => {
+        if (!controller.signal.aborted && payload?.items?.length) {
+          setArticles(payload.items);
+          setPendingSlide(payload.items.find(item => item.id === selectedRef.current.id) ?? payload.items[0]);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [serverResolved]);
 
   useEffect(() => {
     const syncVisibility = () => setPageVisible(!document.hidden);
@@ -58,56 +77,25 @@ export default function HomeHighlightsSlider({ services }: { services: HomeHighl
   useEffect(() => {
     if (!rotating || !selected) return;
     const timer = window.setTimeout(() => {
-      setSelection({ id: items[(selectedIndex + 1) % items.length].id, previousId: selected.id });
+      setPendingSlide(items[(selectedIndex + 1) % items.length]);
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [rotating, selected, selectedIndex, items]);
 
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || !inView || !pageVisible) return;
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      const bounds = section.getBoundingClientRect();
-      const progress = (window.innerHeight / 2 - bounds.top - bounds.height / 2) / (window.innerHeight + bounds.height);
-      const offset = Math.max(-24, Math.min(24, progress * 48));
-      section.style.setProperty("--highlight-parallax", `${offset.toFixed(2)}px`);
-    };
-    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(update); };
-    const stop = () => {
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      window.cancelAnimationFrame(frame);
-      frame = 0;
-      section.style.removeProperty("--highlight-parallax");
-      delete section.dataset.parallax;
-    };
-    const sync = () => {
-      stop();
-      if (motion.matches) return;
-      section.dataset.parallax = "true";
-      window.addEventListener("scroll", schedule, { passive: true });
-      window.addEventListener("resize", schedule, { passive: true });
-      schedule();
-    };
-    sync();
-    motion.addEventListener("change", sync);
-    return () => { stop(); motion.removeEventListener("change", sync); };
-  }, [inView, pageVisible]);
+  // Keep the promo's footprint stable. Scroll-driven height, typography and
+  // padding invalidated layout for every section below it on every frame.
 
   const select = (index: number) => {
     if (!items.length) return;
     const next = items[(index + items.length) % items.length];
-    setSelection({ id: next.id, previousId: selected.id });
+    setPendingSlide(next);
     setAnnouncement(next.title);
   };
 
   if (!selected) return null;
 
   return (
-    <section ref={sectionRef} className="home-highlights font-ui" aria-label="Статті та послуги PartsON">
+    <section ref={sectionRef} data-server-resolved={serverResolved || undefined} className="home-highlights font-ui" aria-label="Статті та послуги PartsON">
       <div className="page-shell-inline">
         <div
           className={`home-highlights-player${hasSlides ? "" : " is-static"}`}
@@ -123,17 +111,27 @@ export default function HomeHighlightsSlider({ services }: { services: HomeHighl
           }}
         >
           <div className="home-highlights-stage">
+            {pendingSlide && (
+              <Image
+                key={`${pendingSlide.id}:${pendingSlide.image}`}
+                src={pendingSlide.image} alt="" fill aria-hidden="true"
+                sizes="(max-width: 767px) 100vw, (max-width: 1440px) 90vw, 1280px"
+                loading="eager" className="home-highlight-preload"
+                onLoad={commitPendingSlide}
+                onError={commitPendingSlide}
+              />
+            )}
             {[...(previous ? [previous] : []), selected].map((item) => {
-              const outgoing = item.id !== selected.id;
+              const outgoing = item !== selected;
               return (
                 <article
-                  key={item.id}
+                  key={`${item.id}:${item.image}`}
                   role={hasSlides ? "group" : undefined}
                   aria-roledescription={hasSlides ? "слайд" : undefined}
                   aria-label={hasSlides ? `${selectedIndex + 1} з ${items.length}: ${item.title}` : undefined}
                   aria-hidden={outgoing || undefined}
                   inert={outgoing}
-                  className={`home-highlight-feature${outgoing ? " is-previous" : ""}`}
+                  className={`home-highlight-feature${outgoing ? " is-previous" : previous ? " is-entering" : ""}`}
                   onPointerDown={(event) => { if (hasSlides && event.isPrimary) gesture.current = { x: event.clientX, y: event.clientY }; }}
                   onPointerCancel={() => { gesture.current = null; }}
                   onPointerUp={(event) => {
@@ -146,7 +144,13 @@ export default function HomeHighlightsSlider({ services }: { services: HomeHighl
                   }}
                 >
                   <div className="home-highlight-image">
-                    <Image src={item.image} alt={item.imageAlt} fill sizes="100vw" className="home-highlight-cover" />
+                    {serverResolved && <Image
+                      src={item.image} alt={item.imageAlt} fill
+                      sizes="(max-width: 767px) 100vw, (max-width: 1440px) 90vw, 1280px"
+                      loading={outgoing ? "lazy" : "eager"}
+                      className="home-highlight-cover"
+                      onLoad={event => { event.currentTarget.dataset.loaded = "true"; }}
+                    />}
                   </div>
                   <div className="home-highlight-copy">
                     <h3>{item.title}</h3>

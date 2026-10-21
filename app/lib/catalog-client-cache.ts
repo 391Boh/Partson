@@ -1,4 +1,4 @@
-export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v51-fresh-search";
+export const CATALOG_PAGE_CACHE_VERSION = "catalog-page:v52-priced-first";
 export const CATALOG_PRODUCTS_CACHE_KEY = "partson:getprod";
 export const CATALOG_PRODUCTS_CACHE_TTL_MS = 1000 * 60 * 30;
 export const CATALOG_PRODUCTS_STALE_TTL_MS = 1000 * 60 * 60 * 24;

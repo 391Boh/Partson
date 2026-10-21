@@ -9,6 +9,23 @@ import {
 } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
 import { encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
+import { buildCatalogCategoryPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
+
+// Ranked suggestions page by position in the ranked list, not by 1C code.
+const RANK_CURSOR_PREFIX = "rank-v1:";
+const encodeRankCursor = (query: string, offset: number) =>
+  RANK_CURSOR_PREFIX + JSON.stringify({ query, offset });
+const decodeRankCursor = (value: string): { query: string; offset: number } | null => {
+  if (!value.startsWith(RANK_CURSOR_PREFIX)) return null;
+  try {
+    const parsed = JSON.parse(value.slice(RANK_CURSOR_PREFIX.length)) as { query?: unknown; offset?: unknown };
+    return typeof parsed.query === "string" && Number.isSafeInteger(parsed.offset) && (parsed.offset as number) >= 0
+      ? { query: parsed.query, offset: parsed.offset as number }
+      : null;
+  } catch {
+    return null;
+  }
+};
 import {
   canUseProductParams,
   isTerminalCatalogParamsQuery,
@@ -76,7 +93,10 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v37-description-search",
+    source: "catalog-page:v38-ranked-suggestions",
+    // Suggestions are ranked by relevance; the catalog's own first page keeps
+    // code order (its next page continues after the last code).
+    ranked: body.purpose === "suggestions",
     directOffset: body.directPage === true ? toNonNegativeNumber(body.offset) : null,
     page: toPositiveInt(body.page, 1),
     limit: toPositiveInt(body.limit, 10),
@@ -398,12 +418,14 @@ export async function POST(request: Request) {
     // or pagination past page 1 falls straight through untouched.
     const searchIndexFilter: SearchField | "all" | null =
       effectiveSearchFilter;
+    const isSuggestions = body.purpose === "suggestions";
+    const rankCursor = isSuggestions ? decodeRankCursor(queryBase.cursor || "") : null;
     const canUseSearchIndex =
       Boolean(normalizedSearchQuery) &&
       searchIndexFilter !== null &&
       queryBase.page === 1 &&
       directOffset === null &&
-      !queryBase.cursor &&
+      (!queryBase.cursor || rankCursor !== null) &&
       !queryBase.cursorField &&
       queryBase.selectedCars.length === 0 &&
       queryBase.selectedCategories.length === 0 &&
@@ -419,23 +441,48 @@ export async function POST(request: Request) {
       !queryBase.inStock;
 
     if (canUseSearchIndex && searchIndexFilter) {
-      const indexResult = await searchCatalogIndex(normalizedSearchQuery, {
+      const indexResult = await searchCatalogIndex(rankCursor?.query ?? normalizedSearchQuery, {
         filter: searchIndexFilter,
         limit: queryBase.limit,
+        rank: isSuggestions,
+        offset: rankCursor?.offset ?? 0,
       });
 
       if (indexResult) {
+        const usedQuery = indexResult.correctedQuery || rankCursor?.query || normalizedSearchQuery;
+        const shown = (rankCursor?.offset ?? 0) + indexResult.items.length;
+        const hasMore = isSuggestions
+          ? shown < indexResult.totalCount
+          : indexResult.items.length < indexResult.totalCount;
         const payload: CatalogPageApiPayload = {
           items: indexResult.items,
           prices: buildInlinePrices(indexResult.items),
           images: {},
-          hasMore: indexResult.items.length < indexResult.totalCount,
-          nextCursor: indexResult.items.length < indexResult.totalCount && indexResult.items.length
-            ? encodeSearchCursor(indexResult.correctedQuery || normalizedSearchQuery, indexResult.items[indexResult.items.length - 1].code)
-            : "",
+          hasMore,
+          nextCursor: !hasMore || !indexResult.items.length
+            ? ""
+            : isSuggestions
+              ? encodeRankCursor(usedQuery, shown)
+              : encodeSearchCursor(usedQuery, indexResult.items[indexResult.items.length - 1].code),
           cursorField: "search",
           totalCount: indexResult.totalCount,
-          ...(indexResult.correctedQuery ? { correctedQuery: indexResult.correctedQuery } : {}),
+          ...(indexResult.correctedQuery && !rankCursor ? { correctedQuery: indexResult.correctedQuery } : {}),
+          ...(indexResult.facets
+            ? {
+                facets: {
+                  categories: indexResult.facets.categories.map((facet) => ({
+                    label: facet.label,
+                    count: facet.count,
+                    href: buildCatalogCategoryPath(facet.group || facet.subGroup, facet.subGroup || undefined),
+                  })),
+                  producers: indexResult.facets.producers.map((facet) => ({
+                    label: facet.label,
+                    count: facet.count,
+                    href: buildManufacturerPathFromLabel(facet.label),
+                  })),
+                },
+              }
+            : {}),
         };
 
         if (routeCacheKey) {
@@ -449,6 +496,14 @@ export async function POST(request: Request) {
         return NextResponse.json(withoutCostPrices(payload), {
           headers: { "cache-control": "no-store" },
         });
+      }
+      // A ranked continuation means nothing to the 1C path (the snapshot was
+      // rebuilt or dropped since): end the list instead of sending it there.
+      if (rankCursor) {
+        return NextResponse.json(
+          { items: [], prices: {}, images: {}, hasMore: false, nextCursor: "" },
+          { headers: { "cache-control": "no-store" } }
+        );
       }
     }
 
@@ -514,13 +569,24 @@ export async function POST(request: Request) {
       // Do not retry a valid empty result through the same cached source.
       // Only allgoods knows the alphabetical order, so no legacy fallbacks.
       if (
+        (canUseCompleteAllgoodsCatalog && !queryBase.searchQuery && queryBase.sortOrder === "none" && queryBase.nameSort === "none") ||
         queryBase.directOffset !== undefined ||
         (queryBase.searchQuery && canUseCompleteAllgoodsCatalog) ||
         (queryBase.nameSort !== "none" && canUseCompleteAllgoodsCatalog)
       ) return runAllgoodsQuery();
 
       if (canUseCompleteAllgoodsCatalog) {
-        allgoodsPrimary = await runAllgoodsQuery().catch(() => null);
+        let allgoodsError: unknown;
+        allgoodsPrimary = await runAllgoodsQuery().catch((error: unknown) => {
+          allgoodsError = error;
+          return null;
+        });
+        if (
+          allgoodsError instanceof Error &&
+          allgoodsError.message === "CATALOG_PAGINATION_STALLED"
+        ) {
+          throw allgoodsError;
+        }
 
         if (
           allgoodsPrimary &&

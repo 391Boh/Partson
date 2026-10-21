@@ -31,7 +31,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   let releaseImage;
   const imageGate = new Promise(resolve => { releaseImage = resolve; });
-  await page.route('**/_next/image?*', async route => {
+  await page.route('**/storefront/photos/partson-store-1*.webp', async route => {
     if (route.request().url().includes('partson-store-1')) await imageGate;
     await route.continue();
   });

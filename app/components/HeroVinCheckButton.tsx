@@ -8,6 +8,7 @@ export default function HeroVinCheckButton() {
   return (
     <button
       type="button"
+      aria-label="Перевірте за VIN-кодом"
       onClick={() => window.dispatchEvent(new Event("openAccountVin"))}
       className="home-part-path"
     >
@@ -15,8 +16,8 @@ export default function HeroVinCheckButton() {
         <ShieldCheck size={20} strokeWidth={2} aria-hidden="true" />
       </span>
       <span className="home-part-path-text">
-        <span className="home-part-path-title">Перевірка сумісності за VIN</span>
-        <span className="home-part-path-hint">Додайте VIN у профілі — підтвердимо, що деталь підходить саме вашому авто</span>
+        <span className="home-part-path-title">Перевірте за VIN</span>
+        <span className="home-part-path-hint">Точний підбір</span>
       </span>
       <ChevronRight className="home-part-path-arrow" size={18} strokeWidth={2} aria-hidden="true" />
     </button>

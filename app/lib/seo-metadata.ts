@@ -79,8 +79,16 @@ export const lowerFirstSeoWord = (value: string) => {
   return first.toLocaleLowerCase("uk-UA") + value.slice(first.length);
 };
 
-const buildSocialTitle = (title: string) =>
-  titleIncludesBrand(title) ? title : `${title} | PartsON`;
+// Remove repeated site-name suffixes without changing product/vehicle identity.
+export const normalizeSeoTitle = (value: string) => {
+  let title = value.replace(/\s+/g, " ").trim();
+  while (/\s*[|–—-]\s*PartsON$/iu.test(title)) {
+    title = title.replace(/\s*[|–—-]\s*PartsON$/iu, "").trim();
+  }
+  return titleIncludesBrand(title) ? title : `${title} | PartsON`;
+};
+
+const buildSocialTitle = normalizeSeoTitle;
 
 export const trimSeoDescription = (
   value: string,
@@ -98,6 +106,10 @@ export const trimSeoDescription = (
     truncated.lastIndexOf("! "),
     truncated.lastIndexOf("? ")
   );
+  // A complete sentence is preferable to an editorially unfinished snippet.
+  if (lastSentenceBreak >= Math.floor(contentMaxLength * 0.3)) {
+    return normalized.slice(0, lastSentenceBreak + 1).trim();
+  }
   const lastSpace = truncated.lastIndexOf(" ");
   const cutAt =
     lastSentenceBreak >= Math.floor(contentMaxLength * 0.58)
@@ -199,7 +211,7 @@ export const buildPageMetadata = ({
     // The root layout appends "| PartsON" through its title template. Pages
     // that already name the brand need an absolute title to avoid output such
     // as "PartsON ... | PartsON" in search results.
-    title: titleIncludesBrand(title) ? { absolute: title } : title,
+    title: { absolute: normalizeSeoTitle(title) },
     description: normalizedDescription,
     category: "auto parts",
     authors: [{ name: "PartsON" }],
@@ -218,7 +230,7 @@ export const buildPageMetadata = ({
       locale: "uk_UA",
       url: canonicalPath,
       siteName: "PartsON",
-      title: openGraphTitle ?? buildSocialTitle(title),
+      title: buildSocialTitle(openGraphTitle ?? title),
       description: normalizedOpenGraphDescription,
       ...(image
         ? {
@@ -235,7 +247,7 @@ export const buildPageMetadata = ({
     },
     twitter: {
       card: "summary_large_image",
-      title: twitterTitle ?? openGraphTitle ?? buildSocialTitle(title),
+      title: buildSocialTitle(twitterTitle ?? openGraphTitle ?? title),
       description: normalizedTwitterDescription,
       ...(image ? { images: [{ url: image.url, alt: image.alt ?? DEFAULT_IMAGE.alt }] } : {}),
     },

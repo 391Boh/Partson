@@ -21,7 +21,7 @@ type ProductCompactRecommendationCardProps = {
   prefetchedImageSrc?: string;
 };
 
-// Text-led, not image-led: a small fixed thumbnail up top instead of a
+// Text-led, not image-led: a fixed thumbnail up top instead of a
 // full-width square, so most of the card is name + category + price — the
 // information that actually distinguishes one analog from another, which a
 // bigger photo of a generic-looking part rarely does.
@@ -32,7 +32,7 @@ type ProductCompactRecommendationCardProps = {
 // content needs is exactly what turns a short name/missing category into a
 // big, inconsistent blank patch instead of a clean, uniformly-shaped tile.
 const cardClass =
-  "product-compact-card group relative flex h-[184px] w-full min-w-0 shrink-0 snap-start flex-col overflow-hidden rounded-[16px] border border-slate-200/90 bg-white text-left shadow-[0_8px_18px_rgba(15,23,42,0.06)] ring-1 ring-white/80 transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_16px_30px_rgba(14,165,233,0.16)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-200/80";
+  "product-compact-card group relative flex h-[184px] w-full min-w-0 shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border border-[#dbe6ec] bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_22px_-18px_rgba(15,23,42,0.35)] transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#7cc4d6] hover:shadow-[0_2px_4px_rgba(7,85,105,0.06),0_16px_28px_-18px_rgba(7,85,105,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
 
 const stockLabel = (quantity: number) =>
   quantity > 0 ? `${quantity} шт.` : "Під замовлення";
@@ -61,8 +61,8 @@ export default function ProductCompactRecommendationCard({
       prefetchOnViewport={imagePriority}
       className={cardClass}
     >
-      <div className="flex items-start gap-1.5 p-2.5 pb-0">
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[12px] border border-slate-200 bg-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+      <div className="flex items-center gap-2.5 p-2.5 pb-0">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[11px] border border-[#e2ebf0] bg-[#f6f9fb]">
           <ProductCardImage
             prefetchedSrc={prefetchedImageSrc}
             alt={visibleName}
@@ -72,23 +72,26 @@ export default function ProductCompactRecommendationCard({
             deferDirectLoad
             loadingMode={imagePriority ? "eager" : "lazy"}
             fetchPriority={imagePriority ? "high" : "auto"}
-            sizes="56px"
+            sizes="64px"
           />
         </div>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 pt-0.5">
-          <span className="max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.04em] text-slate-600">
+        <div className="min-w-0 flex-1">
+          {/* A span, not a p: the page styles its section eyebrows as p.uppercase. */}
+          <span className="block truncate text-[11px] font-extrabold uppercase leading-4 tracking-[0.06em] text-slate-500">
             {item.producer || "Товар"}
           </span>
-          <span
+          <p
             title={stockLabel(item.quantity)}
-            className={`max-w-full shrink-0 truncate rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${
-              item.quantity > 0
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
+            className={`mt-1 flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-4 ${
+              item.quantity > 0 ? "text-emerald-700" : "text-amber-700"
             }`}
           >
-            {stockLabel(item.quantity)}
-          </span>
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.quantity > 0 ? "bg-emerald-500" : "bg-amber-500"}`}
+            />
+            <span className="truncate">{stockLabel(item.quantity)}</span>
+          </p>
         </div>
       </div>
 
@@ -98,7 +101,7 @@ export default function ProductCompactRecommendationCard({
               actually wraps — a 1-line name still occupies the same slot a
               3-line one clamps into, so every card's next row lands at the
               same spot instead of drifting with content length. */}
-          <p className="line-clamp-2 min-h-[2.56em] break-words text-[14px] font-bold leading-[1.3] text-slate-900">
+          <p className="line-clamp-2 min-h-[2.56em] break-words text-[14px] font-bold leading-[1.3] text-slate-900 transition-colors duration-200 group-hover:text-[#075569]">
             {visibleName}
           </p>
           {/* Always rendered (even empty) for the same reason — a missing
@@ -110,18 +113,18 @@ export default function ProductCompactRecommendationCard({
           </p>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-1.5">
+        <div className="mt-auto flex items-baseline justify-between gap-2 border-t border-[#edf2f5] pt-2">
           <p className="min-w-0 truncate text-[12px] font-semibold leading-4 text-slate-500">
             {item.article || item.code}
           </p>
           <span
-            className={`inline-flex shrink-0 items-center rounded-[9px] border px-2 py-1.5 text-[13px] font-extrabold leading-none shadow-[0_6px_12px_rgba(14,165,233,0.1)] ${
+            className={`shrink-0 truncate tabular-nums leading-none ${
               hasPrice
-                ? "border-sky-300 bg-[linear-gradient(180deg,#eff9ff,#dff4ff)] text-sky-900"
-                : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f1f5f9)] text-slate-500"
+                ? "text-[15px] font-extrabold text-[#075569]"
+                : "text-[12px] font-bold text-slate-500"
             }`}
           >
-            <span className="truncate tabular-nums">{priceLabel}</span>
+            {priceLabel}
           </span>
         </div>
       </div>

@@ -34,12 +34,12 @@ try{
 }finally{globalThis.fetch=originalFetch;Date.now=originalNow;if(originalStorage===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=originalStorage}
 let orderReads=0,grantReads=0,selected=[];let release;
 let gate=new Promise(r=>{release=r});
-globalThis.__partnerCacheTestDb={collection(name){if(name==='partnerGrants')return{doc(){return{async get(){grantReads++;await gate;return{data:()=>({active:false})}}}}};return{where(){return{select(...fields){selected.push(fields);return{async get(){orderReads++;await gate;return{docs:[{data:()=>({totalAmount:1500,total:9000})},{data:()=>({total:'750'})},{data:()=>({totalAmount:-10})},{data:()=>({totalAmount:'bad'})}]}}}}}}}}};
+globalThis.__partnerCacheTestDb={collection(name){if(name==='partnerGrants')return{doc(){return{async get(){grantReads++;await gate;return{data:()=>({active:false})}}}}};return{where(){return{select(...fields){selected.push(fields);return{async get(){orderReads++;await gate;return{docs:[{data:()=>({totalAmount:1500,total:9000})},{data:()=>({total:'750'})},{data:()=>({totalAmount:-10})},{data:()=>({totalAmount:'bad'})},{data:()=>({totalAmount:5000,cancelled:true})}]}}}}}}}}};
 const server=await importBundle({entryPoints:['app/api/_lib/partner-auth.ts'],plugins:[{name:'offline-admin',setup(b){b.onResolve({filter:/^(server-only|app\/lib\/firebase-admin)$/},a=>({path:a.path,namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='server-only'?'':'export const getFirebaseAdminDb=()=>globalThis.__partnerCacheTestDb;export const getFirebaseAdminAuth=()=>({});'}))}}]});
 const first=server.resolvePartnerStatusByUid('person');const second=server.resolvePartnerStatusByUid('person');release();
 assert.deepEqual(await first,{isPartner:true,totalSpent:2250});assert.deepEqual(await second,{isPartner:true,totalSpent:2250});
-assert.equal(orderReads,1);assert.equal(grantReads,1);assert.deepEqual(selected,[['totalAmount','total']]);
+assert.equal(orderReads,1);assert.equal(grantReads,1);assert.deepEqual(selected,[['totalAmount','total','cancelled']]);
 await server.resolvePartnerStatusByUid('person');assert.equal(orderReads,1);
 server.invalidatePartnerStatus('person');await server.resolvePartnerStatusByUid('person');assert.equal(orderReads,2);
 gate=new Promise(r=>{release=r});const inflight=server.resolvePartnerStatusByUid('race');server.invalidatePartnerStatus('race');release();await inflight;await server.resolvePartnerStatusByUid('race');assert.equal(orderReads,4);
-console.log('PASS server: concurrent requests share Firestore reads; only amount fields are fetched; existing amount fallback, cache and invalidation are preserved');
+console.log('PASS server: concurrent requests share Firestore reads; only amount fields and the cancel flag are fetched; cancelled orders do not count; existing amount fallback, cache and invalidation are preserved');

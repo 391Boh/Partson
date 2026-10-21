@@ -36,10 +36,34 @@ const readRequestBody = async (request: Request) => {
   }
 };
 
+// The category tree and car directory are the same for every visitor and
+// change rarely. Read via GET (app/lib/onec-proxy-client.ts), they may be
+// cached by the browser and nginx; 1C itself only offers them as POST.
+const CACHEABLE_GET_ENDPOINTS = new Set(["getprod", "getauto"]);
+const CACHEABLE_GET_HEADER = "public, max-age=300, stale-while-revalidate=1800";
+const MAX_GET_QUERY_LENGTH = 1024;
+
+// GET carries the 1C request body as JSON in `q` (a plain object, or none).
+const readQueryBody = (request: Request): Record<string, unknown> | null => {
+  const raw = new URL(request.url).searchParams.get("q");
+  if (!raw) return {};
+  if (raw.length > MAX_GET_QUERY_LENGTH) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+};
+
 const forwardToOneC = async (endpoint: string, request: Request) => {
-  const body = request.method === "GET" ? undefined : await readRequestBody(request);
+  const cacheableGet = request.method === "GET" && CACHEABLE_GET_ENDPOINTS.has(endpoint);
+  const body = cacheableGet
+    ? readQueryBody(request)
+    : request.method === "GET" ? undefined : await readRequestBody(request);
+  if (body === null) return buildJsonResponse({ error: "Invalid query" }, 400);
   const result = await oneCRequest(endpoint, {
-    method: request.method === "GET" ? "GET" : "POST",
+    method: request.method === "GET" && !cacheableGet ? "GET" : "POST",
     body,
     retries: endpoint === "prices" ? 1 : 0,
     retryDelayMs: 200,
@@ -48,12 +72,14 @@ const forwardToOneC = async (endpoint: string, request: Request) => {
 
   // Until 1C's module is updated, "prices" also carries the purchase price.
   const text = endpoint === "prices" ? stripPurchasePricesFromText(result.text) : result.text;
+  // 1C reports some failures as 200 with {"error": ...}; never cache those.
+  const ok = result.status >= 200 && result.status < 300 && !/^\s*\{\s*"error"/.test(text);
 
   return new NextResponse(text, {
     status: result.status,
     headers: {
       "content-type": result.contentType || "application/json; charset=utf-8",
-      "cache-control": "no-store",
+      "cache-control": cacheableGet && ok ? CACHEABLE_GET_HEADER : "no-store",
     },
   });
 };

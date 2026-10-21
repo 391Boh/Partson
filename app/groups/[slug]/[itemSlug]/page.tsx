@@ -61,7 +61,6 @@ import {
   buildPageMetadata,
   lowerFirstSeoWord,
   pickFittingSeoDescription,
-  SEO_TITLE_MAX_LENGTH,
 } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { getSiteUrl } from "app/lib/site-url";
@@ -716,7 +715,7 @@ const buildGroupItemTitle = (item: GroupItemPageData) => {
   if (hasDistinctContext) {
     const contextualBase = `${visibleLabel} — ${visibleContext}`;
     const contextualTitle = buildFirstFittingSeoTitle(contextualBase, [": купити, ціни", ": ціни", ""]);
-    if (contextualTitle.length <= SEO_TITLE_MAX_LENGTH - " | PartsON".length) return contextualTitle;
+    return contextualTitle;
   }
 
   return buildFirstFittingSeoTitle(visibleLabel, GROUP_ITEM_TITLE_TAILS);

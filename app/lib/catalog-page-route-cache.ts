@@ -17,6 +17,11 @@ export type CatalogPageApiPayload = {
   // correction (e.g. a UA-typed query read as EN) found results instead —
   // these items match this corrected query, not the one the client sent.
   correctedQuery?: string;
+  // Quick-search suggestions only: where most of the matches belong.
+  facets?: {
+    categories: Array<{ label: string; count: number; href: string }>;
+    producers: Array<{ label: string; count: number; href: string }>;
+  };
   directOffset?: number;
 };
 

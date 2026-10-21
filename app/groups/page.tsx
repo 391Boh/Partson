@@ -40,7 +40,7 @@ const buildGroupsPageDescription = (
   // fits whole instead of cutting a sentence off with "…".
   return appendSeoContactLast(
     pickFittingSeoDescription([
-      `Категорії автозапчастин PartsON: ${countSummary}${productSummary}. Підбір за назвою, артикулом або VIN, самовивіз у Львові й доставка по Україні.`,
+      "Деталі гальмівної системи, підвіски, двигуна та інших вузлів. Оберіть категорію, порівняйте товари й перевірте сумісність за артикулом або VIN.",
       `Категорії автозапчастин PartsON: ${countSummary}${productSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
       `Категорії автозапчастин PartsON: ${countSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
       `Категорії автозапчастин PartsON: ${countSummary}. Доставка по Україні.`,
@@ -63,7 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
   );
 
   return buildPageMetadata({
-    title: "Категорії автозапчастин: групи товарів",
+    title: "Категорії автозапчастин",
     description,
     canonicalPath: "/groups",
     keywords: [
@@ -177,7 +177,7 @@ export default async function GroupsPage() {
             current="groups"
             badge="Сітка каталогу"
             icon={Layers3}
-            title="Категорії автозапчастин, групи та підгрупи"
+            title="Категорії автозапчастин"
             description="Знаєте, що потрібно замінити? Оберіть систему автомобіля, потім групу та підгрупу. У кожному розділі можна порівняти виробників, ціни й наявність та уточнити автомобіль."
             highlights={[
               "Навігація по групах, підгрупах і кінцевих категоріях",

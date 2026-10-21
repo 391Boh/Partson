@@ -1,0 +1,2729 @@
+{
+  "checked": "2026-10-21",
+  "live": [
+    {
+      "path": "/",
+      "status": 200,
+      "url": "https://partson.shop/",
+      "title": "Автозапчастини у Львові — пошук деталей для авто | PartsON",
+      "description": [
+        "Запчастини для авто у Львові: пошук деталей за маркою, виробником і VIN. Групи товарів для ТО, гальмівної системи та ремонту. PartsON, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Запчастини для авто у Львові"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/auto",
+      "status": 200,
+      "url": "https://partson.shop/auto",
+      "title": "Підбір автозапчастин за маркою і моделлю авто | PartsON",
+      "description": [
+        "Підбір автозапчастин за маркою і моделлю авто в PartsON: оберіть автомобіль і відкрийте каталог із готовим фільтром. Перевірка за VIN, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/auto"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Підбір автозапчастин за маркою і моделлю авто"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/auto/volkswagen",
+      "status": 200,
+      "url": "https://partson.shop/auto/volkswagen",
+      "title": "Запчастини VOLKSWAGEN (Фольксваген): 201 модель | PartsON",
+      "description": [
+        "Оберіть модель VOLKSWAGEN (Фольксваген) — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/auto/volkswagen"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Запчастини VOLKSWAGEN за моделлю"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore",
+        "BreadcrumbList",
+        "CollectionPage"
+      ],
+      "ogImage": [
+        "https://partson.shop/auto/volkswagen/opengraph-image/card?9351c8b6fd8f2120"
+      ]
+    },
+    {
+      "path": "/groups",
+      "status": 200,
+      "url": "https://partson.shop/groups",
+      "title": "Категорії автозапчастин: групи товарів | PartsON",
+      "description": [
+        "Категорії автозапчастин PartsON: 14 груп, 107 підгруп і 45 кінцевих категорій, 1 478+ товарів. Підбір за артикулом або VIN, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/groups"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Категорії автозапчастин, групи та підгрупи"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/groups/halmivna-systema",
+      "status": 200,
+      "url": "https://partson.shop/groups/halmivna-systema",
+      "title": "Гальмівна система — купити запчастини, ціни | PartsON",
+      "description": [
+        "Гальмівна система у PartsON: 173 товари — гальмівні колодки, трос ручного гальма, гальмівний шланг та ще 6 груп. Ціни й наявність у Львові, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/groups/halmivna-systema"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Гальмівна система — каталог запчастин"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/groups/halmivna-systema/opengraph-image/card?9f5703627d788f53"
+      ]
+    },
+    {
+      "path": "/manufacturers",
+      "status": 200,
+      "url": "https://partson.shop/manufacturers",
+      "title": "Виробники автозапчастин і бренди | PartsON",
+      "description": [
+        "Виробники автозапчастин PartsON: 202 бренди і 9 872+ товари. Сторінка кожного бренду — групи товарів, ціни й наявність у Львові, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/manufacturers"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Бренди та виробники автозапчастин"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/manufacturers/bosch",
+      "status": 308,
+      "url": "https://partson.shop/manufacturers/bosch",
+      "title": "BOSCH: омивання скла, масляний фільтр — ціни | PartsON",
+      "description": [
+        "BOSCH у PartsON: 141 товар — омивання скла, масляний фільтр, фільтр палива та ще 7 груп. Ціни, наявність у Львові, підбір за VIN, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/manufacturers/bosch-2wkr2o"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": [
+        "https://partson.shop/Brands/Bosch.png"
+      ]
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "url": "https://partson.shop/blog",
+      "title": "Блог — статті про автозапчастини та ТО | PartsON",
+      "description": [
+        "Як вибрати запчастини під своє авто, які бренди надійніші, як розпізнати несправність і що перевірити при обслуговуванні — статті від фахівців PartsON у Львові."
+      ],
+      "canonical": [
+        "https://partson.shop/blog"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Блог про автозапчастини та обслуговування авто"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "Blog",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/inform/diagnostics",
+      "status": 200,
+      "url": "https://partson.shop/inform/diagnostics",
+      "title": "Комп'ютерна діагностика авто у Львові — Check Engine, ABS | PartsON",
+      "description": [
+        "Діагностика авто: Львів, вул. Перфецького, 8. Розшифруємо помилки Check Engine, ABS, ESP, SRS, АКПП і підберемо запчастини. Запис: +38 (093) 480-42-61."
+      ],
+      "canonical": [
+        "https://partson.shop/inform/diagnostics"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Комп'ютерна діагностика авто у Львові"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "BreadcrumbList",
+        "WebPage",
+        "Service",
+        "FAQPage",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/inform/diagnostics/opengraph-image/card?7394755bc17ad2c9"
+      ]
+    },
+    {
+      "path": "/katalog",
+      "status": 200,
+      "url": "https://partson.shop/katalog",
+      "title": "Каталог автозапчастин у Львові | PartsON",
+      "description": [
+        "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/katalog"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Автозапчастини у Львові: каталог, ціни та наявність — PartsON"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "ItemList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/katalog?search=bosch",
+      "status": 200,
+      "url": "https://partson.shop/katalog?search=bosch",
+      "title": "Пошук у каталозі: bosch | PartsON",
+      "description": [
+        "Пошук \"bosch\" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару."
+      ],
+      "canonical": [
+        "https://partson.shop/katalog"
+      ],
+      "robots": [
+        "noindex, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Пошук «bosch» — каталог автозапчастин PartsON"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "url": "https://partson.shop/robots.txt",
+      "title": "",
+      "description": null,
+      "canonical": [],
+      "robots": null,
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": null,
+      "body": "User-Agent: *\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: OAI-SearchBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: ChatGPT-User\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: GPTBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: PerplexityBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nHost: partson.shop\nSitemap: https://partson.shop/sitemap.xml\n"
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "url": "https://partson.shop/sitemap.xml",
+      "title": "",
+      "description": null,
+      "canonical": [],
+      "robots": null,
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": null,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <sitemap>\n    <loc>https://partson.shop/information-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/other-pages-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/blog-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/manufacturers-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/groups-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/auto-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/product/sitemap/0.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/product/sitemap/1.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n</sitemapindex>"
+    },
+    {
+      "path": "/reset-password",
+      "status": 200,
+      "url": "https://partson.shop/reset-password",
+      "title": "Відновлення пароля | PartsON",
+      "description": [
+        "Встановіть новий пароль до вашого акаунта PartsON."
+      ],
+      "canonical": [
+        "https://partson.shop/reset-password"
+      ],
+      "robots": [
+        "noindex, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/about",
+      "status": 308,
+      "url": "https://partson.shop/about",
+      "title": "PartsON - Магазин автозапчастин",
+      "description": [
+        "PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні."
+      ],
+      "canonical": [],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    }
+  ],
+  "localAfter": [
+    {
+      "path": "/",
+      "status": 200,
+      "url": "http://localhost:3000/",
+      "title": "Автозапчастини у Львові для ремонту й ТО | PartsON",
+      "description": [
+        "Автозапчастини для ремонту й ТО: підбір за авто, категорією та VIN. Самовивіз у Львові на вул. Перфецького, 8 і доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Автозапчастини для ремонту й ТО"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/auto",
+      "status": 200,
+      "url": "http://localhost:3000/auto",
+      "title": "Підбір автозапчастин за маркою і моделлю авто | PartsON",
+      "description": [
+        "Оберіть марку, модель і модифікацію автомобіля, щоб перейти до відповідних груп запчастин. Перевірте сумісність деталі за VIN перед замовленням."
+      ],
+      "canonical": [
+        "https://partson.shop/auto"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Підбір автозапчастин за маркою і моделлю авто"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/auto/volkswagen",
+      "status": 200,
+      "url": "http://localhost:3000/auto/volkswagen",
+      "title": "Запчастини VOLKSWAGEN (Фольксваген): 201 модель | PartsON",
+      "description": [
+        "Оберіть модель VOLKSWAGEN (Фольксваген) — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/auto/volkswagen"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Запчастини VOLKSWAGEN за моделлю"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore",
+        "BreadcrumbList",
+        "CollectionPage"
+      ],
+      "ogImage": [
+        "http://localhost:3000/auto/volkswagen/opengraph-image/card?9351c8b6fd8f2120"
+      ]
+    },
+    {
+      "path": "/groups",
+      "status": 200,
+      "url": "http://localhost:3000/groups",
+      "title": "Категорії автозапчастин | PartsON",
+      "description": [
+        "Деталі гальмівної системи, підвіски, двигуна та інших вузлів. Оберіть категорію, порівняйте товари й перевірте сумісність за артикулом або VIN."
+      ],
+      "canonical": [
+        "https://partson.shop/groups"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Категорії автозапчастин"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/groups/halmivna-systema",
+      "status": 200,
+      "url": "http://localhost:3000/groups/halmivna-systema",
+      "title": "Гальмівна система — купити запчастини, ціни | PartsON",
+      "description": [
+        "Гальмівна система у PartsON: 173 товари — гальмівні колодки, трос ручного гальма, гальмівний шланг та ще 6 груп. Ціни й наявність у Львові, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/groups/halmivna-systema"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Гальмівна система — каталог запчастин"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "http://localhost:3000/groups/halmivna-systema/opengraph-image/card?9f5703627d788f53"
+      ]
+    },
+    {
+      "path": "/manufacturers",
+      "status": 200,
+      "url": "http://localhost:3000/manufacturers",
+      "title": "Бренди автозапчастин | PartsON",
+      "description": [
+        "Оберіть виробника, щоб переглянути його запчастини за категоріями. Порівняйте асортимент, ціни й наявність та знайдіть потрібний артикул."
+      ],
+      "canonical": [
+        "https://partson.shop/manufacturers"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Бренди автозапчастин"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/manufacturers/bosch",
+      "status": 308,
+      "url": "http://localhost:3000/manufacturers/bosch",
+      "title": "BOSCH: омивання скла, масляний фільтр — ціни | PartsON",
+      "description": [
+        "BOSCH у PartsON: 141 товар — омивання скла, масляний фільтр, фільтр палива та ще 6 груп. Ціни, наявність у Львові, підбір за VIN, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/manufacturers/bosch-2wkr2o"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": [
+        "https://partson.shop/Brands/Bosch.png"
+      ]
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "url": "http://localhost:3000/blog",
+      "title": "Блог — статті про автозапчастини та ТО | PartsON",
+      "description": [
+        "Практичні статті про вибір запчастин, моторної оливи та обслуговування автомобіля. Пояснюємо характеристики деталей і вимоги до їхньої сумісності."
+      ],
+      "canonical": [
+        "https://partson.shop/blog"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Блог про автозапчастини та обслуговування авто"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "Blog",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/inform/diagnostics",
+      "status": 200,
+      "url": "http://localhost:3000/inform/diagnostics",
+      "title": "Комп'ютерна діагностика авто у Львові | PartsON",
+      "description": [
+        "Діагностика авто: Львів, вул. Перфецького, 8. Розшифруємо помилки Check Engine, ABS, ESP, SRS, АКПП і підберемо запчастини. Запис: +38 (093) 480-42-61."
+      ],
+      "canonical": [
+        "https://partson.shop/inform/diagnostics"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Комп'ютерна діагностика авто у Львові"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "BreadcrumbList",
+        "WebPage",
+        "Service",
+        "FAQPage",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "http://localhost:3000/inform/diagnostics/opengraph-image/card?7394755bc17ad2c9"
+      ]
+    },
+    {
+      "path": "/katalog",
+      "status": 200,
+      "url": "http://localhost:3000/katalog",
+      "title": "Каталог автозапчастин у Львові | PartsON",
+      "description": [
+        "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/katalog"
+      ],
+      "robots": [
+        "index, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Автозапчастини у Львові: каталог, ціни та наявність — PartsON"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "ItemList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/katalog?search=bosch",
+      "status": 200,
+      "url": "http://localhost:3000/katalog?search=bosch",
+      "title": "Пошук у каталозі: bosch | PartsON",
+      "description": [
+        "Пошук \"bosch\" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару."
+      ],
+      "canonical": [
+        "https://partson.shop/katalog"
+      ],
+      "robots": [
+        "noindex, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Пошук «bosch» — каталог автозапчастин PartsON"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "CollectionPage",
+        "BreadcrumbList",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "url": "http://localhost:3000/robots.txt",
+      "title": "",
+      "description": null,
+      "canonical": [],
+      "robots": null,
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": null,
+      "body": "User-Agent: *\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: OAI-SearchBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: ChatGPT-User\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: GPTBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nUser-Agent: PerplexityBot\nAllow: /\nAllow: /api/blog/og-image/\nDisallow: /api/\nDisallow: /__health\n\nHost: partson.shop\nSitemap: https://partson.shop/sitemap.xml\n"
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "url": "http://localhost:3000/sitemap.xml",
+      "title": "",
+      "description": null,
+      "canonical": [],
+      "robots": null,
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": null,
+      "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <sitemap>\n    <loc>https://partson.shop/information-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/other-pages-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/blog-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/manufacturers-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/groups-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/auto-sitemap.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/product/sitemap/0.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n  <sitemap>\n    <loc>https://partson.shop/product/sitemap/1.xml</loc>\n    <lastmod>2026-10-15T00:00:00.000Z</lastmod>\n  </sitemap>\n</sitemapindex>"
+    },
+    {
+      "path": "/reset-password",
+      "status": 200,
+      "url": "http://localhost:3000/reset-password",
+      "title": "Відновлення пароля | PartsON",
+      "description": [
+        "Встановіть новий пароль до вашого акаунта PartsON."
+      ],
+      "canonical": [
+        "https://partson.shop/reset-password"
+      ],
+      "robots": [
+        "noindex, follow, max-image-preview:large"
+      ],
+      "xRobots": null,
+      "h1": [
+        "Відновлення пароля"
+      ],
+      "schemas": [
+        "WebSite",
+        "Organization",
+        "AutoPartsStore"
+      ],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/about",
+      "status": 308,
+      "url": "http://localhost:3000/about",
+      "title": "PartsON - Магазин автозапчастин",
+      "description": [
+        "PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні."
+      ],
+      "canonical": [],
+      "robots": [
+        "index, follow"
+      ],
+      "xRobots": null,
+      "h1": [],
+      "schemas": [],
+      "ogImage": [
+        "https://partson.shop/opengraph-partson-v3.png"
+      ]
+    },
+    {
+      "path": "/inform/about",
+      "status": 200,
+      "url": "http://localhost:3000/inform/about",
+      "title": "PartsON — магазин автозапчастин у Львові",
+      "description": [
+        "Магазин автозапчастин PartsON у Львові, вул. Перфецького, 8. Підбір за VIN і артикулом, оригінальні деталі та аналоги, доставка по Україні."
+      ],
+      "canonical": [
+        "https://partson.shop/inform/about"
+      ]
+    }
+  ],
+  "details": {
+    "sitemaps": [
+      {
+        "path": "/information-sitemap.xml",
+        "status": 200,
+        "entries": 8,
+        "samples": [
+          "https://partson.shop/inform/delivery",
+          "https://partson.shop/inform/payment"
+        ]
+      },
+      {
+        "path": "/other-pages-sitemap.xml",
+        "status": 200,
+        "entries": 6,
+        "samples": [
+          "https://partson.shop/",
+          "https://partson.shop/auto"
+        ]
+      },
+      {
+        "path": "/blog-sitemap.xml",
+        "status": 200,
+        "entries": 2,
+        "samples": [
+          "https://partson.shop/blog",
+          "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq"
+        ]
+      },
+      {
+        "path": "/manufacturers-sitemap.xml",
+        "status": 200,
+        "entries": 93,
+        "samples": [
+          "https://partson.shop/manufacturers",
+          "https://partson.shop/manufacturers/abe-375fur"
+        ]
+      },
+      {
+        "path": "/groups-sitemap.xml",
+        "status": 200,
+        "entries": 167,
+        "samples": [
+          "https://partson.shop/groups",
+          "https://partson.shop/groups/amortyzatsiya"
+        ]
+      },
+      {
+        "path": "/auto-sitemap.xml",
+        "status": 200,
+        "entries": 2515,
+        "samples": [
+          "https://partson.shop/auto/audi",
+          "https://partson.shop/auto/bmw"
+        ]
+      },
+      {
+        "path": "/product/sitemap/0.xml",
+        "status": 200,
+        "entries": 1000,
+        "samples": [
+          "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+          "https://partson.shop/product/tros-spidometra-kadett-d-ascona-c-1-3-ad331515"
+        ]
+      },
+      {
+        "path": "/product/sitemap/1.xml",
+        "status": 200,
+        "entries": 514,
+        "samples": [
+          "https://partson.shop/product/shlanh-humovyy-systemy-okholodzhennya-vectra-a-88-053242",
+          "https://partson.shop/product/vazhil-pidvisky-prava-nyzhn-peredn-berlingo-2324382"
+        ]
+      }
+    ],
+    "pages": [
+      {
+        "url": "https://partson.shop/manufacturers/bosch-2wkr2o",
+        "status": 200,
+        "title": "BOSCH: омивання скла, масляний фільтр — ціни | PartsON",
+        "description": [
+          "BOSCH у PartsON: 141 товар — омивання скла, масляний фільтр, фільтр палива та ще 7 груп. Ціни, наявність у Львові, підбір за VIN, доставка по Україні."
+        ],
+        "canonical": [
+          "https://partson.shop/manufacturers/bosch-2wkr2o"
+        ],
+        "robots": [
+          "index, follow, max-image-preview:large"
+        ],
+        "h1": [
+          "BOSCH — каталог автозапчастин"
+        ],
+        "ogImage": [
+          "https://partson.shop/Brands/Bosch.png"
+        ],
+        "ld": [
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": "https://partson.shop#website",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "inLanguage": "uk-UA",
+            "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+            "publisher": {
+              "@id": "https://partson.shop#organization"
+            },
+            "hasPart": [
+              {
+                "@type": "CollectionPage",
+                "name": "Каталог автозапчастин",
+                "url": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Групи автозапчастин",
+                "url": "https://partson.shop/groups"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Виробники автозапчастин",
+                "url": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Підбір за автомобілем",
+                "url": "https://partson.shop/auto"
+              }
+            ],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://partson.shop#organization",
+            "additionalType": "https://schema.org/AutoPartsStore",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://partson.shop/google-logo-partson-v3.png",
+              "width": 600,
+              "height": 600
+            },
+            "image": [
+              "https://partson.shop/google-logo-partson-v3.png"
+            ],
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+            "areaServed": {
+              "@type": "Country",
+              "name": "Україна"
+            },
+            "knowsAbout": [
+              "автозапчастини",
+              "підбір запчастин за VIN",
+              "пошук запчастин за артикулом",
+              "оригінальні запчастини та аналоги",
+              "доставка автозапчастин по Україні"
+            ],
+            "email": "romaniukbboogg@gmail.com",
+            "telephone": "+380634211851",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ],
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "telephone": "+380634211851",
+                "email": "romaniukbboogg@gmail.com",
+                "availableLanguage": [
+                  "uk",
+                  "ru"
+                ]
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "@id": "https://partson.shop/manufacturers/bosch-2wkr2o#collection-page",
+            "name": "BOSCH: омивання скла, масляний фільтр — ціни",
+            "url": "https://partson.shop/manufacturers/bosch-2wkr2o",
+            "description": "BOSCH у PartsON: 141 товар — омивання скла, масляний фільтр, фільтр палива та ще 7 груп. Ціни, наявність у Львові, підбір за VIN, доставка по Україні.",
+            "inLanguage": "uk-UA",
+            "isPartOf": {
+              "@type": "WebSite",
+              "name": "PartsON",
+              "url": "https://partson.shop"
+            },
+            "about": {
+              "@type": "Brand",
+              "name": "BOSCH",
+              "description": "Bosch — глобальний концерн із Німеччини, що виробляє широкий спектр автозапчастин: від електроніки до гальмівних систем.",
+              "logo": "https://partson.shop/Brands/Bosch.png"
+            },
+            "mainEntity": {
+              "@type": "ItemList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Омивання скла",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B0%D1%82%D1%87%D0%B8%D0%BA%D0%B8+%D1%82%D0%B0+%D0%B5%D0%BB%D0%B5%D0%BA%D1%82%D1%80%D0%BE%D0%BD%D1%96%D0%BA%D0%B0&subcategory=%D0%9E%D0%BC%D0%B8%D0%B2%D0%B0%D0%BD%D0%BD%D1%8F+%D1%81%D0%BA%D0%BB%D0%B0&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Масляний фільтр",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B5%D1%82%D0%B0%D0%BB%D1%96+%D0%B4%D0%BB%D1%8F+%D0%A2%D0%9E&subcategory=%D0%9C%D0%B0%D1%81%D0%BB%D1%8F%D0%BD%D0%B8%D0%B9+%D1%84%D1%96%D0%BB%D1%8C%D1%82%D1%80&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": "Фільтр палива (Паливний)",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B5%D1%82%D0%B0%D0%BB%D1%96+%D0%B4%D0%BB%D1%8F+%D0%A2%D0%9E&subcategory=%D0%A4%D1%96%D0%BB%D1%8C%D1%82%D1%80+%D0%BF%D0%B0%D0%BB%D0%B8%D0%B2%D0%B0+%28%D0%9F%D0%B0%D0%BB%D0%B8%D0%B2%D0%BD%D0%B8%D0%B9%29&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 4,
+                  "name": "Повітряний фільтр(Повітря)",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B5%D1%82%D0%B0%D0%BB%D1%96+%D0%B4%D0%BB%D1%8F+%D0%A2%D0%9E&subcategory=%D0%9F%D0%BE%D0%B2%D1%96%D1%82%D1%80%D1%8F%D0%BD%D0%B8%D0%B9+%D1%84%D1%96%D0%BB%D1%8C%D1%82%D1%80%28%D0%9F%D0%BE%D0%B2%D1%96%D1%82%D1%80%D1%8F%29&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 5,
+                  "name": "Ремені клинові",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B5%D1%82%D0%B0%D0%BB%D1%96+%D0%B4%D0%B2%D0%B8%D0%B3%D1%83%D0%BD%D0%B0&subcategory=%D0%A0%D0%B5%D0%BC%D0%B5%D0%BD%D1%96+%D0%BA%D0%BB%D0%B8%D0%BD%D0%BE%D0%B2%D1%96&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 6,
+                  "name": "Комплекти/ Ремені ГРМ",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%94%D0%B5%D1%82%D0%B0%D0%BB%D1%96+%D0%B4%D0%B2%D0%B8%D0%B3%D1%83%D0%BD%D0%B0&subcategory=%D0%9A%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%82%D0%B8%2F+%D0%A0%D0%B5%D0%BC%D0%B5%D0%BD%D1%96+%D0%93%D0%A0%D0%9C&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 7,
+                  "name": "Гальмівні колодки",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%93%D0%B0%D0%BB%D1%8C%D0%BC%D1%96%D0%B2%D0%BD%D0%B0+%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%B0&subcategory=%D0%93%D0%B0%D0%BB%D1%8C%D0%BC%D1%96%D0%B2%D0%BD%D1%96+%D0%BA%D0%BE%D0%BB%D0%BE%D0%B4%D0%BA%D0%B8&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 8,
+                  "name": "Гальмівні диски",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%93%D0%B0%D0%BB%D1%8C%D0%BC%D1%96%D0%B2%D0%BD%D0%B0+%D1%81%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%B0&subcategory=%D0%93%D0%B0%D0%BB%D1%8C%D0%BC%D1%96%D0%B2%D0%BD%D1%96+%D0%B4%D0%B8%D1%81%D0%BA%D0%B8&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 9,
+                  "name": "Лампочки",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%9E%D1%81%D0%B2%D1%96%D1%82%D0%BB%D0%B5%D0%BD%D0%BD%D1%8F&subcategory=%D0%9B%D0%B0%D0%BC%D0%BF%D0%BE%D1%87%D0%BA%D0%B8&scope=hierarchy"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 10,
+                  "name": "Насос охолоджуючої рідини(Помпа)",
+                  "url": "https://partson.shop/katalog?tab=producer&producer=BOSCH&group=%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%B0+%D0%BE%D1%85%D0%BE%D0%BB%D0%BE%D0%B4%D0%B6%D0%B5%D0%BD%D0%BD%D1%8F&subcategory=%D0%9D%D0%B0%D1%81%D0%BE%D1%81+%D0%BE%D1%85%D0%BE%D0%BB%D0%BE%D0%B4%D0%B6%D1%83%D1%8E%D1%87%D0%BE%D1%97+%D1%80%D1%96%D0%B4%D0%B8%D0%BD%D0%B8%28%D0%9F%D0%BE%D0%BC%D0%BF%D0%B0%29&scope=hierarchy"
+                }
+              ]
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Головна",
+                "item": "https://partson.shop"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Виробники",
+                "item": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "BOSCH",
+                "item": "https://partson.shop/manufacturers/bosch-2wkr2o"
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "AutoPartsStore",
+            "@id": "https://partson.shop#local-business",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "image": [
+              "https://partson.shop/storefront/photos/partson-store-1.jpg",
+              "https://partson.shop/storefront/photos/partson-store-4.jpg",
+              "https://partson.shop/storefront/photos/partson-store-6.jpg",
+              "https://partson.shop/storefront/photos/partson-store-2.jpg",
+              "https://partson.shop/storefront/photos/partson-store-3.jpg",
+              "https://partson.shop/storefront/photos/partson-store-5.jpg",
+              "https://partson.shop/storefront/photos/partson-store-7.jpg"
+            ],
+            "logo": "https://partson.shop/google-logo-partson-v3.png",
+            "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+            "priceRange": "$$",
+            "currenciesAccepted": "UAH",
+            "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+            "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+            "areaServed": [
+              {
+                "@type": "City",
+                "name": "Львів"
+              },
+              {
+                "@type": "AdministrativeArea",
+                "name": "Львівська область"
+              },
+              {
+                "@type": "Country",
+                "name": "Україна"
+              }
+            ],
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "parentOrganization": {
+              "@id": "https://partson.shop#organization"
+            },
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": 49.8140387,
+              "longitude": 23.9892492
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "url": "https://partson.shop/inform/about",
+        "status": 200,
+        "title": "PartsON — магазин автозапчастин у Львові",
+        "description": [
+          "PartsON - магазин автозапчастин у Львові з понад 20 роками досвіду, підбором за VIN, артикулом, кодом і маркою авто, оригінальними деталями та перевіреними…"
+        ],
+        "canonical": [
+          "https://partson.shop/inform/about"
+        ],
+        "robots": [
+          "index, follow, max-image-preview:large"
+        ],
+        "h1": [
+          "Знайомство з PartsON"
+        ],
+        "ogImage": [
+          "https://partson.shop/inform/about/opengraph-image/card?7394755bc17ad2c9"
+        ],
+        "ld": [
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": "https://partson.shop#website",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "inLanguage": "uk-UA",
+            "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+            "publisher": {
+              "@id": "https://partson.shop#organization"
+            },
+            "hasPart": [
+              {
+                "@type": "CollectionPage",
+                "name": "Каталог автозапчастин",
+                "url": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Групи автозапчастин",
+                "url": "https://partson.shop/groups"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Виробники автозапчастин",
+                "url": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Підбір за автомобілем",
+                "url": "https://partson.shop/auto"
+              }
+            ],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://partson.shop#organization",
+            "additionalType": "https://schema.org/AutoPartsStore",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://partson.shop/google-logo-partson-v3.png",
+              "width": 600,
+              "height": 600
+            },
+            "image": [
+              "https://partson.shop/google-logo-partson-v3.png"
+            ],
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+            "areaServed": {
+              "@type": "Country",
+              "name": "Україна"
+            },
+            "knowsAbout": [
+              "автозапчастини",
+              "підбір запчастин за VIN",
+              "пошук запчастин за артикулом",
+              "оригінальні запчастини та аналоги",
+              "доставка автозапчастин по Україні"
+            ],
+            "email": "romaniukbboogg@gmail.com",
+            "telephone": "+380634211851",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ],
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "telephone": "+380634211851",
+                "email": "romaniukbboogg@gmail.com",
+                "availableLanguage": [
+                  "uk",
+                  "ru"
+                ]
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                  {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Головна",
+                    "item": "https://partson.shop"
+                  },
+                  {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Інформація",
+                    "item": "https://partson.shop/inform"
+                  },
+                  {
+                    "@type": "ListItem",
+                    "position": 3,
+                    "name": "Про PartsON",
+                    "item": "https://partson.shop/inform/about"
+                  }
+                ]
+              },
+              {
+                "@type": "AboutPage",
+                "@id": "https://partson.shop/inform/about#about",
+                "dateModified": "2026-10-01",
+                "name": "Про PartsON — магазин автозапчастин у Львові",
+                "description": "PartsON — інтернет-магазин і магазин автозапчастин у Львові на вул. Перфецького, 8 з підбором деталей за VIN, артикулом, кодом і маркою авто.",
+                "mainEntity": {
+                  "@type": "AutoPartsStore",
+                  "@id": "https://partson.shop/#organization",
+                  "name": "PartsON",
+                  "url": "https://partson.shop",
+                  "image": "https://partson.shop/storefront/photos/partson-store-1.jpg",
+                  "logo": "https://partson.shop/google-logo-partson-v3.png",
+                  "telephone": "+380634211851",
+                  "email": "romaniukbboogg@gmail.com",
+                  "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "вул. Перфецького, 8",
+                    "addressLocality": "Львів",
+                    "addressCountry": "UA"
+                  },
+                  "areaServed": [
+                    {
+                      "@type": "City",
+                      "name": "Львів"
+                    },
+                    {
+                      "@type": "Country",
+                      "name": "Україна"
+                    }
+                  ],
+                  "makesOffer": [
+                    {
+                      "@type": "Offer",
+                      "itemOffered": {
+                        "@type": "Service",
+                        "name": "Підбір автозапчастин за VIN, артикулом і кодом"
+                      }
+                    },
+                    {
+                      "@type": "Offer",
+                      "itemOffered": {
+                        "@type": "Service",
+                        "name": "Оригінальні автозапчастини та перевірені аналоги"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "@id": "https://partson.shop/inform/about#faq",
+            "url": "https://partson.shop/inform/about",
+            "inLanguage": "uk-UA",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Як у PartsON перевіряють сумісність запчастини?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Для перевірки використовуємо VIN-код, артикул, дані про марку, модель, рік і модифікацію автомобіля. За потреби порівнюємо оригінальну деталь із відповідними аналогами."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Чи можна замовити запчастини з доставкою за межі Львова?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Так. PartsON відправляє замовлення по всій Україні, зокрема Новою Поштою у відділення, поштомат або адресно."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Скільки років працює PartsON?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Команда PartsON має понад 20 років досвіду в підборі та продажу автозапчастин."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Які автозапчастини можна купити в PartsON?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Деталі для ТО, фільтри, оливи, ремені, свічки, підвіску, гальмівну систему, деталі двигуна й охолодження, кузовні елементи та автоелектроніку — оригінал і перевірені аналоги."
+                }
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "AutoPartsStore",
+            "@id": "https://partson.shop#local-business",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "image": [
+              "https://partson.shop/storefront/photos/partson-store-1.jpg",
+              "https://partson.shop/storefront/photos/partson-store-4.jpg",
+              "https://partson.shop/storefront/photos/partson-store-6.jpg",
+              "https://partson.shop/storefront/photos/partson-store-2.jpg",
+              "https://partson.shop/storefront/photos/partson-store-3.jpg",
+              "https://partson.shop/storefront/photos/partson-store-5.jpg",
+              "https://partson.shop/storefront/photos/partson-store-7.jpg"
+            ],
+            "logo": "https://partson.shop/google-logo-partson-v3.png",
+            "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+            "priceRange": "$$",
+            "currenciesAccepted": "UAH",
+            "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+            "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+            "areaServed": [
+              {
+                "@type": "City",
+                "name": "Львів"
+              },
+              {
+                "@type": "AdministrativeArea",
+                "name": "Львівська область"
+              },
+              {
+                "@type": "Country",
+                "name": "Україна"
+              }
+            ],
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "parentOrganization": {
+              "@id": "https://partson.shop#organization"
+            },
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": 49.8140387,
+              "longitude": 23.9892492
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "url": "https://partson.shop/definitely-missing-seo-check",
+        "status": 404,
+        "title": "Сторінку не знайдено | PartsON",
+        "description": [
+          "PartsON — автозапчастини у Львові: великий асортимент, підбір за VIN, кодом чи артикулом, оригінали та аналоги, доставка по Україні."
+        ],
+        "canonical": [],
+        "robots": [
+          "noindex",
+          "noindex, follow"
+        ],
+        "h1": [
+          "Сторінку не знайдено"
+        ],
+        "ogImage": [
+          "https://partson.shop/opengraph-partson-v3.png"
+        ],
+        "ld": [
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": "https://partson.shop#website",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "inLanguage": "uk-UA",
+            "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+            "publisher": {
+              "@id": "https://partson.shop#organization"
+            },
+            "hasPart": [
+              {
+                "@type": "CollectionPage",
+                "name": "Каталог автозапчастин",
+                "url": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Групи автозапчастин",
+                "url": "https://partson.shop/groups"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Виробники автозапчастин",
+                "url": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Підбір за автомобілем",
+                "url": "https://partson.shop/auto"
+              }
+            ],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://partson.shop#organization",
+            "additionalType": "https://schema.org/AutoPartsStore",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://partson.shop/google-logo-partson-v3.png",
+              "width": 600,
+              "height": 600
+            },
+            "image": [
+              "https://partson.shop/google-logo-partson-v3.png"
+            ],
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+            "areaServed": {
+              "@type": "Country",
+              "name": "Україна"
+            },
+            "knowsAbout": [
+              "автозапчастини",
+              "підбір запчастин за VIN",
+              "пошук запчастин за артикулом",
+              "оригінальні запчастини та аналоги",
+              "доставка автозапчастин по Україні"
+            ],
+            "email": "romaniukbboogg@gmail.com",
+            "telephone": "+380634211851",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ],
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "telephone": "+380634211851",
+                "email": "romaniukbboogg@gmail.com",
+                "availableLanguage": [
+                  "uk",
+                  "ru"
+                ]
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "AutoPartsStore",
+            "@id": "https://partson.shop#local-business",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "image": [
+              "https://partson.shop/storefront/photos/partson-store-1.jpg",
+              "https://partson.shop/storefront/photos/partson-store-4.jpg",
+              "https://partson.shop/storefront/photos/partson-store-6.jpg",
+              "https://partson.shop/storefront/photos/partson-store-2.jpg",
+              "https://partson.shop/storefront/photos/partson-store-3.jpg",
+              "https://partson.shop/storefront/photos/partson-store-5.jpg",
+              "https://partson.shop/storefront/photos/partson-store-7.jpg"
+            ],
+            "logo": "https://partson.shop/google-logo-partson-v3.png",
+            "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+            "priceRange": "$$",
+            "currenciesAccepted": "UAH",
+            "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+            "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+            "areaServed": [
+              {
+                "@type": "City",
+                "name": "Львів"
+              },
+              {
+                "@type": "AdministrativeArea",
+                "name": "Львівська область"
+              },
+              {
+                "@type": "Country",
+                "name": "Україна"
+              }
+            ],
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "parentOrganization": {
+              "@id": "https://partson.shop#organization"
+            },
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": 49.8140387,
+              "longitude": 23.9892492
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "url": "https://partson.shop/blog",
+        "status": 200,
+        "title": "Блог — статті про автозапчастини та ТО | PartsON",
+        "description": [
+          "Як вибрати запчастини під своє авто, які бренди надійніші, як розпізнати несправність і що перевірити при обслуговуванні — статті від фахівців PartsON у Львові."
+        ],
+        "canonical": [
+          "https://partson.shop/blog"
+        ],
+        "robots": [
+          "index, follow, max-image-preview:large"
+        ],
+        "h1": [
+          "Блог про автозапчастини та обслуговування авто"
+        ],
+        "ogImage": [
+          "https://partson.shop/opengraph-partson-v3.png"
+        ],
+        "ld": [
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": "https://partson.shop#website",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "inLanguage": "uk-UA",
+            "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+            "publisher": {
+              "@id": "https://partson.shop#organization"
+            },
+            "hasPart": [
+              {
+                "@type": "CollectionPage",
+                "name": "Каталог автозапчастин",
+                "url": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Групи автозапчастин",
+                "url": "https://partson.shop/groups"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Виробники автозапчастин",
+                "url": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Підбір за автомобілем",
+                "url": "https://partson.shop/auto"
+              }
+            ],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://partson.shop#organization",
+            "additionalType": "https://schema.org/AutoPartsStore",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://partson.shop/google-logo-partson-v3.png",
+              "width": 600,
+              "height": 600
+            },
+            "image": [
+              "https://partson.shop/google-logo-partson-v3.png"
+            ],
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+            "areaServed": {
+              "@type": "Country",
+              "name": "Україна"
+            },
+            "knowsAbout": [
+              "автозапчастини",
+              "підбір запчастин за VIN",
+              "пошук запчастин за артикулом",
+              "оригінальні запчастини та аналоги",
+              "доставка автозапчастин по Україні"
+            ],
+            "email": "romaniukbboogg@gmail.com",
+            "telephone": "+380634211851",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ],
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "telephone": "+380634211851",
+                "email": "romaniukbboogg@gmail.com",
+                "availableLanguage": [
+                  "uk",
+                  "ru"
+                ]
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            "name": "Блог PartsON — автозапчастини",
+            "url": "https://partson.shop/blog",
+            "description": "Корисні статті про підбір автозапчастин, надійні бренди та технічне обслуговування авто від фахівців PartsON у Львові.",
+            "publisher": {
+              "@type": "Organization",
+              "name": "PartsON",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://partson.shop/google-logo-partson-v3.png"
+              }
+            },
+            "blogPost": [
+              {
+                "@type": "BlogPosting",
+                "headline": "Як правильно вибрати масло для двигуна автомобіля",
+                "description": "Не знаєте, яку моторну оливу обрати? Розповідаємо, чим відрізняються 0W-30, 5W-30, 5W-40, 10W-30 та 10W-40, як правильно підібрати масло для двигуна, коли його потрібно міняти та які оливи представлені в нашому магазині.",
+                "url": "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+                "datePublished": "2026-08-07T12:30:57.141Z",
+                "dateModified": "2026-08-07T13:47:58.005Z",
+                "author": {
+                  "@type": "Organization",
+                  "@id": "https://partson.shop/authors/partson#author",
+                  "name": "Редакція PartsON",
+                  "url": "https://partson.shop/authors/partson"
+                },
+                "image": "https://partson.shop/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?v=1786110478005"
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "AutoPartsStore",
+            "@id": "https://partson.shop#local-business",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "image": [
+              "https://partson.shop/storefront/photos/partson-store-1.jpg",
+              "https://partson.shop/storefront/photos/partson-store-4.jpg",
+              "https://partson.shop/storefront/photos/partson-store-6.jpg",
+              "https://partson.shop/storefront/photos/partson-store-2.jpg",
+              "https://partson.shop/storefront/photos/partson-store-3.jpg",
+              "https://partson.shop/storefront/photos/partson-store-5.jpg",
+              "https://partson.shop/storefront/photos/partson-store-7.jpg"
+            ],
+            "logo": "https://partson.shop/google-logo-partson-v3.png",
+            "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+            "priceRange": "$$",
+            "currenciesAccepted": "UAH",
+            "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+            "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+            "areaServed": [
+              {
+                "@type": "City",
+                "name": "Львів"
+              },
+              {
+                "@type": "AdministrativeArea",
+                "name": "Львівська область"
+              },
+              {
+                "@type": "Country",
+                "name": "Україна"
+              }
+            ],
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "parentOrganization": {
+              "@id": "https://partson.shop#organization"
+            },
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": 49.8140387,
+              "longitude": 23.9892492
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "url": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+        "status": 200,
+        "title": "Трос ручного гальма лівий AUDI 80 барабанний — Adriauto AD030213",
+        "description": [
+          "Трос ручного гальма лівий AUDI 80 барабанний Adriauto AD030213 — 353 грн, в наявності. Самовивіз у Львові, Нова Пошта 1–2 дні, підбір за VIN."
+        ],
+        "canonical": [
+          "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213"
+        ],
+        "robots": [
+          "index, follow, max-image-preview:large"
+        ],
+        "h1": [
+          "Трос ручного гальма лівий AUDI 80 барабанний"
+        ],
+        "ogImage": [
+          "https://partson.shop/product-image/00-00000056?iv=5&fallback=404&article=AD030213"
+        ],
+        "ld": [
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": "https://partson.shop#website",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "inLanguage": "uk-UA",
+            "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+            "publisher": {
+              "@id": "https://partson.shop#organization"
+            },
+            "hasPart": [
+              {
+                "@type": "CollectionPage",
+                "name": "Каталог автозапчастин",
+                "url": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Групи автозапчастин",
+                "url": "https://partson.shop/groups"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Виробники автозапчастин",
+                "url": "https://partson.shop/manufacturers"
+              },
+              {
+                "@type": "CollectionPage",
+                "name": "Підбір за автомобілем",
+                "url": "https://partson.shop/auto"
+              }
+            ],
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "@id": "https://partson.shop#organization",
+            "additionalType": "https://schema.org/AutoPartsStore",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://partson.shop/google-logo-partson-v3.png",
+              "width": 600,
+              "height": 600
+            },
+            "image": [
+              "https://partson.shop/google-logo-partson-v3.png"
+            ],
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+            "areaServed": {
+              "@type": "Country",
+              "name": "Україна"
+            },
+            "knowsAbout": [
+              "автозапчастини",
+              "підбір запчастин за VIN",
+              "пошук запчастин за артикулом",
+              "оригінальні запчастини та аналоги",
+              "доставка автозапчастин по Україні"
+            ],
+            "email": "romaniukbboogg@gmail.com",
+            "telephone": "+380634211851",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ],
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "telephone": "+380634211851",
+                "email": "romaniukbboogg@gmail.com",
+                "availableLanguage": [
+                  "uk",
+                  "ru"
+                ]
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "@id": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213#product",
+            "name": "Трос ручного гальма лівий AUDI 80 барабанний",
+            "alternateName": "Трос ручн. гальм. лів. AUDI 80 бараб, (LIN030104/AD030213)",
+            "description": "Трос ручного гальма лівий AUDI 80 барабанний Adriauto AD030213 — ціна й наявність у PartsON. Підбір за VIN, самовивіз у Львові та доставка по Україні.",
+            "url": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+            "mainEntityOfPage": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+            "category": "Vehicles & Parts > Vehicle Parts & Accessories > Motor Vehicle Parts",
+            "image": [
+              {
+                "@type": "ImageObject",
+                "url": "https://partson.shop/product-image/00-00000056?iv=5&fallback=404&article=AD030213",
+                "contentUrl": "https://partson.shop/product-image/00-00000056?iv=5&fallback=404&article=AD030213",
+                "caption": "Трос ручного гальма лівий AUDI 80 барабанний — артикул AD030213"
+              }
+            ],
+            "sku": "00-00000056",
+            "mpn": "AD030213",
+            "brand": {
+              "@type": "Brand",
+              "name": "Adriauto"
+            },
+            "manufacturer": {
+              "@type": "Organization",
+              "name": "Adriauto"
+            },
+            "identifier": [
+              {
+                "@type": "PropertyValue",
+                "propertyID": "code",
+                "value": "00-00000056"
+              },
+              {
+                "@type": "PropertyValue",
+                "propertyID": "article",
+                "value": "AD030213"
+              }
+            ],
+            "additionalProperty": [
+              {
+                "@type": "PropertyValue",
+                "name": "Група",
+                "value": "Трос ручного гальма"
+              }
+            ],
+            "offers": {
+              "@type": "Offer",
+              "@id": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213#offer",
+              "priceCurrency": "UAH",
+              "price": "353",
+              "availability": "https://schema.org/InStock",
+              "itemCondition": "https://schema.org/NewCondition",
+              "inventoryLevel": {
+                "@type": "QuantitativeValue",
+                "value": 2
+              },
+              "seller": {
+                "@type": "Organization",
+                "name": "PartsON",
+                "url": "https://partson.shop/",
+                "telephone": "+380634211851",
+                "address": {
+                  "@type": "PostalAddress",
+                  "streetAddress": "вул. Перфецького, 8",
+                  "addressLocality": "Львів",
+                  "addressCountry": "UA"
+                }
+              },
+              "url": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "shippingRate": {
+                  "@type": "MonetaryAmount",
+                  "value": 90,
+                  "currency": "UAH"
+                },
+                "shippingDestination": {
+                  "@type": "DefinedRegion",
+                  "addressCountry": "UA"
+                },
+                "deliveryTime": {
+                  "@type": "ShippingDeliveryTime",
+                  "handlingTime": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 0,
+                    "maxValue": 2,
+                    "unitCode": "DAY"
+                  },
+                  "transitTime": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 1,
+                    "maxValue": 2,
+                    "unitCode": "DAY"
+                  }
+                }
+              },
+              "hasMerchantReturnPolicy": {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "UA",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": 14,
+                "returnMethod": [
+                  "https://schema.org/ReturnByMail",
+                  "https://schema.org/ReturnInStore"
+                ],
+                "merchantReturnLink": "https://partson.shop/inform/returns"
+              }
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "ItemPage",
+            "inLanguage": "uk-UA",
+            "@id": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213#page",
+            "url": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+            "name": "Трос ручного гальма лівий AUDI 80 барабанний",
+            "description": "Трос ручного гальма лівий AUDI 80 барабанний Adriauto AD030213 — ціна й наявність у PartsON. Підбір за VIN, самовивіз у Львові та доставка по Україні.",
+            "isPartOf": {
+              "@type": "WebSite",
+              "name": "PartsON",
+              "url": "https://partson.shop"
+            },
+            "primaryImageOfPage": {
+              "@type": "ImageObject",
+              "@id": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213#primary-image",
+              "url": "https://partson.shop/product-image/00-00000056?iv=5&fallback=404&article=AD030213",
+              "contentUrl": "https://partson.shop/product-image/00-00000056?iv=5&fallback=404&article=AD030213",
+              "caption": "Трос ручного гальма лівий AUDI 80 барабанний",
+              "representativeOfPage": true
+            },
+            "mainEntity": {
+              "@id": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213#product"
+            }
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Головна",
+                "item": "https://partson.shop"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Каталог",
+                "item": "https://partson.shop/katalog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Гальмівна система",
+                "item": "https://partson.shop/groups/halmivna-systema"
+              },
+              {
+                "@type": "ListItem",
+                "position": 4,
+                "name": "Трос ручного гальма",
+                "item": "https://partson.shop/groups/halmivna-systema/tros-ruchnoho-halma"
+              },
+              {
+                "@type": "ListItem",
+                "position": 5,
+                "name": "Трос ручного гальма лівий AUDI 80 барабанний",
+                "item": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213"
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Чи підійде трос ручного гальма лівий AUDI 80 барабанний до мого авто?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Надішліть VIN-код або марку, модель, рік і двигун автомобіля — менеджер PartsON звірить номер з каталогом Adriauto і підтвердить сумісність до відправлення. Якщо позиція не підходить, підберемо іншу з розділу «Трос ручного гальма» або аналог."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Чи є трос ручного гальма лівий AUDI 80 барабанний в наявності?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Так, зараз на складі у Львові 2 шт. Після підтвердження замовлення відправляємо Новою Поштою, Укрпоштою або Meest — доставка по Україні зазвичай 1–2 робочі дні. Самовивіз з вул. Перфецького, 8 — у день замовлення."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Як оформити замовлення й оплатити?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Натисніть «Додати до кошика» й оформіть замовлення — менеджер підтвердить наявність і доставку. Оплата готівкою, карткою, онлайн або безготівково для юридичних осіб."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Які умови гарантії та повернення?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Деталь із виробничим дефектом повернемо або обміняємо протягом гарантійного строку за документом про покупку. Якщо деталь належної якості не підійшла, приймаємо її протягом 14 днів — за умови, що її не встановлювали й збережено упаковку та комплектацію."
+                }
+              }
+            ]
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "AutoPartsStore",
+            "@id": "https://partson.shop#local-business",
+            "name": "PartsON",
+            "url": "https://partson.shop",
+            "image": [
+              "https://partson.shop/storefront/photos/partson-store-1.jpg",
+              "https://partson.shop/storefront/photos/partson-store-4.jpg",
+              "https://partson.shop/storefront/photos/partson-store-6.jpg",
+              "https://partson.shop/storefront/photos/partson-store-2.jpg",
+              "https://partson.shop/storefront/photos/partson-store-3.jpg",
+              "https://partson.shop/storefront/photos/partson-store-5.jpg",
+              "https://partson.shop/storefront/photos/partson-store-7.jpg"
+            ],
+            "logo": "https://partson.shop/google-logo-partson-v3.png",
+            "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+            "priceRange": "$$",
+            "currenciesAccepted": "UAH",
+            "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+            "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+            "areaServed": [
+              {
+                "@type": "City",
+                "name": "Львів"
+              },
+              {
+                "@type": "AdministrativeArea",
+                "name": "Львівська область"
+              },
+              {
+                "@type": "Country",
+                "name": "Україна"
+              }
+            ],
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "parentOrganization": {
+              "@id": "https://partson.shop#organization"
+            },
+            "sameAs": [
+              "https://maps.google.com/?cid=11517394092669341405"
+            ],
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "вул. Перфецького, 8",
+              "addressLocality": "Львів",
+              "addressRegion": "Львівська область",
+              "postalCode": "79000",
+              "addressCountry": "UA"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": 49.8140387,
+              "longitude": 23.9892492
+            },
+            "openingHoursSpecification": [
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday"
+                ],
+                "opens": "08:00",
+                "closes": "18:00"
+              },
+              {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": [
+                  "Sunday"
+                ],
+                "opens": "08:00",
+                "closes": "16:00"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "article": {
+    "url": "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+    "status": 200,
+    "title": "Як правильно вибрати масло для двигуна автомобіля | PartsON",
+    "description": [
+      "Не знаєте, яку моторну оливу обрати? Розповідаємо, чим відрізняються 0W-30, 5W-30, 5W-40, 10W-30 та 10W-40, як правильно підібрати масло для двигуна, коли його…"
+    ],
+    "canonical": [
+      "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq"
+    ],
+    "h1": [
+      "Як правильно вибрати масло для двигуна автомобіля"
+    ],
+    "ogImage": [
+      "https://partson.shop/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?ar=16x9&v=1786110478005"
+    ],
+    "ld": [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://partson.shop#website",
+        "name": "PartsON",
+        "url": "https://partson.shop",
+        "inLanguage": "uk-UA",
+        "description": "PartsON — каталог автозапчастин із пошуком за назвою, артикулом, кодом, виробником і автомобілем.",
+        "publisher": {
+          "@id": "https://partson.shop#organization"
+        },
+        "hasPart": [
+          {
+            "@type": "CollectionPage",
+            "name": "Каталог автозапчастин",
+            "url": "https://partson.shop/katalog"
+          },
+          {
+            "@type": "CollectionPage",
+            "name": "Групи автозапчастин",
+            "url": "https://partson.shop/groups"
+          },
+          {
+            "@type": "CollectionPage",
+            "name": "Виробники автозапчастин",
+            "url": "https://partson.shop/manufacturers"
+          },
+          {
+            "@type": "CollectionPage",
+            "name": "Підбір за автомобілем",
+            "url": "https://partson.shop/auto"
+          }
+        ],
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://partson.shop/katalog?search={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://partson.shop#organization",
+        "additionalType": "https://schema.org/AutoPartsStore",
+        "name": "PartsON",
+        "url": "https://partson.shop",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://partson.shop/google-logo-partson-v3.png",
+          "width": 600,
+          "height": 600
+        },
+        "image": [
+          "https://partson.shop/google-logo-partson-v3.png"
+        ],
+        "sameAs": [
+          "https://maps.google.com/?cid=11517394092669341405"
+        ],
+        "description": "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
+        "areaServed": {
+          "@type": "Country",
+          "name": "Україна"
+        },
+        "knowsAbout": [
+          "автозапчастини",
+          "підбір запчастин за VIN",
+          "пошук запчастин за артикулом",
+          "оригінальні запчастини та аналоги",
+          "доставка автозапчастин по Україні"
+        ],
+        "email": "romaniukbboogg@gmail.com",
+        "telephone": "+380634211851",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "вул. Перфецького, 8",
+          "addressLocality": "Львів",
+          "addressRegion": "Львівська область",
+          "postalCode": "79000",
+          "addressCountry": "UA"
+        },
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday"
+            ],
+            "opens": "08:00",
+            "closes": "18:00"
+          },
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Sunday"
+            ],
+            "opens": "08:00",
+            "closes": "16:00"
+          }
+        ],
+        "contactPoint": [
+          {
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "telephone": "+380634211851",
+            "email": "romaniukbboogg@gmail.com",
+            "availableLanguage": [
+              "uk",
+              "ru"
+            ]
+          }
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": "Як правильно вибрати масло для двигуна автомобіля",
+        "description": "Не знаєте, яку моторну оливу обрати? Розповідаємо, чим відрізняються 0W-30, 5W-30, 5W-40, 10W-30 та 10W-40, як правильно підібрати масло для двигуна, коли його потрібно міняти та які оливи представлені в нашому магазині.",
+        "image": [
+          "https://partson.shop/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?ar=16x9&v=1786110478005",
+          "https://partson.shop/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?ar=4x3&v=1786110478005",
+          "https://partson.shop/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?ar=1x1&v=1786110478005"
+        ],
+        "datePublished": "2026-08-07T12:30:57.141Z",
+        "dateModified": "2026-08-07T13:47:58.005Z",
+        "wordCount": 500,
+        "articleSection": "Автозапчастини",
+        "about": [
+          {
+            "@type": "Thing",
+            "name": "Моторні оливи",
+            "url": "https://partson.shop/groups/ridyna-ta-mastylo/motorne-mastylo-maslo"
+          },
+          {
+            "@type": "Thing",
+            "name": "Оливи для МКПП",
+            "url": "https://partson.shop/groups/ridyna-ta-mastylo/mastylo-mekhanichnoyi-kpp-maslo-korobky"
+          },
+          {
+            "@type": "Thing",
+            "name": "Оливи для ГПК",
+            "url": "https://partson.shop/groups/ridyna-ta-mastylo/mastylo-u-hpk-hidropidsylyuvach-kerma"
+          }
+        ],
+        "inLanguage": "uk",
+        "author": {
+          "@type": "Organization",
+          "@id": "https://partson.shop/authors/partson#author",
+          "name": "Редакція PartsON",
+          "url": "https://partson.shop/authors/partson",
+          "description": "Команда фахівців PartsON з практичним досвідом підбору автозапчастин, перевірки сумісності та обслуговування клієнтів."
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "PartsON",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://partson.shop/google-logo-partson-v3.png"
+          }
+        },
+        "mainEntityOfPage": "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq"
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Головна",
+            "item": "https://partson.shop"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Блог",
+            "item": "https://partson.shop/blog"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Як правильно вибрати масло для двигуна автомобіля",
+            "item": "https://partson.shop/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq"
+          }
+        ]
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "AutoPartsStore",
+        "@id": "https://partson.shop#local-business",
+        "name": "PartsON",
+        "url": "https://partson.shop",
+        "image": [
+          "https://partson.shop/storefront/photos/partson-store-1.jpg",
+          "https://partson.shop/storefront/photos/partson-store-4.jpg",
+          "https://partson.shop/storefront/photos/partson-store-6.jpg",
+          "https://partson.shop/storefront/photos/partson-store-2.jpg",
+          "https://partson.shop/storefront/photos/partson-store-3.jpg",
+          "https://partson.shop/storefront/photos/partson-store-5.jpg",
+          "https://partson.shop/storefront/photos/partson-store-7.jpg"
+        ],
+        "logo": "https://partson.shop/google-logo-partson-v3.png",
+        "description": "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
+        "priceRange": "$$",
+        "currenciesAccepted": "UAH",
+        "paymentAccepted": "Готівка, банківська картка, післяплата, безготівковий розрахунок",
+        "hasMap": "https://maps.google.com/?cid=11517394092669341405",
+        "areaServed": [
+          {
+            "@type": "City",
+            "name": "Львів"
+          },
+          {
+            "@type": "AdministrativeArea",
+            "name": "Львівська область"
+          },
+          {
+            "@type": "Country",
+            "name": "Україна"
+          }
+        ],
+        "telephone": "+380634211851",
+        "email": "romaniukbboogg@gmail.com",
+        "parentOrganization": {
+          "@id": "https://partson.shop#organization"
+        },
+        "sameAs": [
+          "https://maps.google.com/?cid=11517394092669341405"
+        ],
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "вул. Перфецького, 8",
+          "addressLocality": "Львів",
+          "addressRegion": "Львівська область",
+          "postalCode": "79000",
+          "addressCountry": "UA"
+        },
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 49.8140387,
+          "longitude": 23.9892492
+        },
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday"
+            ],
+            "opens": "08:00",
+            "closes": "18:00"
+          },
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Sunday"
+            ],
+            "opens": "08:00",
+            "closes": "16:00"
+          }
+        ]
+      }
+    ]
+  }
+}

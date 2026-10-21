@@ -87,18 +87,27 @@ export default function PartnershipDeliveryClient() {
     setSaveStatus("idle");
   };
 
-  /* fetch NP cities once per edit session */
+  /* search NP cities as the field changes (the server keeps the full list) */
   useEffect(() => {
-    if (!editing || method !== "Нова Пошта" || cities.length > 0) return;
-    let cancelled = false;
-    fetch("/api/novaposhta", {
-      method: "POST",
-      body: JSON.stringify({ modelName: "Address", calledMethod: "getCities" }),
-    })
-      .then(r => r.json())
-      .then(d => { if (!cancelled && d?.data) setCities(d.data); });
-    return () => { cancelled = true; };
-  }, [editing, method, cities.length]);
+    const query = cityInput.trim();
+    if (!editing || method !== "Нова Пошта" || selectedCity || !query) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      fetch("/api/novaposhta", {
+        method: "POST",
+        signal: controller.signal,
+        body: JSON.stringify({
+          modelName: "Address",
+          calledMethod: "getCities",
+          methodProperties: { FindByString: query, Limit: 20 },
+        }),
+      })
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d?.data)) setCities(d.data); })
+        .catch(() => undefined);
+    }, 150);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [editing, method, cityInput, selectedCity]);
 
   /* fetch warehouses when city chosen */
   useEffect(() => {

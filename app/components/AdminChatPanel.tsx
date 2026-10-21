@@ -125,6 +125,9 @@ interface Order {
   read?: boolean;
   shipped?: boolean;
   completed?: boolean;
+  cancelled?: boolean;
+  cancelledBy?: string;
+  stockReturn?: { status?: string };
   viewedByName?: string;
   shippedByName?: string;
   completedByName?: string;
@@ -2427,21 +2430,27 @@ export default function AdminChatPanel({
               />
             )}
             {visibleOrders.map((o) => {
-              const statusLabel = o.completed
+              const statusLabel = o.cancelled
+                ? o.cancelledBy === 'customer' ? 'Скасовано клієнтом' : 'Скасовано'
+                : o.completed
                 ? 'Виконано'
                 : o.shipped
                 ? 'Відправлено'
                 : o.read
                 ? 'Оглянуто'
                 : 'Нове';
-              const statusClass = o.completed
+              const statusClass = o.cancelled
+                ? 'bg-rose-500/20 text-rose-200'
+                : o.completed
                 ? 'bg-emerald-500/20 text-emerald-200'
                 : o.shipped
                 ? 'bg-blue-500/20 text-blue-200'
                 : o.read
                 ? 'bg-amber-500/20 text-amber-200'
                 : 'bg-sky-500/20 text-sky-200';
-              const statusByName = o.completed
+              const statusByName = o.cancelled
+                ? undefined
+                : o.completed
                 ? o.completedByName
                 : o.shipped
                 ? o.shippedByName
@@ -2483,20 +2492,20 @@ export default function AdminChatPanel({
                       <button
                         onClick={() => markOrderShipped(o.id)}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-blue-300 hover:text-blue-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
-                          o.shipped ? 'opacity-40 cursor-not-allowed' : ''
+                          o.shipped || o.cancelled ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title="Відправлено"
-                        disabled={o.shipped}
+                        title={o.cancelled ? 'Замовлення скасовано' : 'Відправлено'}
+                        disabled={o.shipped || o.cancelled}
                       >
                         <TruckIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => markOrderCompleted(o.id)}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-emerald-300 hover:text-emerald-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
-                          o.completed ? 'opacity-40 cursor-not-allowed' : ''
+                          o.completed || o.cancelled ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title="Виконано"
-                        disabled={o.completed}
+                        title={o.cancelled ? 'Замовлення скасовано' : 'Виконано'}
+                        disabled={o.completed || o.cancelled}
                       >
                         <CheckCircleIcon className="w-5 h-5" />
                       </button>
@@ -2510,6 +2519,18 @@ export default function AdminChatPanel({
                   </div>
                   {expandedOrderId === o.id && (
                     <div className="mt-2 text-sm space-y-2 text-slate-200">
+                      {o.cancelled && (
+                        <p className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-100">
+                          {o.cancelledBy === 'customer' ? 'Клієнт скасував замовлення до опрацювання.' : 'Замовлення скасовано.'}{' '}
+                          {o.stockReturn?.status === 'done'
+                            ? 'Товар повернуто на склад (Поступлення в 1С).'
+                            : o.stockReturn?.status === 'partial'
+                              ? 'Частину товару не вдалося повернути в 1С — перевірте залишки.'
+                              : o.stockReturn?.status === 'pending'
+                                ? 'Повертаємо товар на склад…'
+                                : 'Товар із залишку не списувався.'}
+                        </p>
+                      )}
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <p>Телефон: {o.phone}</p>
                         <p>Оплата: {o.paymentMethod}</p>

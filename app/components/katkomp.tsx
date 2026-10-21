@@ -13,7 +13,11 @@ import {
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { safeSetStorageItem } from "app/lib/safe-storage";
-import { replaceCatalogUrl } from "app/lib/catalog-navigation";
+import { fetchCatalogTree } from "app/lib/onec-proxy-client";
+import {
+  CATALOG_FILTER_SELECTION_FINAL_EVENT,
+  replaceCatalogUrl,
+} from "app/lib/catalog-navigation";
 import HorizontalDirectoryRail from "app/components/HorizontalDirectoryRail";
 import FilterLoadingState from "app/components/FilterLoadingState";
 
@@ -242,11 +246,7 @@ const loadProducts = async (
 
   cachedProductsPromise = (async () => {
     try {
-      const response = await fetch("/api/proxy?endpoint=getprod", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
+      const response = await fetchCatalogTree();
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -699,11 +699,7 @@ const Category: React.FC<CategoryProps> = ({
     }
     if (!final && group && subcategory) nextParams.set("scope", "hierarchy");
     else nextParams.delete("scope");
-    if (final && group && subcategory) {
-      // A final group is chosen — the filter opens its "Параметри" tab next
-      // (filtrtion.tsx watches for a new category arriving with tab=params).
-      nextParams.set("tab", "params");
-    } else if (nextParams.get("tab") === "params") {
+    if (nextParams.get("tab") === "params") {
       nextParams.delete("tab");
     }
     // Parameter ids belong to the previous category.
@@ -732,6 +728,7 @@ const Category: React.FC<CategoryProps> = ({
     const href = buildSelectionHref(group, subcategory);
     if (typeof window !== "undefined") {
       safeSetStorageItem(window.sessionStorage, "catalogScrollTarget", "results");
+      window.dispatchEvent(new Event(CATALOG_FILTER_SELECTION_FINAL_EVENT));
     }
     navigateToSelection(href);
   };

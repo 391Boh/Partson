@@ -17,13 +17,7 @@ import SmartLink from 'app/components/SmartLink';
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
-type AuthModalModule = typeof import('./AuthModal');
-
-let authModalModulePromise: Promise<AuthModalModule> | null = null;
-const loadAuthModalModule = () => {
-  authModalModulePromise ??= import('./AuthModal');
-  return authModalModulePromise;
-};
+import { loadAccountInfoModule, loadAuthModalModule } from "app/lib/auth-modal-loader";
 
 type ContactComponentProps = {
   onClose: () => void;
@@ -106,6 +100,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname() || "";
   const preloadAuthModal = () => {
+    if (user) void loadAccountInfoModule().catch(() => undefined);
     if (AuthModalComponent) return;
     void loadAuthModalModule().then((module) => {
       setAuthModalComponent(() => module.default);
@@ -354,6 +349,11 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
       cancelled = true;
     };
   }, [AuthModalComponent, modals.auth]);
+
+  const prepareOrderWindow = () => {
+    void import('./Order').catch(() => undefined);
+    if (user) void fetchPartnerStatus(user).catch(() => undefined);
+  };
 
   const renderPortal = (node: React.ReactNode) =>
     portalRoot ? createPortal(node, portalRoot) : null;
@@ -675,9 +675,11 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
           <button
             data-overlay-toggle="order"
             aria-expanded={modals.order}
-            onPointerEnter={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
-            onFocus={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
-            onTouchStart={() => { if (user) void fetchPartnerStatus(user).catch(() => undefined); }}
+            // Start loading the window's code (and the partner status it shows)
+            // on intent, so the first click doesn't wait for ~230 KB of chunks.
+            onPointerEnter={prepareOrderWindow}
+            onFocus={prepareOrderWindow}
+            onTouchStart={prepareOrderWindow}
             // The badge count is visual only; put it in the accessible name.
             aria-label={
               hasMounted && cartItems.length > 0

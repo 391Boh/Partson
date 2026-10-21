@@ -47,12 +47,19 @@ export default function ProductSectionNav({
       const top = Math.min(window.innerHeight - 40, coveredHeight + 8);
       const readingHeight = Math.max(40, (window.innerHeight - top) * 0.45);
       const bottom = Math.max(0, window.innerHeight - top - readingHeight);
+      // A callback lists only the sections whose visibility just changed, so
+      // picking from it alone jumped to whichever section last entered the
+      // reading area (the active pill flickered between neighbours). Keep
+      // every section's state and take the first visible one in page order.
+      const visibleSections = new Set<Element>();
       observer = new IntersectionObserver(
         (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-          if (visible[0]?.target.id) setActiveHref(`#${visible[0].target.id}`);
+          for (const entry of entries) {
+            if (entry.isIntersecting) visibleSections.add(entry.target);
+            else visibleSections.delete(entry.target);
+          }
+          const first = sections.find((section) => visibleSections.has(section));
+          if (first?.id) setActiveHref(`#${first.id}`);
         },
         { rootMargin: `-${top}px 0px -${bottom}px 0px`, threshold: 0 }
       );

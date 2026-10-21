@@ -46,7 +46,7 @@ export function useLiveCatalogRefresh(codes: string[], enabled: boolean, apply: 
           // sync failure — 1C is slow enough (see the dev cold-fetch cache)
           // that a handful of the up-to-16 per-code lookups routinely miss
           // this endpoint's tight per-item timeout on a given pass. That's
-          // fine: the next 30s poll picks up whatever didn't arrive yet.
+          // fine: the next minute's poll picks up whatever didn't arrive yet.
           // Treating it as "failed" was surfacing the "Не всі дані вдалося
           // оновити" banner on ordinary partial responses, not real outages.
           if (!disposed && generation === currentGeneration) apply(payload.products, payload.isPartner === true);
@@ -76,7 +76,9 @@ export function useLiveCatalogRefresh(codes: string[], enabled: boolean, apply: 
         void refresh();
       }
     }, 2500);
-    const timer = window.setInterval(refresh, 30000);
+    // Once a minute is enough for other visitors' stock changes; this
+    // browser's own orders and admin edits arrive at once via invalidate().
+    const timer = window.setInterval(refresh, 60000);
     window.addEventListener('focus', refresh);
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);

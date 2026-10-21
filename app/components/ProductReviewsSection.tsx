@@ -2,10 +2,8 @@
 
 import {
   ChevronDown,
-  MessageSquare,
   RefreshCcw,
   Send,
-  Sparkles,
   Star,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -191,9 +189,6 @@ export default function ProductReviewsSection({
         {/* ── header ── */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 bg-[linear-gradient(135deg,rgba(248,250,252,0.99),rgba(240,249,255,0.97)_50%,rgba(255,255,255,0.94)_100%)] px-3.5 py-2.5 sm:px-4">
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-amber-50 text-amber-500">
-              <MessageSquare size={13} />
-            </span>
             <div>
               <h2 className="product-reviews-title text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
                 Відгуки покупців
@@ -217,13 +212,14 @@ export default function ProductReviewsSection({
               )}
             </div>
           </div>
-          {!showForm && !submitted && (
+          {/* With no reviews yet the empty state carries the one action. */}
+          {!showForm && !submitted && !loading && reviews.length > 0 && (
             <button
               type="button"
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1.5 rounded-[11px] border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-black text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+              className="product-reviews-empty-secondary"
             >
-              <Star size={11} />
+              <Star size={13} aria-hidden="true" />
               Залишити відгук
             </button>
           )}
@@ -309,7 +305,7 @@ export default function ProductReviewsSection({
           {/* Same height as the empty state most products end up in, so the
               section does not grow under the reader when reviews arrive. */}
           {loading && (
-            <div className="flex min-h-[225px] items-center justify-center rounded-[15px] sm:min-h-[205px] border border-sky-100 bg-[linear-gradient(135deg,rgba(240,249,255,0.74),rgba(255,255,255,0.98))] px-4 py-4">
+            <div className="product-reviews-loading">
               <span className="inline-flex items-center gap-2 text-[12px] font-bold text-slate-500">
                 <RefreshCcw
                   size={14}
@@ -399,37 +395,28 @@ function ReviewEmptyState({
   canRefresh?: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[17px] border border-sky-100 bg-[radial-gradient(circle_at_12%_20%,rgba(56,189,248,0.13),transparent_32%),linear-gradient(135deg,rgba(248,252,255,0.99),rgba(255,255,255,0.98)_58%,rgba(240,249,255,0.92))] px-4 py-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_20px_rgba(14,165,233,0.06)] sm:px-5">
-      <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-sky-100/60 blur-2xl" />
-      <span className="relative mx-auto inline-flex h-10 w-10 items-center justify-center rounded-[13px] border border-amber-200/80 bg-[linear-gradient(145deg,#fffdf4,#fff7d6)] text-amber-500 shadow-[0_8px_18px_rgba(245,158,11,0.13)]">
-        <Sparkles size={18} aria-hidden="true" />
+    <div className="product-reviews-empty">
+      <span className="product-reviews-empty-icon" aria-hidden="true">
+        <Star size={16} />
       </span>
-      <p className="relative mt-2.5 text-[14px] font-black tracking-[-0.01em] text-slate-900">
-        Відгуків про цей товар ще немає
-      </p>
-      <p className="relative mx-auto mt-1 max-w-md text-[11.5px] font-medium leading-5 text-slate-500">
-        Поділіться досвідом — ваша оцінка допоможе іншим покупцям швидше
-        визначитися з вибором.
-      </p>
-      <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={onWriteReview}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] border border-sky-600 bg-[linear-gradient(135deg,#0284c7,#0369a1)] px-3.5 text-[12px] font-black text-white shadow-[0_8px_18px_rgba(2,132,199,0.2)] transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-700 hover:from-sky-700 hover:to-sky-800 hover:shadow-[0_11px_24px_rgba(2,132,199,0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-        >
-          <Star size={12} aria-hidden="true" />
-          Залишити перший відгук
-        </button>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-bold text-slate-900">Відгуків про цей товар ще немає</p>
+        <p className="mt-0.5 text-[13px] leading-5 text-slate-600">
+          Поділіться досвідом — ваша оцінка допоможе іншим покупцям швидше
+          визначитися з вибором.
+        </p>
+      </div>
+      <div className="product-reviews-empty-actions">
         {canRefresh && onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-[11px] border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-500 shadow-[0_4px_12px_rgba(15,23,42,0.05)] transition-[border-color,color,box-shadow,background-color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 hover:shadow-[0_7px_16px_rgba(14,165,233,0.08)]"
-          >
-            <RefreshCcw size={11} aria-hidden="true" />
+          <button type="button" onClick={onRefresh} className="product-reviews-empty-secondary">
+            <RefreshCcw size={13} aria-hidden="true" />
             Оновити
           </button>
         ) : null}
+        <button type="button" onClick={onWriteReview} className="product-reviews-empty-action">
+          <Star size={13} aria-hidden="true" />
+          Залишити перший відгук
+        </button>
       </div>
     </div>
   );

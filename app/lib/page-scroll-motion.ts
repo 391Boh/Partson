@@ -34,6 +34,9 @@ export function installPageScrollMotion(root: HTMLElement) {
     if (shift === item.lastShift) return;
     item.lastShift = shift;
     item.el.style.translate = item.axis === "x" ? `${shift}px 0` : `0 ${shift}px`;
+    if (item.hero && item.el.closest(".home-static")) {
+      item.el.style.scale = String(1 + Math.max(0, progress) * .04 * gain);
+    }
   };
   const deactivate = (effect: Effect) => {
     const group = fallbackScenes.get(effect.scene);
@@ -45,6 +48,7 @@ export function installPageScrollMotion(root: HTMLElement) {
     effect.lastShift = undefined;
     delete effect.el.dataset.pageMotionActive;
     effect.el.style.removeProperty("translate");
+    if (effect.hero) effect.el.style.removeProperty("scale");
   };
   const observer = new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -91,21 +95,34 @@ export function installPageScrollMotion(root: HTMLElement) {
       delete el.dataset.pageMotionNative;
       effects.delete(el);
     }
-    // One small depth anchor per homepage backdrop. Moving the entire section
-    // field promoted a large transparent texture containing all of its masks;
-    // one compact plane keeps the depth cue without that raster/memory cost.
+    // Two opposite depth planes on desktop; one on phones. The wide masked
+    // field stays still, so the focal parts move against a stable surface
+    // without promoting the full transparent backdrop into a GPU texture.
     const allowed = new Set<HTMLElement>();
-    const homeBackdrops = new Set<Element>();
+    const homeBackdrops = new Map<Element, HTMLElement[]>();
     for (const el of root.querySelectorAll<HTMLElement>(SELECTOR)) {
+      // Homepage backgrounds and panels are static: promoting these large
+      // masked layers regressed scrolling even with native CSS timelines.
+      if (el.closest(".home-static")) continue;
       const backdrop = el.closest(".home-backdrop");
       if (backdrop) {
-        // The full-width masked dot field is expensive to composite. Keep it
-        // static and use a compact logo/part as this section's depth anchor.
         if (el.matches(".home-scroll-decor")) continue;
-        if (homeBackdrops.has(backdrop)) continue;
-        homeBackdrops.add(backdrop);
+        const planes = homeBackdrops.get(backdrop) ?? [];
+        planes.push(el);
+        homeBackdrops.set(backdrop, planes);
+        continue;
       }
       allowed.add(el);
+    }
+    const drift = (el: HTMLElement) => Number.parseFloat(el.style.getPropertyValue("--plx-drift")) || 0;
+    for (const planes of homeBackdrops.values()) {
+      planes.sort((a, b) => Math.abs(drift(b)) - Math.abs(drift(a)));
+      const lead = planes[0];
+      if (!lead) continue;
+      allowed.add(lead);
+      if (window.innerWidth < 768) continue;
+      const rear = planes.slice(1).find(el => Math.sign(drift(el)) !== Math.sign(drift(lead))) ?? planes[1];
+      if (rear) allowed.add(rear);
     }
     for (const [el, effect] of effects) {
       if (allowed.has(el)) continue;
@@ -121,6 +138,7 @@ export function installPageScrollMotion(root: HTMLElement) {
       if (effects.has(el) || el.closest(".partner-page")) continue;
       const background = el.matches(BACKGROUNDS);
       const hero = el.matches(".hero-photo");
+      const home = Boolean(el.closest(".home-static"));
       const scene = el.matches(".home-popular-photo") ? el.closest<HTMLElement>(".home-popular-nav") : el.parentElement?.closest<HTMLElement>("section") ?? el.parentElement;
       if (!scene || scene === el) continue;
       if (hydrationRetries < HYDRATION_MAX_RETRIES && (!isHydrated(el) || !isHydrated(scene))) {
@@ -128,7 +146,9 @@ export function installPageScrollMotion(root: HTMLElement) {
         continue;
       }
       const drift = Number.parseFloat(el.style.getPropertyValue("--plx-drift"));
-      const amplitude = hero ? 56 : el.matches(".directory-hero-backdrop") ? -72 : el.matches(".directory-intro-facts,.directory-detail-hero aside") ? -14 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
+      const amplitude = home
+        ? hero ? 80 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(72, Math.max(36, Math.abs(drift))) : -48) : 12
+        : hero ? 56 : el.matches(".directory-hero-backdrop") ? -72 : el.matches(".directory-intro-facts,.directory-detail-hero aside") ? -14 : background ? (Number.isFinite(drift) ? Math.sign(drift) * Math.min(48, Math.max(24, Math.abs(drift))) : -32) : (el.matches(".directory-guide-notes,.info-step-card:nth-child(even),.catalog-seo-copy-secondary") ? -20 : 20);
       const axis = !background && el.matches(".home-auto-grid > .reveal-head,.directory-intro-copy,.directory-detail-identity,.directory-guide-copy,.catalog-seo-title") ? "x" : "y";
       const effect: Effect = { el, scene, amplitude, axis, hero };
       // Homepage/info modules already own their entrance. Keep foreground fades

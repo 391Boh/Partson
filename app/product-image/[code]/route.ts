@@ -11,6 +11,7 @@ import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import {
   fetchProductImageBase64,
   fetchProductImageBase64BatchDetailed,
+  wasImageAuthoritativelyMissing,
 } from "app/lib/product-image";
 import { findCatalogProductByCode } from "app/lib/catalog-server";
 import {
@@ -131,6 +132,9 @@ const ROUTE_IMAGE_HIT_CACHE_TTL_MS_FULL = 1000 * 60 * 60 * 2;
 // images are SEO assets, so don't poison later browser/Googlebot requests with
 // a cached miss and give the recovery lookup enough time to complete.
 const FULL_ROUTE_MISS_CACHE_TTL_MS = 0;
+// Only 1C's own "this product has no photo" answer is cached for the full
+// image; a photo upload clears it (clearRouteImageCacheForProduct).
+const FULL_ROUTE_AUTHORITATIVE_MISS_CACHE_TTL_MS = 1000 * 60 * 3;
 const FULL_ROUTE_LOOKUP_BUDGET_MS = 3800;
 const DISK_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const DISK_CACHE_DIR = path.join(process.cwd(), ".cache", "product-images");
@@ -713,6 +717,10 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     : strictMode
       ? 0
       : FULL_ROUTE_MISS_CACHE_TTL_MS;
+  const respondWithCachedMiss = () =>
+    strictMode || catalogMode || noRedirectFallback
+      ? fallbackNotFound(catalogMissCacheControl)
+      : fallbackRedirect(request);
   const routeLookupStartedAt = Date.now();
   // Set when 1C didn't answer within the budget, so a miss is "unknown", not
   // "no photo" — see the 503 response at the end.
@@ -777,13 +785,13 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
       return respondWithImage(optimizedImage, { cacheBust: false });
     }
 
-    if (!hasCacheBust && routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
-      return fallbackNotFound(catalogMissCacheControl);
+    if (!hasCacheBust && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
+      return respondWithCachedMiss();
     }
   }
 
-  if (!hasCacheBust && routeMissTtlMs > 0 && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
-    return fallbackNotFound(catalogMissCacheControl);
+  if (!hasCacheBust && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
+    return respondWithCachedMiss();
   }
 
   if (
@@ -810,9 +818,9 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     }
   }
 
-  const writeRouteMissCache = () => {
-    if (!hasCacheBust && routeMissTtlMs > 0 && canWriteRouteCache()) {
-      routeMissCache.set(routeMissCacheKey, Date.now() + routeMissTtlMs);
+  const writeRouteMissCache = (ttlMs = routeMissTtlMs) => {
+    if (!hasCacheBust && ttlMs > 0 && canWriteRouteCache()) {
+      routeMissCache.set(routeMissCacheKey, Date.now() + ttlMs);
     }
   };
 
@@ -844,6 +852,18 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     // щоб клієнт швидко переключився на власну заглушку без логотипа.
     if (!imageBase64 && strictMode) {
       if (!catalogMode || catalogLookupHandled) writeRouteMissCache();
+      return null;
+    }
+
+    // 1C confirmed the product has no photo: nothing for the fallback to find.
+    if (
+      !imageBase64 &&
+      !catalogMode &&
+      !strictMode &&
+      !lookupTimedOut &&
+      lookupKeys.some((key) => wasImageAuthoritativelyMissing(key))
+    ) {
+      writeRouteMissCache(FULL_ROUTE_AUTHORITATIVE_MISS_CACHE_TTL_MS);
       return null;
     }
 

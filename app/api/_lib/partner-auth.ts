@@ -51,11 +51,13 @@ export const resolvePartnerStatusByUid = async (uid: string) => {
   const request = (async () => {
     const [grant, snapshot] = await Promise.all([
       getFirebaseAdminDb().collection("partnerGrants").doc(normalizedUid).get(),
-      getFirebaseAdminDb().collection("orders").where("uid", "==", normalizedUid).select("totalAmount", "total").get(),
+      getFirebaseAdminDb().collection("orders").where("uid", "==", normalizedUid).select("totalAmount", "total", "cancelled").get(),
     ]);
     const manuallyGranted = grant.data()?.active === true;
     const totalSpent = snapshot.docs.reduce((sum, document) => {
-      const data = document.data() as { totalAmount?: unknown; total?: unknown };
+      const data = document.data() as { totalAmount?: unknown; total?: unknown; cancelled?: unknown };
+      // A cancelled order was never bought.
+      if (data.cancelled === true) return sum;
       return sum + readOrderAmount(data.totalAmount ?? data.total);
     }, 0);
     return {

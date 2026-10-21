@@ -7,6 +7,8 @@ import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 import { invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
+import { setProductPromoPriceOverride } from "app/lib/product-promo-overrides";
+import { confirmOneCPromoPrice, promoConfirmationError } from "app/api/_lib/confirm-onec-promo-price";
 
 export const runtime = "nodejs";
 
@@ -137,13 +139,14 @@ export async function POST(request: NextRequest) {
   }
 
   let parsed: {
+    [key: string]: unknown;
     success?: boolean;
     found?: boolean;
     updated?: boolean;
     message?: string;
     error_message?: string;
     // edit's price write; the top-level success only means "request handled".
-    price_result?: { success?: boolean; message?: string; ЦінаПрод?: number; ЦінаЗакуп?: number; Акція?: number };
+    price_result?: { success?: boolean; message?: string; ЦінаПрод?: number; ЦінаЗакуп?: number; Акція?: number; [key: string]: unknown };
   } = {};
   try {
     parsed = JSON.parse(result.text) as typeof parsed;
@@ -163,20 +166,21 @@ export async function POST(request: NextRequest) {
   if (parsed.price_result?.success === false) {
     return json({ ok: false, error: parsed.price_result.message || "1С не записала ціну" }, 422);
   }
-  // An older 1C edit ignores Акція without saying so; only a stored value it
-  // echoes back proves the promo was written.
-  const confirmedPromoPriceEuro =
-    typeof parsed.price_result?.Акція === "number" ? parsed.price_result.Акція : undefined;
-  if (promoPriceEuro !== undefined && confirmedPromoPriceEuro === undefined) {
-    return json({ ok: false, error: "1С не підтвердила акційну ціну (потрібне оновлення модуля ОбщегоНазначения)" }, 502);
+  if (promoPriceEuro !== undefined && !await confirmOneCPromoPrice(promoPriceEuro, parsed, article || code)) {
+    clearAllOneCCache();
+    clearCatalogPageRouteCache();
+    invalidateFullCatalogSnapshot();
+    return json({ ok: false, error: promoConfirmationError(parsed) }, 502);
   }
+  const confirmedPromoPriceEuro = promoPriceEuro;
+  if (confirmedPromoPriceEuro !== undefined) setProductPromoPriceOverride(code, article, confirmedPromoPriceEuro);
 
   clearAllOneCCache();
   clearCatalogPageRouteCache();
   // Promo badges and partner promo prices are read from the full snapshot.
   invalidateFullCatalogSnapshot();
   try {
-    revalidateTag("product-page-data", "max");
+    revalidateTag("product-page-data", { expire: 0 });
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
     if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
   } catch {
@@ -199,7 +203,7 @@ export async function POST(request: NextRequest) {
     ...(confirmedPromoPriceEuro !== undefined
       ? { promoPriceEuro: confirmedPromoPriceEuro, "Акція": confirmedPromoPriceEuro }
       : {}),
-    hasPrice: hasUpdatedPrice,
-    "ЕстьЦена": hasUpdatedPrice,
+    ...((priceEuro !== undefined || costPriceEuro !== undefined)
+      ? { hasPrice: hasUpdatedPrice, "ЕстьЦена": hasUpdatedPrice } : {}),
   });
 }

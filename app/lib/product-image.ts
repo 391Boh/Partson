@@ -115,6 +115,10 @@ const imageMissCache = new Map<string, number>();
 const imageBase64Cache = new Map<string, { expiresAt: number; value: string }>();
 const IMAGE_BASE64_CACHE_MAX_ENTRIES = 96;
 const imageInFlightCache = new Map<string, Promise<string | null>>();
+// Keys 1C itself answered for: the product exists and has no ФайлКартинки.
+// Lets the full image route cache that miss instead of retrying every view.
+const authoritativeImageMisses = new Map<string, number>();
+const AUTHORITATIVE_IMAGE_MISS_TTL_MS = 1000 * 60;
 const IMAGE_URL_DOWNLOAD_TIMEOUT_MS = 1200;
 const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
 // Bounded fan-out for probing unresolved 1C batch-image endpoint candidates.
@@ -157,7 +161,13 @@ const pruneImageMissCache = () => {
   for (const [key, entry] of imageBase64Cache.entries()) {
     if (!entry || entry.expiresAt <= now) imageBase64Cache.delete(key);
   }
+  for (const [key, expiresAt] of authoritativeImageMisses.entries()) {
+    if (expiresAt <= now) authoritativeImageMisses.delete(key);
+  }
 };
+
+export const wasImageAuthoritativelyMissing = (lookupKey: string) =>
+  (authoritativeImageMisses.get((lookupKey || "").trim().toLowerCase()) || 0) > Date.now();
 
 const normalizeBase64 = (value: string) => {
   const cleaned = value.replace(/[\r\n\s]+/g, "").trim();
@@ -711,6 +721,8 @@ const fetchProductImageBase64BatchFromEndpoint = async (
   return null;
 };
 
+const IMAGE_LOOKUP_FINAL_MISS = Symbol("image-lookup-final-miss");
+
 export const fetchProductImageBase64 = async (
   codeOrArticle: string,
   options?: ProductImageLookupOptions
@@ -816,6 +828,19 @@ export const fetchProductImageBase64 = async (
     if (batchResult && Object.keys(batchResult.resolved).length > 0) {
       return Object.values(batchResult.resolved)[0];
     }
+    // A batch answer to `codes` is final: 1C either named the product without
+    // a photo or has no product with that code. The other body shapes only
+    // made the current module fail ("Ошибка запроса фото") and cost ~3.8s
+    // of sequential requests per photo-less product.
+    if (batchResult && Array.isArray(body.codes)) {
+      if (batchResult.handledKeys.has(normalized.toLowerCase())) {
+        authoritativeImageMisses.set(
+          normalized.toLowerCase(),
+          Date.now() + AUTHORITATIVE_IMAGE_MISS_TTL_MS
+        );
+      }
+      return IMAGE_LOOKUP_FINAL_MISS;
+    }
 
     // Legacy fallback: single-image response with image_base64 at top level
     const record = asRecord(payload);
@@ -845,9 +870,10 @@ export const fetchProductImageBase64 = async (
           ]
         : IMAGE_BATCH_ENDPOINT_CANDIDATES;
 
-    for (const endpoint of endpoints) {
+    lookup: for (const endpoint of endpoints) {
       for (const body of queryBodies) {
         const resolved = await loadFromBody(endpoint, body).catch(() => null);
+        if (resolved === IMAGE_LOOKUP_FINAL_MISS) break lookup;
         if (typeof resolved === "string" && resolved) {
           resolvedImageBatchEndpoint = endpoint;
           setImageBase64Cache(positiveCacheKey, {
@@ -1029,6 +1055,7 @@ export const clearProductImageCacheForProduct = (lookupKey: string) => {
   if (!normalized) return;
 
   imageBase64Cache.delete(normalized);
+  authoritativeImageMisses.delete(normalized);
 
   // imageMissCache keys are formatted as "<lookupKey>::<timeoutMs>::<0|1>"
   for (const key of imageMissCache.keys()) {

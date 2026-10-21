@@ -28,6 +28,9 @@ import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
 import ProductIdentitySticky from "app/components/ProductIdentitySticky";
 import ProductSectionNav from "app/components/ProductSectionNav";
+import ProductNavBuyStrip from "app/components/ProductNavBuyStrip";
+import ProductServiceLinks from "app/components/ProductServiceLinks";
+import { informationSections } from "app/inform/section-config";
 import ProductPageAdminEditGate from "app/components/ProductPageAdminEditGate";
 import ProductRelatedItemsSection from "app/components/ProductRelatedItemsSection";
 import ProductDescriptionServerCard, {
@@ -2268,7 +2271,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // visitor nothing they didn't already know from being on a product page.
   // The subgroup/group name is real, specific context (e.g. "Гальмівні
   // колодки"); only fall back to the generic phrase when neither is known.
-  const productHeroHighlights = [
+  // Same delivery figure as /inform/delivery; each promise links to its page.
+  const deliveryDays =
+    informationSections.find((section) => section.key === "delivery")?.facts[0]?.value || "1–2 дні";
+  const productHeroHighlights: Array<{ label: string; icon: typeof Truck; href?: string }> = [
     {
       label: "Перевіримо за VIN",
       icon: ShieldCheck,
@@ -2276,10 +2282,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     {
       label: "Самовивіз у Львові",
       icon: MapPin,
+      href: "/inform/location",
     },
     {
-      label: "Доставка 1–3 дні",
+      label: `Доставка ${deliveryDays}`,
       icon: Truck,
+      href: "/inform/delivery",
     },
   ];
   // Product page's own critical CSS (see app/lib/critical-css.ts): React
@@ -2343,6 +2351,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       ))}
                     </ol>
                   </nav>
+                  <ProductNavBuyStrip name={visibleProductName} />
                   <ProductSectionNav
                     items={[
                       { href: "#product-description", label: "Опис і характеристики", shortLabel: "Опис" },
@@ -2481,12 +2490,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </div>
 
                     <div className="product-summary-highlights mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 px-1 text-xs font-medium text-slate-600">
-                      {productHeroHighlights.map(({ label, icon: HighlightIcon }) => (
-                        <span key={label} className="inline-flex items-center gap-1.5">
-                          <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
-                          {label}
-                        </span>
-                      ))}
+                      {productHeroHighlights.map(({ label, icon: HighlightIcon, href }) =>
+                        href ? (
+                          <Link key={label} href={href} prefetch={false} className="product-highlight-link inline-flex items-center gap-1.5">
+                            <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
+                            {label}
+                          </Link>
+                        ) : (
+                          <span key={label} className="inline-flex items-center gap-1.5">
+                            <HighlightIcon size={14} className="text-sky-700" aria-hidden="true" />
+                            {label}
+                          </span>
+                        )
+                      )}
                     </div>
 
                   </div>
@@ -2520,8 +2536,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                               descriptionTextClass={descriptionTextClass}
                               enableClientLookup
                               fitmentText={productFitmentText}
-                              contactPhone={STORE_PHONE_DISPLAY}
-                              contactAddress={STORE_ADDRESS}
                             />
                           }
                         >
@@ -2533,8 +2547,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             descriptionTextClass={descriptionTextClass}
                             enableClientLookup
                             fitmentText={productFitmentText}
-                            contactPhone={STORE_PHONE_DISPLAY}
-                            contactAddress={STORE_ADDRESS}
                             chatButton={
                               <OpenChatButton
                                 message={chatPrefillMessage}
@@ -2546,6 +2558,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         </Suspense>
                       </div>
                     </section>
+                    {!isModalView && (
+                      <div className="product-service-wrap">
+                        <ProductServiceLinks />
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-3">
@@ -2565,6 +2582,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                               euroRate={recommendationEuroRate}
                               crossReferenceCodes={productAnalogCodes}
                               displayName={productHeadingText}
+                              browseLinks={[
+                                ...(categoryLandingHref && (visibleProductSubgroup || visibleProductGroup)
+                                  ? [{ href: categoryLandingHref, label: `Усі товари: ${visibleProductSubgroup || visibleProductGroup}` }]
+                                  : []),
+                                ...(producerLandingPath && product.producer
+                                  ? [{ href: producerLandingPath, label: `Усі товари ${product.producer}` }]
+                                  : []),
+                              ]}
                             />
                           </Suspense>
                           <ProductDeferredRecommendations
@@ -2607,6 +2632,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         subGroup={visibleProductSubgroup}
                         hasPrice={initialPriceUah != null}
                         quantity={product.quantity}
+                        contactPhone={STORE_PHONE_DISPLAY}
+                        contactPhoneTel={STORE_PHONE_TEL}
+                        contactAddress={STORE_ADDRESS}
                       />
                     </div>
                   )}

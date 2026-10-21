@@ -54,3 +54,17 @@ assert.ok(!safeJsonLd(hostile).includes('<'));
 assert.deepEqual(JSON.parse(safeJsonLd(hostile)), hostile);
 console.log('SEO copy passed: product identity, unique concise descriptions, image metadata and safe JSON-LD.');
 console.log(JSON.stringify({ title: title({ name: product.productName, producer: product.producer, article: product.article }), description: text, alt: alt(product) }, null, 2));
+
+const { normalizeSeoTitle, trimSeoDescription } = load('app/lib/seo-metadata');
+for (const input of ['Каталог | PartsON | PartsON', 'PartsON — магазин | PartsON', '  Каталог   | PartsON ']) {
+ const result = normalizeSeoTitle(input);
+ assert.equal((result.match(/PartsON/g) || []).length, 1, result);
+ assert.equal(normalizeSeoTitle(result), result);
+ const page = buildPageMetadata({ title: input, description: 'Опис категорії.', canonicalPath: '/groups' });
+ assert.equal(page.title.absolute, result);
+ assert.equal(page.openGraph.title, result);
+ assert.equal(page.twitter.title, result);
+}
+const completeSentence = 'Оберіть деталі для гальмівної системи вашого автомобіля.';
+assert.equal(trimSeoDescription(`${completeSentence} ${'Додаткова інформація '.repeat(15)}`), completeSentence);
+console.log('SEO metadata passed: one brand, consistent social titles and complete sentences.');

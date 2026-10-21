@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { fetchCatalogTree } from "app/lib/onec-proxy-client";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
@@ -196,11 +197,7 @@ const loadProducts = async (options: LoadOptions = {}): Promise<ProductNode[]> =
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
           response = await Promise.race([
-            fetch("/api/proxy?endpoint=getprod", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({}),
-            }),
+            fetchCatalogTree(),
             new Promise<Response>((_, reject) => {
               timeoutId = setTimeout(
                 () => reject(new Error("catalog-products-timeout")),
@@ -1506,15 +1503,15 @@ const ProductFetcher: React.FC<Props> = ({
                   </svg>
                 </span>
                 <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-sky-700">
-                  Каталог
+                  Категорії
                 </span>
               </div>
 
               {/* title — oversized display, two-tone */}
               <h2 className="relative mt-4 font-display text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-                Каталог автозапчастин
+                Запчастини
                 <br className="hidden min-[420px]:block" />{" "}
-                <span className="text-sky-700">за категоріями</span>
+                <span className="whitespace-nowrap text-sky-700">за категоріями</span>
               </h2>
 
               <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
@@ -1525,9 +1522,9 @@ const ProductFetcher: React.FC<Props> = ({
                   not by screen position ("поруч" — meaningless once this
                   card and the grid stack on mobile). */}
               <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-                Деталі згруповано за{" "}
-                <span className="font-semibold text-slate-800">категоріями</span> — від гальм і ходової до електрики та кузова, кожна з підкатегоріями для точного пошуку. Оберіть категорію нижче або скористайтеся{" "}
-                <span className="font-semibold text-sky-700">пошуком</span>, якщо вже знаєте назву чи артикул.
+                Від{" "}
+                <span className="font-semibold text-slate-800">гальм і ходової</span> до електрики та кузова — кожна категорія з підгрупами. Знаєте назву чи артикул? Скористайтеся{" "}
+                <span className="font-semibold text-sky-700">пошуком</span>.
               </p>
 
               {/* search — the primary action. Same collapse-to-button

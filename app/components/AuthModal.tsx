@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { User as FirebaseUser } from "firebase/auth";
 import AuthForm from "app/components/AuthForm";
-import AccountInfo from "app/components/AccountInfo";
+import dynamic from "next/dynamic";
+import { loadAccountInfoModule } from "app/lib/auth-modal-loader";
+
+// Guests only need AuthForm. The profile editor, avatars and account data
+// must not be parsed/evaluated on their first login interaction.
+const AccountInfo = dynamic(loadAccountInfoModule, { ssr: false });
 
 type AuthMode = "login" | "register" | "account";
 

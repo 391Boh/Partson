@@ -653,7 +653,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             shadow-sm hover:shadow-md
                         `}
                     >
-                        <div className="catalog-card-image relative mr-2 flex h-full w-1/3 items-center justify-center overflow-hidden rounded-lg bg-white sm:w-2/5 group/imgarea">
+                        <div className="catalog-card-image relative mr-2 flex h-full w-[28%] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white group/imgarea">
                             {/* Pinned to the photo's own corner (not the card's), so it
                                 never sits on top of the title text below — a fixed,
                                 self-contained box instead of floating over whatever

@@ -8,7 +8,14 @@ let response;
 let sent;
 let freshStock = null;
 let readCount = 0;
+let promoReadback = {};
+const promoReadbackRequests = [];
 const noop = () => {};
+const priceResult = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../app/api/_lib/onec-price-result.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: priceResult });
+assert.equal(priceResult.readOneCPriceResultValue({ ЦенаАкции: "7,25" }, "promo"), 7.25);
 const mocks = {
   "next/server": { NextResponse: Response },
   "next/cache": { revalidatePath: noop, revalidateTag: noop },
@@ -20,20 +27,38 @@ const mocks = {
     },
   },
   "app/api/_lib/rateLimit": { checkRateLimit: () => ({ ok: true }), setRateLimitHeaders: noop },
-  "app/api/_lib/requestValidation": { isNonEmptyString: (s) => typeof s === "string" && !!s.trim() },
+  "app/api/_lib/requestValidation": { isNonEmptyString: (s) => typeof s === "string" && !!s.trim(), readJsonObject: async request => ({ ok: true, value: JSON.parse(await request.text()) }) },
   "app/api/_lib/admin-auth": { verifyAdminRequest: async () => ({ email: "test@example.com" }) },
+  "app/api/_lib/onec-price-result": priceResult,
   "app/lib/catalog-image-result-cache": { clearCatalogImageResultCacheForProduct: noop },
   "app/lib/product-image": { clearProductImageCacheForProduct: noop },
   "app/lib/product-image-route-cache": { clearRouteImageCacheForProduct: noop },
   "app/lib/catalog-page-route-cache": { clearCatalogPageRouteCache: noop },
-  "app/lib/catalog-server": { invalidateFullCatalogSnapshot: noop, patchFullCatalogSnapshotProduct: noop, fetchExactCatalogProductByLookup: async (_code, options) => {
-    readCount++;
-    assert.equal(options.cacheTtlMs, 0);
-    assert.equal(options.retries, 0);
-    return freshStock;
-  } },
+  "app/lib/catalog-server": {
+    invalidateFullCatalogSnapshot: noop,
+    patchFullCatalogSnapshotProduct: noop,
+    fetchPromoOffersByLookupKeys: async (keys, options) => {
+      promoReadbackRequests.push({ keys, options });
+      return promoReadback;
+    },
+    fetchExactCatalogProductByLookup: async (_code, options) => {
+      readCount++;
+      assert.equal(options.cacheTtlMs, 0);
+      assert.equal(options.retries, 0);
+      return freshStock;
+    },
+  },
+  "app/lib/product-promo-overrides": { setProductPromoPriceOverride: noop },
   "app/lib/product-edit-overrides": { setProductEditOverride: noop },
 };
+const promoConfirmation = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../app/api/_lib/confirm-onec-promo-price.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, {
+  exports: promoConfirmation, setTimeout,
+  require: name => mocks[name] || mocks[`app/api/_lib/${name.replace(/^\.\//, "")}`],
+});
+mocks["app/api/_lib/confirm-onec-promo-price"] = promoConfirmation;
 const exports = {};
 const source = readFileSync(new URL("../app/api/product-update/route.ts", import.meta.url), "utf8");
 vm.runInNewContext(ts.transpileModule(source, {
@@ -97,6 +122,43 @@ const savedPrices = await update({ article: 'NEW-ARTICLE', ЦінаПрод: 12.
 assert.equal(savedPrices.status, 200);
 assert.equal(sent.body.артикул_ціни, 'NEW-ARTICLE');
 assert.equal(sent.body.НомерПоКаталогу, undefined);
+const savedPromo = await update({ article: "ARTICLE-42", Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true, Акция: "7,25" },
+});
+assert.equal(savedPromo.status, 200, "Accept 1C's Russian alias and decimal-comma promo-price echo");
+assert.equal(savedPromo.body.promoPriceEuro, 7.25);
+assert.equal(sent.body.артикул_ціни, "ARTICLE-42");
+assert.equal(sent.body.Акція, 7.25);
+promoReadback = { "article-42": { hasPromo: true, promoPriceEuro: 7.25 } };
+const promoReadbackSave = await update({ article: "ARTICLE-42", Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true },
+});
+assert.equal(promoReadbackSave.status, 200, "Confirm a promo price by reading the exact article when the edit response omits its value");
+assert.equal(promoReadbackRequests.at(-1).keys.join(","), "ARTICLE-42");
+assert.equal(promoReadbackRequests.at(-1).options.live, true);
+assert.equal(promoReadbackRequests.at(-1).options.cacheTtlMs, 0);
+const stalePromoEchoSave = await update({ article: "ARTICLE-42", Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true, Акція: 8.5 },
+});
+assert.equal(stalePromoEchoSave.status, 200, "Use the matching live value if the edit response contains a stale price");
+assert.equal(stalePromoEchoSave.body.promoPriceEuro, 7.25);
+promoReadback = { "article-42": { hasPromo: false, promoPriceEuro: null } };
+const promoRemovalReadback = await update({ article: "ARTICLE-42", Акція: 0, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true },
+});
+assert.equal(promoRemovalReadback.status, 200, "Confirm promo removal when the exact article has no active promo");
+promoReadback = {};
+// A 1C module without promo support answers the price block without Акція.
+const oldModulePromo = await update({ article: "ARTICLE-42", Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true, message: "Ціна не передана" },
+});
+assert.equal(oldModulePromo.status, 502);
+assert.match(oldModulePromo.body.error, /модуль 1С ще не записує поле «Акція»/, "Name the outdated 1C module instead of a generic failure");
+const failedPromo = await update({ article: "ARTICLE-42", Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: false, message: "Помилка запису" },
+});
+assert.notEqual(failedPromo.status, 200);
+assert.doesNotMatch(failedPromo.body.error, /модуль 1С/, "A failed write in a current module is not reported as an outdated module");
 for (const price_result of [undefined, { success: true }, { success: true, ЦінаПрод: 0 }]) {
   assert.equal((await update({ ЦінаПрод: 12.5, requirePriceConfirmation: true }, { success: true, price_result })).status, 502);
 }
@@ -133,3 +195,35 @@ assert.equal(confirmationAttempts, 2);
 assert.equal(sent.retries, 0);
 mocks["app/lib/catalog-server"].fetchExactCatalogProductByLookup = originalRead;
 console.log("Receipt/sale confirmation passed: old balance ignored, transient read failure recovered without another write.");
+
+// Full-form writes may update normal and promotional prices together.
+promoReadback = { "article-42": { hasPromo: true, promoPriceEuro: 7.25 } };
+assert.equal((await update({ article: "ARTICLE-42", ЦінаПрод: 12.5, Акція: 7.25, requirePriceConfirmation: true }, {
+  success: true, price_result: { success: true, ЦінаПрод: 12.5 },
+})).status, 200);
+promoReadback = { "article-42": { hasPromo: true, promoPriceEuro: 8.5 } };
+assert.equal((await update({ article: "ARTICLE-42", Акція: 7.25 }, {
+  success: true, price_result: { success: true, Акція: 8.5 },
+})).status, 502, "Unconfirmed promotions must fail even for callers without the strict flag");
+
+// The price-only endpoint must follow the same confirmation contract.
+const priceExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../app/api/product-update-price/route.ts", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: priceExports, process: { env: {} }, Headers,
+  require: name => { assert.ok(mocks[name], name); return mocks[name]; },
+});
+const savePromo = async (price, reply) => {
+  response = reply;
+  const result = await priceExports.POST({ text: async () => JSON.stringify({ code: "123", article: "ARTICLE-42", promoPriceEuro: price }) });
+  return { status: result.status, body: await result.json() };
+};
+assert.equal((await savePromo(7.25, { success: true, price_result: { Акція: 8.5 } })).status, 502);
+promoReadback = { "article-42": { hasPromo: true, promoPriceEuro: 7.25 } };
+const addedPromo = await savePromo(7.25, { success: true, price_result: { success: true } });
+assert.equal(addedPromo.status, 200);
+assert.equal(addedPromo.body.promoPriceEuro, 7.25);
+assert.equal(addedPromo.body.hasPrice, undefined, "A promo edit must not erase regular-price availability");
+promoReadback = { "article-42": { hasPromo: false, promoPriceEuro: null } };
+assert.equal((await savePromo(0, { success: true })).body.promoPriceEuro, 0);
+console.log("Promo add/edit/remove confirmation passed on both endpoints, including mixed edits and stale echoes.");

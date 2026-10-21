@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
   if (result.status === "not_found") return json({ error: "Order not found" }, 404);
   if (result.status === "not_payable") return json({ error: "Order is not confirmed yet" }, 409);
   if (result.status === "empty") return json({ ok: true, items: [] });
+  if (result.status === "cancelled") return json({ ok: true, cancelled: true, items: [] });
 
   return json({
     ok: true,

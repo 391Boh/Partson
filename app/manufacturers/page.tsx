@@ -38,7 +38,7 @@ const buildManufacturersPageDescription = (
   // fits whole instead of cutting a sentence off with "…".
   return appendSeoContact(
     pickFittingSeoDescription([
-      `Виробники автозапчастин PartsON: ${brandSummary}${productSummary}. Сторінка кожного бренду — групи товарів, ціни й наявність у Львові, доставка по Україні.`,
+      "Оберіть виробника, щоб переглянути його запчастини за категоріями. Порівняйте асортимент, ціни й наявність та знайдіть потрібний артикул.",
       `Виробники автозапчастин PartsON: ${brandSummary}${productSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
       `Виробники автозапчастин PartsON: ${brandSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
     ])
@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
     await getFullManufacturersDirectoryData();
 
   return buildPageMetadata({
-    title: "Виробники автозапчастин і бренди",
+    title: "Бренди автозапчастин",
     description: buildManufacturersPageDescription(
       clientProducers.length,
       indexedBrands,
@@ -72,7 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "запчастини bosch trw febi lemforder sachs",
       "оригінальні запчастини та аналоги",
     ],
-    openGraphTitle: "Виробники автозапчастин і бренди | PartsON",
+    openGraphTitle: "Бренди автозапчастин | PartsON",
     image: {
       url: "/opengraph-partson-v3.png",
       alt: "PartsON - бренди і виробники автозапчастин",
@@ -91,7 +91,7 @@ export default async function ManufacturersPage() {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "@id": `${siteUrl}/manufacturers#collection-page`,
-    name: "Виробники автозапчастин і бренди PartsON",
+    name: "Бренди автозапчастин PartsON",
     description: pageDescription,
     url: `${siteUrl}/manufacturers`,
     inLanguage: "uk-UA",
@@ -156,7 +156,7 @@ export default async function ManufacturersPage() {
             current="manufacturers"
             badge="Бренди та виробники"
             icon={Factory}
-            title="Бренди та виробники автозапчастин"
+            title="Бренди автозапчастин"
             description="Шукаєте деталь конкретного бренду? Оберіть виробника, щоб переглянути його групи запчастин і доступні товари. Порівняйте артикули, характеристики та ціну — логотип сам по собі не визначає сумісність."
             stats={[
               {

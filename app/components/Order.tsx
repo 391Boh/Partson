@@ -21,7 +21,9 @@ import {
   Percent,
   Handshake,
   Trash2,
+  Ban,
 } from 'lucide-react';
+import OrderCancelControl from './OrderCancelControl';
 import Link from 'next/link';
 import { getNovaPoshtaTrackingUrl, isNovaPoshtaDelivery } from 'app/lib/order-tracking';
 import { useCart } from 'app/context/CartContext';
@@ -83,6 +85,8 @@ interface PastOrder {
   read?: boolean;
   shipped?: boolean;
   completed?: boolean;
+  cancelled?: boolean;
+  paymentStatus?: string;
 }
 
 type FirstOrderDiscountStatus = 'loading' | 'guest' | 'eligible' | 'used' | 'error';
@@ -244,6 +248,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   const totalPastOrdersAmount = useMemo(
     () =>
       pastOrders.reduce((total, order) => {
+        if (order.cancelled) return total;
         const amount = Number(order.totalAmount || order.total || 0);
         return Number.isFinite(amount) ? total + amount : total;
       }, 0),
@@ -278,12 +283,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
         const existingOrdersQuery = query(
           collection(db, 'orders'),
           where('uid', '==', user.uid),
-          limit(1)
+          limit(20)
         );
         const snapshot = await getDocs(existingOrdersQuery);
         if (cancelled) return;
 
-        setFirstOrderDiscountStatus(snapshot.empty ? 'eligible' : 'used');
+        // An order the customer cancelled does not use up the discount.
+        const hasRealOrder = snapshot.docs.some((document) => document.data().cancelled !== true);
+        setFirstOrderDiscountStatus(hasRealOrder ? 'used' : 'eligible');
       } catch (error) {
         console.error('Помилка перевірки знижки першого замовлення:', error);
         if (!cancelled) setFirstOrderDiscountStatus('error');
@@ -570,7 +577,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                   ? `${itemNames.slice(0, 2).join(', ')} і ще ${itemNames.length - 2}`
                   : itemNames.join(', ') || 'Склад не збережено';
 
-                const status = order.completed
+                const status = order.cancelled
+                  ? { label: 'Скасовано', tone: 'cancelled', Icon: Ban }
+                  : order.completed
                   ? { label: 'Виконано', tone: 'done', Icon: PackageCheck }
                   : order.shipped
                     ? { label: 'Відправлено', tone: 'shipped', Icon: Truck }
@@ -658,6 +667,13 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                             <div><dt><Percent size={14} aria-hidden="true" />Знижка</dt><dd className="is-positive">−{currencyFormatter.format(orderDiscountAmount)} грн</dd></div>
                           )}
                         </dl>
+
+                        {/* Until a manager opens it, an order paid on delivery
+                            can be cancelled here (the server re-checks). */}
+                        {!order.cancelled && !order.read && !order.shipped && !order.completed &&
+                          order.paymentStatus === 'cash_on_delivery' && (
+                            <OrderCancelControl orderId={order.orderId || order.id} />
+                        )}
 
                         {trackingUrl && (
                           <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="cw-order-tracking">

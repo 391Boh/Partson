@@ -727,11 +727,9 @@ export default function ProductPurchasePanelClient(
           <ul className="product-purchase-perks">
             <li>
               <CreditCard size={13} aria-hidden="true" />
-              Оплата при отриманні або онлайн
-            </li>
-            <li>
-              <Headphones size={13} aria-hidden="true" />
-              Менеджер підтвердить наявність
+              <Link href="/inform/payment" prefetch={false} className="product-perk-link">
+                Оплата при отриманні або онлайн
+              </Link>
             </li>
           </ul>
           <ProductPageActions

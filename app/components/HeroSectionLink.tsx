@@ -8,16 +8,19 @@ import type { ReactNode } from "react";
 export default function HeroSectionLink({
   targetId,
   className,
+  ariaLabel,
   children,
 }: {
   targetId: string;
   className?: string;
+  ariaLabel?: string;
   children: ReactNode;
 }) {
   return (
     <a
       href={`#${targetId}`}
       className={className}
+      aria-label={ariaLabel}
       onClick={(event) => {
         const target = document.getElementById(targetId);
         if (!target) return;

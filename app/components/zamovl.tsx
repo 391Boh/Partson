@@ -21,6 +21,7 @@ import CustomerDetails from "./CustomerDetails";
 import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
+import { createOrderCancelToken } from "app/lib/order-cancel-client";
 import { notifyTelegramAdmin } from "app/lib/telegram-notify-client";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { getMarketingAttribution } from "app/lib/marketing-attribution";
@@ -259,6 +260,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
     const alreadyExists = orderCreatedRef.current || Boolean(orderSnapshot?.exists());
     const purchaseAlreadyTracked =
       orderSnapshot?.exists() && orderSnapshot.data().ga4PurchaseTracked === true;
+    // Lets this browser cancel the order before a manager opens it, guests
+    // included (app/lib/order-cancel-client.ts); stored once, on create.
+    const cancelTokenHash = alreadyExists ? null : await createOrderCancelToken(orderId);
 
     await setDoc(
       orderRef,
@@ -308,6 +312,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
           : {
               createdAt: Timestamp.now(),
               ga4PurchaseTracked: false,
+              ...(cancelTokenHash ? { cancelTokenHash } : {}),
               marketingAttribution: getMarketingAttribution(),
             }),
       },

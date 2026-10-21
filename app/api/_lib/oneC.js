@@ -280,7 +280,7 @@ function pruneCache() {
   if (now < nextCachePruneAt) return;
   nextCachePruneAt = now + RESPONSE_CACHE_PRUNE_INTERVAL_MS;
   for (const [key, entry] of responseCache.entries()) {
-    if (entry.expiresAt <= now) deleteCached(key);
+    if ((entry.staleUntil || entry.expiresAt) <= now) deleteCached(key);
   }
 }
 
@@ -291,11 +291,24 @@ function deleteCached(key) {
   responseCache.delete(key);
 }
 
+// The category tree, car list and product info change rarely but cost
+// seconds to fetch cold. Past their TTL they are still served for this long
+// while one background request refreshes them, so the visitor who happens to
+// arrive after expiry no longer waits for 1C.
+const STALE_WHILE_REVALIDATE_ENDPOINTS = new Set(["getprod", "getauto", "getinfo"]);
+const STALE_WHILE_REVALIDATE_MS = parsePositiveIntEnv("ONEC_STALE_WHILE_REVALIDATE_MS", 1000 * 60 * 60 * 6);
+
+function getStaleCached(key) {
+  const entry = responseCache.get(key);
+  if (!entry || !entry.staleUntil || entry.staleUntil <= nowMs()) return null;
+  return entry.value;
+}
+
 function getCached(key) {
   const entry = responseCache.get(key);
   if (!entry) return null;
   if (entry.expiresAt <= nowMs()) {
-    deleteCached(key);
+    if (!entry.staleUntil || entry.staleUntil <= nowMs()) deleteCached(key);
     return null;
   }
   // Map insertion order doubles as the LRU list without another allocation.
@@ -304,7 +317,7 @@ function getCached(key) {
   return entry.value;
 }
 
-function setCached(key, value, ttlMs) {
+function setCached(key, value, ttlMs, staleMs = 0) {
   if (!ttlMs || ttlMs <= 0) return;
   // Count UTF-16 string storage conservatively, including request keys. Image
   // responses can be several MB, so an entry count alone cannot bound memory.
@@ -321,7 +334,8 @@ function setCached(key, value, ttlMs) {
     deleteCached(oldestKey);
   }
 
-  responseCache.set(key, { expiresAt: nowMs() + ttlMs, value, sizeBytes });
+  const expiresAt = nowMs() + ttlMs;
+  responseCache.set(key, { expiresAt, staleUntil: staleMs > 0 ? expiresAt + staleMs : 0, value, sizeBytes });
   responseCacheBytes += sizeBytes;
 }
 
@@ -447,11 +461,13 @@ export async function oneCRequest(endpoint, options = {}) {
       return disk;
     }
   }
+  const staleMs = cacheTtlMs > 0 && STALE_WHILE_REVALIDATE_ENDPOINTS.has(endpoint) ? STALE_WHILE_REVALIDATE_MS : 0;
+  const stale = staleMs > 0 ? getStaleCached(resolvedCacheKey) : null;
 
   const inFlightKey = `${requestGeneration}:${resolvedCacheKey}`;
   const inFlight = stockMovement ? null : inFlightRequests.get(inFlightKey);
   if (inFlight) {
-    return inFlight;
+    return stale ?? inFlight;
   }
 
   const requestPromise = runWithEndpointConcurrency(endpoint, async () => {
@@ -496,6 +512,7 @@ export async function oneCRequest(endpoint, options = {}) {
               res.on("data", (chunk) => {
                 text += chunk;
               });
+              res.on("error", reject);
               res.on("end", () => {
                 resolve({
                   status: res.statusCode || 500,
@@ -506,13 +523,20 @@ export async function oneCRequest(endpoint, options = {}) {
             }
           );
 
+          // setTimeout only fires on an idle socket; a response trickling in
+          // slowly would never trip it. The deadline bounds the whole request.
           req.setTimeout(timeoutMs, () => {
             req.destroy(new Error(`Request timeout after ${timeoutMs}ms`));
           });
+          const deadline = setTimeout(() => {
+            req.destroy(new Error(`Request timeout after ${timeoutMs}ms`));
+          }, timeoutMs + 1000);
 
           req.on("error", (err) => {
+            clearTimeout(deadline);
             reject(err);
           });
+          req.on("close", () => clearTimeout(deadline));
 
           if (payload) {
             req.write(payload);
@@ -535,7 +559,7 @@ export async function oneCRequest(endpoint, options = {}) {
         }
 
         if (cacheTtlMs > 0 && requestGeneration === cacheGeneration && result.status >= 200 && result.status < 300) {
-          setCached(resolvedCacheKey, result, cacheTtlMs);
+          setCached(resolvedCacheKey, result, cacheTtlMs, staleMs);
           writeDevDiskCache(endpoint, resolvedCacheKey, result);
         }
 
@@ -547,13 +571,14 @@ export async function oneCRequest(endpoint, options = {}) {
             ? `Request timeout after ${timeoutMs}ms`
             : err?.message || String(err);
         if (attempt > retries) {
+          console.warn(`[1C] ${endpoint} failed at ${url}: ${details}`);
           return {
             status: 500,
             text: JSON.stringify({
+              // No 1C address here: /api/proxy hands this body to browsers.
               error: "1C Service unreachable",
               details,
               endpoint,
-              url,
             }),
             contentType: "application/json",
           };
@@ -563,10 +588,19 @@ export async function oneCRequest(endpoint, options = {}) {
         await sleep(delay);
       }
     }
-  }, timeoutMs).finally(() => {
-    if (!stockMovement) inFlightRequests.delete(inFlightKey);
-  });
+  }, timeoutMs)
+    // A request that never got a slot fails like any other unreachable call
+    // (a result, not a throw), so callers handle both the same way.
+    .catch((err) => ({
+      status: 503,
+      text: JSON.stringify({ error: "1C Service busy", details: err?.message || String(err), endpoint }),
+      contentType: "application/json",
+    }))
+    .finally(() => {
+      if (!stockMovement) inFlightRequests.delete(inFlightKey);
+    });
 
   if (!stockMovement) inFlightRequests.set(inFlightKey, requestPromise);
-  return requestPromise;
+  // Past its TTL, a slow tree answer is still served while this refreshes it.
+  return stale ?? requestPromise;
 }

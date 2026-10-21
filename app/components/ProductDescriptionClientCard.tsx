@@ -1,14 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, Phone } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import ProductDescriptionContent from "app/components/ProductDescriptionContent";
-import {
-  getViewportParallaxProgress,
-  registerParallax,
-} from "app/lib/parallax-controller";
 
 type ProductDescriptionClientCardProps = {
   initialText?: string | null;
@@ -18,8 +13,6 @@ type ProductDescriptionClientCardProps = {
   chatButton?: ReactNode;
   enableClientLookup?: boolean;
   fitmentText?: string;
-  contactPhone?: string;
-  contactAddress?: string;
   // The server already looked the description up in 1C and found none.
   serverChecked?: boolean;
 };
@@ -49,8 +42,6 @@ export default function ProductDescriptionClientCard({
   chatButton,
   enableClientLookup = true,
   fitmentText = "",
-  contactPhone = "",
-  contactAddress = "",
   serverChecked = false,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
@@ -272,50 +263,12 @@ export default function ProductDescriptionClientCard({
     };
   }, [cacheKey, enableClientLookup, normalizedInitialText, requestUrl, retryToken]);
 
-  const sectionRef = useRef<HTMLElement>(null);
-  const glowRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const section = sectionRef.current;
-    const glow = glowRef.current;
-    if (!section || !glow) return;
-
-    const handle = registerParallax({
-      el: section,
-      compute: getViewportParallaxProgress,
-      apply: (progress) => {
-        const shift = (progress - 0.5) * 28;
-        glow.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0)`;
-      },
-    });
-
-    return () => handle.release();
-  }, []);
-
   return (
-    <section
-      ref={sectionRef}
-      className="relative overflow-hidden rounded-[22px] border border-sky-100 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(240,249,255,0.94),rgba(255,255,255,0.98))] p-3 shadow-[0_18px_42px_rgba(15,23,42,0.07)] ring-1 ring-white/80 transition-[box-shadow,border-color] duration-300 hover:border-sky-200 hover:shadow-[0_20px_44px_rgba(14,165,233,0.1)] sm:rounded-[24px] sm:p-4"
-    >
-      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
-      <span
-        ref={glowRef}
-        className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.16),transparent_70%)] blur-2xl will-change-transform"
-        aria-hidden="true"
-      />
-      <div className="relative flex flex-wrap items-end justify-between gap-2.5 border-b border-slate-900/8 pb-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
-            Інформація про товар
-          </p>
-          <h2 className="font-display mt-1 text-[1.2rem] font-extrabold leading-[1.15] tracking-[-0.02em] text-slate-900 sm:text-[1.35rem]">
-            Опис товару
-          </h2>
-        </div>
+    <section className="product-section">
+      <div className="product-section-head">
+        <h2 className="font-display product-section-title">Опис товару</h2>
         <div className="flex items-center gap-2">
-          <span className="inline-flex rounded-[12px] border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.09em] text-sky-800">
-            Задати запитання
-          </span>
+          <span className="text-[13px] font-semibold text-slate-600">Задати запитання</span>
           {chatButton}
         </div>
       </div>
@@ -355,50 +308,13 @@ export default function ProductDescriptionClientCard({
         )}
       </div>
       {fitmentText ? (
-        <div className="mt-3 rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,rgba(240,249,255,0.82),rgba(255,255,255,0.96))] p-3 shadow-[0_10px_22px_rgba(14,165,233,0.06)]">
-          <h3 className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-sky-800">
+        <div className="mt-4 rounded-[14px] border border-[#e1edf1] bg-[#f6fafb] px-4 py-3">
+          <h3 className="text-[14px] font-bold text-slate-900">
             Підбір і сумісність
           </h3>
           <p className="mt-1.5 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-sm">
             {fitmentText}
           </p>
-          {contactPhone || contactAddress ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {contactPhone ? (
-                <a
-                  href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}
-                  className="group flex min-w-0 items-center gap-2 rounded-[14px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-emerald-900 shadow-[0_10px_20px_rgba(16,185,129,0.08)] transition hover:border-emerald-300 hover:bg-emerald-50"
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500 text-white shadow-[0_8px_16px_rgba(16,185,129,0.24)]">
-                    <Phone size={15} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
-                      Телефон
-                    </span>
-                    <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
-                      {contactPhone}
-                    </span>
-                  </span>
-                </a>
-              ) : null}
-              {contactAddress ? (
-                <div className="flex min-w-0 items-center gap-2 rounded-[14px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98),rgba(255,255,255,0.94))] px-3 py-2.5 text-sky-950 shadow-[0_10px_20px_rgba(14,165,233,0.08)]">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-500 text-white shadow-[0_8px_16px_rgba(14,165,233,0.22)]">
-                    <MapPin size={15} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
-                      Адреса
-                    </span>
-                    <span className="block break-words text-[13px] font-black leading-5 sm:text-sm">
-                      {contactAddress}
-                    </span>
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </section>

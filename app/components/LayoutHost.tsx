@@ -1,6 +1,7 @@
 'use client';
 
 import type { ComponentType, ReactNode } from "react";
+import { fetchCatalogTree } from "app/lib/onec-proxy-client";
 import { Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { LayoutAccountRuntimeProps } from "./LayoutAccountRuntime";
@@ -837,11 +838,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           !shouldSkipGetProdWarmup &&
           !hasFreshGetProdCache()
         ) {
-          const res = await fetch("/api/proxy?endpoint=getprod", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: "{}",
-          });
+          const res = await fetchCatalogTree();
 
           if (res.ok) {
             const raw = await res.json();

@@ -1,5 +1,8 @@
 import "server-only";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+
 import type { RelatedProductCardItem } from "app/lib/product-related";
 import {
   getAnalogProducts,
@@ -37,6 +40,8 @@ type ProductRelatedItemsSectionProps = {
   // The page's H1 text: names the block and its ItemList markup in the same
   // readable words instead of the abbreviated 1C name.
   displayName?: string;
+  /** Category and manufacturer listings for this product. */
+  browseLinks?: Array<{ href: string; label: string }>;
 };
 
 const buildRecommendationItemListJsonLd = (
@@ -75,6 +80,7 @@ export default async function ProductRelatedItemsSection({
   euroRate = 50,
   crossReferenceCodes = [],
   displayName = "",
+  browseLinks = [],
 }: ProductRelatedItemsSectionProps) {
   const article = (product.article || "").trim();
   const code = (product.code || "").trim();
@@ -139,7 +145,6 @@ export default async function ProductRelatedItemsSection({
   return (
     <section className="product-analogs" aria-labelledby="product-analogs-title">
       <div className="product-analogs-head">
-        <p className="product-analogs-eyebrow">Аналоги та заміна</p>
         <h2 id="product-analogs-title">{heading}</h2>
         <p className="product-analogs-intro">
           Замінники від інших виробників і крос-номери для позиції «{productLabel}». Порівняйте ціну
@@ -162,6 +167,16 @@ export default async function ProductRelatedItemsSection({
         Аналог має збігатися з оригіналом за розмірами й кріпленням. Надішліть VIN — менеджер звірить номер
         з каталогом виробника до відправлення.
       </p>
+      {browseLinks.length > 0 ? (
+        <nav className="product-browse-links" aria-label="Більше товарів">
+          {browseLinks.map((link) => (
+            <Link key={link.href} href={link.href} prefetch={false} className="product-browse-link">
+              {link.label}
+              <ChevronRight size={15} aria-hidden="true" />
+            </Link>
+          ))}
+        </nav>
+      ) : null}
       {recommendationItemListJsonLd ? (
         <script
           type="application/ld+json"

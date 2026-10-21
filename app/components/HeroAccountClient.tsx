@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ShoppingBag, IdCard, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent, PartyPopper, Car } from "lucide-react";
+import { ShoppingBag, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
+import { preloadAuthModal } from "app/lib/auth-modal-loader";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
+import { FIRST_ORDER_DISCOUNT_PERCENT } from "app/lib/first-order-discount";
+import { PARTNER_DISCOUNT_PERCENT } from "app/lib/partnership-discount";
+import HeroGreetingAvatar from "./HeroGreetingAvatar";
 
 const HeroSavedProfile = dynamic(() => import("./HeroSavedProfile"), {
   ssr: false,
@@ -51,7 +55,6 @@ const actionButtonBase = [
 const primaryButton = `${actionButtonBase} border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.96)_0%,rgba(14,165,233,0.92)_52%,rgba(56,189,248,0.88)_100%)] text-white shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_10px_24px_rgba(14,165,233,0.22),0_6px_16px_rgba(2,132,199,0.16)] ring-1 ring-sky-200/14 motion-safe:hover:border-sky-200/65 motion-safe:hover:brightness-[1.07] motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_14px_32px_rgba(14,165,233,0.30),0_8px_22px_rgba(2,132,199,0.20)]`;
 const loginButton = `${primaryButton} bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] motion-safe:hover:[background-position:100%_50%] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-10 after:bg-[linear-gradient(90deg,rgba(255,255,255,0.14),rgba(255,255,255,0))]`;
 const secondaryButton = `${actionButtonBase} border-white/28 bg-white/10 text-sky-50 shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_8px_20px_rgba(2,6,23,0.26)] backdrop-blur-sm motion-safe:hover:border-white/48 motion-safe:hover:bg-white/18 motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.24)_inset,0_12px_28px_rgba(2,6,23,0.32)]`;
-const vinButton = `${loginButton}`;
 
 // Same shape-handling as AccountInfo.tsx's normalizeVins — the vins field
 // isn't always a clean string[] (legacy docs can hold a comma/semicolon
@@ -161,6 +164,9 @@ type ProfileData = {
   cars: string[];
   selectionLabel: string | null;
   delivery: DeliveryInfo | null;
+  avatar: string | null;
+  avatarFrame: string | null;
+  isAdmin: boolean;
 };
 type OrdersSummary = { hasOrders: boolean; totalSpent: number };
 
@@ -178,7 +184,9 @@ const parseProfileData = (data: Record<string, unknown>): ProfileData => {
     readSelectionLabel(avto?.selection) ??
     readSelectionLabel(data.selectedCarSelection);
   const delivery = readDeliveryInfo(data);
-  return { name, vins, cars, selectionLabel, delivery };
+  const avatar = typeof data.avatar === "string" && data.avatar ? data.avatar : null;
+  const avatarFrame = typeof data.avatarFrame === "string" && data.avatarFrame ? data.avatarFrame : null;
+  return { name, vins, cars, selectionLabel, delivery, avatar, avatarFrame, isAdmin: data.role === "admin" };
 };
 
 // Hero mounts this component twice at once (variant="benefits" and
@@ -232,7 +240,10 @@ const subscribeUserProfile = (
           profileListeners.get(uid)?.forEach((cb) => cb(result));
         },
         () => {
-          const empty: ProfileData = { name: null, vins: [], cars: [], selectionLabel: null, delivery: null };
+          const empty: ProfileData = {
+            name: null, vins: [], cars: [], selectionLabel: null, delivery: null,
+            avatar: null, avatarFrame: null, isAdmin: false,
+          };
           profileCache = { uid, data: empty };
           profileListeners.get(uid)?.forEach((cb) => cb(empty));
         }
@@ -275,6 +286,7 @@ const fetchOrdersSummary = (uid: string): Promise<OrdersSummary> => {
     const snap = await getDocs(query(collection(db, "orders"), where("uid", "==", uid)));
     const totalSpent = snap.docs.reduce((sum, docSnap) => {
       const data = docSnap.data() as Record<string, unknown>;
+      if (data.cancelled === true) return sum;
       return sum + Number(data.totalAmount || data.total || 0);
     }, 0);
     const result: OrdersSummary = { hasOrders: !snap.empty, totalSpent };
@@ -341,7 +353,7 @@ export default function HeroAccountClient({
     return subscribeUserProfile(user.uid, setProfile);
   }, [user]);
 
-  const displayName = profile?.name ?? null;
+  const displayName = profile?.name ?? user?.displayName ?? null;
 
   // Optimistic remove (matches AccountInfo.tsx's handleDeleteVin), reverted
   // if the write fails — this widget has no toast system, so a silent
@@ -413,7 +425,6 @@ export default function HeroAccountClient({
     }
   };
 
-  const openCarPicker = () => router.push("/katalog?tab=auto");
   const openCatalogForCars = () => router.push("/katalog");
   // The delivery editor lives on the partnership page (PartnershipDeliveryClient).
   const openDeliverySettings = () => router.push("/partnership#delivery");
@@ -423,61 +434,58 @@ export default function HeroAccountClient({
   const benefitItems = useMemo((): Array<{
     id: string;
     icon: typeof Percent;
+    /** Shown in the icon tile instead of the icon, e.g. the discount size. */
+    figure?: string;
     tone: "accent" | "success";
     label: ReactNode;
+    hint: string;
     onClick: () => void;
   }> => {
     const showDiscount = isAuthReady && (!user || hasOrders === false);
 
     return [
-      ...[
-            {
-              id: "discount",
-              icon: showDiscount ? Percent : ShoppingBag,
-              tone: "accent" as const,
-              label: (
-                <>
-                  {showDiscount ? <><strong className="text-sky-200">5%</strong> знижка на перше замовлення</> : <>Ваші <strong className="text-sky-200">замовлення</strong></>}
-                </>
-              ),
-              onClick: () => window.dispatchEvent(new Event("openOrderModal")),
-            },
-          ],
+      showDiscount
+        ? {
+            id: "discount",
+            icon: Percent,
+            figure: `${FIRST_ORDER_DISCOUNT_PERCENT}%`,
+            tone: "accent" as const,
+            label: "Знижка на перше замовлення",
+            hint: user ? "Врахуємо в кошику" : "Після входу",
+            onClick: () => window.dispatchEvent(new Event("openOrderModal")),
+          }
+        : {
+            id: "orders",
+            icon: ShoppingBag,
+            tone: "accent" as const,
+            label: "Ваші замовлення",
+            hint: "Статус і історія",
+            onClick: () => window.dispatchEvent(new Event("openOrderModal")),
+          },
       {
         id: "partnership",
         icon: isPartner ? BadgeCheck : Handshake,
         tone: isPartner ? ("success" as const) : ("accent" as const),
-        label: isPartner ? (
-          <>
-            Ви є партнером <strong className="text-emerald-300">Partson</strong>
-          </>
-        ) : (
-          <>
-            Партнерство <strong className="text-sky-200">PartsON</strong>
-          </>
-        ),
+        label: isPartner ? "Ви партнер PartsON" : "Партнерство PartsON",
+        hint: isPartner
+          ? `Ваша знижка ${PARTNER_DISCOUNT_PERCENT}%`
+          : `−${PARTNER_DISCOUNT_PERCENT}% для СТО`,
         onClick: () => router.push("/partnership"),
       },
       {
         id: "selection",
         icon: Target,
         tone: "accent" as const,
-        label: (
-          <>
-            <strong className="text-sky-200">Професійний</strong> підбір
-          </>
-        ),
+        label: "Підбір під ваше авто",
+        hint: "Лише сумісні деталі",
         onClick: () => router.push("/katalog?tab=auto"),
       },
       {
         id: "promo",
         icon: BadgePercent,
         tone: "accent" as const,
-        label: (
-          <>
-            <strong className="text-sky-200">Акційні</strong> товари
-          </>
-        ),
+        label: "Вигідні пропозиції",
+        hint: "Акційні ціни",
         onClick: () => router.push("/katalog?promo=1"),
       },
     ];
@@ -493,42 +501,21 @@ export default function HeroAccountClient({
     if (!isAuthReady) {
       return (
         <>
-          <p className="font-display max-w-[30ch] text-[20px] font-semibold italic leading-snug text-sky-100/95 [text-shadow:0_2px_10px_rgba(2,6,23,0.92)] after:mx-auto after:mt-2.5 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-transparent after:via-sky-300/80 after:to-transparent sm:text-[23px]">
-            <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
-          </p>
           <div className="hero-profile-actions">
             <span className="h-11 w-full min-w-0 animate-pulse rounded-[10px] bg-white/10" />
             <span className="h-11 w-full min-w-0 animate-pulse rounded-[10px] bg-white/10" />
           </div>
+          <div className="hero-profile-slot" aria-hidden="true" />
         </>
       );
     }
 
     return (
       <>
-        {!user && (
-          <p className="font-display max-w-[30ch] text-[20px] font-semibold italic leading-snug text-sky-100/95 [text-shadow:0_2px_10px_rgba(2,6,23,0.92)] after:mx-auto after:mt-2.5 after:block after:h-0.5 after:w-20 after:bg-gradient-to-r after:from-transparent after:via-sky-300/80 after:to-transparent sm:text-[23px]">
-            <strong className="font-black not-italic text-slate-100">Зручний профіль</strong> користувача!
-          </p>
-        )}
+        {/* Signed-in visitors manage cars and VIN in the saved profile below
+            and in their account; the greeting keeps only sign-in actions. */}
+        {user ? null : (
         <div className="hero-profile-actions">
-        {user ? (
-          <>
-            <button type="button" onClick={openCarPicker} className={vinButton}>
-              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
-                <Car className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                {profile && profile.cars.length > 0 ? "Змінити авто" : "Обрати авто"}
-              </span>
-            </button>
-            <button type="button" onClick={() => window.dispatchEvent(new Event("openAccountVin"))} className={vinButton}>
-              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
-                <IdCard className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
-                Додати VIN
-              </span>
-            </button>
-          </>
-        ) : (
-          <>
             <button
               type="button"
               onClick={() =>
@@ -538,6 +525,9 @@ export default function HeroAccountClient({
                   })
                 )
               }
+              onPointerEnter={preloadAuthModal}
+              onFocus={preloadAuthModal}
+              onTouchStart={preloadAuthModal}
               className={loginButton}
             >
               <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
@@ -554,6 +544,9 @@ export default function HeroAccountClient({
                   })
                 )
               }
+              onPointerEnter={preloadAuthModal}
+              onFocus={preloadAuthModal}
+              onTouchStart={preloadAuthModal}
               className={secondaryButton}
             >
               <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
@@ -561,22 +554,20 @@ export default function HeroAccountClient({
                 Реєстрація
               </span>
             </button>
-          </>
-        )}
         </div>
-        {user && (
+        )}
           <div className="hero-profile-slot">
-            {profile ? (
+            {user && profile ? (
               <HeroSavedProfile
                 profile={profile}
                 onOpenCatalogForCars={openCatalogForCars}
                 onOpenDeliverySettings={openDeliverySettings}
+                onOpenVins={() => window.dispatchEvent(new Event("openAccountVin"))}
                 onDeleteCar={handleDeleteCar}
                 onDeleteVin={handleDeleteVin}
               />
             ) : null}
           </div>
-        )}
       </>
     );
   })();
@@ -592,21 +583,16 @@ export default function HeroAccountClient({
   const benefits = (
     <div className="hero-benefits flex w-full min-w-0 flex-col space-y-2.5">
       <div className="flex items-center justify-start gap-3">
-        {/* Was wrapped in a bordered rounded-full badge span — now just the
-            bare icon, no container, so it reads as a bigger standalone
-            glyph instead of a small mark inside a circle. Moved back to the
-            left of the text (was on the right) — the row itself still hugs
-            the right edge via justify-end on the row above.
-            Swaps to a party-popper glyph once a logged-in user's name has
-            loaded (greeting state) — the gift-box outline stays for the
-            "Вигода від реєстрації" pitch shown to guests / before the name
-            is known, since that icon is about the registration bonus, not
-            a person. */}
-        {user && displayName ? (
-          <PartyPopper
-            className="h-9 w-9 shrink-0 text-sky-200/90 drop-shadow-[0_0_14px_rgba(56,189,248,0.45)]"
-            strokeWidth={1.75}
-            aria-hidden="true"
+        {/* A fixed avatar box keeps the greeting stable while artwork loads. */}
+        {user ? (
+          <HeroGreetingAvatar
+            key={user.uid}
+            uid={user.uid}
+            name={displayName || user.email || ""}
+            avatarId={profile ? profile.avatar : undefined}
+            frameId={profile?.avatarFrame ?? null}
+            isPartner={isPartner}
+            isAdmin={profile?.isAdmin ?? false}
           />
         ) : (
           <svg
@@ -626,57 +612,41 @@ export default function HeroAccountClient({
             <path d="M16.5 7a2.5 2.5 0 1 0 0-5c-2.5 0-4.5 5-4.5 5" />
           </svg>
         )}
-        <div className="flex min-w-0 flex-col items-start text-left">
+        <div className="flex min-w-0 flex-1 flex-col items-start justify-center text-left">
           <p className="font-display break-words text-base font-black uppercase tracking-[0.1em] text-slate-100 [text-shadow:0_2px_10px_rgba(2,6,23,0.85)] sm:text-lg sm:tracking-[0.14em]">
             {user && displayName ? (
               <>Вітаю, {displayName}!</>
             ) : (
-              "Вигода від реєстрації"
+              "Більше вигоди для вашого авто"
             )}
           </p>
           <span className="h-0.5 w-32 bg-gradient-to-r from-cyan-300/90 via-sky-300/45 to-transparent" />
         </div>
+
       </div>
-      {/* Icon back to the side of the text (was stacked icon-above-text) —
-          `auto-fit`/`minmax` still keeps this a true horizontal row for 2
-          or 3 items alike on any screen width, wrapping to a second row
-          only if there truly isn't 190px to give each one. 190px (icon +
-          gap eats ~46px of it) leaves enough for the longest label, "5%
-          знижка на перше замовлення", to fit its 2-line clamp. No hover
-          shift/translate here — border and background tint only. */}
-      <ul className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2 text-[13px] font-semibold tracking-[-0.01em] text-white sm:text-[14px]">
-        {benefitItems.map(({ id, label, icon: Icon, onClick, tone }) => (
-            <li key={id} className="min-w-0">
-              <button
-                type="button"
-                onClick={onClick}
-                className={
-                  tone === "success"
-                    ? "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-emerald-300/40 bg-emerald-400/[0.14] px-3.5 py-2.5 text-left shadow-[0_4px_14px_rgba(16,185,129,0.20)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-emerald-200/65 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(52,211,153,0.22)_0%,rgba(255,255,255,0.14)_100%)]"
-                    : "group home-chip-hover flex h-full w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/18 bg-white/14 px-3.5 py-2.5 text-left shadow-[0_4px_14px_rgba(2,6,23,0.24)] backdrop-blur-sm transition-[border-color,background-color] duration-200 ease-out motion-safe:hover:border-sky-300/50 motion-safe:hover:bg-[image:linear-gradient(120deg,rgba(56,189,248,0.18)_0%,rgba(255,255,255,0.14)_100%)]"
-                }
-              >
-                <span
-                  className={
-                    tone === "success"
-                      ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-400/20 text-emerald-200 transition-colors duration-200 group-hover:border-emerald-200/80 group-hover:text-emerald-100"
-                      : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-300/40 bg-sky-400/16 text-sky-200 transition-colors duration-200 group-hover:border-sky-200/70 group-hover:text-sky-100"
-                  }
-                >
-                  <Icon className="h-4.5 w-4.5" strokeWidth={2} aria-hidden="true" />
-                </span>
-                <span
-                  className={
-                    tone === "success"
-                      ? "min-w-0 flex-1 h-[2.75em] line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-emerald-100"
-                      : "min-w-0 flex-1 h-[2.75em] line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-sky-100"
-                  }
-                >
-                  {label}
-                </span>
-              </button>
-            </li>
-          ))}
+      {/* `auto-fit`/`minmax` keeps 2–4 cards in rows on any width, wrapping
+          only when a card would get under 190px. Styling: globals.css
+          (.hero-benefit); the card's tint follows `data-benefit`. */}
+      <ul className="hero-benefit-list grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2 text-white">
+        {benefitItems.map(({ id, label, hint, figure, icon: Icon, onClick, tone }) => (
+          <li key={id} className="min-w-0">
+            <button
+              type="button"
+              onClick={onClick}
+              data-benefit={id}
+              data-tone={tone}
+              className="hero-benefit group home-chip-hover"
+            >
+              <span className="hero-benefit-icon" aria-hidden="true">
+                {figure ? <span className="hero-benefit-figure">{figure}</span> : <Icon strokeWidth={1.9} />}
+              </span>
+              <span className="hero-benefit-text">
+                <span className="hero-benefit-title">{label}</span>
+                <span className="hero-benefit-hint">{hint}</span>
+              </span>
+            </button>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -685,7 +655,7 @@ export default function HeroAccountClient({
     return (
       <>
         {benefits}
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="hero-account-actions items-center text-center">
           {actions}
         </div>
       </>

@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchAutoDirectory } from "app/lib/onec-proxy-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Compass, Gauge, Info, Settings2, SlidersHorizontal, X, Zap } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
@@ -54,7 +55,6 @@ interface Filters {
   drive: string;
 }
 
-const AUTO_ENDPOINT = "/api/proxy?endpoint=getauto";
 const LABEL_YEAR = "Рік";
 const LABEL_EMPTY_MODS = "Модифікацій не знайдено.";
 const LABEL_SELECT_MODEL_FIRST = "Оберіть модель, щоб завантажити модифікації.";
@@ -137,11 +137,7 @@ const normalizeAutoRows = (payload: unknown): unknown[] => {
 // 1C's getauto only accepts the Cyrillic field names (verified live: "brand"/"Brand"
 // always fail with "Потрібна 'Марка'") — a single request is enough, no fallback needed.
 const fetchAutoRows = async (body: Record<string, unknown>) => {
-  const res = await fetch(AUTO_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetchAutoDirectory(body);
   const jsonText = await res.text();
   if (!res.ok) {
     throw new Error(extractErrorMessage(jsonText));

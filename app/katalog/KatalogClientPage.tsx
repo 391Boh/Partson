@@ -346,7 +346,21 @@ const Katalog: React.FC<KatalogProps> = ({
   }, []);
 
   useLayoutEffect(() => {
-    try { window.sessionStorage.removeItem('catalogScrollTarget'); } catch {}
+    let scrollTarget: string | null = null;
+    try {
+      scrollTarget = window.sessionStorage.getItem('catalogScrollTarget');
+      window.sessionStorage.removeItem('catalogScrollTarget');
+    } catch {}
+    if (scrollTarget === 'results') {
+      const frame = window.requestAnimationFrame(() => {
+        document.getElementById('catalog-results')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const frame = window.requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });

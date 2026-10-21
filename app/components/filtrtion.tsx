@@ -5,7 +5,10 @@ import { pluralizeProducts } from 'app/lib/pluralize-uk';
 import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { replaceCatalogUrl } from 'app/lib/catalog-navigation';
+import {
+  CATALOG_FILTER_SELECTION_FINAL_EVENT,
+  replaceCatalogUrl,
+} from 'app/lib/catalog-navigation';
 import type { CatalogSortOrder } from 'app/lib/catalog-sort';
 import dynamic from 'next/dynamic';
 import FilterLoadingState from 'app/components/FilterLoadingState';
@@ -282,6 +285,15 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [collapsed, setCollapsed] = useState(true);
   const ignoreScrollCloseUntilRef = useRef(0);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  useEffect(() => {
+    const handleFinalCategorySelection = () => {
+      setActiveComponent('category');
+      setCollapsed(true);
+    };
+    window.addEventListener(CATALOG_FILTER_SELECTION_FINAL_EVENT, handleFinalCategorySelection);
+    return () => window.removeEventListener(CATALOG_FILTER_SELECTION_FINAL_EVENT, handleFinalCategorySelection);
+  }, []);
+
   const handleHeaderToggle = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (!target) return;

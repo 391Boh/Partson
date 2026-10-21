@@ -9,7 +9,7 @@ const requests = [];
 let failProduct = false;
 let failImage = false;
 const result = await build({
-  stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Modal from './app/components/ProductFullEditModal'; import {useProductDescription} from './app/lib/use-product-description'; import {useProductImageUpdate} from './app/lib/product-image-updates'; function ConfirmedImage(){const update=useProductImageUpdate('TEST','OLD');return <output hidden data-testid="confirmed-image">{update.previewSrc}</output>}; function Description(){const {description}=useProductDescription('TEST','OLD',true); return <output data-testid="saved-description" hidden>{description}</output>;} createRoot(document.getElementById('root')).render(<><Description/><ConfirmedImage/><Modal isOpen onClose={()=>{window.closed=true}} code="TEST" article="OLD" name="Тестовий товар" producer="Bosch" category="Запчастини" group="Гальма" subGroup="Диски" priceEuro={10} costPriceEuro={5} quantity={7} description="Початковий опис"/></>);`, resolveDir: process.cwd(), loader: 'tsx' },
+  stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Modal from './app/components/ProductFullEditModal'; import {useProductDescription} from './app/lib/use-product-description'; import {useProductImageUpdate} from './app/lib/product-image-updates'; function ConfirmedImage(){const update=useProductImageUpdate('TEST','OLD');return <output hidden data-testid="confirmed-image">{update.previewSrc}</output>}; function Description(){const {description}=useProductDescription('TEST','OLD',true); return <output data-testid="saved-description" hidden>{description}</output>;} createRoot(document.getElementById('root')).render(<><Description/><ConfirmedImage/><Modal isOpen onClose={()=>{window.closed=true}} code="TEST" article="OLD" name="Тестовий товар" producer="Bosch" category="Запчастини" group="Гальма" subGroup="Диски" priceEuro={10} costPriceEuro={5} promoPriceEuro={new URLSearchParams(location.search).has("late-promo")?undefined:8} quantity={7} description="Початковий опис"/></>);`, resolveDir: process.cwd(), loader: 'tsx' },
   bundle: true, write: false, platform: 'browser', jsx: 'automatic', define: {'process.env.NODE_ENV':'"production"'},
   plugins: [{ name: 'offline-auth-router', setup(build) {
     build.onResolve({filter:/^app\/lib\/product-image-upload-client$/},()=>({path:'slow-image-preparation',namespace:'slow-image'}));
@@ -27,11 +27,12 @@ const server = http.createServer(async (request,response) => {
     let raw='';for await(const chunk of request) raw+=chunk;
     const body=raw?JSON.parse(raw):{};
     response.setHeader('Content-Type','application/json');
+    if(request.url.startsWith('/api/product-price')){setTimeout(()=>response.end(JSON.stringify({promoPriceEuro:8})),500);return;}
     if(request.url.startsWith('/api/product-description')){setTimeout(()=>response.end(JSON.stringify({description:'Застарілий опис'})),1500);return;}
     if(request.method==='POST') requests.push({url:request.url,body});
     if(request.url==='/api/product-upload-image' && failImage){response.statusCode=503;response.end(JSON.stringify({ok:false,error:'Тестова помилка фото'}));return;}
     if(request.url==='/api/product-update' && failProduct){response.statusCode=502;response.end(JSON.stringify({ok:false,error:'1С тимчасово недоступна'}));return;}
-    response.end(JSON.stringify(request.method==='POST'?{ok:true,code:'TEST',priceEuro:body.ЦінаПрод,costPriceEuro:body.ЦінаЗакуп,quantity:body.Кількість}:{suggestions:[]}));return;
+    response.end(JSON.stringify(request.method==='POST'?{ok:true,code:'TEST',priceEuro:body.ЦінаПрод,costPriceEuro:body.ЦінаЗакуп,promoPriceEuro:body.Акція,quantity:body.Кількість}:{suggestions:[]}));return;
   }
   response.setHeader('Content-Type','text/html');response.end('<html lang="uk"><link rel="stylesheet" href="/style.css"><div id="root"></div><script src="/bundle.js"></script></html>');
 });
@@ -45,6 +46,8 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const modal=page.getByRole('dialog');await modal.waitFor();
     await modal.getByLabel('Ціна продажу €').fill('12,50');
+    assert.equal(await modal.getByLabel('Акційна ціна €').inputValue(),'8');
+    await modal.getByLabel('Акційна ціна €').fill('9,25');
     await modal.getByLabel('Поточний залишок, шт.').fill('0');
     await modal.getByRole('tab',{name:'Опис',exact:true}).click();
     await modal.getByLabel('Опис товару').fill('Новий опис\nХарактеристики товару');
@@ -53,6 +56,7 @@ try {
     assert.equal(requests.length,2);
     assert.equal(requests[0].body.description,'Новий опис\nХарактеристики товару');
     assert.equal(requests[1].body.ЦінаПрод,12.5);
+    assert.equal(requests[1].body.Акція,9.25);
     assert.equal(requests[1].body.Кількість,0);
     assert.equal(await page.evaluate(()=>window.refreshCalls),1);
     assert.equal(await page.getByTestId('saved-description').textContent(),'Новий опис\nХарактеристики товару');
@@ -104,9 +108,36 @@ try {
     assert.equal(await page.evaluate(()=>window.refreshCalls),refreshBeforePhoto,'Photo updates must not reload the page');
     await modal.getByRole('tab',{name:'Основне',exact:true}).click();
     assert.equal(await modal.getByPlaceholder('Назва товару').inputValue(),'Незбережена назва','Photo upload must preserve unsaved fields');
+    await modal.getByPlaceholder('Назва товару').fill('Тестовий товар');
+    await modal.getByLabel('Акційна ціна €').fill('0');
+    await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
+    await modal.getByRole('status').waitFor();
+    assert.equal(requests.at(-1).body.Акція,0,'Zero removes the promotion');
+    assert.equal(requests.at(-1).body.ЦінаПрод,undefined,'Promo-only edits preserve the regular price');
+    assert.equal(requests.at(-1).body.ЦінаЗакуп,undefined,'Promo-only edits preserve cost');
+    assert.equal(requests.at(-1).body.Кількість,undefined,'Promo-only edits preserve stock');
+    const removedCount=requests.length;
+    await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
+    await page.waitForTimeout(100);
+    assert.equal(requests.length,removedCount,'Confirmed zero is retained in the baseline');
+    await modal.getByLabel('Акційна ціна €').fill('-1');
+    await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
+    await modal.getByRole('alert').waitFor();
+    assert.equal(requests.length,removedCount,'Invalid promo prices are not sent');
+    await modal.getByLabel('Акційна ціна €').fill('6,75');
+    await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
+    await modal.getByRole('status').waitFor();
+    assert.equal(requests.at(-1).body.Акція,6.75,'A new promotion can be added after removal');
     const rect=await modal.boundingBox();assert(rect.x>=0 && rect.x+rect.width<=width+1);
     await page.screenshot({path:`/tmp/partson-product-edit-${width}.png`});
     await page.close();
     console.log(`Product edit ${width}px passed: description, comma price, zero stock, validation, partial failure, retry and stable baseline.`);
   }
+  const late=await browser.newPage();
+  await late.goto(`http://127.0.0.1:${server.address().port}/?late-promo`);
+  await late.getByLabel('Акційна ціна €').fill('4,50');
+  await late.waitForTimeout(700);
+  assert.equal(await late.getByLabel('Акційна ціна €').inputValue(),'4,50','Late promo lookup must not overwrite an edited draft');
+  await late.close();
+  console.log('Promo form passed: current value, add/edit/remove, decimal comma, validation and delayed-read race.');
 } finally {await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

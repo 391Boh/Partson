@@ -75,10 +75,10 @@ function DeferredHomeSection({
     let mountRequestedAt = 0;
     let mountRequested = false;
     let cancelled = false;
-    let cancelBackgroundTask: (() => void) | null = null;
     let nearObserver: IntersectionObserver | null = null;
     let visibleObserver: IntersectionObserver | null = null;
     let nearViewport = false;
+    let cancelPreparation: (() => void) | undefined;
     let onScroll: (() => void) | null = null;
     const mountWhenScrollSettles = () => {
       if (cancelled) return;
@@ -113,8 +113,8 @@ function DeferredHomeSection({
     const requestMount = () => {
       if (cancelled || mountRequested) return;
       mountRequested = true;
+      cancelPreparation?.();
       if (onScroll) window.removeEventListener("scroll", onScroll);
-      cancelBackgroundTask?.();
       nearObserver?.disconnect();
       visibleObserver?.disconnect();
       // Fetch while the bounded scroll-settle delay runs. Only this section's
@@ -134,7 +134,7 @@ function DeferredHomeSection({
 
     const cleanup = () => {
       cancelled = true;
-      cancelBackgroundTask?.();
+      cancelPreparation?.();
       nearObserver?.disconnect();
       visibleObserver?.disconnect();
       if (mountTimer !== null) window.clearTimeout(mountTimer);
@@ -205,21 +205,13 @@ function DeferredHomeSection({
     });
     nearObserver.observe(section);
     visibleObserver.observe(section);
-    // Prepare the three catalogue sections during quiet time, before the
-    // visitor scrolls into them. Waiting for the first gesture meant parsing
-    // chunks and mounting large trees during that same gesture. Save-data
-    // connections keep the existing demand-only loading behaviour.
+    // Prepare only nearby modules after critical resources finish. This keeps
+    // the first catalogue ready before a gesture without downloading/mounting
+    // every offscreen section or racing the hero image on a cold connection.
     if (!conserveData) {
-      const sectionIndex = tone === "auto" ? 0 : tone === "product" ? 1 : 2;
-      cancelBackgroundTask = scheduleBackgroundTask(requestMount, {
-        // Prepare after the initial hero paint, in separate idle slots.
-        // The map or another external request may still hold load open.
-        // Was 1450 + 350/section: the hero's LCP lands at ~0.9s, so the
-        // sections (and their backgrounds) stood as bare skeletons for well
-        // over a second after it. Idle slots still keep them off the LCP.
-        delayMs: 600 + sectionIndex * 250,
-        waitForLoad: false,
-      });
+      cancelPreparation = scheduleBackgroundTask(() => {
+        if (nearViewport) requestMount();
+      }, { delayMs: 600 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500) });
     }
     return cleanup;
   }, [preload, tone]);
@@ -265,24 +257,6 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
   // Kept temporarily for the older HomeBelowFoldClient call site; the data is
   // no longer serialized into the active homepage route.
   void _legacyInitialData;
-
-  // Warm one catalogue module per idle task after the initial hero paint.
-  // Scroll/visibility guards keep module evaluation out of active gestures.
-  useEffect(() => {
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    if (connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") return;
-    // Separate idle tasks prevent three chunks evaluating in the same burst.
-    // The map's external resources must not hold preparation behind load.
-    const cancelTasks = [loadAutoSection, loadProductSection, preloadBrandsSection].map((load, index) =>
-      scheduleBackgroundTask(() => { void load().catch(() => undefined); }, {
-        delayMs: 1000 + index * 350,
-        waitForLoad: false,
-      })
-    );
-    return () => cancelTasks.forEach(cancel => cancel());
-  }, []);
 
   return (
     <>

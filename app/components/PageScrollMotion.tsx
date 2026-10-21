@@ -11,7 +11,7 @@ export default function PageScrollMotion({ rootRef }: { rootRef: RefObject<HTMLE
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || pathname === "/") return;
 
     let uninstall: (() => void) | undefined;
     const install = () => {

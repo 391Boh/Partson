@@ -10,8 +10,8 @@ import HomeHighlightsSection from "./components/HomeHighlightsSection";
 
 // The root page shares the root layout's segment, so the layout's
 // "%s | PartsON" title template doesn't apply here — name the brand directly.
-const homeTitle = "Автозапчастини у Львові — пошук деталей для авто | PartsON";
-const homeDescription = "Запчастини для авто у Львові: пошук деталей за маркою, виробником і VIN. Групи товарів для ТО, гальмівної системи та ремонту. PartsON, доставка по Україні.";
+const homeTitle = "Автозапчастини у Львові для ремонту й ТО | PartsON";
+const homeDescription = "Автозапчастини для ремонту й ТО: підбір за авто, категорією та VIN. Самовивіз у Львові на вул. Перфецького, 8 і доставка по Україні.";
 
 export const revalidate = 86400;
 

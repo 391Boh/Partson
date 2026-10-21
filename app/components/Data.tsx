@@ -1441,51 +1441,6 @@ function useCatalogData(params: {
       inStock,
     ]
   );
-  // Same signature with sortOrder pinned to "none" — used only to detect a
-  // sort-only query change (everything else identical) in the reset effect
-  // below, so it can keep already-rendered products on screen instead of
-  // flashing the full skeleton while the re-sorted page 1 loads.
-  const filtersSignatureExcludingSort = useMemo(
-    () =>
-      buildCatalogQuerySignature({
-        normalizedSearch,
-        searchFilter,
-        selectedCars,
-        selectedCategories: effectiveSelectedCategories,
-        group: groupFromURL,
-        subcategory: subcategoryFromURL,
-        producer: producerFromURL,
-        expandHierarchy: expandHierarchyFromURL,
-        promoOnly,
-        paramFilters,
-        sortOrder: "none",
-        pricedOnly,
-        priceFrom,
-        priceTo,
-        priceRate:
-          priceFrom !== null || priceTo !== null ? euroRate : null,
-        inStock,
-      }),
-    [
-      normalizedSearch,
-      searchFilter,
-      selectedCars,
-      effectiveSelectedCategories,
-      groupFromURL,
-      subcategoryFromURL,
-      producerFromURL,
-      expandHierarchyFromURL,
-      promoOnly,
-      paramFilters,
-      pricedOnly,
-      priceFrom,
-      priceTo,
-      euroRate,
-      inStock,
-    ]
-  );
-  const prevFiltersSignatureExcludingSortRef = useRef(filtersSignatureExcludingSort);
-  const isInitialResetRunRef = useRef(true);
   const activeQuerySignatureRef = useRef(querySignature);
   // Must start as "nothing primed yet" (null), not initialQuerySignature —
   // seeding it with the very value the guard below compares against made
@@ -3251,13 +3206,6 @@ function useCatalogData(params: {
       replacePageImages,
       scheduleCatalogBackgroundTask,
     } = resetEffectHelpersRef.current;
-    const isSortOnlyChange =
-      !isInitialResetRunRef.current &&
-      prevFiltersSignatureExcludingSortRef.current === filtersSignatureExcludingSort &&
-      dataRef.current.length > 0;
-    isInitialResetRunRef.current = false;
-    prevFiltersSignatureExcludingSortRef.current = filtersSignatureExcludingSort;
-
     activeQuerySignatureRef.current = querySignature;
     firstPageReadySignatureRef.current = null;
     setCatalogReadyQuerySignature("");
@@ -3403,17 +3351,9 @@ function useCatalogData(params: {
         };
       }
 
-      // No immediate cache hit for this filter/query. A sort-only change keeps
-      // the currently-rendered products on screen instead of clearing them —
-      // showFilterTransitionOverlay's "Сортую: спочатку дешевші/дорожчі" label
-      // then shows over the existing grid while the re-sorted page 1 loads,
-      // rather than flashing the full "Готую товари" skeleton. Any other
-      // filter/search change still clears immediately so results never mix.
-      if (!isSortOnlyChange) {
-        dataRef.current = [];
-        setData([]);
-      }
-      replacePageImages({});
+      // Keep the previous page visible while the new query loads. It is dimmed
+      // until the matching query signature is ready, avoiding an empty-grid
+      // flash and preserving the catalog's height during the request.
       setCorrectedQuery(null);
       setCatalogTotalCount(initialTotalCount ?? null);
       setLoading(true);
@@ -3421,9 +3361,8 @@ function useCatalogData(params: {
       return;
     }
 
-    dataRef.current = [];
-    setData([]);
-    replacePageImages({});
+    // Retain rendered products and their images until the replacement page is
+    // ready, so query transitions do not collapse or flash the grid.
     setCorrectedQuery(null);
     setCatalogTotalCount(initialTotalCount ?? null);
     setLoading(true);
@@ -4178,6 +4117,8 @@ function useCatalogData(params: {
   // and OEM codes embedded in names. Re-filtering by the original input here
   // used to discard valid results and leave partially empty pages.
   const filteredData = useMemo(() => {
+    if (catalogReadyQuerySignature !== querySignature) return uniqueData;
+
     const categories = new Set(effectiveSelectedCategories.map(normalizeFilterToken));
     const producer = normalizeFilterToken(producerFromURL);
     return uniqueData.filter((item) => {
@@ -4185,7 +4126,13 @@ function useCatalogData(params: {
         .some((value) => categories.has(normalizeFilterToken(value)));
       return categoryMatch && (!producer || normalizeFilterToken(item.producer).includes(producer));
     });
-  }, [uniqueData, effectiveSelectedCategories, producerFromURL]);
+  }, [
+    uniqueData,
+    catalogReadyQuerySignature,
+    querySignature,
+    effectiveSelectedCategories,
+    producerFromURL,
+  ]);
 
   // --- handlers ---
   const handleFlip = useCallback((code: string) => {
@@ -4645,6 +4592,7 @@ const Data: React.FC<DataProps> = ({
 }) => {
   const searchParams = useSearchParams();
   const catalogGridRef = useRef<HTMLDivElement | null>(null);
+  const catalogPageAnimationRef = useRef<Animation | null>(null);
   // True for the duration of a multi-page jump — see its own definition in
   // useCatalogData's params for why intermediate pages skip price/image
   // prefetch entirely while this is set.
@@ -5196,6 +5144,52 @@ const Data: React.FC<DataProps> = ({
   const clampedDisplayedPage = totalPageCount
     ? Math.min(displayedPage, totalPageCount)
     : Math.min(displayedPage, loadedPageCount);
+  const previousCatalogPageRef = useRef({
+    page: displayedPage,
+    pageSize: effectivePageSize,
+    querySignature: catalogQuerySignature,
+  });
+  useIsomorphicLayoutEffect(() => {
+    const previous = previousCatalogPageRef.current;
+    previousCatalogPageRef.current = {
+      page: displayedPage,
+      pageSize: effectivePageSize,
+      querySignature: catalogQuerySignature,
+    };
+
+    if (
+      previous.page === displayedPage ||
+      previous.pageSize !== effectivePageSize ||
+      previous.querySignature !== catalogQuerySignature
+    ) {
+      return;
+    }
+
+    const grid = catalogGridRef.current;
+    if (!grid) return;
+    catalogPageAnimationRef.current?.cancel();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const direction = displayedPage > previous.page ? 1 : -1;
+    const animation = grid.animate(
+      [
+        { opacity: 0.84, transform: `translate3d(0, ${direction * 5}px, 0)` },
+        { opacity: 1, transform: "translate3d(0, 0, 0)" },
+      ],
+      {
+        duration: 190,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+      }
+    );
+    catalogPageAnimationRef.current = animation;
+
+    return () => {
+      animation.cancel();
+      if (catalogPageAnimationRef.current === animation) {
+        catalogPageAnimationRef.current = null;
+      }
+    };
+  }, [displayedPage, effectivePageSize, catalogQuerySignature]);
   // Resets manualExtraItemCount whenever the page itself actually changes
   // (number pill, arrow, page-size change), since extra items only make
   // sense in the context of one page.
@@ -6405,12 +6399,12 @@ const Data: React.FC<DataProps> = ({
                   Without them it collapsed to 0px, the SEO block below jumped
                   into view and back once products arrived (CLS ~1.7). */}
               {shouldShowInitialSkeleton && entriesToRender.length === 0 &&
-                Array.from({ length: 12 }, (_, index) => (
+                Array.from({ length: effectivePageSize }, (_, index) => (
                   <div
                     key={`catalog-placeholder-${index}`}
                     aria-hidden="true"
-                    className={`animate-pulse rounded-[22px] border border-sky-100/80 bg-white/70 ${
-                      viewMode === "list" ? "h-[140px]" : "h-[360px]"
+                    className={`rounded-[22px] border border-sky-100/80 bg-white/70 ${
+                      viewMode === "list" ? "h-[140px]" : "h-[380px] sm:h-[340px]"
                     }`}
                   />
                 ))}

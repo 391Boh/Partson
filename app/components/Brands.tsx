@@ -831,8 +831,8 @@ export default function BrandCarousel({
             </div>
 
             <h2 className="relative font-display font-display-readable mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-              Виробники автозапчастин:{" "}
-              <span className="text-blue-600">оригінали та аналоги</span>
+              Виробники:{" "}
+              <span className="text-blue-600">оригінали й аналоги</span>
             </h2>
             <span className="mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
             {/* lead — cites the real, live catalog size (visibleBrandCount,
@@ -843,11 +843,10 @@ export default function BrandCarousel({
                 list's count (~124), which drifted from the live total
                 (~192) shown everywhere else on this same block. */}
             <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-              <span className="font-semibold text-slate-800">{visibleBrandCount}+ виробників</span> у
-              каталозі — оригінальні запчастини та перевірені{" "}
-              <span className="font-semibold text-blue-700">аналоги</span> для
-              кожної марки авто. Оберіть виробника нижче, щоб переглянути всі
-              його товари.
+              <span className="font-semibold text-slate-800">{visibleBrandCount}+ виробників</span> —
+              оригінальні запчастини та перевірені{" "}
+              <span className="font-semibold text-blue-700">аналоги</span>. Оберіть
+              бренд, щоб переглянути всі його товари.
             </p>
 
             {/* Search — collapse-to-button, same pattern as Auto.tsx's

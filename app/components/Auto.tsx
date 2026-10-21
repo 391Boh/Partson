@@ -1536,11 +1536,9 @@ const AutoSection: React.FC<AutoProps> = ({
                     <p className="home-description mt-3.5 text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
                       Оберіть{" "}
                       <span className="font-semibold text-slate-800">марку та модель</span>{" "}
-                      — покажемо лише ті запчастини, що точно підходять
-                      вашому авто. У базі{" "}
+                      — покажемо лише сумісні запчастини. У каталозі{" "}
                       <span className="font-semibold text-indigo-700">{carBrands.length}+ марок</span>{" "}
-                      легкових авто з моделями та модифікаціями. Не знайшли
-                      потрібну марку у списку? Скористайтеся пошуком нижче.
+                      легкових авто з моделями й модифікаціями.
                     </p>
                   )}
 
@@ -1780,7 +1778,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       </svg>
                     </span>
                     <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-blue-600">
-                      Автозапчастини за авто
+                      Підбір за авто
                     </span>
                   </div>
 
@@ -1799,14 +1797,13 @@ const AutoSection: React.FC<AutoProps> = ({
                       </>
                     ) : selectedBrand ? (
                       <>
-                        Автозапчастини{" "}
-                        <span className="text-blue-600">{selectedBrand.name}</span>{" "}
-                        за моделлю
+                        Моделі{" "}
+                        <span className="text-blue-600">{selectedBrand.name}</span>
                       </>
                     ) : (
                       <>
-                        Підбір автозапчастин{" "}
-                        <span className="text-blue-600">за маркою та моделлю авто</span>
+                        Запчастини{" "}
+                        <span className="text-blue-600">для вашого авто</span>
                       </>
                     )}
                   </h2>

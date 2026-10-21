@@ -32,5 +32,6 @@ export function loadCatalogSearch(oneCRequest) {
   return {
     ...load(path.join(root, "app/lib/catalog-search.ts")),
     ...load(path.join(root, "app/lib/catalog-server.ts")),
+    ...load(path.join(root, "app/lib/product-promo-overrides.ts")),
   };
 }

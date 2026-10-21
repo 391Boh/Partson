@@ -11,34 +11,34 @@ export default function HeroIntroCard() {
     <div className="home-intro home-intro-refined">
       <div className="home-intro-copy">
         <h1 className="font-display font-display-readable">
-          Запчастини для авто <span>у Львові</span>
+          Автозапчастини <span>для ремонту й ТО</span>
         </h1>
         <p className="home-intro-subtitle">
-          Для ТО та ремонту легкових авто. Оберіть, як підібрати деталь:
+          <strong>Оберіть авто або категорію</strong> — покажемо потрібні деталі. Сумісність перевіримо за VIN-кодом.
         </p>
       </div>
 
       <ul className="home-part-paths" aria-label="Способи підбору запчастин">
         <li>
-          <HeroSectionLink targetId={HOME_SECTION_IDS.auto} className="home-part-path home-part-path-primary">
+          <HeroSectionLink targetId={HOME_SECTION_IDS.auto} ariaLabel="Оберіть авто" className="home-part-path home-part-path-primary">
             <span className="home-part-path-icon">
               <Car size={20} strokeWidth={2} aria-hidden="true" />
             </span>
             <span className="home-part-path-text">
-              <span className="home-part-path-title">Підбір по авто</span>
-              <span className="home-part-path-hint">Марка, модель і рік — покажемо лише сумісні деталі</span>
+              <span className="home-part-path-title">Оберіть авто</span>
+              <span className="home-part-path-hint">Марка, модель, рік</span>
             </span>
             <ChevronRight className="home-part-path-arrow" size={18} strokeWidth={2} aria-hidden="true" />
           </HeroSectionLink>
         </li>
         <li>
-          <HeroSectionLink targetId={HOME_SECTION_IDS.categories} className="home-part-path">
+          <HeroSectionLink targetId={HOME_SECTION_IDS.categories} ariaLabel="Відкрийте каталог" className="home-part-path">
             <span className="home-part-path-icon">
               <LayoutGrid size={20} strokeWidth={2} aria-hidden="true" />
             </span>
             <span className="home-part-path-text">
-              <span className="home-part-path-title">Вибір категорії</span>
-              <span className="home-part-path-hint">Гальма, підвіска, двигун, фільтри — від групи до потрібної деталі</span>
+              <span className="home-part-path-title">Відкрийте каталог</span>
+              <span className="home-part-path-hint">Усі категорії деталей</span>
             </span>
             <ChevronRight className="home-part-path-arrow" size={18} strokeWidth={2} aria-hidden="true" />
           </HeroSectionLink>
