@@ -418,6 +418,22 @@ export function clearAllOneCCache() {
   return size;
 }
 
+// Page renders give 1C deliberately short budgets (a few hundred ms) and
+// fall back when they run out, so timeouts come in bursts. One line per
+// endpoint a minute, with how many were folded into it.
+const failureLog = new Map();
+function logOneCFailure(endpoint, url, details) {
+  const now = nowMs();
+  const entry = failureLog.get(endpoint);
+  if (entry && now - entry.loggedAt < 60_000) {
+    entry.suppressed += 1;
+    return;
+  }
+  const suppressed = entry?.suppressed ? ` (+${entry.suppressed} more in the last minute)` : "";
+  failureLog.set(endpoint, { loggedAt: now, suppressed: 0 });
+  console.warn(`[1C] ${endpoint} failed at ${url}: ${details}${suppressed}`);
+}
+
 export async function oneCRequest(endpoint, options = {}) {
   const {
     method = "GET",
@@ -571,7 +587,7 @@ export async function oneCRequest(endpoint, options = {}) {
             ? `Request timeout after ${timeoutMs}ms`
             : err?.message || String(err);
         if (attempt > retries) {
-          console.warn(`[1C] ${endpoint} failed at ${url}: ${details}`);
+          logOneCFailure(endpoint, url, details);
           return {
             status: 500,
             text: JSON.stringify({
