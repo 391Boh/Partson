@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, CarFront, Factory, Layers3, PackageCheck, Truck, Wrench, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, CarFront, ChevronDown, Factory, Layers3, type LucideIcon } from "lucide-react";
 
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 
@@ -29,12 +29,8 @@ function LinkList({ title, icon: Icon, items, directoryHref, directoryLabel, var
   variant: ListVariant;
 }) {
   const categories = variant === "categories";
-  return (
-    <div className={`home-popular-group home-popular-group--${variant}`}>
-      <div className="home-popular-group-heading">
-        <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
-        <h3>{title}</h3>
-      </div>
+  const heading = <><Icon size={19} strokeWidth={1.8} aria-hidden="true" /><h3>{title}</h3><span className="home-popular-count">{items.length}</span></>;
+  const content = <>
       <ul className={`${categories ? "home-popular-category-list" : "home-popular-brand-list"} home-popular-list--${variant}`}>
         {items.map(({ href, label, image }) => (
           <li key={href}>
@@ -54,20 +50,29 @@ function LinkList({ title, icon: Icon, items, directoryHref, directoryLabel, var
       <Link href={directoryHref} prefetch={false} className="home-popular-directory-link">
         {directoryLabel}<ArrowUpRight size={16} aria-hidden="true" />
       </Link>
+  </>;
+  return categories ? (
+    <div className="home-popular-group home-popular-group--categories">
+      <div className="home-popular-group-heading">{heading}</div>{content}
     </div>
+  ) : (
+    <details className={`home-popular-group home-popular-group--${variant}`}>
+      <summary className="home-popular-group-heading">{heading}<ChevronDown size={17} className="home-popular-expand" aria-hidden="true" /></summary>
+      {content}
+    </details>
   );
 }
 
 export default function HomeSeoLinks() {
   return (
-    <nav aria-labelledby="home-seo-links-title" className="home-popular-nav font-ui relative z-10 py-8 sm:py-10">
+    <nav aria-labelledby="home-seo-links-title" className="home-popular-nav home-popular-compact font-ui relative z-10 py-8 sm:py-10">
       <div className="home-popular-photo" aria-hidden="true">
         {/* Plain srcset: phones take the 960px copy (31 KB instead of 87 KB). */}
         {/* eslint-disable-next-line @next/next/no-img-element -- static srcset served by nginx */}
         <img
           src="/images/home/popular-sections-workshop-v1.webp"
           srcSet="/images/home/popular-sections-workshop-v1-960.webp 960w, /images/home/popular-sections-workshop-v1.webp 1672w"
-          sizes="(max-width: 767px) 320px, 100vw"
+          sizes="100vw"
           alt=""
           loading="lazy"
           decoding="async"
@@ -76,47 +81,11 @@ export default function HomeSeoLinks() {
       </div>
       <div className="home-popular-content page-shell-inline">
         <header className="home-popular-intro home-popular-hero">
-          <div className="home-popular-hero-photo" aria-hidden="true">
-            {/* eslint-disable-next-line @next/next/no-img-element -- static srcset served by nginx */}
-            <img
-              src="/images/directories/parts-workbench-v1.webp"
-              srcSet="/images/directories/parts-workbench-v1-960.webp 960w, /images/directories/parts-workbench-v1.webp 1920w"
-              sizes="(max-width: 767px) 320px, (min-width: 1280px) 1200px, 100vw"
-              alt=""
-              loading="lazy"
-              decoding="async"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          </div>
           <div className="home-popular-hero-body">
-            <span className="home-popular-hero-eyebrow">
-              <span className="home-popular-hero-icon" aria-hidden="true">
-                <Wrench size={20} strokeWidth={2} />
-              </span>
-              Каталог PartsON
-            </span>
             <h2 id="home-seo-links-title" className="font-display font-display-readable">
               Популярні розділи <span>автозапчастин</span>
             </h2>
-            <p>
-              Купити автозапчастини у Львові можна трьома способами: за{" "}
-              <Link href="/groups" prefetch={false}>категорією запчастин</Link>{" "}
-              (деталі для ТО, гальмівна система, підвіска, двигун, охолодження),
-              за <Link href="/auto" prefetch={false}>маркою та моделлю авто</Link>{" "}
-              або за <Link href="/manufacturers" prefetch={false}>виробником</Link>{" "}
-              — Bosch, Febi, TRW, SKF, Sachs, KYB та інших.
-            </p>
-            <p>
-              У кожному розділі — актуальні ціни, наявність і аналоги за артикулом.
-              Не впевнені в сумісності? Підберемо деталь за VIN-кодом. Самовивіз
-              на вул. Перфецького, 8 або доставка Новою Поштою по Україні.
-            </p>
-            <ul className="home-popular-hero-facts" aria-label="PartsON у цифрах">
-              <li><PackageCheck size={16} aria-hidden="true" /><strong>10 000+</strong> товарів</li>
-              <li><Factory size={16} aria-hidden="true" /><strong>130+</strong> виробників</li>
-              <li><CarFront size={16} aria-hidden="true" /><strong>60+</strong> марок авто</li>
-              <li><Truck size={16} aria-hidden="true" />Самовивіз і доставка по Україні</li>
-            </ul>
+            <p>Перейдіть до потрібних деталей для ТО, гальмівної системи, підвіски чи двигуна. Або відкрийте каталог за маркою авто чи виробником.</p>
           </div>
         </header>
         <div className="home-popular-groups">

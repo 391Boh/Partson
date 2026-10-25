@@ -5,7 +5,6 @@ import { buildPageMetadata } from "app/lib/seo-metadata";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
-import HomeSeoLinks from "./components/HomeSeoLinks";
 import HomeHighlightsSection from "./components/HomeHighlightsSection";
 
 // The root page shares the root layout's segment, so the layout's
@@ -68,7 +67,6 @@ export default function HomePage() {
       <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />
-        <HomeSeoLinks />
       </div>
     </HomePageContent>
   );

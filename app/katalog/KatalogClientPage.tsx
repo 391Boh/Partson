@@ -444,7 +444,7 @@ const Katalog: React.FC<KatalogProps> = ({
       setLocalReady(true);
       return;
     }
-    const urlVehicle = readVehicleSelection(currentSearchParams.get('vehicle'));
+    const urlVehicle = readVehicleSelection(new URLSearchParams(searchParamsKey).get('vehicle'));
     if (urlVehicle) {
       const label = [urlVehicle.brand, urlVehicle.model, urlVehicle.year].filter(Boolean).join(' ');
       setSelectedCars([label]);

@@ -27,7 +27,7 @@ const api = load('app/api/home-blog/route.ts', {
   'next/server': { NextResponse: { json: (body, options) => ({ body, options }) } },
   'app/lib/blog': { getPublishedBlogPosts: async () => posts },
   'app/lib/blog-media': { isStorageMediaUrl: () => false },
-  'app/lib/home-blog-highlights': previewBuilder,
+  'app/lib/home-blog-preview-cache': { getHomeBlogHighlights: async () => previewBuilder.buildHomeBlogHighlights(posts) },
 });
 const response = await api.GET(teaserRequest);
 assert.equal(response.body.title, 'Стаття');
@@ -40,7 +40,7 @@ const apiThrows = load('app/api/home-blog/route.ts', {
   'next/server': { NextResponse: { json: (body, options) => ({ body, options }) } },
   'app/lib/blog': { getPublishedBlogPosts: async () => { throw new Error('firestore unavailable'); } },
   'app/lib/blog-media': { isStorageMediaUrl: () => false },
-  'app/lib/home-blog-highlights': previewBuilder,
+  'app/lib/home-blog-preview-cache': { getHomeBlogHighlights: async () => { throw new Error('firestore unavailable'); } },
 });
 assert.equal((await apiThrows.GET(teaserRequest)).body, null);
 console.log('Homepage response passed: bounded optional rating, failure fallback, small teaser payload without inline images, uncached empty result, resilient to a failed blog read.');

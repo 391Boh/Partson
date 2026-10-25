@@ -1,16 +1,8 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-
 // Atmospheric layer behind the manufacturers picker — parts-maker wordmarks as
 // CSS masks filled with a chrome ramp. Even, non-overlapping scatter (four down
 // each edge, two mid-height in the centre, one centred at the bottom).
 //
-// Signature parallax — a LATERAL SPREAD: as the section scrolls through the
-// viewport the whole field opens outward horizontally (left marks slide left,
-// right marks slide right) and tilts away from centre, then closes back as the
-// section leaves. A sideways "iris" motion — nothing like the depth push of the
-// car-picker or the tumble of the categories backdrop.
+// Static artwork: CSS owns placement and hover effects; no mount-time geometry reads.
 
 type Layer = {
   src: string;
@@ -24,14 +16,6 @@ type Layer = {
   cx?: boolean;
 };
 
-const MOBILE_MAX_WIDTH = 640;
-const MOBILE_MOTION_FACTOR = 0.5;
-const MAX_SPREAD = 76;
-const MAX_Y_BOB = 24;
-const MAX_ROT_TILT = 3.5;
-
-// Chrome-style ramps — a bright specular band mid-gradient so each wordmark
-// reads as a lightly polished metal cut-out.
 const BLUE =
   "linear-gradient(135deg,#173a8f 0%,#3f7fe6 30%,#bfe1ff 50%,#3f7fe0 62%,#1a4aa8 100%)";
 const DEEP =
@@ -177,146 +161,9 @@ const LAYERS: Layer[] = [
 ];
 
 export default function BrandsLogosBackdrop() {
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const section = root?.closest("section") ?? root?.parentElement;
-    if (!root || !section) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    type Plane = {
-      el: HTMLElement;
-      rot: number;
-      cx: boolean;
-      // coefficients folded with depth + mobile factor, refreshed on resize only
-      spreadM: number; // px outward at |progress| = 1
-      yBobM: number;
-      rotTiltM: number;
-    };
-
-    const allPlanes: Plane[] = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-parallax]")
-    ).map((el) => ({
-      el,
-      rot: Number(el.dataset.rot || 0),
-      cx: el.dataset.cx === "1",
-      spreadM: 0,
-      yBobM: 0,
-      rotTiltM: 0,
-    }));
-
-    let planes: Plane[] = allPlanes;
-    let lastStep = NaN;
-
-    const recompute = () => {
-      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
-      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
-      planes = allPlanes.filter((p, index) => {
-        // One left and one right wordmark are enough to express the lateral
-        // spread on phones without promoting the whole logo field.
-        if (isMobile ? index !== 1 && index !== 8 : index % 2 !== 0) return false;
-        const r = p.el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0;
-      });
-      for (const p of planes) {
-        const el = p.el;
-        const depth = Number(el.dataset.depth || 0);
-        const side = el.dataset.side === "-1" ? -1 : el.dataset.side === "1" ? 1 : 0;
-        p.spreadM = side * depth * MAX_SPREAD * factor;
-        p.yBobM = depth * MAX_Y_BOB * factor;
-        p.rotTiltM = side * depth * MAX_ROT_TILT * factor;
-      }
-      lastStep = NaN;
-    };
-
-    const transformAt = (plane: Plane, p: number) => {
-      const absP = p < 0 ? -p : p; // spread opens at both scroll extremes
-      const x = Math.round(absP * plane.spreadM * 100) / 100;
-      const y = Math.round(p * plane.yBobM * 100) / 100;
-      const r = Math.round((plane.rot - absP * plane.rotTiltM) * 1000) / 1000;
-      const tx = plane.cx ? `calc(-50% + ${x}px)` : `${x}px`;
-      return `translate(${tx},${y}px) rotate(${r}deg)`;
-    };
-
-    const apply = (progress: number) => {
-      const step = Math.round(progress * 1024);
-      if (step === lastStep) return;
-      lastStep = step;
-      const p = step / 1024;
-      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
-    };
-
-    // Compositor path where supported: the transforms are handed to a CSS
-    // scroll-driven animation once and nothing runs on scroll. The shared JS
-    // controller below remains the fallback.
-    // Static composition, like /partnership: every plane sits at its centred
-    // pose — the one seen mid-scroll — and nothing moves with the scroll.
-    // Scroll-linked motion of these filtered, semi-transparent layers was
-    // recomposited on every frame (and ran per-frame JS where scroll
-    // timelines are unsupported), which is what made the homepage scroll lag.
-    // Depth: each moving plane gets its own vertical travel (the per-plane
-    // amplitude this backdrop was designed with); globals.css translates it
-    // on the backdrop's scroll timeline — compositor only, set once here.
-    const markDepth = () => {
-      for (const p of allPlanes) {
-        delete p.el.dataset.plxDrift;
-        p.el.style.removeProperty("--plx-drift");
-      }
-      for (const p of planes) {
-        if (!p.yBobM) continue;
-        p.el.style.setProperty("--plx-drift", `${p.yBobM}px`);
-        p.el.dataset.plxDrift = "";
-      }
-    };
-    let staticOn = false;
-    let measuredWidth = window.innerWidth;
-    const onResize = () => {
-      if (window.innerWidth === measuredWidth) return;
-      measuredWidth = window.innerWidth;
-      recompute();
-      if (staticOn) {
-        apply(0);
-        markDepth();
-      }
-    };
-
-    const start = () => {
-      if (staticOn) return;
-      staticOn = true;
-      recompute();
-      apply(0);
-      markDepth();
-      window.addEventListener("resize", onResize, { passive: true });
-      window.addEventListener("orientationchange", onResize);
-    };
-    const stop = () => {
-      staticOn = false;
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) start();
-        else stop();
-      },
-      { rootMargin: "180px 0px" }
-    );
-    io.observe(section);
-
-    return () => {
-      io.disconnect();
-      stop();
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-  }, []);
 
   return (
     <div
-      ref={rootRef}
       aria-hidden="true"
       className="home-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >

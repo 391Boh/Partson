@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { prepareHomeBackdrop } from "app/lib/home-backdrop-assets";
 import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
 
 import SectionBoundary from "./SectionBoundary";
@@ -12,7 +13,7 @@ import { HOME_SECTION_IDS } from "app/lib/home-sections";
 
 const MAX_SCROLL_MOUNT_DELAY_MS = 320;
 const SCROLL_SETTLE_RETRY_MS = 80;
-// Auto/product/brands each watch their own 800px-early IntersectionObserver
+// Auto/product/brands each watch their own proximity IntersectionObserver
 // independently. On a normal-to-fast scroll, two or three of them can cross
 // that threshold within the same second and commit their (real, non-trivial)
 // React trees back to back — profiling a scroll through the homepage showed
@@ -125,7 +126,7 @@ function DeferredHomeSection({
       // the spacing between setShouldMount calls entirely.
       // Also wait for the full stylesheet: this content is outside the
       // homepage's inlined critical CSS (app/lib/full-stylesheet.ts).
-      void Promise.all([preload().catch(() => undefined), whenFullStylesheetReady()]).then(() => {
+      void Promise.all([preload().catch(() => undefined), prepareHomeBackdrop(tone), whenFullStylesheetReady()]).then(() => {
         if (cancelled) return;
         mountRequestedAt = performance.now();
         mountWhenScrollSettles();
@@ -178,8 +179,8 @@ function DeferredHomeSection({
           requestMount();
           return;
         }
-        // The idle queue below prepares sections after the initial resources
-        // load. Intersection alone must not compete with the hero's LCP.
+        // The idle queue below starts independently of third-party frames.
+        // Intersection alone must not compete with the hero's LCP.
       },
       { rootMargin: conserveData ? "0px" : "800px 0px", threshold: 0 }
     );
@@ -211,7 +212,7 @@ function DeferredHomeSection({
     if (!conserveData) {
       cancelPreparation = scheduleBackgroundTask(() => {
         if (nearViewport) requestMount();
-      }, { delayMs: 600 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500) });
+      }, { delayMs: 900 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500), waitForLoad: false });
     }
     return cleanup;
   }, [preload, tone]);

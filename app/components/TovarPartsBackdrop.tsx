@@ -1,20 +1,5 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-
-// Atmospheric layer behind the category browser: catalog product photos with
-// the studio background cut out (public/Parts/cutout/*), so only the bare
-// part floats on the light panel. Each drifts / rotates / zooms a little as
-// the section scrolls through the viewport.
-//
-// The scroll math runs through the shared parallax controller (one scroll
-// listener + one rAF for the whole page, geometry measured off the hot path,
-// frame-rate-independent easing, IntersectionObserver-gated so it does zero
-// work while the section is off screen).
-//
-// Rendered as background-image divs with a locked aspect-ratio (no stretch);
-// photos are only fetched once the section nears the viewport. aria-hidden /
-// pointer-events-none, and all motion is skipped under prefers-reduced-motion.
+// Static cut-out photographs with fixed aspect ratios. The parent section
+// prepares the images before mounting; CSS controls placement and hover.
 
 type Part = {
   src: string;
@@ -30,20 +15,7 @@ type Part = {
   cx?: boolean;
 };
 
-// On phones only two opposite-edge parts move (see the effect below); the
-// remaining pieces stay as stable depth anchors. Everything is smaller and
-// pulled toward the edges, with a light opacity bump in globals.css.
-const MOBILE_MAX_WIDTH = 640;
-const MOBILE_MOTION_FACTOR = 0.5;
-
-// Signature parallax — an ORBITAL TUMBLE: rotation is the lead motion (each
-// part slowly spins as the section passes) with only a light vertical drift and
-// a grow-on-entry. Unlike the depth push of the car-picker, the lateral spread
-// of the manufacturers, or the centre swell of the SEO photos.
-const ROT_GAIN = 1.9;
-const DRIFT_DAMP = 0.52;
-const ZOOM_DAMP = 0.82;
-
+// Static cut-outs: CSS owns placement and hover effects.
 // An even, non-overlapping scatter: three parts down the left edge, three down
 // the right, brake pads centred at the bottom. Each sits on its own vertical
 // band so no two share a row on the same side, at any breakpoint. Mobile keeps
@@ -140,193 +112,9 @@ const PARTS: Part[] = [
 ];
 
 export default function TovarPartsBackdrop() {
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const section = root?.closest("section");
-    if (!root || !section) return;
-
-    const nodes = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-drift]")
-    );
-    const showImages = () => {
-      for (const el of nodes) {
-        if (el.dataset.src) el.style.backgroundImage = `url(${el.dataset.src})`;
-      }
-    };
-    // Fetch the cut-out photos only once the section is near the viewport so
-    // they never compete with the hero image / LCP on load. Used by every
-    // path below.
-    const lazyLoadImages = () => {
-      const io = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((e) => e.isIntersecting)) {
-            showImages();
-            io.disconnect();
-          }
-        },
-        { rootMargin: "700px 0px" }
-      );
-      io.observe(section);
-      return () => io.disconnect();
-    };
-
-    // Start fetching before motion is activated. Decoding a group of WebPs on
-    // the same frame that the first transform is applied causes a visible
-    // one-off hitch on mid-range devices.
-    const stopImagePreload = lazyLoadImages();
-
-    // Reduced motion → parts sit at rest, only the images are loaded.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return stopImagePreload;
-    }
-
-    type Plane = {
-      el: HTMLElement;
-      rot: number;
-      tx: string;
-      // motion coefficients folded with the mobile factor — refreshed on
-      // resize only, never per frame
-      driftM: number;
-      rotDriftM: number;
-      zoomM: number;
-    };
-    const allPlanes: Plane[] = nodes.map((el) => ({
-      el,
-      rot: Number(el.dataset.rot || 0),
-      tx: el.dataset.cx ? "-50%" : "0",
-      driftM: 0,
-      rotDriftM: 0,
-      zoomM: 0,
-    }));
-
-    let imagesLoaded = false;
-    // Only animate the parts actually painted at this breakpoint; quantise the
-    // progress so the easing filter's sub-pixel tail stops rewriting transforms.
-    let planes: Plane[] = allPlanes;
-    let lastStep = NaN;
-
-    const recompute = () => {
-      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
-      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
-      planes = allPlanes.filter((p, index) => {
-        // Two opposite-edge parts keep the orbital tumble visible on phones;
-        // the other five remain stable depth anchors.
-        if (isMobile ? index !== 0 && index !== 4 : index % 2 !== 0) return false;
-        const r = p.el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0;
-      });
-      for (const p of planes) {
-        const el = p.el;
-        p.driftM = Number(el.dataset.drift || 0) * DRIFT_DAMP * factor;
-        p.rotDriftM = Number(el.dataset.rotDrift || 0) * ROT_GAIN * factor;
-        p.zoomM = Number(el.dataset.zoom || 0) * ZOOM_DAMP * factor;
-      }
-      lastStep = NaN;
-    };
-
-    const transformAt = (plane: Plane, p: number) => {
-      const enter = (p + 1) / 2; // 0 entering → 1 leaving
-      const y = Math.round(p * plane.driftM * 100) / 100;
-      const r = Math.round((plane.rot + p * plane.rotDriftM) * 1000) / 1000;
-      const s = Math.round((1 + enter * plane.zoomM) * 10000) / 10000;
-      return `translate(${plane.tx},${y}px) rotate(${r}deg) scale(${s})`;
-    };
-
-    const apply = (progress: number) => {
-      const step = Math.round(progress * 1024);
-      if (step === lastStep) return;
-      lastStep = step;
-      const p = step / 1024;
-      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
-    };
-
-    // The cut-out photos are only fetched once the section is near the
-    // viewport, so they never compete with the hero image / LCP on load.
-    const loadImages = () => {
-      if (imagesLoaded) return;
-      imagesLoaded = true;
-      showImages();
-    };
-
-    // Compositor path where supported: the transforms are handed to a CSS
-    // scroll-driven animation once and nothing runs on scroll. The shared JS
-    // controller below remains the fallback.
-    // Static composition, like /partnership: every plane sits at its centred
-    // pose — the one seen mid-scroll — and nothing moves with the scroll.
-    // Scroll-linked motion of these filtered, semi-transparent layers was
-    // recomposited on every frame (and ran per-frame JS where scroll
-    // timelines are unsupported), which is what made the homepage scroll lag.
-    // Depth: each moving plane gets its own vertical travel (the per-plane
-    // amplitude this backdrop was designed with); globals.css translates it
-    // on the backdrop's scroll timeline — compositor only, set once here.
-    const markDepth = () => {
-      for (const p of allPlanes) {
-        delete p.el.dataset.plxDrift;
-        p.el.style.removeProperty("--plx-drift");
-      }
-      for (const p of planes) {
-        if (!p.driftM) continue;
-        p.el.style.setProperty("--plx-drift", `${p.driftM}px`);
-        p.el.dataset.plxDrift = "";
-      }
-    };
-    let staticOn = false;
-    let measuredWidth = window.innerWidth;
-    const onResize = () => {
-      if (window.innerWidth === measuredWidth) return;
-      measuredWidth = window.innerWidth;
-      recompute();
-      if (staticOn) {
-        apply(0);
-        markDepth();
-      }
-    };
-
-    const start = () => {
-      if (staticOn) return;
-      staticOn = true;
-      recompute();
-      apply(0);
-      markDepth();
-      window.addEventListener("resize", onResize, { passive: true });
-      window.addEventListener("orientationchange", onResize);
-    };
-    const stop = () => {
-      staticOn = false;
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          loadImages();
-          start();
-        } else {
-          stop();
-        }
-      },
-      // Tight margin: the parallax only needs to be live while the section is
-      // near the viewport. A wide margin kept it (and its compositor layers)
-      // running at the same time as the car-picker's backdrop just above.
-      { rootMargin: "150px 0px" }
-    );
-    io.observe(section);
-
-    return () => {
-      stopImagePreload();
-      io.disconnect();
-      stop();
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-  }, []);
 
   return (
     <div
-      ref={rootRef}
       aria-hidden="true"
       className="home-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >
@@ -341,6 +129,7 @@ export default function TovarPartsBackdrop() {
           data-cx={part.cx ? "1" : undefined}
           style={{
             aspectRatio: String(part.ratio),
+            backgroundImage: `url(${part.src})`,
             ["--po" as string]: part.opacity,
             transform: `translate(${part.cx ? "-50%" : "0"}, 0) rotate(${part.rot}deg)`,
           }}

@@ -1,19 +1,9 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-
 // Atmospheric layer behind the car-picker. Each brand mark is a
 // gradient-filled silhouette — the SVG is a CSS `mask`, the shape is filled
 // with a chrome ramp, so it always reads as one clean, lightly polished
 // colour regardless of the logo's own palette.
 //
-// Signature parallax — a DEPTH PUSH: `depth` 0 = far, 1 = near, keyed to a
-// focal plane. Near marks rush toward the viewer (grow) as the section scrolls
-// past, far marks recede, focal-plane marks hold at 1 — real 3-D layering, not
-// one flat sheet sliding. Unlike the lateral spread of the manufacturers
-// backdrop, the tumble of the categories one, or the centre swell of the SEO
-// photos. Runs on the shared parallax controller (one scroll listener + one
-// rAF for the whole page, IO-gated). Skipped for reduced motion.
+// Static artwork: CSS owns placement and hover effects; no mount-time geometry reads.
 
 type Layer = {
   src: string;
@@ -26,19 +16,6 @@ type Layer = {
   opacity: number;
   cx?: boolean; // horizontal-centre (pair with `left-1/2`)
 };
-
-const MOBILE_MAX_WIDTH = 640;
-const MOBILE_MOTION_FACTOR = 0.5;
-// Per-plane motion across the section's transit. Marks in the top band drift
-// up, the bottom band drifts down — the field opens outward on scroll and
-// nothing collides.
-const MAX_DRIFT = 82;
-const MAX_ROT_SWING = 4;
-// Scale is keyed to depth relative to a focal plane: marks nearer than
-// FOCAL_PLANE grow as the section scrolls past (rush toward the viewer),
-// marks farther than it recede, and marks on the focal plane hold at 1.
-const FOCAL_PLANE = 0.4;
-const SCALE_GAIN = 0.27;
 
 // Chrome-style ramps: a bright specular band through the middle so each
 // silhouette reads as a lightly polished metal cut-out, not a flat fill.
@@ -202,157 +179,9 @@ const LAYERS: Layer[] = [
 ];
 
 export default function AutoLogosBackdrop() {
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const section = root?.closest("section") ?? root?.parentElement;
-    if (!root || !section) return;
-
-    // Marks (masks + tint) render from the JSX itself; this effect only wires
-    // the scroll parallax, and only when motion is allowed.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    type Plane = {
-      el: HTMLElement;
-      depth: number;
-      dir: number;
-      rot: number;
-      tx: string;
-      // motion coefficients, folded with the mobile factor — refreshed only
-      // on resize, never per frame
-      driftM: number;
-      rotSwingM: number;
-      scaleSwingM: number;
-    };
-
-    const allPlanes: Plane[] = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-parallax]")
-    ).map((el) => ({
-      el,
-      depth: Number(el.dataset.depth || 0),
-      dir: el.dataset.dir === "-1" ? -1 : 1,
-      rot: Number(el.dataset.rot || 0),
-      tx: el.dataset.cx ? "-50%" : "0",
-      driftM: 0,
-      rotSwingM: 0,
-      scaleSwingM: 0,
-    }));
-
-    // Only the marks actually painted at the current breakpoint get animated —
-    // on phones ~half the field is `display:none`, and writing a transform to a
-    // hidden node still costs a style-recalc entry every frame.
-    let planes: Plane[] = allPlanes;
-    // Quantise progress to ~0.003 steps (sub-pixel at the widest drift). This
-    // collapses the long sub-pixel tail of the easing filter — dozens of frames
-    // that would rewrite every transform for motion the eye can't see.
-    let lastStep = NaN;
-
-    const recompute = () => {
-      const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
-      const factor = isMobile ? MOBILE_MOTION_FACTOR : 1;
-      // Half the marks move and half remain as stable depth anchors. The eye
-      // still reads several planes, while each frame writes only six styles.
-      // Mobile keeps one mark at each edge moving, so the section retains its
-      // signature depth push for the cost of only two small compositor layers.
-      planes = allPlanes.filter((p, index) => {
-        if (isMobile ? index !== 1 && index !== 10 : index % 2 !== 0) return false;
-        const r = p.el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0;
-      });
-      for (const p of planes) {
-        p.driftM = p.depth * MAX_DRIFT * p.dir * factor;
-        p.rotSwingM = p.depth * MAX_ROT_SWING * p.dir * factor;
-        // >0 for near planes (grow as the section leaves), <0 for far ones
-        p.scaleSwingM = (p.depth - FOCAL_PLANE) * SCALE_GAIN * factor;
-      }
-      lastStep = NaN; // force the next frame to write
-    };
-
-    const transformAt = (plane: Plane, p: number) => {
-      const y = Math.round(p * plane.driftM * 100) / 100;
-      const r = Math.round((plane.rot + p * plane.rotSwingM) * 1000) / 1000;
-      const s = Math.round((1 + p * plane.scaleSwingM) * 10000) / 10000;
-      return `translate(${plane.tx},${y}px) rotate(${r}deg) scale(${s})`;
-    };
-
-    const apply = (progress: number) => {
-      const step = Math.round(progress * 1024);
-      if (step === lastStep) return;
-      lastStep = step;
-      const p = step / 1024;
-      for (const plane of planes) plane.el.style.transform = transformAt(plane, p);
-    };
-
-    // Compositor path where supported: the transforms are handed to a CSS
-    // scroll-driven animation once and nothing runs on scroll. The shared JS
-    // controller below remains the fallback.
-    // Static composition, like /partnership: every plane sits at its centred
-    // pose — the one seen mid-scroll — and nothing moves with the scroll.
-    // Scroll-linked motion of these filtered, semi-transparent layers was
-    // recomposited on every frame (and ran per-frame JS where scroll
-    // timelines are unsupported), which is what made the homepage scroll lag.
-    // Depth: each moving plane gets its own vertical travel (the per-plane
-    // amplitude this backdrop was designed with); globals.css translates it
-    // on the backdrop's scroll timeline — compositor only, set once here.
-    const markDepth = () => {
-      for (const p of allPlanes) {
-        delete p.el.dataset.plxDrift;
-        p.el.style.removeProperty("--plx-drift");
-      }
-      for (const p of planes) {
-        if (!p.driftM) continue;
-        p.el.style.setProperty("--plx-drift", `${p.driftM}px`);
-        p.el.dataset.plxDrift = "";
-      }
-    };
-    let staticOn = false;
-    let measuredWidth = window.innerWidth;
-    const onResize = () => {
-      if (window.innerWidth === measuredWidth) return;
-      measuredWidth = window.innerWidth;
-      recompute();
-      if (staticOn) {
-        apply(0);
-        markDepth();
-      }
-    };
-
-    const start = () => {
-      if (staticOn) return;
-      staticOn = true;
-      recompute();
-      apply(0);
-      markDepth();
-      window.addEventListener("resize", onResize, { passive: true });
-      window.addEventListener("orientationchange", onResize);
-    };
-    const stop = () => {
-      staticOn = false;
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) start();
-        else stop();
-      },
-      { rootMargin: "180px 0px" }
-    );
-    io.observe(section);
-
-    return () => {
-      io.disconnect();
-      stop();
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-    };
-  }, []);
 
   return (
     <div
-      ref={rootRef}
       aria-hidden="true"
       className="home-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >

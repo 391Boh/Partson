@@ -8,53 +8,17 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import AutoBackdrop from "./AutoLogosBackdrop";
+import CategoryBackdrop from "./TovarPartsBackdrop";
+import BrandsBackdrop from "./BrandsLogosBackdrop";
 
 const SeoPhotosBackdrop = dynamic(() => import("./SeoPhotosBackdrop"), {
   ssr: false,
   loading: () => null,
 });
 
-const loadAutoBackdrop = () => import("./AutoLogosBackdrop");
-const loadCategoryBackdrop = () => import("./TovarPartsBackdrop");
-const loadBrandsBackdrop = () => import("./BrandsLogosBackdrop");
-const AutoBackdrop = dynamic(loadAutoBackdrop, { ssr: false });
-const CategoryBackdrop = dynamic(loadCategoryBackdrop, { ssr: false });
-const BrandsBackdrop = dynamic(loadBrandsBackdrop, { ssr: false });
-
-// Mirrors TovarPartsBackdrop's cut-out photos (~200 KB), listed here for the
-// same reason as SEO_BACKDROP_PHOTO_SRCS: warming them must not pull that
-// component's chunk into this one.
-const CATEGORY_CUTOUT_SRCS = [
-  "/Parts/cutout/filtr.webp",
-  "/Parts/cutout/amort.webp",
-  "/Parts/cutout/podush.webp",
-  "/Parts/cutout/grm.webp",
-  "/Parts/cutout/masl.webp",
-  "/Parts/cutout/nakon.webp",
-  "/Parts/cutout/kol.webp",
-];
-
-let catalogBackdropsWarmed = false;
-/** Once the page has loaded and gone idle, fetch the three section backdrops'
- *  code and the cut-out photos at low priority. Revealing a backdrop then
- *  only mounts it: before, each one waited for idle time, then its chunk,
- *  then its images, so the sections stood without their background for a
- *  second or more (longer on phones). */
-const warmCatalogBackdrops = () => {
-  if (catalogBackdropsWarmed) return;
-  catalogBackdropsWarmed = true;
-  void loadAutoBackdrop().catch(() => undefined);
-  void loadCategoryBackdrop().catch(() => undefined);
-  void loadBrandsBackdrop().catch(() => undefined);
-  for (const src of CATEGORY_CUTOUT_SRCS) {
-    const image = new window.Image();
-    image.fetchPriority = "low";
-    image.src = src;
-  }
-};
-
 const conservesData = () => {
+  if (typeof navigator === "undefined") return false;
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
   return Boolean(connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g");
 };
@@ -223,27 +187,13 @@ export function DeferredStoreMap({ src, title }: { src: string; title: string })
   );
 }
 
-/** Decorative code and mask images (tiny SVG logo silhouettes, not photos)
- * — cheap enough that they don't need to wait for the page's full "load"
- * event the way scheduleBackgroundTask does elsewhere. That extra wait was
- * why the manufacturers/models/categories backdrops visibly lagged behind
- * the hero and SEO photo backdrops, which reveal on proximity alone. These
- * now do the same: a generous rootMargin so they're ready well before
- * scrolled into view, gated only by an idle callback, not by window "load". */
+/** The parent section already defers the catalogue code and warms its artwork.
+ * Render decorations with that first commit instead of a second lazy waterfall. */
 function DeferredCatalogBackdrop({ kind }: { kind: "auto" | "category" | "brands" }) {
-  const { ref, ready: near } = useDeferredNearViewport<HTMLDivElement>("900px 0px");
-  const ready = near && !conservesData();
-
-  useEffect(() => {
-    if (conservesData()) return;
-    return scheduleBackgroundTask(warmCatalogBackdrops);
-  }, []);
-
-  return (
-    <div ref={ref} aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
-      {ready ? kind === "auto" ? <AutoBackdrop /> : kind === "category" ? <CategoryBackdrop /> : <BrandsBackdrop /> : null}
-    </div>
-  );
+  if (conservesData()) return null;
+  return <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
+    {kind === "auto" ? <AutoBackdrop /> : kind === "category" ? <CategoryBackdrop /> : <BrandsBackdrop />}
+  </div>;
 }
 
 export function DeferredAutoBackdrop() {

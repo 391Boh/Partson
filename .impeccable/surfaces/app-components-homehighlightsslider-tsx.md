@@ -24,3 +24,6 @@ FORM: Local extension, directly specified slider structure; seed key: not applic
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
 Established-world exception: preserve existing design documentation; this addition does not create a new DESIGN.md or replace the global system. Reused raster provenance: diagnostics-hero-v1.webp already shipped in public/images/information; blog covers come from published posts through the existing image route; fallback Car-parts-fullwidth.webp is an existing repository asset. No generated or copied raster assets.
+
+
+Loading contract: use getHomeBlogHighlights from home-blog-preview-cache for both the streamed section and preview API. Cache only compact highlights, revalidate every 600s and use the existing blog-posts tag; failed reads must not cache an empty result. Suspense streams the hero/fallback immediately while awaiting the real server result: do not replace a slow server query with a 600ms timeout and a client restart. The first real article's text is independent of cover decoding; later slide changes keep their decode-before-crossfade policy. Identical API payloads must not create a duplicate pending cover. Preserve the fixed responsive section height.

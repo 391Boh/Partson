@@ -72,7 +72,14 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
       .then((payload: { items?: HomeHighlight[] } | null) => {
         if (!controller.signal.aborted && payload?.items?.length) {
           setArticles(payload.items);
-          setPendingSlide(payload.items.find(item => item.id === selectedRef.current.id) ?? payload.items[0]);
+          const next = payload.items.find(item => item.id === selectedRef.current.id) ?? payload.items[0];
+          const current = selectedRef.current;
+          if (current.id === HOME_BLOG_OVERVIEW.id) {
+            // The first real article's text must not wait on its cover decode.
+            setSelection({ current: next, previous: null });
+          } else if (JSON.stringify(current) !== JSON.stringify(next)) {
+            setPendingSlide(next);
+          }
         }
       })
       .catch(() => {});

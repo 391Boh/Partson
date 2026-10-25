@@ -106,3 +106,35 @@ Strengthened introduction hierarchy with dark ink headings up to 38px, section-c
 
 ### Editorial revision for relevant search intent (local only)
 Reworked default H2s to “Запчастини за маркою та моделлю”, “Каталог запчастин за категоріями” and “Виробники автозапчастин”. Descriptions explain the actual selection steps and next action; removed repeated generic phrasing and unsupported quality claims. Dynamic make/manufacturer counts use correct Ukrainian plural forms. Existing H1, metadata and selection-state headings remain unchanged. Applied Google Search Central's people-first content guidance: https://developers.google.com/search/docs/fundamentals/creating-helpful-content . This is a copy improvement, not a ranking forecast. ESLint/TypeScript and build passed; checked all three sections at 1440/390/320px for text fit. No deployment.
+
+### Larger vehicle navigation and compact homepage bottom sections (local only)
+Increased vehicle step buttons to 58px desktop / 66px mobile, enlarged number/value text and moved mobile labels beneath their step icons. Preserved fixed picker geometry and selection behavior.
+
+Reworked AdvantagesSection into a concise server-rendered store overview: one full-width workshop background, clear store/location copy, three short assortment rows, existing map/contact panel and one help action. Replaced overlapping decorative photo layers with a static object-fit:cover image; map loading logic remains unchanged.
+
+Popular catalogue links now have one short introduction, twelve directly visible category links, and native expandable make/manufacturer lists. All 40 item links plus directory links remain in server HTML. Removed redundant commercial copy and hardcoded sales counters, reset the old desktop six-row subgrid, and restored a visible full-width workshop photo. Measured popular-section height is 488px desktop / 746px at390 / 790px at320; store section is611px desktop with its map and contacts preserved.
+
+Validation: ESLint, TypeScript and production build passed. Checked desktop/mobile visuals at1440/390/320, catalogue link coverage, keyboard disclosure behavior, stylesheet loading and horizontal overflow. Updated map regression for the single static photo; map mounts once after scroll quiet time without resizing. Stable auto-summary/removal regression passed after navigation changes. No deployment.
+
+
+### Store photos and immediate official map
+Removed the popular-links section from homepage rendering. Replaced the decorative workshop backdrop with original storefront and display photographs, kept relevant assortment copy and three server-rendered directory links. The official Google map now renders immediately in a reserved frame, supports interaction and has a separate route link. This explicitly supersedes the previous delayed-map behavior for this section. Local only; lint, TypeScript, production compilation and mobile/desktop checks passed.
+
+
+### Homepage loading performance
+- Removed the nested backdrop chunk/intersection waterfall. Each picker prepares and decodes its own artwork alongside its dynamic code, with low network priority and a bounded 1.8s wait. Decorative failure cannot block the catalogue.
+- Preparation uses DOM readiness and idle scheduling independently of Google Maps/window.load; retain proximity loading and staggered commits instead of eagerly mounting all pickers.
+- Removed 541 lines of obsolete backdrop motion/geometry machinery; existing CSS placement and hover styling stay intact.
+- Store content renders visible in server HTML; storefront image has a responsive 768px source.
+- Font faces are defined exactly once in the server head rather than duplicated in critical and deferred stylesheets. A cold, throttled run exposed a small late metric swap before this fix. Keep font-display:optional and the existing font preload.
+- Verification uses scripts/test-home-background-loading.mjs with deliberately stalled Google Maps and optional HOME_TEST_SLOW=1 (80ms latency, 4Mbps download, 4× CPU). Measurements are local lab results, not field/PageSpeed scores. No deployment.
+
+Validation: production build, targeted ESLint and TypeScript passed. Delayed-content layout checks at 320/390/768/1440px recorded CLS 0. Throttled checks at 390/1440px passed with CLS 0 / 0.000437, stable section heights of 860 / 484px, and catalogue readiness while Maps was deliberately held pending. These are local measurements; no production score is claimed.
+
+
+### Store editorial and questions
+Refined the store overview with a shared heading, left-hand desktop Google map and right-hand two-photo gallery/assortment. On mobile copy remains first. Matched the help area to the section palette and added three compact, keyboard-accessible native questions about selection, collection and delivery; answers are present in server HTML. Eager map loading, fixed photo/frame dimensions and existing contact/catalogue links are retained. Local only.
+
+
+### Faster homepage article preview
+Replaced the 600ms server race with a streamed result and a shared compact-highlight cache (600s, blog-posts invalidation tag). Previously a cold database result could be discarded and retried after hydration, then text waited for cover decode. The first real article now appears independently of image decoding; identical API refreshes do not preload the same slide again. Subsequent slide changes still retain the previous decoded cover until replacement is ready. ESLint, TypeScript, production build and mobile/desktop first-paint checks passed. No deployment.

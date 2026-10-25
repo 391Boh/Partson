@@ -23,7 +23,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.home-highlights[data-server-resolved] .home-highlight-feature:not(.is-previous) h3')?.textContent === 'Перша стаття');
   await active.locator('img[data-loaded="true"]').waitFor();
   const height = await section.evaluate(el => el.getBoundingClientRect().height);
-  await section.getByRole('button', { name: 'Наступний матеріал' }).click();
+  await section.getByRole('button', { name: 'Наступна стаття' }).click();
   await section.locator('.home-highlight-preload').waitFor({ state: 'attached' });
   assert.equal(await active.locator('h3').textContent(), 'Перша стаття', 'Keep current slide visible while next cover is stalled');
   assert(await active.locator('img').evaluate(img => img.complete && img.naturalWidth > 0));

@@ -70,3 +70,8 @@ Vehicle picker geometry is now fixed per breakpoint (400px desktop results; 320p
 Current typography: crisp dark headings up to 38px desktop / 28px mobile (26px narrow), 3px section-color underlines, no diffuse heading shadow. Descriptions use darker 15px text and clear phrase emphasis. Preserve fixed vehicle-step geometry and vertical centering.
 
 Editorial copy now uses distinct intent-led H2s: “Запчастини за маркою та моделлю”, “Каталог запчастин за категоріями”, “Виробники автозапчастин”. Keep descriptions concrete, concise and tied to real controls; counts must use correct Ukrainian plurals. Preserve H1/metadata, layout and local-only scope. No keyword stuffing, invented claims or ranking guarantees.
+
+Vehicle navigation refinement: step controls are 58px desktop / 66px mobile with clearer title-case labels, larger step markers and mobile vertical stacking. Preserve fixed picker heights and accessible active/disabled/focus states. Homepage SEO/popular section design is documented in home-bottom.md.
+
+
+Performance update: backdrop markup ships with each deferred picker, without nested dynamic imports or intersection gates. `home-backdrop-assets.ts` starts low-priority image decoding in parallel with that picker's code (bounded to 1.8 seconds so decorative failures do not block controls). Keep asset lists aligned with the three backdrop components. Artwork is static CSS with no JavaScript layout reads or resize observers. The near-section queue uses DOM readiness plus idle time and does not wait for third-party window.load. Preserve the 800px proximity limit, 220ms commit spacing, 484px desktop and 860px mobile section reservations. Do not eagerly mount every offscreen picker.

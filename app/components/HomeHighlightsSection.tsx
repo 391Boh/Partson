@@ -1,23 +1,13 @@
 import { Suspense } from "react";
-import { getPublishedBlogPosts } from "app/lib/blog";
-import { buildHomeBlogHighlights } from "app/lib/home-blog-highlights";
+import { getHomeBlogHighlights } from "app/lib/home-blog-preview-cache";
 import { informationSections } from "app/inform/section-config";
 import type { HomeHighlight } from "app/lib/home-highlights";
 import HomeHighlightsSlider from "./HomeHighlightsSlider";
 
-async function loadInitialArticles() {
-  // Stream independently of the hero; a cold/unavailable database must not
-  // hold the page open. The client API retries if this small budget expires.
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const posts = await Promise.race([
-    getPublishedBlogPosts(),
-    new Promise<[]>(resolve => { timer = setTimeout(() => resolve([]), 600); }),
-  ]).finally(() => clearTimeout(timer));
-  return buildHomeBlogHighlights(posts);
-}
-
 async function InitialHighlights({ services }: { services: HomeHighlight[] }) {
-  const articles = await loadInitialArticles();
+  // Suspense already lets the hero stream immediately. Do not abandon the
+  // server result after 600ms and restart the same query after hydration.
+  const articles = await getHomeBlogHighlights().catch(() => []);
   return <HomeHighlightsSlider services={services} initialArticles={articles} serverResolved />;
 }
 

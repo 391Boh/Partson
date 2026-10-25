@@ -13,6 +13,7 @@ import DeferredFooter from "./components/DeferredFooter";
 import { trimSeoDescription } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
 import { safeJsonLd } from "./lib/safe-json-ld";
+import { FONT_FACE_CSS } from "./lib/font-faces";
 import { CRITICAL_CSS_PRECEDENCE } from "./lib/critical-css";
 
 // The global stylesheet is intentionally NOT `import`-ed here. A plain
@@ -424,6 +425,7 @@ export default function RootLayout({
   return (
     <html lang="uk" suppressHydrationWarning>
       <head>
+        <style id="partson-font-faces" dangerouslySetInnerHTML={{ __html: FONT_FACE_CSS }} />
         {/* Global stylesheet loader. Pages that load their own critical
             CSS (the homepage — see app/lib/critical-css.ts; React hoists that
             <link> above this script) get the full stylesheet without
