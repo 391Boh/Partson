@@ -52,8 +52,10 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const geometry = () => page.evaluate(() => ({
       panel: document.querySelector('.hero-account-surface').getBoundingClientRect().height,
-      buttons: document.querySelector('.hero-profile-actions').getBoundingClientRect().top,
+      buttons: document.querySelector('.hero-account-actions').getBoundingClientRect().top,
       following: document.querySelector('#following-section').getBoundingClientRect().top,
+      greetingText: document.querySelector('.hero-benefits > div:first-child p').getBoundingClientRect().x,
+      benefitRows: [...document.querySelectorAll('.hero-benefit')].map(el => ({top:el.getBoundingClientRect().top,height:el.getBoundingClientRect().height})),
     }));
     const initial = await geometry();
     const metrics = await page.evaluate(() => ({
@@ -66,12 +68,13 @@ try {
     await page.getByRole('button', { name: 'Увійти', exact: true }).waitFor();
     assert.deepEqual(await geometry(), initial, `Guest restoration keeps geometry at ${width}px`);
     await page.evaluate(() => window.restoreUser());
-    await page.getByRole('button', { name: 'Додати VIN', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Відкрити профіль', exact: true }).waitFor();
     assert.deepEqual(await geometry(), initial, `User restoration keeps geometry at ${width}px`);
-    await page.getByRole('region', { name: 'Збережені VIN-коди' }).waitFor();
+    await page.getByRole('list', { name: 'Збережені дані профілю' }).waitFor();
     assert.deepEqual(await geometry(), initial, `Late profile/chunk keeps geometry at ${width}px`);
     assert(await page.locator('.hero-profile-actions button').evaluateAll(buttons => buttons.every(button => button.getBoundingClientRect().height >= 44 && button.getBoundingClientRect().width >= 44)), 'Primary actions retain 44px targets');
-    assert(await page.locator('.hero-profile-slot').evaluate(el => el.scrollHeight > el.clientHeight), 'Long profile stays scrollable');
+    assert(await page.locator('.hero-profile-slot').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'Saved profile fits reserved space');
+    assert.equal(await page.locator('.hero-profile-invitation').count(), 0, 'Profile invitation stays hidden for signed-in users');
     await page.screenshot({ path: `/tmp/home-auth-layout-${width}.png` });
     console.log(JSON.stringify({ width, ...metrics, stableGeometry: true, actionTargets: "44px+" }));
     await page.close();

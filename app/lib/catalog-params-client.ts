@@ -19,7 +19,7 @@ const pending = new Map<string, Promise<ParamFacetsPayload>>();
 export const productParamsKey = (query: ProductParamsQuery, filters = "") => JSON.stringify([
   query.group, query.subcategory, query.producer,
   [...query.selectedCars].sort(), [...query.selectedCategories].sort(),
-  query.searchQuery, query.searchFilter, query.expandHierarchy, filters,
+  query.searchQuery, query.searchFilter, query.expandHierarchy, filters, query.vehicle || "",
 ]);
 export function readParamFacets(key: string): ParamFacetsPayload | null {
   let entry = cache.get(key);

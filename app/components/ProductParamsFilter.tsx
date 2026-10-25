@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowUpToLine, Info, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Check, Info, RotateCcw, SlidersHorizontal } from 'lucide-react';
 
 import { loadParamFacets, productParamsKey, readParamFacets, type ParamFacetsPayload } from 'app/lib/catalog-params-client';
 import FilterLoadingState from 'app/components/FilterLoadingState';
@@ -26,6 +26,7 @@ export type ProductParamsQuery = {
   selectedCars: string[];
   selectedCategories: string[];
   searchQuery: string;
+  vehicle?: string;
   searchFilter: string;
   expandHierarchy: boolean;
 };
@@ -35,6 +36,16 @@ type Props = {
   value: string;
   onChange: (encoded: string) => void;
 };
+
+// Keep the filter focused on fitting and choosing the part. Secondary
+// specification lines stay on the product page. Active URL filters remain
+// visible even when they came from an older, more detailed selection.
+const PRIMARY_PARAM_IDS = [
+  'position', 'side', 'disc-type', 'filter-type', 'shock-type', 'brake-system',
+  'diameter', 'outer-diameter', 'width', 'height', 'thickness', 'length',
+  'inner-diameter', 'thread', 'holes', 'total-height',
+];
+const PRIMARY_PARAM_LABEL = /^(тип|цоколь|напруга|потужність|в['’ʼ]?язкість|ємність|кількість зубів|кількість полюсів)$/i;
 
 const RANGE_COMMIT_DELAY_MS = 200;
 
@@ -86,53 +97,53 @@ function RangeFacet({
   const unit = facet.unit;
   const isActive = Boolean(filter);
   const inputClass =
-    'h-10 w-full min-w-0 rounded-[10px] border border-amber-200/80 bg-white pl-8 pr-9 text-[13px] font-bold text-slate-800 outline-none transition placeholder:font-semibold placeholder:text-slate-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 sm:h-9 sm:text-[12px]';
+    'catalog-params-input';
 
   return (
-    <div className={`catalog-params-card ${isActive ? 'is-active' : ''}`}>
+    <div className={`catalog-params-card ${isActive ? 'is-active' : ''}`} role="group" aria-label={facet.label}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="catalog-params-card-title">{facet.label}</span>
         <span className="catalog-params-card-meta">
           {formatParamNumber(facet.min, unit)} – {formatParamNumber(facet.max, unit)}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="relative block">
+      <div className="catalog-params-range">
+        <label className="catalog-params-field">
           <span className="sr-only">{facet.label} від</span>
-          <ArrowDownToLine size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500" aria-hidden="true" />
+          <span className="catalog-params-field-label" aria-hidden="true">Від</span>
           <input
             type="text"
             inputMode="decimal"
+            aria-label={`${facet.label} від`}
             value={from}
-            placeholder={`від ${formatParamNumber(facet.min, '')}`}
+            placeholder={formatParamNumber(facet.min, '')}
             onChange={(event) => {
               setFrom(event.target.value);
               schedule(event.target.value, to);
             }}
             className={inputClass}
           />
-          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{unit}</span> : null}
+          {unit ? <span className="catalog-params-field-unit" aria-hidden="true">{unit}</span> : null}
         </label>
-        <label className="relative block">
+        <label className="catalog-params-field">
           <span className="sr-only">{facet.label} до</span>
-          <ArrowUpToLine size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500" aria-hidden="true" />
+          <span className="catalog-params-field-label" aria-hidden="true">До</span>
           <input
             type="text"
             inputMode="decimal"
+            aria-label={`${facet.label} до`}
             value={to}
-            placeholder={`до ${formatParamNumber(facet.max, '')}`}
+            placeholder={formatParamNumber(facet.max, '')}
             onChange={(event) => {
               setTo(event.target.value);
               schedule(from, event.target.value);
             }}
             className={inputClass}
           />
-          {unit ? <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{unit}</span> : null}
+          {unit ? <span className="catalog-params-field-unit" aria-hidden="true">{unit}</span> : null}
         </label>
       </div>
-      <span className="catalog-params-card-hint">
-        Точний розмір: заповніть обидва поля однаково. {formatCount(facet.count)} {pluralizeProducts(facet.count)} з розміром
-      </span>
+
     </div>
   );
 }
@@ -226,7 +237,18 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
     );
   }
 
-  const facets = payload.facets;
+  const mainFacets = payload.facets
+    .filter(facet => PRIMARY_PARAM_IDS.includes(facet.id) || PRIMARY_PARAM_LABEL.test(facet.label))
+    .sort((a, b) => {
+      const rank = (id: string) => {
+        const index = PRIMARY_PARAM_IDS.indexOf(id);
+        return index < 0 ? 5.5 : index;
+      };
+      return rank(a.id) - rank(b.id);
+    }).slice(0, 6);
+  const facets = [...mainFacets, ...payload.facets.filter(facet =>
+    !mainFacets.some(main => main.id === facet.id) && filters.some(filter => filter.id === facet.id)
+  )];
   const positionFacet = facets.find((facet) => facet.id === 'position' && facet.kind === 'choice');
   const otherFacets = facets.filter((facet) => facet !== positionFacet);
   const hasFilters = filters.length > 0;
@@ -238,10 +260,10 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
           <SlidersHorizontal size={18} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-semibold leading-tight text-slate-800">Параметри товару</span>
+          <span className="block text-[14px] font-semibold leading-tight text-slate-800">Основні характеристики</span>
           <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-slate-500">
             {facets.length
-              ? `${formatCount(payload.totalCount)} ${pluralizeProducts(payload.totalCount)} · виберіть потрібні характеристики`
+              ? 'Уточніть параметри — підберемо товари'
               : 'Для цієї групи характеристики поки недоступні'}
           </span>
         </span>
@@ -253,13 +275,10 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
         ) : null}
       </div>
 
-      <p className="catalog-params-scope">{query.subcategory || query.selectedCategories[0]}</p>
+      <p className="catalog-params-scope">{query.subcategory || query.selectedCategories[0] || query.group}</p>
       {hasFilters ? (
         <p className="catalog-params-result" role="status" aria-live="polite">
-          <strong>
-            {formatCount(payload.matchCount)} {pluralizeProducts(payload.matchCount)}
-          </strong>{' '}
-          з вибраними параметрами
+          {status === 'loading' ? 'Оновлюємо підбір…' : status === 'error' ? 'Не вдалося оновити підбір' : <><Check size={15} aria-hidden="true" /><strong>{formatCount(payload.matchCount)} {pluralizeProducts(payload.matchCount)}</strong><span>за вашим вибором</span></>}
         </p>
       ) : null}
 
@@ -285,12 +304,9 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
                 onClick={() => toggleChoice(positionFacet.id, option.id)}
                 className={`catalog-params-position-button ${selected ? 'is-active' : ''}`}
               >
-                <span className={`catalog-params-axle ${option.id === 'rear' ? 'is-rear' : 'is-front'}`} aria-hidden="true">
-                  <span />
-                  <span />
-                </span>
+                <span className="catalog-params-choice-check" aria-hidden="true">{selected && <Check size={13} strokeWidth={2.5} />}</span>
                 <span className="min-w-0 text-left">
-                  <span className="block text-[13px] font-black leading-tight">{option.label} вісь</span>
+                  <span className="block text-[13px] font-black leading-tight">{option.label}</span>
                   <span className="mt-0.5 block text-[10px] font-semibold leading-tight opacity-75">
                     {formatCount(option.count)} {pluralizeProducts(option.count)}
                   </span>
@@ -332,7 +348,8 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
                         onClick={() => toggleChoice(facet.id, option.id)}
                         className={`catalog-params-chip ${selected ? 'is-active' : ''}`}
                       >
-                        <span className="truncate">{option.label}</span>
+                        <span className="catalog-params-choice-check" aria-hidden="true">{selected && <Check size={12} strokeWidth={2.5} />}</span>
+                        <span className="truncate" title={option.label}>{option.label}</span>
                         <span className="catalog-params-chip-count">{formatCount(option.count)}</span>
                       </button>
                     );
@@ -344,7 +361,7 @@ export default function ProductParamsFilter({ query, value, onChange }: Props) {
         </div>
       ) : null}
 
-      <p className="catalog-params-note">Зміни застосовуються автоматично.</p>
+      {facets.length > 0 && <p className="catalog-params-note">Підбір оновлюється автоматично.{facets.some(facet => facet.kind === 'range') ? ' Для точного розміру введіть однакові значення «Від» і «До».' : ''}</p>}
       {status === 'error' ? (
         <div className="catalog-params-note" role="status">
           Не вдалося оновити кількість товарів.

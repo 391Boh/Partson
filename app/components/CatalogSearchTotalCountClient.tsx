@@ -58,11 +58,13 @@ export default function CatalogSearchTotalCountClient({
     }
 
     for (const key of [
+      "vehicle",
       "group",
       "subcategory",
       "producer",
       "scope",
       "pricedOnly",
+      "withPhoto",
       "priceFrom",
       "priceTo",
       "inStock",

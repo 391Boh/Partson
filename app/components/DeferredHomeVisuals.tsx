@@ -59,17 +59,12 @@ const conservesData = () => {
   return Boolean(connection?.saveData || connection?.effectiveType === "2g" || connection?.effectiveType === "slow-2g");
 };
 
-// Mirrors SeoPhotosBackdrop's PHOTOS srcs. Kept as a plain string list (not
-// imported from there) so requesting these doesn't pull that component's JS
-// chunk into this one — background-image can't be preloaded by the browser
-// on its own, so without this the 5 storefront photos only start fetching
-// after SeoPhotosBackdrop's own dynamic import finishes and mounts, which is
-// what made them visibly pop in late while scrolling.
+// Mirrors SeoPhotosBackdrop's photo sources. Kept as a plain string list (not
+// imported from there) so warming the lazy photos doesn't pull that
+// component's JS chunk into this one or make the section eager.
 const SEO_BACKDROP_PHOTO_SRCS = [
   "/storefront/photos/bg/store-1.webp",
   "/storefront/photos/bg/store-2.webp",
-  "/storefront/photos/bg/store-3.webp",
-  "/storefront/photos/bg/store-5.webp",
   "/storefront/photos/bg/store-6.webp",
 ];
 
@@ -111,18 +106,12 @@ function useDeferredNearViewport<T extends HTMLElement>(
   return { ref, ready };
 }
 
-/** Keeps the five decorative storefront images and their parallax code out of
- * the initial homepage work. The visual is prepared shortly before the final
- * section arrives, but never parsed/mounted in the middle of a scroll frame. */
+/** Defers the static storefront photos until the final section approaches. */
 export default function DeferredSeoPhotosBackdrop() {
   const { ref, ready } = useDeferredNearViewport<HTMLDivElement>("900px 0px");
 
-  // Fetch the actual photo bytes as soon as the browser is idle after the
-  // initial load — not gated on scroll proximity like `ready` below. At
-  // ~200KB combined they're cheap enough to have sitting in cache well
-  // before anyone reaches this section, which is what makes the eventual
-  // reveal instant instead of a visible pop-in on a fast scroll or a slow
-  // connection.
+  // Warm the compressed photo bytes in an idle slot, before the dynamic
+  // backdrop mounts near the section.
   useEffect(() => {
     const win = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
@@ -150,7 +139,7 @@ export default function DeferredSeoPhotosBackdrop() {
   );
 }
 
-/** Prepare the map after initial resources, or well before it enters view. */
+/** Start Google's scripts near the map, after the scroll gesture settles. */
 export function DeferredStoreMap({ src, title }: { src: string; title: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
@@ -160,26 +149,56 @@ export function DeferredStoreMap({ src, title }: { src: string; title: string })
     if (!node || ready) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     const conserveData = connection?.saveData || ["2g", "slow-2g"].includes(connection?.effectiveType ?? "");
-    // A map is content, not decoration: don't gate it on window.load or an
-    // idle slot, which slow/blocked third-party requests can postpone forever.
-    // It used to also load on a 1.5s timer for every visitor: the Google Maps
-    // embed (a dozen scripts) then competed with the car-brand and catalog
-    // sections still mounting above. Proximity alone, with a wide margin.
     let cancelled = false;
-    const reveal = () => { if (!cancelled) setReady(true); };
-    const cancelPreparation = () => undefined;
+    let near = false;
+    let timer = 0;
+    let idle = 0;
+    const cancelPreparation = () => {
+      window.clearTimeout(timer);
+      if (idle) window.cancelIdleCallback?.(idle);
+      timer = idle = 0;
+    };
+    const reveal = () => {
+      idle = 0;
+      if (!cancelled && near && document.visibilityState === "visible") {
+        startTransition(() => setReady(true));
+      }
+    };
+    const prepare = () => {
+      cancelPreparation();
+      if (!near || document.visibilityState !== "visible") return;
+      // A wide proximity observer alone starts Maps' script evaluation in
+      // the middle of the gesture that brings the SEO section into view.
+      // Restart the quiet period on scroll and cancel an idle slot if the
+      // visitor moves again; no dependency on window.load or Google assets.
+      timer = window.setTimeout(() => {
+        timer = 0;
+        if (window.requestIdleCallback) {
+          idle = window.requestIdleCallback(reveal, { timeout: 1000 });
+        } else {
+          reveal();
+        }
+      }, 350);
+    };
+    window.addEventListener("scroll", prepare, { passive: true });
+    document.addEventListener("visibilitychange", prepare);
+    const cleanup = () => {
+      cancelled = true;
+      cancelPreparation();
+      window.removeEventListener("scroll", prepare);
+      document.removeEventListener("visibilitychange", prepare);
+    };
     if (typeof IntersectionObserver === "undefined") {
-      reveal();
-      return () => { cancelled = true; cancelPreparation(); };
+      near = true;
+      prepare();
+      return cleanup;
     }
     const observer = new IntersectionObserver(([entry]) => {
-      if (!entry?.isIntersecting) return;
-      observer.disconnect();
-      cancelPreparation();
-      reveal();
-    }, { rootMargin: conserveData ? "600px 0px" : "1800px 0px" });
+      near = Boolean(entry?.isIntersecting);
+      prepare();
+    }, { rootMargin: conserveData ? "200px 0px" : "600px 0px" });
     observer.observe(node);
-    return () => { cancelled = true; observer.disconnect(); cancelPreparation(); };
+    return () => { observer.disconnect(); cleanup(); };
   }, [ready]);
 
   return (
@@ -189,9 +208,10 @@ export function DeferredStoreMap({ src, title }: { src: string; title: string })
         <iframe
           src={src}
           title={title}
+          tabIndex={-1}
           loading="eager"
           referrerPolicy="no-referrer-when-downgrade"
-          className="absolute inset-0 h-full w-full border-0"
+          className="pointer-events-none absolute inset-0 h-full w-full border-0"
         />
       ) : (
         <div

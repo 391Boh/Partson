@@ -1,0 +1,2102 @@
+{
+  "baseline": [
+    {
+      "origin": "https://partson.shop",
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "elapsed": 10215,
+      "vitals": {
+        "FCP": 1608,
+        "LCP": 2288,
+        "CLS": 0,
+        "TTFB": 719.5
+      },
+      "shifts": [],
+      "nav": {
+        "name": "https://partson.shop/",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 2314.400000002235,
+        "navigationId": 566,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "h2",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 13.600000001490116,
+        "domainLookupStart": 25,
+        "domainLookupEnd": 90.60000000149012,
+        "connectStart": 90.60000000149012,
+        "secureConnectionStart": 228.60000000149012,
+        "connectEnd": 443.5,
+        "requestStart": 443.6000000014901,
+        "responseStart": 719.5,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 719.5,
+        "responseEnd": 724.6000000014901,
+        "transferSize": 39317,
+        "encodedBodySize": 39017,
+        "decodedBodySize": 223867,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 2309.800000000745,
+        "domContentLoadedEventStart": 2309.900000002235,
+        "domContentLoadedEventEnd": 2313,
+        "domComplete": 2314.400000002235,
+        "loadEventStart": 2314.400000002235,
+        "loadEventEnd": 2314.400000002235,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "low"
+        }
+      },
+      "h1": "Автозапчастини для ремонту й ТО",
+      "inputs": [],
+      "images": [
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "https://partson.shop/storefront/photos/partson-store-1-768.webp",
+          "complete": true,
+          "width": 256
+        }
+      ],
+      "resources": [
+        {
+          "url": "https://partson.shop/_next/image?url=%2Fapi%2Fblog%2Fog-image%2Fmotorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq%3Fv%3D2026-08-07T13%253A47%253A58.005Z&w=420&q=75",
+          "duration": 1019,
+          "bytes": 16212
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/16ws-4chlvm1p.js",
+          "duration": 875,
+          "bytes": 10214
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2refa6lot4jzz.js",
+          "duration": 873,
+          "bytes": 5473
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2x6zcx5x6sa6a.js",
+          "duration": 873,
+          "bytes": 25884
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2664dmr774m2k.js",
+          "duration": 872,
+          "bytes": 1027
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2xp74g_pjj24j.js",
+          "duration": 872,
+          "bytes": 1780
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/1wreamvqa0cnx.js",
+          "duration": 861,
+          "bytes": 11298
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/0s25wa-ge1lve.js",
+          "duration": 861,
+          "bytes": 9309
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 1608,
+        "LCP": 2288,
+        "CLS": 0,
+        "TTFB": 719.5,
+        "INP": 264
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": []
+    },
+    {
+      "origin": "https://partson.shop",
+      "path": "/",
+      "width": 1440,
+      "status": 200,
+      "elapsed": 9636,
+      "vitals": {
+        "FCP": 1044,
+        "LCP": 1228,
+        "TTFB": 535.3000000007451,
+        "CLS": 0
+      },
+      "shifts": [],
+      "nav": {
+        "name": "https://partson.shop/",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 1509.300000000745,
+        "navigationId": 901,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "h2",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 0.6999999992549419,
+        "domainLookupStart": 2.400000002235174,
+        "domainLookupEnd": 24.800000000745058,
+        "connectStart": 24.800000000745058,
+        "secureConnectionStart": 125.90000000223517,
+        "connectEnd": 331.4000000022352,
+        "requestStart": 331.4000000022352,
+        "responseStart": 535.3000000007451,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 535.3000000007451,
+        "responseEnd": 641.6000000014901,
+        "transferSize": 40274,
+        "encodedBodySize": 39974,
+        "decodedBodySize": 227842,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 1502.9000000022352,
+        "domContentLoadedEventStart": 1502.9000000022352,
+        "domContentLoadedEventEnd": 1503.6000000014901,
+        "domComplete": 1508.1000000014901,
+        "loadEventStart": 1508.300000000745,
+        "loadEventEnd": 1509.300000000745,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      },
+      "h1": "Автозапчастини для ремонту й ТО",
+      "inputs": [
+        {
+          "placeholder": "Назва, артикул, код...",
+          "type": "text"
+        }
+      ],
+      "images": [
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 92
+        },
+        {
+          "src": "https://partson.shop/storefront/photos/partson-store-1.webp",
+          "complete": true,
+          "width": 1440
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fapi%2Fblog%2Fog-image%2Fmotorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq%3Fv%3D2026-08-07T13%253A47%253A58.005Z&w=1536&q=75",
+          "complete": true,
+          "width": 1080
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=96&q=75",
+          "complete": true,
+          "width": 76
+        }
+      ],
+      "resources": [
+        {
+          "url": "https://partson.shop/storefront/photos/bg/store-6.webp",
+          "duration": 807,
+          "bytes": 29772
+        },
+        {
+          "url": "https://partson.shop/storefront/photos/bg/store-5.webp",
+          "duration": 737,
+          "bytes": 39492
+        },
+        {
+          "url": "https://partson.shop/storefront/photos/bg/store-3.webp",
+          "duration": 728,
+          "bytes": 26430
+        },
+        {
+          "url": "https://partson.shop/api/proxy?endpoint=euro",
+          "duration": 595,
+          "bytes": 331
+        },
+        {
+          "url": "https://partson.shop/api/home-blog?view=all",
+          "duration": 591,
+          "bytes": 811
+        },
+        {
+          "url": "https://partson.shop/favicon-partson-v3.ico",
+          "duration": 455,
+          "bytes": 8565
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/16ws-4chlvm1p.js",
+          "duration": 402,
+          "bytes": 10214
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2refa6lot4jzz.js",
+          "duration": 401,
+          "bytes": 5473
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 1044,
+        "LCP": 1228,
+        "TTFB": 535.3000000007451,
+        "CLS": 0,
+        "INP": 192
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": []
+    },
+    {
+      "origin": "https://partson.shop",
+      "path": "/katalog",
+      "width": 390,
+      "status": 200,
+      "elapsed": 8339,
+      "vitals": {
+        "FCP": 1584,
+        "LCP": 1584,
+        "CLS": 0.0008627793605571383,
+        "TTFB": 1049.699999999255
+      },
+      "shifts": [
+        {
+          "value": 0.0008627793605571383,
+          "nodes": [
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300"
+          ]
+        },
+        {
+          "value": 3.7226970560303893e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.686293130737575e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.3029439696106361e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 2.393162393162393e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 3.111111111111111e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 4.8749604305159865e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 5.318138651471985e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 7.65811965811966e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.615381876627604e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.615384615384615e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.615384615384615e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.615384615384615e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 7.551756885090219e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 5.752453308008864e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 4.679962013295347e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 3.279518835074391e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 2.153846153846154e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.435897435897436e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 6.381766381766382e-06,
+          "nodes": [
+            ""
+          ]
+        }
+      ],
+      "nav": {
+        "name": "https://partson.shop/katalog",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 1844.300000000745,
+        "navigationId": 4608,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "h2",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 0.6999999992549419,
+        "domainLookupStart": 2.5,
+        "domainLookupEnd": 50.5,
+        "connectStart": 50.5,
+        "secureConnectionStart": 153.69999999925494,
+        "connectEnd": 215.89999999850988,
+        "requestStart": 216,
+        "responseStart": 1049.699999999255,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 1049.699999999255,
+        "responseEnd": 1201.300000000745,
+        "transferSize": 47093,
+        "encodedBodySize": 46793,
+        "decodedBodySize": 444335,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 1739.8999999985099,
+        "domContentLoadedEventStart": 1740,
+        "domContentLoadedEventEnd": 1740.300000000745,
+        "domComplete": 1844.199999999255,
+        "loadEventStart": 1844.300000000745,
+        "loadEventEnd": 1844.300000000745,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      },
+      "h1": "Автозапчастини у Львові: каталог, ціни та наявність — PartsON",
+      "inputs": [
+        {
+          "placeholder": "Пошук марки...",
+          "type": "text"
+        }
+      ],
+      "images": [
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000056?iv=5&catalog=1&article=AD030213",
+          "complete": true,
+          "width": 310
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000059?iv=5&catalog=1&article=AD331515",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Audi.svg",
+          "complete": true,
+          "width": 1021
+        },
+        {
+          "src": "https://partson.shop/Carlogo/BMW.svg",
+          "complete": true,
+          "width": 1015
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Chery.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Chrysler.svg",
+          "complete": true,
+          "width": 187
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Citroen.svg",
+          "complete": true,
+          "width": 143
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Cadillac.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Dacia.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Daewoo.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/DAF.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Dodge.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Ferrari.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Fiat.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Ford.svg",
+          "complete": true,
+          "width": 300
+        }
+      ],
+      "resources": [
+        {
+          "url": "https://partson.shop/Carlogo/Jeep.svg",
+          "duration": 667,
+          "bytes": 1221
+        },
+        {
+          "url": "https://partson.shop/Carlogo/Iveco.svg",
+          "duration": 666,
+          "bytes": 1290
+        },
+        {
+          "url": "https://partson.shop/Carlogo/Jaguar.svg",
+          "duration": 666,
+          "bytes": 3316
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/1vsrf4shkznur.js",
+          "duration": 632,
+          "bytes": 37119
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/1nawe2445v5lt.js",
+          "duration": 632,
+          "bytes": 11490
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/2cz0x08p994ww.js",
+          "duration": 613,
+          "bytes": 1324
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/1v_u-u4xcfnh6.js",
+          "duration": 613,
+          "bytes": 1694
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/0a-sc3be_5i_4.js",
+          "duration": 592,
+          "bytes": 44774
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 1584,
+        "LCP": 1584,
+        "CLS": 0.0008627793605571383,
+        "TTFB": 1049.699999999255
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": []
+    },
+    {
+      "origin": "https://partson.shop",
+      "path": "/katalog",
+      "width": 1440,
+      "status": 200,
+      "elapsed": 7683,
+      "vitals": {
+        "FCP": 828,
+        "LCP": 828,
+        "TTFB": 423.19999999925494,
+        "CLS": 0.0013468315972222221
+      },
+      "shifts": [
+        {
+          "value": 0.0013468315972222221,
+          "nodes": [
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300",
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300",
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300",
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300",
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300"
+          ]
+        },
+        {
+          "value": 9.752229080932783e-07,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.6578789437585735e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 3.260030864197531e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 5.015432098765432e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 6.40860768175583e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 8.735210905349795e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.1535493827160495e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.3541666666666666e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.503236454046639e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.3708847736625513e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.503236454046639e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.4670138888888887e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.1368312757201646e-05,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 9.362139917695473e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 6.742979175269358e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 4.597479423868312e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 3.204303840877915e-06,
+          "nodes": [
+            ""
+          ]
+        },
+        {
+          "value": 1.6300154320987655e-06,
+          "nodes": [
+            ""
+          ]
+        }
+      ],
+      "nav": {
+        "name": "https://partson.shop/katalog",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 1100.5999999977648,
+        "navigationId": 4168,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "h2",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 0.3999999985098839,
+        "domainLookupStart": 1.0999999977648258,
+        "domainLookupEnd": 2.899999998509884,
+        "connectStart": 2.899999998509884,
+        "secureConnectionStart": 61.30000000074506,
+        "connectEnd": 122.30000000074506,
+        "requestStart": 122.39999999850988,
+        "responseStart": 423.19999999925494,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 423.19999999925494,
+        "responseEnd": 482.69999999925494,
+        "transferSize": 47093,
+        "encodedBodySize": 46793,
+        "decodedBodySize": 444335,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 1003,
+        "domContentLoadedEventStart": 1003,
+        "domContentLoadedEventEnd": 1003.5,
+        "domComplete": 1099.5999999977648,
+        "loadEventStart": 1100.3999999985099,
+        "loadEventEnd": 1100.5999999977648,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      },
+      "h1": "Автозапчастини у Львові: каталог, ціни та наявність — PartsON",
+      "inputs": [
+        {
+          "placeholder": "Назва, артикул, код...",
+          "type": "text"
+        },
+        {
+          "placeholder": "Пошук марки...",
+          "type": "text"
+        }
+      ],
+      "images": [
+        {
+          "src": "https://partson.shop/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 92
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000056?iv=5&catalog=1&article=AD030213",
+          "complete": true,
+          "width": 310
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000059?iv=5&catalog=1&article=AD331515",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000060?iv=5&catalog=1&article=AD331509",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000065?iv=5&catalog=1&article=AD550214",
+          "complete": true,
+          "width": 200
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000066?iv=5&catalog=1&article=AD330143",
+          "complete": true,
+          "width": 450
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000067?iv=5&catalog=1&article=AD330234",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000068?iv=5&catalog=1&article=AD330137",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/product-image/00-00000069?iv=5&catalog=1&article=AD330136",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "https://partson.shop/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Audi.svg",
+          "complete": true,
+          "width": 1021
+        },
+        {
+          "src": "https://partson.shop/Carlogo/BMW.svg",
+          "complete": true,
+          "width": 1015
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Chery.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Chrysler.svg",
+          "complete": true,
+          "width": 187
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Citroen.svg",
+          "complete": true,
+          "width": 143
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Cadillac.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Dacia.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Daewoo.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/DAF.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Dodge.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Ferrari.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Fiat.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Ford.svg",
+          "complete": true,
+          "width": 300
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Chevrolet.svg",
+          "complete": true,
+          "width": 4115
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Geely.svg",
+          "complete": true,
+          "width": 2500
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Honda.svg",
+          "complete": true,
+          "width": 48
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Hummer.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Hyunndai.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Infiniti.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Isuzu.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Iveco.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Jaguar.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Jeep.svg",
+          "complete": true,
+          "width": 1000
+        },
+        {
+          "src": "https://partson.shop/Carlogo/KIA.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Lada.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Lamborghini.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Lancia.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Landrover.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Lexus.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Lincoln.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Lotus.svg",
+          "complete": true,
+          "width": 210
+        },
+        {
+          "src": "https://partson.shop/Carlogo/optimized/Man.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Maserati.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Maybach.webp",
+          "complete": true,
+          "width": 186
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Mazda.svg",
+          "complete": true,
+          "width": 850
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Mercedes.webp",
+          "complete": true,
+          "width": 186
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Mini.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Mitsubishi.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Nissan.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Opel.svg",
+          "complete": true,
+          "width": 338
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Peugeot.svg",
+          "complete": true,
+          "width": 367
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Pontiac.svg",
+          "complete": true,
+          "width": 423
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Porsche.webp",
+          "complete": true,
+          "width": 186
+        },
+        {
+          "src": "https://partson.shop/Carlogo/Ram.svg",
+          "complete": true,
+          "width": 2431
+        }
+      ],
+      "resources": [
+        {
+          "url": "https://partson.shop/product-image/00-00000069?iv=5&catalog=1&article=AD330136",
+          "duration": 370,
+          "bytes": 6158
+        },
+        {
+          "url": "https://partson.shop/product-image/00-00000067?iv=5&catalog=1&article=AD330234",
+          "duration": 369,
+          "bytes": 5578
+        },
+        {
+          "url": "https://partson.shop/product-image/00-00000068?iv=5&catalog=1&article=AD330137",
+          "duration": 369,
+          "bytes": 6494
+        },
+        {
+          "url": "https://partson.shop/product-image/00-00000066?iv=5&catalog=1&article=AD330143",
+          "duration": 368,
+          "bytes": 5912
+        },
+        {
+          "url": "https://partson.shop/product-image/00-00000060?iv=5&catalog=1&article=AD331509",
+          "duration": 367,
+          "bytes": 6952
+        },
+        {
+          "url": "https://partson.shop/product-image/00-00000065?iv=5&catalog=1&article=AD550214",
+          "duration": 367,
+          "bytes": 7712
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/0a-sc3be_5i_4.js",
+          "duration": 367,
+          "bytes": 44774
+        },
+        {
+          "url": "https://partson.shop/_next/static/chunks/1z9yv76fit-yp.js",
+          "duration": 363,
+          "bytes": 20515
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 828,
+        "LCP": 828,
+        "TTFB": 423.19999999925494,
+        "CLS": 0.0013468315972222221
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": []
+    },
+    {
+      "origin": "http://localhost:3000",
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "elapsed": 7831,
+      "vitals": {
+        "FCP": 644,
+        "LCP": 644,
+        "TTFB": 406.5,
+        "CLS": 0
+      },
+      "shifts": [],
+      "nav": {
+        "name": "http://localhost:3000/",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 796.8999999985099,
+        "navigationId": 2075,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "http/1.1",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 0.29999999701976776,
+        "domainLookupStart": 0.29999999701976776,
+        "domainLookupEnd": 0.29999999701976776,
+        "connectStart": 0.29999999701976776,
+        "secureConnectionStart": 0,
+        "connectEnd": 0.29999999701976776,
+        "requestStart": 1.2999999970197678,
+        "responseStart": 406.5,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 406.5,
+        "responseEnd": 414.8999999985099,
+        "transferSize": 46853,
+        "encodedBodySize": 46553,
+        "decodedBodySize": 245839,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 614.2999999970198,
+        "domContentLoadedEventStart": 614.2999999970198,
+        "domContentLoadedEventEnd": 614.5999999977648,
+        "domComplete": 796.8999999985099,
+        "loadEventStart": 796.8999999985099,
+        "loadEventEnd": 796.8999999985099,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      },
+      "h1": "Автозапчастини для ремонту й ТО",
+      "inputs": [],
+      "images": [
+        {
+          "src": "http://localhost:3000/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "http://localhost:3000/storefront/photos/partson-store-1-768.webp",
+          "complete": true,
+          "width": 256
+        }
+      ],
+      "resources": [
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_react-icons_si_index_mjs_12meb20._.js",
+          "duration": 424,
+          "bytes": 2053797
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_global-error_tsx_0cmn22j._.js",
+          "duration": 219,
+          "bytes": 1651
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_0jkv_5r._.js",
+          "duration": 211,
+          "bytes": 31957
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_18g4sdq._.js",
+          "duration": 195,
+          "bytes": 72663
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_0kwmium._.js",
+          "duration": 191,
+          "bytes": 78851
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_lucide-react_dist_esm_icons_1_0utp4._.js",
+          "duration": 188,
+          "bytes": 2472
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_next-devtools_index_090k2jm.js",
+          "duration": 184,
+          "bytes": 249493
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js",
+          "duration": 183,
+          "bytes": 185147
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 644,
+        "LCP": 644,
+        "TTFB": 406.5,
+        "CLS": 0,
+        "INP": 144
+      },
+      "errors": [],
+      "failed": [
+        {
+          "url": "http://localhost:3000/api/home-blog?view=all",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "http": [],
+      "pending": []
+    },
+    {
+      "origin": "http://localhost:3000",
+      "path": "/katalog",
+      "width": 390,
+      "status": 200,
+      "elapsed": 7231,
+      "vitals": {
+        "FCP": 624,
+        "LCP": 624,
+        "CLS": 0.0002583729028173473,
+        "TTFB": 437.3999999985099
+      },
+      "shifts": [
+        {
+          "value": 0.0002583729028173473,
+          "nodes": [
+            "flex items-center gap-1 tabular-nums"
+          ]
+        }
+      ],
+      "nav": {
+        "name": "http://localhost:3000/katalog",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 987.5999999977648,
+        "navigationId": 2062,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "http/1.1",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 0.6999999992549419,
+        "domainLookupStart": 0.6999999992549419,
+        "domainLookupEnd": 0.6999999992549419,
+        "connectStart": 0.6999999992549419,
+        "secureConnectionStart": 0,
+        "connectEnd": 0.6999999992549419,
+        "requestStart": 1.8999999985098839,
+        "responseStart": 437.3999999985099,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 437.3999999985099,
+        "responseEnd": 444.19999999925494,
+        "transferSize": 51188,
+        "encodedBodySize": 50888,
+        "decodedBodySize": 471422,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 590,
+        "domContentLoadedEventStart": 590,
+        "domContentLoadedEventEnd": 590.0999999977648,
+        "domComplete": 987.5,
+        "loadEventStart": 987.5999999977648,
+        "loadEventEnd": 987.5999999977648,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "low"
+        }
+      },
+      "h1": "Автозапчастини у Львові: каталог, ціни та наявність — PartsON",
+      "inputs": [
+        {
+          "placeholder": "Пошук марки...",
+          "type": "text"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://localhost:3000/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "http://localhost:3000/product-image/00-00000056?iv=5&catalog=1&article=AD030213",
+          "complete": true,
+          "width": 310
+        },
+        {
+          "src": "http://localhost:3000/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "http://localhost:3000/product-image/00-00000059?iv=5&catalog=1&article=AD331515",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "http://localhost:3000/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Audi.svg",
+          "complete": true,
+          "width": 1021
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/BMW.svg",
+          "complete": true,
+          "width": 1015
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Chery.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Chrysler.svg",
+          "complete": true,
+          "width": 187
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Citroen.svg",
+          "complete": true,
+          "width": 143
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Cadillac.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Dacia.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/optimized/Daewoo.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/DAF.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/optimized/Dodge.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Ferrari.svg",
+          "complete": true,
+          "width": 150
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/optimized/Fiat.webp",
+          "complete": true,
+          "width": 192
+        },
+        {
+          "src": "http://localhost:3000/Carlogo/Ford.svg",
+          "complete": true,
+          "width": 300
+        }
+      ],
+      "resources": [
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_react-icons_si_index_mjs_12meb20._.js",
+          "duration": 3333,
+          "bytes": 2053797
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/_1of5x8j._.js",
+          "duration": 1231,
+          "bytes": 47534
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_00t3rq9._.js",
+          "duration": 1217,
+          "bytes": 25659
+        },
+        {
+          "url": "http://localhost:3000/api/catalog-live",
+          "duration": 1172,
+          "bytes": 5325
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_components_0sddilv._.js",
+          "duration": 1165,
+          "bytes": 9122
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_lucide-react_dist_esm_icons_03v0649._.js",
+          "duration": 1145,
+          "bytes": 2110
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_12c2c7t._.js",
+          "duration": 1112,
+          "bytes": 77869
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_react-icons_lib_11_gx9i._.js",
+          "duration": 1101,
+          "bytes": 2106
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 624,
+        "LCP": 624,
+        "CLS": 0.0002583729028173473,
+        "TTFB": 437.3999999985099
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": [
+        "http://localhost:3000/api/catalog-prices?mode=fast",
+        "http://localhost:3000/api/catalog-prices?mode=fast",
+        "http://localhost:3000/api/catalog-prices?mode=fast"
+      ]
+    }
+  ],
+  "localLoginAfter": [
+    {
+      "origin": "http://localhost:3000",
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "elapsed": 9976,
+      "vitals": {
+        "FCP": 2200,
+        "LCP": 2200,
+        "TTFB": 1489.699999999255,
+        "CLS": 0
+      },
+      "shifts": [],
+      "nav": {
+        "name": "http://localhost:3000/",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 2815.800000000745,
+        "navigationId": 4650,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "http/1.1",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 1.300000000745058,
+        "domainLookupStart": 1.300000000745058,
+        "domainLookupEnd": 1.300000000745058,
+        "connectStart": 1.300000000745058,
+        "secureConnectionStart": 0,
+        "connectEnd": 1.300000000745058,
+        "requestStart": 9.899999998509884,
+        "responseStart": 1489.699999999255,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 1489.699999999255,
+        "responseEnd": 1500.300000000745,
+        "transferSize": 46857,
+        "encodedBodySize": 46557,
+        "decodedBodySize": 245839,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 2156.199999999255,
+        "domContentLoadedEventStart": 2159.39999999851,
+        "domContentLoadedEventEnd": 2161.099999997765,
+        "domComplete": 2814,
+        "loadEventStart": 2815.699999999255,
+        "loadEventEnd": 2815.800000000745,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "low"
+        }
+      },
+      "h1": "Автозапчастини для ремонту й ТО",
+      "inputs": [],
+      "images": [
+        {
+          "src": "http://localhost:3000/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "http://localhost:3000/storefront/photos/partson-store-1-768.webp",
+          "complete": true,
+          "width": 256
+        }
+      ],
+      "resources": [
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_180j97q._.js",
+          "duration": 469,
+          "bytes": 33051
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_lucide-react_dist_esm_icons_1_0utp4._.js",
+          "duration": 465,
+          "bytes": 2472
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_18g4sdq._.js",
+          "duration": 461,
+          "bytes": 72663
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_global-error_tsx_0cmn22j._.js",
+          "duration": 458,
+          "bytes": 1651
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0_90u2t._.js",
+          "duration": 455,
+          "bytes": 194930
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_0kwmium._.js",
+          "duration": 448,
+          "bytes": 78984
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_next-devtools_index_090k2jm.js",
+          "duration": 440,
+          "bytes": 249493
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_react-icons_si_index_mjs_12meb20._.js",
+          "duration": 437,
+          "bytes": 2053797
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "vitals": {
+          "FCP": 2200,
+          "LCP": 2200,
+          "TTFB": 1489.699999999255,
+          "CLS": 0,
+          "INP": 272
+        },
+        "events": [
+          {
+            "name": "pointerdown",
+            "duration": 272,
+            "delay": 41.69999999925494,
+            "processing": 4.400000002235174,
+            "target": "relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]"
+          },
+          {
+            "name": "pointerup",
+            "duration": 272,
+            "delay": 76.5,
+            "processing": 0.5,
+            "target": "relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]"
+          },
+          {
+            "name": "click",
+            "duration": 272,
+            "delay": 78.30000000074506,
+            "processing": 50.29999999701977,
+            "target": "relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]"
+          },
+          {
+            "name": "keydown",
+            "duration": 128,
+            "delay": 1.800000000745058,
+            "processing": 77.39999999850988
+          },
+          {
+            "name": "keyup",
+            "duration": 48,
+            "delay": 0.09999999776482582,
+            "processing": 0,
+            "target": "inline-flex flex-1 min-w-0 whitespace-nowrap relative items-center gap-2 justify-center overflow-hidden rounded-[10px] border px-3 py-2.5 font-ui text-[12px] font-bold tracking-[0.08em] uppercase transition-[box-shadow,filter,background-color,border-color,background-position,transform] duration-400 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80 select-none disabled:opacity-60 disabled:cursor-not-allowed group border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.96)_0%,rgba(14,165,233,0.92)_52%,rgba(56,189,248,0.88)_100%)] text-white shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_10px_24px_rgba(14,165,233,0.22),0_6px_16px_rgba(2,132,199,0.16)] ring-1 ring-sky-200/14 motion-safe:hover:border-sky-200/65 motion-safe:hover:brightness-[1.07] motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_14px_32px_rgba(14,165,233,0.30),0_8px_22px_rgba(2,132,199,0.20)] bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] motion-safe:hover:[background-position:100%_50%] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-10 after:bg-[linear-gradient(90deg,rgba(255,255,255,0.14),rgba(255,255,255,0))]"
+          }
+        ]
+      },
+      "errors": [],
+      "failed": [
+        {
+          "url": "http://localhost:3000/api/home-blog?view=all",
+          "error": "net::ERR_ABORTED"
+        }
+      ],
+      "http": [],
+      "pending": []
+    }
+  ],
+  "catalogAfter": [
+    {
+      "origin": "http://localhost:3000",
+      "path": "/katalog",
+      "width": 390,
+      "status": 200,
+      "elapsed": 11100,
+      "vitals": {
+        "FCP": 3700,
+        "LCP": 3700,
+        "CLS": 0.0008627793605571383,
+        "TTFB": 2998.400000002235
+      },
+      "shifts": [
+        {
+          "value": 0.0008627793605571383,
+          "nodes": [
+            "catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-[background-color,border-color,box-shadow] duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white border-blue-200/90 hover:border-blue-300"
+          ]
+        }
+      ],
+      "nav": {
+        "name": "http://localhost:3000/katalog",
+        "entryType": "navigation",
+        "startTime": 0,
+        "duration": 4384.400000002235,
+        "navigationId": 6143,
+        "initiatorType": "navigation",
+        "deliveryType": "",
+        "nextHopProtocol": "http/1.1",
+        "renderBlockingStatus": "non-blocking",
+        "contentType": "text/html",
+        "contentEncoding": "gzip",
+        "workerStart": 0,
+        "workerRouterEvaluationStart": 0,
+        "workerCacheLookupStart": 0,
+        "workerMatchedSourceType": "",
+        "workerFinalSourceType": "",
+        "redirectStart": 0,
+        "redirectEnd": 0,
+        "fetchStart": 7.300000000745058,
+        "domainLookupStart": 7.300000000745058,
+        "domainLookupEnd": 7.300000000745058,
+        "connectStart": 7.300000000745058,
+        "secureConnectionStart": 0,
+        "connectEnd": 7.300000000745058,
+        "requestStart": 8.300000000745058,
+        "responseStart": 2998.400000002235,
+        "firstInterimResponseStart": 0,
+        "finalResponseHeadersStart": 2998.400000002235,
+        "responseEnd": 3020.300000000745,
+        "transferSize": 51182,
+        "encodedBodySize": 50882,
+        "decodedBodySize": 472046,
+        "responseStatus": 200,
+        "serverTiming": [],
+        "unloadEventStart": 0,
+        "unloadEventEnd": 0,
+        "domInteractive": 3901,
+        "domContentLoadedEventStart": 3901,
+        "domContentLoadedEventEnd": 3902.800000000745,
+        "domComplete": 4384.10000000149,
+        "loadEventStart": 4384.300000000745,
+        "loadEventEnd": 4384.400000002235,
+        "type": "navigate",
+        "redirectCount": 0,
+        "activationStart": 0,
+        "criticalCHRestart": 0,
+        "notRestoredReasons": null,
+        "confidence": {
+          "randomizedTriggerRate": 0.4994798,
+          "value": "high"
+        }
+      },
+      "h1": "Автозапчастини у Львові: каталог, ціни та наявність — PartsON",
+      "inputs": [
+        {
+          "placeholder": "Пошук марки...",
+          "type": "text"
+        }
+      ],
+      "images": [
+        {
+          "src": "http://localhost:3000/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+          "complete": true,
+          "width": 65
+        },
+        {
+          "src": "http://localhost:3000/product-image/00-00000056?iv=5&catalog=1&article=AD030213",
+          "complete": true,
+          "width": 310
+        },
+        {
+          "src": "http://localhost:3000/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "http://localhost:3000/product-image/00-00000059?iv=5&catalog=1&article=AD331515",
+          "complete": true,
+          "width": 480
+        },
+        {
+          "src": "http://localhost:3000/_next/image?url=%2FBrands%2FAdriauto.jpg&w=128&q=85",
+          "complete": true,
+          "width": 111
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        },
+        {
+          "src": "",
+          "complete": false,
+          "width": 0
+        }
+      ],
+      "resources": [
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_react-icons_si_index_mjs_12meb20._.js",
+          "duration": 1180,
+          "bytes": 2053797
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_0vj1xbw._.js",
+          "duration": 943,
+          "bytes": 133325
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_components_0kbvloe._.js",
+          "duration": 932,
+          "bytes": 127492
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/node_modules_18g4sdq._.js",
+          "duration": 895,
+          "bytes": 72663
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_katalog_0_vxsvi._.js",
+          "duration": 895,
+          "bytes": 13474
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_lib_1739zh0._.js",
+          "duration": 885,
+          "bytes": 28542
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/app_0kwmium._.js",
+          "duration": 883,
+          "bytes": 78851
+        },
+        {
+          "url": "http://localhost:3000/_next/static/chunks/_1nm3n2s._.js",
+          "duration": 873,
+          "bytes": 752
+        }
+      ],
+      "overflow": false,
+      "afterInteraction": {
+        "FCP": 3700,
+        "LCP": 3700,
+        "CLS": 0.0008627793605571383,
+        "TTFB": 2998.400000002235
+      },
+      "errors": [],
+      "failed": [],
+      "http": [],
+      "pending": [
+        "http://localhost:3000/Carlogo/Audi.svg",
+        "http://localhost:3000/Carlogo/BMW.svg",
+        "http://localhost:3000/Carlogo/Chery.svg",
+        "http://localhost:3000/Carlogo/Chrysler.svg",
+        "http://localhost:3000/Carlogo/Citroen.svg",
+        "http://localhost:3000/Carlogo/Cadillac.svg",
+        "http://localhost:3000/Carlogo/Dacia.svg",
+        "http://localhost:3000/Carlogo/optimized/Daewoo.webp",
+        "http://localhost:3000/Carlogo/DAF.svg",
+        "http://localhost:3000/Carlogo/optimized/Dodge.webp",
+        "http://localhost:3000/Carlogo/Ferrari.svg",
+        "http://localhost:3000/Carlogo/optimized/Fiat.webp",
+        "http://localhost:3000/Carlogo/Ford.svg",
+        "http://localhost:3000/Carlogo/Chevrolet.svg",
+        "http://localhost:3000/Carlogo/Geely.svg",
+        "http://localhost:3000/Carlogo/Honda.svg",
+        "http://localhost:3000/Carlogo/Hummer.svg",
+        "http://localhost:3000/Carlogo/optimized/Hyunndai.webp",
+        "http://localhost:3000/Carlogo/Infiniti.svg",
+        "http://localhost:3000/Carlogo/Isuzu.svg",
+        "http://localhost:3000/Carlogo/Iveco.svg",
+        "http://localhost:3000/Carlogo/Jaguar.svg",
+        "http://localhost:3000/Carlogo/Jeep.svg"
+      ]
+    }
+  ],
+  "search": {
+    "url": "http://localhost:3000/katalog?search=OC90",
+    "cards": 4,
+    "names": [
+      "Фільтр масляний Opel 85- бензинКод:00-00002551Артикул:OC90Виробник:Ціна:194грн1",
+      "Фільтр KNECHT OC90OFКод:00-00002714Артикул:OC90OFВиробник:Ціна:за запитом1",
+      "Фільтр масляний Opel 85- бензинКод:РТ-00000958Артикул:0451103079Виробник:Ціна:184грн1"
+    ],
+    "inputs": [
+      {
+        "placeholder": "Назва, артикул, код...",
+        "type": "text"
+      },
+      {
+        "placeholder": "Пошук марки...",
+        "type": "text"
+      }
+    ],
+    "buttons": [
+      "LAND ROVER",
+      "LEXUS",
+      "LINCOLN",
+      "LOTUS",
+      "MAN",
+      "MASERATI",
+      "MAYBACH",
+      "MAZDA",
+      "MERCEDES-BENZ",
+      "MINI",
+      "MITSUBISHI",
+      "NISSAN",
+      "OPEL",
+      "PEUGEOT",
+      "PONTIAC",
+      "PORSCHE",
+      "RAM",
+      "RENAULT",
+      "ROLLS-ROYCE",
+      "ROVER",
+      "SAAB",
+      "SEAT",
+      "SKODA",
+      "SMART",
+      "SSANGYONG",
+      "SUBARU",
+      "SUZUKI",
+      "TESLA",
+      "TOYOTA",
+      "VOLVO",
+      "VOLKSWAGEN",
+      "ACURA",
+      "ALFA ROMEO",
+      "ASTON MARTIN",
+      "BENTLEY"
+    ],
+    "errors": []
+  },
+  "pagination": {
+    "url": "http://localhost:3000/katalog?page=2",
+    "cards": 16,
+    "names": [
+      "Трос ручн. гальм. лів. бараб. AUDI 80/90Код:00-00000085Артикул:AD030219Виробник:Ціна:414грн1",
+      "Трос ручного гальма задн. Transit 91-Код:00-00000086Артикул:AD130276Виробник:Ціна:872грн1",
+      "Трос ручного гальма задн. лів Transit 00-Код:00-00000087Артикул:AD1302091Виробник:Ціна:623грн1"
+    ],
+    "inputs": [
+      {
+        "placeholder": "Назва, артикул, код...",
+        "type": "text"
+      },
+      {
+        "placeholder": "Пошук марки...",
+        "type": "text"
+      }
+    ],
+    "buttons": [
+      "LAND ROVER",
+      "LEXUS",
+      "LINCOLN",
+      "LOTUS",
+      "MAN",
+      "MASERATI",
+      "MAYBACH",
+      "MAZDA",
+      "MERCEDES-BENZ",
+      "MINI",
+      "MITSUBISHI",
+      "NISSAN",
+      "OPEL",
+      "PEUGEOT",
+      "PONTIAC",
+      "PORSCHE",
+      "RAM",
+      "RENAULT",
+      "ROLLS-ROYCE",
+      "ROVER",
+      "SAAB",
+      "SEAT",
+      "SKODA",
+      "SMART",
+      "SSANGYONG",
+      "SUBARU",
+      "SUZUKI",
+      "TESLA",
+      "TOYOTA",
+      "VOLVO",
+      "VOLKSWAGEN",
+      "ACURA",
+      "ALFA ROMEO",
+      "ASTON MARTIN",
+      "BENTLEY"
+    ],
+    "errors": []
+  }
+}

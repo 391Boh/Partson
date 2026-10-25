@@ -2,7 +2,7 @@
 
 import { usePanelTransition } from "app/lib/use-panel-transition";
 import { pluralizeProducts } from 'app/lib/pluralize-uk';
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -15,7 +15,6 @@ import FilterLoadingState from 'app/components/FilterLoadingState';
 import { scheduleBackgroundTask } from 'app/lib/schedule-background-task';
 import {
   Car,
-  BadgeDollarSign,
   BadgePercent,
   CheckCircle,
   ChevronDown,
@@ -37,6 +36,15 @@ import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
 import type { ProductParamsQuery } from 'app/components/ProductParamsFilter';
 import { decodeProductParamFilters, PRODUCT_PARAMS_QUERY_KEY } from 'app/lib/product-params';
 import { loadParamFacets } from 'app/lib/catalog-params-client';
+
+function FilterSelectionIndicator({ label, color }: { label: string; color: string }) {
+  return (
+    <span className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white sm:static sm:ml-0.5 sm:h-4 sm:w-4 sm:ring-0">
+      <CheckCircle size={12} strokeWidth={2.5} style={{ color }} aria-hidden="true" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 type ProducerFilterBrand = {
   name: string;
@@ -76,10 +84,16 @@ interface FilterSidebarProps {
   onPriceRangeChange?: (from: number | null, to: number | null) => void;
   inStock?: boolean;
   onInStockChange?: (v: boolean) => void;
+  withPhoto?: boolean;
+  onWithPhotoChange?: (v: boolean) => void;
 }
 
 interface AutoProps {
   variant?: string;
+  searchInHeader?: boolean;
+  searchTerm?: string;
+  onSearchTermChange?: (value: string) => void;
+  onSearchPlaceholderChange?: (placeholder: string | null) => void;
   selectedCars: string[];
   handleCarChange: (car: string) => void;
   initialSelection?: PersistedCarSelection | null;
@@ -92,6 +106,8 @@ interface AutoProps {
 interface CategoryProps {
   selectedCategories: string[];
   handleCategoryChange: (category: string) => void;
+  searchInHeader?: boolean;
+  onSearchPlaceholderChange?: (placeholder: string) => void;
   searchTerm?: string;
   onSearchTermChange?: (value: string) => void;
   resetViewSignal?: number;
@@ -137,6 +153,34 @@ const staticProducerBrandsSeed: ProducerFilterBrand[] = brands.map((brand) => ({
 const PRODUCER_FILTER_INITIAL_RENDER_LIMIT = 48;
 const PRODUCER_FILTER_SEARCH_RENDER_LIMIT = 96;
 
+// Price slider: thumbs snap to these round prices, spaced so the cheap end
+// (most parts) gets most of the track. The first stop means "no minimum",
+// the last one "no maximum"; exact amounts go into the two fields above it.
+const PRICE_SLIDER_STOPS = [
+  0, 50, 100, 150, 200, 300, 400, 500, 700, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000, 15000, 20000,
+  30000, 50000,
+] as const;
+const PRICE_SLIDER_LAST = PRICE_SLIDER_STOPS.length - 1;
+const PRICE_SLIDER_TICKS = [0, 500, 2000, 10000, 50000] as const;
+const priceNumberFormat = new Intl.NumberFormat('uk-UA');
+const formatPriceAmount = (value: number) => priceNumberFormat.format(value);
+// Index of the last stop at or below the price; a typed 3500 sits on 3000.
+const priceToSliderIndex = (value: number | null | undefined, fallback: number) => {
+  if (value == null) return fallback;
+  let index = 0;
+  while (index < PRICE_SLIDER_LAST && PRICE_SLIDER_STOPS[index + 1] <= value) index += 1;
+  return index;
+};
+const sliderPercent = (index: number) => (index / PRICE_SLIDER_LAST) * 100;
+
+const SORT_OPTIONS: readonly { value: CatalogSortOrder; label: string; title: string }[] = [
+  { value: 'none', label: 'Типово', title: 'Без сортування' },
+  { value: 'asc', label: 'Дешевші', title: 'Ціна: від низької до високої' },
+  { value: 'desc', label: 'Дорожчі', title: 'Ціна: від високої до низької' },
+  { value: 'name_asc', label: 'А → Я', title: 'Назва: від А до Я' },
+  { value: 'name_desc', label: 'Я → А', title: 'Назва: від Я до А' },
+];
+
 const FilterSidebar: FC<FilterSidebarProps> = ({
   initialProducerBrands = [],
   selectedCars,
@@ -161,6 +205,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   onPriceRangeChange,
   inStock = false,
   onInStockChange,
+  withPhoto = false,
+  onWithPhotoChange,
 }) => {
   const rootRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
@@ -285,6 +331,11 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [collapsed, setCollapsed] = useState(true);
   const ignoreScrollCloseUntilRef = useRef(0);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  // One search field in the header serves the open tab; each tab keeps its
+  // own query, and the tab says what the field searches right now.
+  const [autoSearchTerm, setAutoSearchTerm] = useState('');
+  const [autoSearchPlaceholder, setAutoSearchPlaceholder] = useState<string | null>('Знайти марку авто');
+  const [categorySearchPlaceholder, setCategorySearchPlaceholder] = useState('Знайти категорію або запчастину');
   useEffect(() => {
     const handleFinalCategorySelection = () => {
       setActiveComponent('category');
@@ -412,7 +463,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const hasCategoryLabel = Boolean(categoryLabel);
   const displayCategoryLabel = getFilterDisplayLabel(categoryLabel);
   const categoryCount = selectedCategories.length;
-  const carCount = selectedCars.length;
   const searchQuery = (currentSearchParams.get('search') || '').trim();
   const searchFilter = currentSearchParams.get('filter') || 'all';
   const isCarDrivenSearch = currentSearchParams.get('carSearch') === '1';
@@ -425,7 +475,9 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const isCategorySelected = hasCategorySelection;
   const isProducerSelected = Boolean(producerParam);
   const isAutoSelected =
-    carCount > 0 || Boolean(selectedVin) || Boolean(selectedCarSelection?.label) || isCarDrivenSearch;
+    Boolean(selectedVin) ||
+    Boolean(selectedCarSelection?.brand && selectedCarSelection?.model) ||
+    (isCarDrivenSearch && Boolean(searchQuery));
   const isAutoTabActive = activeComponent === 'auto';
   const isCategoryTabActive = activeComponent === 'category';
   const isProducerTabActive = activeComponent === 'producer';
@@ -445,6 +497,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       selectedCategories,
       searchQuery,
       searchFilter,
+      vehicle: currentSearchParams.get('vehicle') || '',
       expandHierarchy: currentSearchParams.get('scope') === 'hierarchy',
     }),
     // currentSearchParams is covered by searchParamsKey.
@@ -480,6 +533,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     !isSortNone ||
     promoOnlyParam ||
     pricedOnly ||
+    withPhoto ||
     inStock ||
     localPriceFrom != null ||
     localPriceTo != null;
@@ -499,12 +553,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const partLabel = [displayCategoryLabel, producerLabel, searchLabel].filter(Boolean).join(' / ');
   const showSearchInfo = Boolean(searchQuery) && !hasCategorySelection && !isCarDrivenSearch;
   const hasActiveFilters =
-    carCount > 0 ||
+    selectedCars.length > 0 ||
     categoryCount > 0 ||
     Boolean(selectedVin) ||
     Boolean(searchQuery) ||
     Boolean(subcategoryParam || groupParam) ||
     Boolean(producerParam) ||
+    withPhoto ||
     isParamsSelected ||
     promoOnlyParam ||
     pricedOnly ||
@@ -675,6 +730,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setLocalPriceTo(null);
     onPriceRangeChange?.(null, null);
     onInStockChange?.(false);
+    onWithPhotoChange?.(false);
     onSelectedCarSelectionChange?.(null);
     setCategorySearchTerm('');
 
@@ -686,6 +742,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     nextParams.delete('search');
     nextParams.delete('filter');
     nextParams.delete('carSearch');
+    nextParams.delete('vehicle');
     nextParams.delete('reset');
     nextParams.delete('promo');
     nextParams.delete('scope');
@@ -706,6 +763,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     onPricedOnlyChange,
     onPriceRangeChange,
     onInStockChange,
+    onWithPhotoChange,
     pathname,
     router,
     searchParamsKey,
@@ -879,12 +937,23 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   // svh, not dvh — dvh shrinks when a mobile keyboard opens, which was
   // visibly collapsing this panel the moment a search field inside it
   // got focus (see the matching .catalog-filter-panel-stage media rules).
-  const overlayPanelMaxHeight = 'min(390px, calc(100svh - 190px))';
+  const overlayPanelMaxHeight = 'min(460px, calc(100svh - var(--header-height, 4rem) - 160px))';
 
-  const applyPricePreset = (from: number | null, to: number | null) => {
-    setLocalPriceFrom(from);
-    setLocalPriceTo(to);
-    commitPriceRange(from, to);
+  const priceLoIndex = priceToSliderIndex(localPriceFrom, 0);
+  const priceHiIndex = priceToSliderIndex(localPriceTo, PRICE_SLIDER_LAST);
+  // The thumbs keep at least one stop between them; the ends mean "no limit".
+  const handlePriceSlider = (edge: 'from' | 'to', rawIndex: number) => {
+    if (edge === 'from') {
+      const index = Math.min(rawIndex, Math.max(0, priceHiIndex - 1));
+      const from = index === 0 ? null : PRICE_SLIDER_STOPS[index];
+      setLocalPriceFrom(from);
+      commitPriceRange(from, localPriceTo ?? null);
+    } else {
+      const index = Math.max(rawIndex, Math.min(PRICE_SLIDER_LAST, priceLoIndex + 1));
+      const to = index === PRICE_SLIDER_LAST ? null : PRICE_SLIDER_STOPS[index];
+      setLocalPriceTo(to);
+      commitPriceRange(localPriceFrom ?? null, to);
+    }
   };
 
   const clearPriceSettings = () => {
@@ -894,10 +963,22 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     setLocalPriceTo(null);
     onPriceRangeChange?.(null, null);
     onPricedOnlyChange?.(false);
+    onWithPhotoChange?.(false);
+    onInStockChange?.(false);
     if (promoOnlyParam) handleTogglePromoOnly();
     if (onSortOrderChange) onSortOrderChange('none');
     else setLocalSortOrder('none');
   };
+
+  const headerSearch = isAutoTabOpen
+    ? autoSearchPlaceholder
+      ? { value: autoSearchTerm, onChange: setAutoSearchTerm, placeholder: autoSearchPlaceholder, tone: 'auto' }
+      : null
+    : isCategoryTabOpen
+      ? { value: categorySearchTerm, onChange: setCategorySearchTerm, placeholder: categorySearchPlaceholder, tone: 'category' }
+      : isProducerTabOpen
+        ? { value: producerSearchTerm, onChange: setProducerSearchTerm, placeholder: 'Знайти виробника', tone: 'producer' }
+        : null;
 
   const renderActivePanel = () => {
     switch (activeComponent) {
@@ -906,6 +987,10 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
           <div className="catalog-filter-panel-view">
             <Auto
               variant="filter"
+              searchInHeader
+              searchTerm={autoSearchTerm}
+              onSearchTermChange={setAutoSearchTerm}
+              onSearchPlaceholderChange={setAutoSearchPlaceholder}
               selectedCars={internalSelectedCars}
               handleCarChange={handleInternalCarChange}
               initialSelection={selectedVin ? null : selectedCarSelection}
@@ -924,6 +1009,8 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               handleCategoryChange={handleCategoryToggle}
               searchTerm={categorySearchTerm}
               onSearchTermChange={setCategorySearchTerm}
+              searchInHeader
+              onSearchPlaceholderChange={setCategorySearchPlaceholder}
               resetViewSignal={categoryResetSignal}
               selectedCars={selectedCars}
               sortOrder={effectiveSortOrder}
@@ -933,18 +1020,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       case 'producer':
         return (
           <div className="catalog-filter-panel-view space-y-3">
-            <div className="catalog-filter-list-header catalog-filter-search-shell sticky top-0 z-[2] flex items-center gap-2">
-              <span className="catalog-filter-search-icon">
-                <Search size={15} />
-              </span>
-              <input
-                type="text"
-                value={producerSearchTerm}
-                onChange={(e) => setProducerSearchTerm(e.target.value)}
-                placeholder="Пошук виробника..."
-                className="catalog-filter-search-input"
-              />
-            </div>
             <div className="catalog-filter-rail-shell rounded-[18px] border border-white/80 bg-white/46 p-2 shadow-inner sm:p-3">
               <HorizontalDirectoryRail
                     mobileList
@@ -980,6 +1055,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                           nextParams.delete('search');
                           nextParams.delete('filter');
                           nextParams.delete('carSearch');
+                          nextParams.delete('vehicle');
                         }
                         nextParams.delete('reset');
                         nextParams.set('tab', 'producer');
@@ -1068,237 +1144,186 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         );
       case 'price':
         return (
-          <div className="catalog-filter-panel-view catalog-filter-price-panel w-full gap-3">
-            <div className="catalog-price-panel-header">
-              <span className="catalog-price-panel-icon" aria-hidden="true">
-                <BadgeDollarSign size={18} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-black leading-tight text-slate-800 sm:text-[13px]">Ціна та сортування</span>
-                <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-slate-500">Вкажіть діапазон або виберіть швидкий варіант</span>
-              </span>
-              {hasPriceFilter && (
+          <div className="catalog-filter-panel-view price-filter-panel">
+            <section className="price-filter-card" aria-label="Діапазон ціни">
+              <div className="price-filter-head">
+                <span className="price-filter-label">Ціна, ₴</span>
+                {onPriceRangeChange && (
+                  <div className="price-filter-fields">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={formatPriceInput(localPriceFrom)}
+                      onChange={(event) => {
+                        const next = parsePriceInput(event.target.value);
+                        setLocalPriceFrom(next);
+                        commitPriceRange(next, localPriceTo ?? null);
+                      }}
+                      placeholder="від 0"
+                      className="price-filter-field"
+                      aria-label="Ціна від, грн"
+                    />
+                    <span className="price-filter-dash" aria-hidden="true">–</span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={formatPriceInput(localPriceTo)}
+                      onChange={(event) => {
+                        const next = parsePriceInput(event.target.value);
+                        setLocalPriceTo(next);
+                        commitPriceRange(localPriceFrom ?? null, next);
+                      }}
+                      placeholder="до ∞"
+                      className="price-filter-field"
+                      aria-label="Ціна до, грн"
+                    />
+                  </div>
+                )}
+              </div>
+              {onPriceRangeChange && (
+                <>
+                  <div
+                    className="price-filter-slider"
+                    style={{
+                      '--price-lo': `${sliderPercent(priceLoIndex)}%`,
+                      '--price-hi': `${sliderPercent(priceHiIndex)}%`,
+                    } as CSSProperties}
+                  >
+                    <span className="price-filter-track" aria-hidden="true" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={PRICE_SLIDER_LAST}
+                      step={1}
+                      value={priceLoIndex}
+                      onChange={(event) => handlePriceSlider('from', Number(event.target.value))}
+                      className="price-filter-thumb"
+                      data-edge="from"
+                      data-raised={priceLoIndex >= PRICE_SLIDER_LAST - 1 || undefined}
+                      aria-label="Мінімальна ціна"
+                      aria-valuetext={localPriceFrom == null ? 'без мінімуму' : `від ${formatPriceAmount(localPriceFrom)} гривень`}
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={PRICE_SLIDER_LAST}
+                      step={1}
+                      value={priceHiIndex}
+                      onChange={(event) => handlePriceSlider('to', Number(event.target.value))}
+                      className="price-filter-thumb"
+                      data-edge="to"
+                      aria-label="Максимальна ціна"
+                      aria-valuetext={localPriceTo == null ? 'без максимуму' : `до ${formatPriceAmount(localPriceTo)} гривень`}
+                    />
+                  </div>
+                  <div className="price-filter-ticks" aria-hidden="true">
+                    {PRICE_SLIDER_TICKS.map((tick) => (
+                      <span
+                        key={tick}
+                        style={{ left: `${sliderPercent(PRICE_SLIDER_STOPS.indexOf(tick))}%` }}
+                      >
+                        {tick === PRICE_SLIDER_STOPS[PRICE_SLIDER_LAST] ? `${formatPriceAmount(tick)}+` : formatPriceAmount(tick)}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+
+            <section className="price-filter-card" aria-label="Сортування та відбір">
+              <div className="price-filter-head">
+                <span className="price-filter-label">Сортування</span>
+                {hasPriceFilter && (
+                  <button type="button" onClick={clearPriceSettings} className="price-filter-reset">
+                    <RotateCcw size={13} aria-hidden="true" />
+                    Скинути
+                  </button>
+                )}
+              </div>
+              {/* One radio group for every order 1C can produce (price and
+                  name share a single key), arrow keys move the choice. */}
+              <div
+                role="radiogroup"
+                aria-label="Порядок товарів"
+                className="price-filter-sort"
+                onKeyDown={(event) => {
+                  const step =
+                    event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                      ? 1
+                      : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                        ? -1
+                        : 0;
+                  if (!step) return;
+                  event.preventDefault();
+                  const current = SORT_OPTIONS.findIndex((option) => option.value === effectiveSortOrder);
+                  const next = SORT_OPTIONS[(current + step + SORT_OPTIONS.length) % SORT_OPTIONS.length];
+                  setSortOrder(next.value);
+                  event.currentTarget.querySelector<HTMLButtonElement>(`[data-sort="${next.value}"]`)?.focus();
+                }}
+              >
+                {SORT_OPTIONS.map((option) => {
+                  const isActive = effectiveSortOrder === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      tabIndex={isActive ? 0 : -1}
+                      data-sort={option.value}
+                      title={option.title}
+                      onClick={() => setSortOrder(option.value)}
+                      className="price-filter-sort-option"
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="price-filter-toggles">
                 <button
                   type="button"
-                  onClick={clearPriceSettings}
-                  className="catalog-price-reset-button"
-                  aria-label="Очистити цінові фільтри"
+                  onClick={handleTogglePromoOnly}
+                  aria-pressed={promoOnlyParam}
+                  className="price-filter-toggle"
+                  data-tone="promo"
                 >
-                  <RotateCcw size={13} />
-                  <span className="hidden sm:inline">Очистити</span>
+                  <BadgePercent size={15} strokeWidth={2.4} aria-hidden="true" />
+                  Акції
                 </button>
-              )}
-            </div>
-
-            {/* Was one narrow, centered column (max-w-4xl) regardless of how
-                wide the filter panel actually was — every other tab
-                (categories, producers) already fills the panel's real width,
-                so this one alone left a band of empty space around it on a
-                normal desktop window. A two-column split fixed the width but
-                left the two columns mismatched in height (sort+range+presets
-                stacked three deep on one side, just promo+toggles on the
-                other), so the panel's own background kept going well past
-                where the shorter column ran out — still a big empty patch,
-                just moved to the bottom-right instead of the sides. Three
-                even columns, each wrapped in its own light card
-                (catalog-price-block) so they read as one balanced row: sort
-                + price range / quick presets / promo + availability toggles.
-                Narrower than lg: still stacks as a single column, unchanged
-                from before. */}
-            <div className="grid gap-3 lg:grid-cols-3 lg:items-stretch">
-            <div className="catalog-price-block">
-            {/* Sort order */}
-            <div className="catalog-price-control-card flex rounded-[15px] border border-slate-200/60 bg-white/72 p-1 gap-1 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-              {(['none', 'asc', 'desc'] as const).map((order) => {
-                const config = {
-                  none: { label: 'Будь-яка', icon: null },
-                  asc:  { label: 'Дешевші',  icon: '↑' },
-                  desc: { label: 'Дорожчі',  icon: '↓' },
-                } as const;
-                const isActive = effectiveSortOrder === order;
-                return (
-                  <button
-                    key={order}
-                    type="button"
-                    onClick={() => setSortOrder(order)}
-                    aria-pressed={isActive}
-                    className={`flex flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
-                      isActive
-                        ? order === 'asc'
-                          ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
-                          : order === 'desc'
-                            ? 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
-                            : 'bg-white text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)]'
-                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                    }`}
-                  >
-                    {config[order].icon && (
-                      <span className="text-[10px] opacity-80">{config[order].icon}</span>
-                    )}
-                    {config[order].label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Alphabetical order. Same control style as the price sort
-                above; picking it replaces the price sort (1C orders by one
-                key), clicking the active option returns to the default. */}
-            <div
-              className="catalog-price-control-card mt-2 flex items-center rounded-[15px] border border-slate-200/60 bg-white/72 p-1 gap-1 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
-              role="group"
-              aria-label="Сортування за назвою"
-            >
-              <span className="shrink-0 px-2 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Назва</span>
-              {(['name_asc', 'name_desc'] as const).map((order) => {
-                const isActive = effectiveSortOrder === order;
-                return (
-                  <button
-                    key={order}
-                    type="button"
-                    onClick={() => setSortOrder(isActive ? 'none' : order)}
-                    aria-pressed={isActive}
-                    className={`flex flex-1 items-center justify-center gap-1 rounded-[9px] px-2 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
-                      isActive
-                        ? order === 'name_asc'
-                          ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
-                          : 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]'
-                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
-                    }`}
-                  >
-                    {order === 'name_asc' ? 'А → Я' : 'Я → А'}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Price range */}
-            {onPriceRangeChange && (
-              <div className="catalog-price-control-card flex items-center gap-2 rounded-[15px] border border-sky-100 bg-white/76 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-sm">
-                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">Ціна</span>
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold text-sky-400">₴</span>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={formatPriceInput(localPriceFrom)}
-                    onChange={(event) => {
-                      const next = parsePriceInput(event.target.value);
-                      setLocalPriceFrom(next);
-                      commitPriceRange(next, localPriceTo ?? null);
-                    }}
-                    placeholder="від"
-                    className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
-                    aria-label="Ціна від (грн)"
-                  />
-                </div>
-                <span className="shrink-0 text-[12px] font-light text-slate-300">—</span>
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 select-none text-[10px] font-bold text-sky-400">₴</span>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={formatPriceInput(localPriceTo)}
-                    onChange={(event) => {
-                      const next = parsePriceInput(event.target.value);
-                      setLocalPriceTo(next);
-                      commitPriceRange(localPriceFrom ?? null, next);
-                    }}
-                    placeholder="до"
-                    className="h-8 w-full rounded-[8px] border border-sky-200/60 bg-white/90 pl-6 pr-1.5 text-[11px] font-bold text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-sky-300 focus:ring-2 focus:ring-sky-100/70"
-                    aria-label="Ціна до (грн)"
-                  />
-                </div>
-              </div>
-            )}
-            </div>
-
-            {onPriceRangeChange && (
-              <div className="catalog-price-block">
-                <span className="catalog-price-block-label">Швидкий вибір</span>
-                <div className="catalog-price-presets" aria-label="Швидкий вибір діапазону ціни">
-                  {([
-                    { label: 'до 500 ₴', from: null, to: 500 },
-                    { label: '500–1500 ₴', from: 500, to: 1500 },
-                    { label: '1500–5000 ₴', from: 1500, to: 5000 },
-                    { label: 'від 5000 ₴', from: 5000, to: null },
-                  ] as const).map((preset) => {
-                    const isActive = localPriceFrom === preset.from && localPriceTo === preset.to;
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => applyPricePreset(preset.from, preset.to)}
-                        aria-pressed={isActive}
-                        className={`catalog-price-preset ${isActive ? 'is-active' : ''}`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="catalog-price-block justify-center">
-            {/* Акційні товари — the catalog fetch/API already support
-                ?promo=1 (see Data.tsx's promoOnlyFromURL and
-                app/api/catalog-page/route.ts), this button was the only
-                missing piece. Full-width and visually distinct (rose/promo
-                accent, not the same neutral toggle style as "З ціною"/"В
-                наявності" below) since it's the headline filter here, not a
-                secondary refinement. */}
-            <button
-              type="button"
-              onClick={handleTogglePromoOnly}
-              aria-pressed={promoOnlyParam}
-              className={`flex w-full items-center justify-center gap-2 rounded-[15px] px-3 py-2.5 text-[12px] font-black leading-none transition-all duration-150 ${
-                promoOnlyParam
-                  ? 'border border-rose-300 bg-[linear-gradient(135deg,#fb7185,#e11d48)] text-white shadow-[0_10px_22px_rgba(225,29,72,0.32),inset_0_1px_0_rgba(255,255,255,0.3)]'
-                  : 'border border-rose-200/70 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] text-rose-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] hover:border-rose-300 hover:shadow-[0_8px_18px_rgba(225,29,72,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]'
-              }`}
-            >
-              <BadgePercent size={16} strokeWidth={2.4} className={promoOnlyParam ? 'text-white' : 'text-rose-500'} aria-hidden="true" />
-              Акційні товари
-            </button>
-
-            {/* Toggles */}
-            {(onPricedOnlyChange || onInStockChange) && (
-              <div className={`catalog-price-toggle-grid grid gap-2 ${onPricedOnlyChange && onInStockChange ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {onPricedOnlyChange && (
                   <button
                     type="button"
                     onClick={() => onPricedOnlyChange(!pricedOnly)}
-                    className={`flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
-                      pricedOnly
-                        ? 'bg-[linear-gradient(135deg,#38bdf8,#0ea5e9)] text-white shadow-[0_3px_10px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                        : 'border border-slate-200/70 bg-white/60 text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm hover:bg-white/80 hover:text-slate-700'
-                    }`}
+                    aria-pressed={pricedOnly}
+                    className="price-filter-toggle"
                   >
-                    <span className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${pricedOnly ? 'border-white/50 bg-white/30' : 'border-slate-300'}`} />
+                    <span className="price-filter-check" aria-hidden="true" />
                     З ціною
+                  </button>
+                )}
+                {onWithPhotoChange && (
+                  <button type="button" onClick={() => onWithPhotoChange(!withPhoto)} aria-pressed={withPhoto} className="price-filter-toggle">
+                    <span className="price-filter-check" aria-hidden="true" />
+                    З фото
                   </button>
                 )}
                 {onInStockChange && (
                   <button
                     type="button"
                     onClick={() => onInStockChange(!inStock)}
-                    className={`flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-[11px] font-bold leading-none transition-all duration-150 ${
-                      inStock
-                        ? 'bg-[linear-gradient(135deg,#34d399,#10b981)] text-white shadow-[0_3px_10px_rgba(16,185,129,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                        : 'border border-slate-200/70 bg-white/60 text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm hover:bg-white/80 hover:text-slate-700'
-                    }`}
+                    aria-pressed={inStock}
+                    className="price-filter-toggle"
+                    data-tone="stock"
                   >
-                    <span className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${inStock ? 'border-white/50 bg-white/30' : 'border-slate-300'}`} />
+                    <span className="price-filter-check" aria-hidden="true" />
                     В наявності
                   </button>
                 )}
               </div>
-            )}
-            </div>
-            </div>
+            </section>
           </div>
         );
       default:
@@ -1318,7 +1343,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       <div
         ref={headerRef}
         onClick={handleHeaderToggle}
-        className={`catalog-filter-card__header grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,#e0f2fe_0%,#ecfeff_48%,#f8fafc_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
+        className={`catalog-filter-card__header page-shell-inline grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-[image:linear-gradient(135deg,#e0f2fe_0%,#ecfeff_48%,#f8fafc_100%)] px-2 py-2 sm:flex sm:flex-wrap sm:px-4 sm:py-3 ${
           collapsed ? '' : 'border-b border-sky-200/65'
         }`}
       >
@@ -1327,10 +1352,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               <Filter size={15} />
             </span>
             <span className="hidden sm:block">
-              <span className="block leading-none">Фільтри</span>
-              <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.16em] text-sky-700/70">
-                Підбір деталей
-              </span>
+              <span className="block leading-none">Підбір запчастин</span>
             </span>
           </div>
           <div className="catalog-filter-mini-bar flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto py-1.5 -my-1.5 px-0.5 sm:flex-wrap sm:gap-2.5 sm:overflow-visible sm:py-0 sm:-my-0 sm:px-0">
@@ -1350,22 +1372,21 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               onClick={handleOpenAutoTab}
               className={autoButtonClass}
               aria-label="Відкрити вкладку авто"
+              aria-expanded={isAutoTabOpen}
               aria-pressed={isAutoSelected}
+              title={isAutoSelected ? carLabel : 'Обрати авто'}
             >
               <Car size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
               <span className="filter-tab-label sm:hidden">Авто</span>
               <span className="hidden sm:inline">Авто</span>
-              {carCount > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-blue-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-blue-700 sm:ring-0">
-                  {carCount}
-                </span>
-              )}
+              {isAutoSelected && <FilterSelectionIndicator label="Авто вибрано" color="#0369a1" />}
             </button>
             <button
               type="button"
               onClick={handleOpenCategoryTab}
               className={categoryButtonClass}
               aria-label="Відкрити вкладку категорії"
+              aria-expanded={isCategoryTabOpen}
               aria-pressed={isCategorySelected}
               title={displayCategoryLabel || 'Категорія'}
             >
@@ -1381,11 +1402,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               ) : (
                 <span className="hidden sm:inline">Категорія</span>
               )}
-              {categoryCount > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-emerald-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-emerald-700 sm:ring-0">
-                  {categoryCount}
-                </span>
-              )}
+              {isCategorySelected && <FilterSelectionIndicator label="Категорію вибрано" color="#047857" />}
             </button>
             {hasFinalCategory && (
               <button
@@ -1393,17 +1410,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 onClick={handleOpenParamsTab}
                 className={paramsButtonClass}
                 aria-label="Відкрити вкладку параметрів товару"
+                aria-expanded={isParamsTabOpen}
                 aria-pressed={isParamsSelected}
                 title="Параметри: позиція, розміри, тип"
               >
                 <SlidersHorizontal size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
                 <span className="filter-tab-label sm:hidden">Параметри</span>
                 <span className="hidden sm:inline">Параметри</span>
-                {activeParamCount > 0 && (
-                  <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-amber-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-amber-800 sm:ring-0">
-                    {activeParamCount}
-                  </span>
-                )}
+                {isParamsSelected && <FilterSelectionIndicator label="Параметри вибрано" color="#a16207" />}
               </button>
             )}
             <button
@@ -1411,17 +1425,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               onClick={handleOpenProducerTab}
               className={producerButtonClass}
               aria-label="Відкрити вкладку виробників"
+              aria-expanded={isProducerTabOpen}
               aria-pressed={isProducerSelected}
               title={displayProducerLabel || 'Виробник'}
             >
               <Package size={19} strokeWidth={2.25} className="pointer-events-none sm:size-[15px]" aria-hidden="true" />
               <span className="filter-tab-label sm:hidden">Бренди</span>
               <span className="hidden sm:inline">Виробник</span>
-              {producerParam && (
-                <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-500 px-1 text-[9px] font-black leading-none text-white ring-2 ring-white sm:static sm:ml-1 sm:h-auto sm:min-w-0 sm:bg-purple-50 sm:px-2 sm:py-0.5 sm:text-[11px] sm:font-semibold sm:text-purple-700 sm:ring-0">
-                  1
-                </span>
-              )}
+              {isProducerSelected && <FilterSelectionIndicator label="Виробника вибрано" color="#6d28d9" />}
             </button>
             <button
               type="button"
@@ -1431,6 +1442,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               }}
               className={sortButtonClass}
               aria-label="Ціна та сортування"
+              aria-expanded={isPriceTabOpen}
               aria-pressed={isPriceTabActive && !collapsed}
             >
               <span className="flex items-center gap-1 whitespace-nowrap sm:hidden">
@@ -1460,6 +1472,33 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               </span>
             </button>
           </div>
+          {headerSearch && (
+            <label className="catalog-filter-header-search" data-tone={headerSearch.tone}>
+              <span className="sr-only">{headerSearch.placeholder}</span>
+              <Search size={17} strokeWidth={2.3} className="catalog-filter-header-search-icon" aria-hidden="true" />
+              <input
+                type="search"
+                value={headerSearch.value}
+                onChange={(event) => headerSearch.onChange(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Escape' && headerSearch.value) { event.stopPropagation(); headerSearch.onChange(''); } }}
+                placeholder={headerSearch.placeholder}
+                enterKeyHint="search"
+                autoComplete="off"
+                data-search="true"
+                className="catalog-filter-header-search-input"
+              />
+              {headerSearch.value && (
+                <button
+                  type="button"
+                  onClick={() => headerSearch.onChange('')}
+                  className="catalog-filter-header-search-clear"
+                  aria-label="Очистити пошук"
+                >
+                  <X size={15} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              )}
+            </label>
+          )}
           <div className="flex shrink-0 items-center justify-end gap-2">
             {hasActiveFilters && (
             <button
@@ -1502,7 +1541,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         onTransitionEnd={emitLayoutHeight}
       >
         <div className="min-h-0 overflow-hidden">
-          <div ref={panelContentRef} className="p-2 sm:p-3">
+          <div ref={panelContentRef} className="catalog-filter-body page-shell-inline">
             <div
               className="catalog-filter-scroll catalog-filter-panel-stage overflow-y-auto rounded-[16px] border border-sky-200/90 bg-[linear-gradient(155deg,#ffffff_0%,#f8fcff_52%,#edf8fd_100%)] p-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_0_rgba(14,116,144,0.08),0_16px_34px_rgba(14,116,144,0.11)] ring-1 ring-white sm:p-3 sm:pr-2"
               style={{ maxHeight: overlayPanelMaxHeight }}
@@ -1516,7 +1555,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       {showRequestBanner && (
         <div
           ref={requestBannerRef}
-          className="mx-2 mb-2 mt-1 overflow-hidden rounded-[16px] border border-sky-200/80 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.10)_0%,rgba(255,255,255,0.98)_22%,rgba(240,249,255,0.97)_60%,rgba(224,242,254,0.94)_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.10)] ring-1 ring-white/80 sm:mx-3 sm:mb-3"
+          className="catalog-filter-request page-shell-inline mx-2 mb-2 mt-1 overflow-hidden rounded-[16px] border border-sky-200/80 bg-[image:linear-gradient(135deg,rgba(14,165,233,0.10)_0%,rgba(255,255,255,0.98)_22%,rgba(240,249,255,0.97)_60%,rgba(224,242,254,0.94)_100%)] shadow-[0_10px_24px_rgba(14,165,233,0.10)] ring-1 ring-white/80 sm:mx-3 sm:mb-3"
         >
           <div className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4 sm:py-3.5">
             <div className="min-w-0 space-y-2.5">

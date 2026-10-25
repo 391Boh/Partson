@@ -1,3 +1,4 @@
+import { adminLayoutHintBootstrap } from "app/lib/admin-layout-hint";
 import { partnerPriceHintBootstrap } from "app/lib/partner-price-hint";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -439,6 +440,7 @@ export default function RootLayout({
           }}
         />
         <script dangerouslySetInnerHTML={{ __html: partnerPriceHintBootstrap }} />
+        <script dangerouslySetInnerHTML={{ __html: adminLayoutHintBootstrap }} />
         <noscript>
           <link rel="stylesheet" href={globalStylesheetHref} />
         </noscript>

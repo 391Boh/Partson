@@ -1,3 +1,4 @@
+import { readVehicleSelection, matchesVehicleFitment } from "app/lib/vehicle-fitment";
 import { NextResponse } from "next/server";
 import { withoutCostPrice } from "app/lib/public-catalog-product";
 
@@ -93,7 +94,8 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v38-ranked-suggestions",
+    source: "catalog-page:v42-photo-paging",
+    vehicle: readVehicleSelection(body.vehicle),
     // Suggestions are ranked by relevance; the catalog's own first page keeps
     // code order (its next page continues after the last code).
     ranked: body.purpose === "suggestions",
@@ -113,6 +115,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
     sortOrder: readPriceSortOrder(body),
     nameSort: readNameSortOrder(body),
     pricedOnly: body.pricedOnly === true,
+    withPhoto: body.withPhoto === true,
     priceFrom: toNonNegativeNumber(body.priceFrom),
     priceTo: toNonNegativeNumber(body.priceTo),
     inStock: body.inStock === true,
@@ -243,11 +246,17 @@ export async function POST(request: Request) {
   try {
     body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
+    if (body.vehicle && !readVehicleSelection(body.vehicle)) {
+      return NextResponse.json({ error: "Invalid vehicle configuration" }, { status: 400 });
+    }
+
     // "Акційні товари" — 1C has no server-side promo filter (verified against
     // the live endpoint), so this reads a precomputed, periodically refreshed
     // snapshot instead of running the normal 1C query below at all.
     if (body.promoOnly === true) {
-      const { products, stale } = await fetchPromoCatalogProducts();
+      const { products: promoProducts, stale } = await fetchPromoCatalogProducts();
+      const vehicle = readVehicleSelection(body.vehicle);
+      const products = promoProducts.filter(item => (!vehicle || matchesVehicleFitment(item.description, vehicle)) && (body.withPhoto !== true || item.hasPhoto === true));
       const page = toPositiveInt(body.page, 1);
       const limit = toPositiveInt(body.limit, 10);
       const start = body.directPage === true ? Math.floor(toNonNegativeNumber(body.offset) ?? 0) : (page - 1) * limit;
@@ -393,6 +402,7 @@ export async function POST(request: Request) {
       limit: toPositiveInt(body.limit, 10),
       cursor: toTrimmedString(body.cursor),
       cursorField: toTrimmedString(body.cursorField),
+      vehicle: readVehicleSelection(body.vehicle),
       selectedCars: toStringArray(body.selectedCars),
       selectedCategories: normalizedSelectedCategories,
       searchQuery: normalizedSearchQuery,
@@ -404,6 +414,7 @@ export async function POST(request: Request) {
       sortOrder: readPriceSortOrder(body),
       nameSort: readNameSortOrder(body),
       pricedOnly: body.pricedOnly === true,
+      withPhoto: body.withPhoto === true,
       priceFrom: toNonNegativeNumber(body.priceFrom),
       priceTo: toNonNegativeNumber(body.priceTo),
       inStock: body.inStock === true,
@@ -436,6 +447,7 @@ export async function POST(request: Request) {
       queryBase.sortOrder === "none" &&
       queryBase.nameSort === "none" &&
       !queryBase.pricedOnly &&
+      !queryBase.withPhoto &&
       queryBase.priceFrom === null &&
       queryBase.priceTo === null &&
       !queryBase.inStock;
@@ -535,6 +547,7 @@ export async function POST(request: Request) {
         Boolean(queryBase.cursor || queryBase.cursorField) ||
         Boolean(queryBase.searchQuery) ||
         queryBase.pricedOnly ||
+        queryBase.withPhoto ||
         queryBase.priceFrom !== null ||
         queryBase.priceTo !== null ||
         queryBase.sortOrder !== "none" ||
@@ -558,6 +571,7 @@ export async function POST(request: Request) {
           preferLegacySource: false,
           forceAllgoodsSource: true,
           pricedItemsOnly: queryBase.pricedOnly,
+          withPhotoOnly: queryBase.withPhoto,
           priceFrom: queryBase.priceFrom,
           priceTo: queryBase.priceTo,
           onlyInStock: queryBase.inStock,
@@ -570,6 +584,7 @@ export async function POST(request: Request) {
       // Only allgoods knows the alphabetical order, so no legacy fallbacks.
       if (
         (canUseCompleteAllgoodsCatalog && !queryBase.searchQuery && queryBase.sortOrder === "none" && queryBase.nameSort === "none") ||
+        queryBase.vehicle ||
         queryBase.directOffset !== undefined ||
         (queryBase.searchQuery && canUseCompleteAllgoodsCatalog) ||
         (queryBase.nameSort !== "none" && canUseCompleteAllgoodsCatalog)
@@ -636,6 +651,7 @@ export async function POST(request: Request) {
           queryBase.priceFrom !== null ||
           queryBase.priceTo !== null ||
           queryBase.sortOrder !== "none",
+        withPhotoOnly: queryBase.withPhoto,
         priceFrom: queryBase.priceFrom,
         priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
@@ -682,6 +698,7 @@ export async function POST(request: Request) {
           queryBase.priceFrom !== null ||
           queryBase.priceTo !== null ||
           queryBase.sortOrder !== "none",
+        withPhotoOnly: queryBase.withPhoto,
         priceFrom: queryBase.priceFrom,
         priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,
@@ -720,6 +737,7 @@ export async function POST(request: Request) {
           queryBase.priceFrom !== null ||
           queryBase.priceTo !== null ||
           queryBase.sortOrder !== "none",
+        withPhotoOnly: queryBase.withPhoto,
         priceFrom: queryBase.priceFrom,
         priceTo: queryBase.priceTo,
         onlyInStock: queryBase.inStock,

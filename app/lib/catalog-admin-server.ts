@@ -53,8 +53,9 @@ const runOneCAction = async (action: string, params: Record<string, unknown> = {
   }
   if (parsed.success !== true) {
     const message = [parsed.error_message, parsed.details].filter(Boolean).join(": ");
-    // An un-updated 1C treats {"Дія"} as a product edit without a code.
-    if (/Не передан Код/i.test(message)) {
+    // An un-updated 1C treats {"Дія"} as a product edit without a code,
+    // or knows the action list but not this action.
+    if (/Не передан Код|Невідома дія/i.test(message)) {
       throw new CatalogAdminError("1С ще не підтримує цю дію: оновіть модуль ОбщегоНазначения", 501);
     }
     throw new CatalogAdminError(message || "1С повернула помилку", 422);
@@ -142,6 +143,44 @@ export const renameCatalogGroup = async (
   return { code, oldName, name: newName };
 };
 
+export const createCatalogGroup = async (name: string, parentCode: string) => {
+  const result = await runOneCAction("СтворитиГрупу", { Назва: name, ...(parentCode ? { КодБатька: parentCode } : {}) });
+  invalidateCatalogNames();
+  return {
+    code: readString(result.code),
+    name: readString(result.name) || name,
+    parentCode: readString(result.parent_code),
+  };
+};
+
+// 1C only marks the group for deletion. It refuses while the group has
+// subgroups, and while it has products and no `targetCode` to move them to.
+export const deleteCatalogGroup = async (
+  code: string,
+  targetCode: string,
+  admin: { uid: string; email: string }
+) => {
+  const result = await runOneCAction("ВидалитиГрупу", { Код: code, ...(targetCode ? { ПеренестиВ: targetCode } : {}) });
+  const name = readString(result.name);
+  const targetName = readString(result.target_name);
+  if (name && targetName && name !== targetName) {
+    // The deleted group's URL then redirects to the group that took its
+    // products (app/lib/group-rename-redirects.ts).
+    await getFirebaseAdminDb().collection(GROUP_RENAMES_COLLECTION).add({
+      code,
+      from: name,
+      to: targetName,
+      parentName: readString(result.parent_name),
+      kind: "delete",
+      byUid: admin.uid,
+      byEmail: admin.email,
+      at: new Date(),
+    }).catch(() => undefined);
+  }
+  invalidateCatalogNames();
+  return { code, name, moved: readNumber(result.moved), targetCode: readString(result.target_code), targetName };
+};
+
 export const createCatalogProducer = async (name: string) => {
   const result = await runOneCAction("СтворитиВиробника", { Назва: name });
   invalidateCatalogNames();
@@ -150,4 +189,90 @@ export const createCatalogProducer = async (name: string) => {
     name: readString(result.name) || name,
     created: result.created === true,
   };
+};
+
+export const PRODUCER_RENAMES_COLLECTION = "catalogProducerRenames";
+export const PRODUCER_RENAMES_TAG = "catalog-producer-renames";
+
+// Manufacturer URLs are built from names; this history lets the old URL
+// redirect to the renamed (or replacing) producer (app/lib/producer-rename-redirects.ts).
+const recordProducerRename = async (from: string, to: string, admin: { uid: string; email: string }, kind: "rename" | "delete") => {
+  if (!from || !to || from === to) return;
+  await getFirebaseAdminDb().collection(PRODUCER_RENAMES_COLLECTION).add({
+    from,
+    to,
+    kind,
+    byUid: admin.uid,
+    byEmail: admin.email,
+    at: new Date(),
+  }).catch(() => undefined);
+  try {
+    revalidateTag(PRODUCER_RENAMES_TAG, { expire: 0 });
+  } catch {
+    // Revalidation can throw outside a request context.
+  }
+};
+
+export const renameCatalogProducer = async (
+  id: string,
+  name: string,
+  admin: { uid: string; email: string }
+) => {
+  const result = await runOneCAction("ПерейменуватиВиробника", { Ід: id, НоваНазва: name });
+  const oldName = readString(result.old_name);
+  const newName = readString(result.name) || name;
+  await recordProducerRename(oldName, newName, admin, "rename");
+  invalidateCatalogNames();
+  return { id, oldName, name: newName };
+};
+
+// 1C only marks the producer for deletion; its products move to
+// `replacementId` first, and 1C refuses when there are products and no
+// replacement.
+export const deleteCatalogProducer = async (
+  id: string,
+  replacementId: string,
+  admin: { uid: string; email: string }
+) => {
+  const result = await runOneCAction("ВидалитиВиробника", {
+    Ід: id,
+    ...(replacementId ? { ЗамінитиНа: replacementId } : {}),
+  });
+  const name = readString(result.name);
+  const replacement = readString(result.replacement);
+  await recordProducerRename(name, replacement, admin, "delete");
+  invalidateCatalogNames();
+  return { id, name, moved: readNumber(result.moved), replacement };
+};
+
+export type CatalogGroupProduct = { code: string; name: string; article: string; producer: string };
+
+export const listCatalogGroupProducts = async (code: string) => {
+  const result = await runOneCAction("СписокТоварівГрупи", { Код: code });
+  const items = Array.isArray(result.items) ? result.items : [];
+  return {
+    code,
+    name: readString(result.name),
+    truncated: result.truncated === true,
+    products: items.map((item: Record<string, unknown>): CatalogGroupProduct => ({
+      code: readString(item.code),
+      name: readString(item.name),
+      article: readString(item.article),
+      producer: readString(item.producer),
+    })).filter((product) => product.code),
+  };
+};
+
+export const CATALOG_MOVE_MAX_PRODUCTS = 500;
+
+export const moveCatalogProducts = async (codes: string[], groupCode: string) => {
+  const result = await runOneCAction("ПеренестиТовари", { Коди: codes, КодГрупи: groupCode });
+  const moved = Array.isArray(result.moved) ? result.moved.map(readString).filter(Boolean) : [];
+  const skipped = Array.isArray(result.skipped)
+    ? result.skipped.map((item: Record<string, unknown>) => ({ code: readString(item.code), reason: readString(item.reason) }))
+    : [];
+  // A product's group and category come from its 1C parent: every cached
+  // listing, the tree and the product pages change with it.
+  if (moved.length) invalidateCatalogNames();
+  return { groupCode, groupName: readString(result.group_name), moved, skipped };
 };

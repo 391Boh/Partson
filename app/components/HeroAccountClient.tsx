@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { preloadAuthModal } from "app/lib/auth-modal-loader";
+import { scheduleIdle } from "app/lib/schedule-idle";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { FIRST_ORDER_DISCOUNT_PERCENT } from "app/lib/first-order-discount";
 import { PARTNER_DISCOUNT_PERCENT } from "app/lib/partnership-discount";
@@ -309,6 +310,24 @@ export default function HeroAccountClient({
   const { ready: isAuthReady, user } = useFirebaseAuthState();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!isAuthReady || user) return;
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
+    let cancelIdle: (() => void) | undefined;
+    // The first paint and initial image requests keep priority. Preparing the
+    // guest form later avoids evaluating its chunk during the first tap.
+    const prepare = () => { cancelIdle = scheduleIdle(preloadAuthModal, 1800); };
+    if (document.readyState === "complete") prepare();
+    else window.addEventListener("load", prepare, { once: true });
+    return () => {
+      window.removeEventListener("load", prepare);
+      cancelIdle?.();
+    };
+  }, [isAuthReady, user]);
+
 
   useEffect(() => {
     if ((variant !== "benefits" && variant !== "panel") || !isAuthReady || !user) {
@@ -515,6 +534,8 @@ export default function HeroAccountClient({
         {/* Signed-in visitors manage cars and VIN in the saved profile below
             and in their account; the greeting keeps only sign-in actions. */}
         {user ? null : (
+        <>
+        <p className="hero-profile-invitation">Зручний профіль користувача</p>
         <div className="hero-profile-actions">
             <button
               type="button"
@@ -555,6 +576,7 @@ export default function HeroAccountClient({
               </span>
             </button>
         </div>
+        </>
         )}
           <div className="hero-profile-slot">
             {user && profile ? (
@@ -617,7 +639,7 @@ export default function HeroAccountClient({
             {user && displayName ? (
               <>Вітаю, {displayName}!</>
             ) : (
-              "Більше вигоди для вашого авто"
+              "Переваги партнерства з PartsON"
             )}
           </p>
           <span className="h-0.5 w-32 bg-gradient-to-r from-cyan-300/90 via-sky-300/45 to-transparent" />

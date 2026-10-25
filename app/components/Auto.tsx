@@ -1,16 +1,19 @@
-﻿"use client";
+"use client";
 
+import VehicleYearSelect from "./VehicleYearSelect";
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Car, Check, ChevronDown, ChevronRight, ChevronUp, Info, Plus, Search, X } from "lucide-react";
+import { Car, Check, ChevronRight, Plus, Search, X } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { carBrands, CarBrand } from "../components/carBrands";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import type { YearMeta } from "./CarModels";
-import { DeferredAutoBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
+import HomePickerHeading from "./HomePickerHeading";
+import HomePickerSearchControl from "./HomePickerSearchControl";
+import { DeferredAutoBackdrop } from "./DeferredHomeVisuals";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
@@ -140,7 +143,7 @@ const CarBrandButton = React.memo(function CarBrandButton({
       // past this list's own column into the neighbouring search panel /
       // page edges). Now stays close enough to the card to never visibly
       // escape the grid's own gaps.
-      className="card-metal group/category relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[18px] bg-white/35 px-2 shadow-[0_3px_10px_-3px_rgba(30,64,175,0.12),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:bg-white/85 hover:shadow-[0_8px_18px_-8px_rgba(79,70,229,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 sm:h-[104px]"
+      className="home-picker-tile home-picker-car card-metal group/category relative flex h-[92px] w-full flex-col items-center justify-center overflow-hidden rounded-[18px] bg-white/35 px-2 shadow-[0_3px_10px_-3px_rgba(30,64,175,0.12),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:bg-white/85 hover:shadow-[0_8px_18px_-8px_rgba(79,70,229,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 sm:h-[104px]"
     >
       <span className="pointer-events-none absolute inset-x-8 top-0 z-[3] h-[3px] rounded-full bg-[linear-gradient(90deg,transparent,#3b82f6_30%,#e0f2fe_50%,#38bdf8_70%,transparent)] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
 
@@ -161,6 +164,7 @@ const CarBrandButton = React.memo(function CarBrandButton({
           unoptimized={brand.logo.endsWith('.svg')}
         />
       </span>
+      <span className="home-picker-tile-name">{brand.name}</span>
     </button>
   );
 });
@@ -254,6 +258,7 @@ const debounce = <TArgs extends unknown[]>(
 };
 
 type AutoBrandSearchInputProps = {
+  defaultValue?: string;
   onChange: (value: string) => void;
   className?: string;
   examples?: string[];
@@ -268,8 +273,8 @@ const BRAND_SEARCH_EXAMPLES = ["Toyota", "Volkswagen", "BMW", "Renault", "Skoda"
 const MODEL_SEARCH_EXAMPLES = ["Golf", "Corolla", "Octavia", "X5", "A4", "Passat"];
 
 const AutoBrandSearchInput = React.memo(
-  ({ onChange, className, examples = BRAND_SEARCH_EXAMPLES, ariaLabel = "Пошук марки", onCollapse }: AutoBrandSearchInputProps) => {
-    const [value, setValue] = useState("");
+  ({ onChange, defaultValue = "", className, examples = BRAND_SEARCH_EXAMPLES, ariaLabel = "Пошук марки", onCollapse }: AutoBrandSearchInputProps) => {
+    const [value, setValue] = useState(defaultValue);
     const [animatedPlaceholder, setAnimatedPlaceholder] = useState(examples[0] ?? "");
 
     useEffect(() => {
@@ -401,6 +406,7 @@ const AutoSection: React.FC<AutoProps> = ({
   // The "Швидкий пошук" heading itself is the search trigger (see
   // reveal-search below) — no separate button duplicating that title.
   // Collapsed it shows the heading; clicking it crossfades to the input.
+  const [searchMount, setSearchMount] = useState<HTMLDivElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>([]);
   const [internalSelection, setInternalSelection] =
@@ -787,111 +793,6 @@ const AutoSection: React.FC<AutoProps> = ({
     hasOptions: false,
   });
 
-  // Per-digit odometer-style stepper: place 0 is the thousands digit, place
-  // 3 is the units digit, so nudging place `p` changes the year by 10^(3-p).
-  // Typed-in-progress digits live in their own state (not derived fresh from
-  // selectedYear on every keystroke) so each digit shows immediately as it's
-  // typed and rapid keystrokes across the four inputs can't race a stale
-  // closure of selectedYear against each other.
-  const [yearDigits, setYearDigits] = useState<string[]>(["", "", "", ""]);
-
-  useEffect(() => {
-    setYearDigits(
-      selectedYear != null ? String(selectedYear).padStart(4, "0").split("") : ["", "", "", ""]
-    );
-  }, [selectedYear]);
-
-  // Shown as a greyed-out example (e.g. "2025") in each empty digit slot, so
-  // the control doesn't read as broken/empty before a year is picked.
-  const yearPlaceholderDigits = useMemo(
-    () => String(yearMeta.bounds?.max ?? 2025).padStart(4, "0").split(""),
-    [yearMeta.bounds]
-  );
-
-  const yearDigitRefs = useRef<Array<HTMLInputElement | null>>([]);
-
-  const handleYearDigitType = useCallback(
-    (place: number, raw: string) => {
-      const digit = raw.replace(/[^\d]/g, "").slice(-1);
-      if (!digit) {
-        setYearDigits((prev) => {
-          const next = prev.slice();
-          next[place] = "";
-          return next;
-        });
-        onYearSelect(null);
-        return;
-      }
-      setYearDigits((prev) => {
-        const next = prev.slice();
-        next[place] = digit;
-        // Only commit (and clamp) once every digit has been entered — an
-        // in-progress number like "1_ _ _" isn't meaningful to clamp yet.
-        if (next.every((d) => d !== "")) {
-          const numeric = Number(next.join(""));
-          const clamped = yearMeta.bounds
-            ? Math.min(yearMeta.bounds.max, Math.max(yearMeta.bounds.min, numeric))
-            : numeric;
-          onYearSelect(clamped);
-          return String(clamped).padStart(4, "0").split("");
-        }
-        return next;
-      });
-      yearDigitRefs.current[place + 1]?.focus();
-    },
-    [yearMeta.bounds, onYearSelect]
-  );
-
-  const handleYearDigitKeyDown = useCallback(
-    (place: number, event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Backspace" && !event.currentTarget.value) {
-        yearDigitRefs.current[place - 1]?.focus();
-      } else if (event.key === "ArrowLeft") {
-        yearDigitRefs.current[place - 1]?.focus();
-      } else if (event.key === "ArrowRight") {
-        yearDigitRefs.current[place + 1]?.focus();
-      }
-    },
-    []
-  );
-
-  const nextYearForDigit = useCallback(
-    (place: number, direction: 1 | -1) => {
-      if (!yearMeta.bounds) return null;
-      const step = 10 ** (3 - place);
-      const base =
-        typeof selectedYear === "number"
-          ? selectedYear
-          : direction > 0
-          ? yearMeta.bounds.min
-          : yearMeta.bounds.max;
-      const next = base + direction * step;
-      if (next < yearMeta.bounds.min || next > yearMeta.bounds.max) return null;
-      return next;
-    },
-    [selectedYear, yearMeta.bounds]
-  );
-
-  const canAdjustYearDigit = useCallback(
-    (place: number, direction: 1 | -1) =>
-      !yearMeta.loading && nextYearForDigit(place, direction) != null,
-    [yearMeta.loading, nextYearForDigit]
-  );
-
-  const adjustYearDigit = useCallback(
-    (place: number, direction: 1 | -1) => {
-      const next = nextYearForDigit(place, direction);
-      if (next == null) return;
-      onYearSelect(next);
-    },
-    [nextYearForDigit, onYearSelect]
-  );
-
-  const clearYearSelection = useCallback(() => {
-    setYearDigits(["", "", "", ""]);
-    onYearSelect(null);
-  }, [onYearSelect]);
-
   const canGoPrev = safeBrandPage > 0;
   const canGoNext = safeBrandPage < totalBrandPages - 1;
 
@@ -947,7 +848,7 @@ const AutoSection: React.FC<AutoProps> = ({
     const activeStepIndex = steps.findIndex((step) => step.id === activeTab);
 
     return (
-      <nav aria-label="Кроки підбору авто" className="relative">
+      <nav aria-label="Кроки підбору авто" className="home-picker-steps relative">
         <div
           className={`pointer-events-none absolute left-[16%] top-[23px] z-0 h-[3px] w-[34%] rounded-full ${
             dark
@@ -1041,13 +942,15 @@ const AutoSection: React.FC<AutoProps> = ({
                   if (step.id === "engine" && !canChooseMods) return;
                   setActiveTab(step.id);
                 }}
+                aria-current={isActive ? "step" : undefined}
+                title={step.label}
                 disabled={!isEnabled}
-                className={`relative flex min-w-0 flex-col items-center gap-1 rounded-2xl border px-1 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-300 ease-out ${buttonTone} ${
+                className={`relative flex min-h-[56px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-300 ease-out ${buttonTone} ${
                   !isEnabled ? "cursor-not-allowed opacity-45" : "cursor-pointer"
                 }`}
               >
                 <span
-                  className={`flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[11px] font-extrabold transition-[background-color,color,box-shadow] duration-300 ${
+                  className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-[12px] font-extrabold transition-[background-color,color,box-shadow] duration-300 ${
                     isActive
                       ? "bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.35),0_3px_10px_rgba(14,165,233,0.45)] ring-2 ring-sky-200/70"
                       : isDone
@@ -1068,7 +971,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       sizes="28px"
                       quality={90}
                       unoptimized={modelBrandLogo.endsWith(".svg")}
-                      className="h-5 w-5 object-contain"
+                      className="h-6 w-6 object-contain"
                       onError={handleBrandLogoLoadError}
                     />
                   ) : (
@@ -1083,7 +986,7 @@ const AutoSection: React.FC<AutoProps> = ({
                 <span className={`max-w-full truncate text-[11px] font-extrabold uppercase leading-tight tracking-[0.04em] ${labelTone}`}>
                   {step.label}
                 </span>
-                <span className={`max-w-full truncate text-[9px] font-semibold leading-tight ${captionTone}`}>
+                <span className={`max-w-full truncate text-[10px] font-semibold leading-tight ${captionTone}`}>
                   {value || step.caption}
                 </span>
               </button>
@@ -1318,6 +1221,14 @@ const AutoSection: React.FC<AutoProps> = ({
     setActiveTab("brand");
   };
 
+  const handleRemoveSavedCar = (label: string) => {
+    if (selectedCars.includes(label)) handleCarChange(label);
+    if (label === selectedCarLabel) {
+      setInternalSelection(null);
+      handleAddAnotherCar();
+    }
+  };
+
   useEffect(() => {
     resetToBrandIfEmpty();
   }, [resetToBrandIfEmpty, selectedCarRows, vinRows]);
@@ -1335,8 +1246,54 @@ const AutoSection: React.FC<AutoProps> = ({
       animate={shouldAnimate ? { opacity: 1, x: 0, scale: 1 } : undefined}
       exit={shouldAnimate ? { opacity: 0, x: -24, scale: 0.985, filter: "blur(2px)" } : undefined}
       transition={shouldAnimate ? { duration: 0.24, ease: [0.22, 1, 0.36, 1] } : undefined}
-      className="flex flex-col gap-0"
+      className="home-picker-carousel flex flex-col gap-0"
     >
+{!showAllBrands ? (
+          <SectionPagination
+            page={safeBrandPage + 1}
+            totalPages={totalBrandPages}
+            onPrev={handlePrevPage}
+            onNext={handleNextPage}
+            canGoPrev={canGoPrev}
+            canGoNext={canGoNext}
+            tone="indigo"
+            availableCount={filteredBrands.length}
+            availableUnit={pluralWord(filteredBrands.length, "марка", "марки", "марок")}
+            showAvailableCount={true}
+            searchSlotRef={isFilterVariant ? undefined : setSearchMount}
+            onSearch={isFilterVariant ? undefined : () => setIsSearchOpen(true)}
+            searchLabel="Пошук марки"
+            searchExpanded={isSearchOpen}
+          />
+        ) : null}
+<div className="reveal-tail mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
+        {/* Homepage-widget-only (this same brandsListNode is reused verbatim
+            for the filter/compact embed, which has no use for a link back to
+            /auto) — moved here from the header's search column, next to the
+            control it's actually paired with. Unboxed to match
+            SectionPagination beside it: no border/shadow/backdrop-blur chip,
+            just a plain hover-tinted pill so the pair reads as one light
+            control row instead of two separate cards. */}
+        {useFixedBrandTable && !showAllBrands && !selectedBrand && (
+          <Link
+            href="/auto"
+            aria-label="Переглянути всі марки автомобілів"
+            onClick={(event) => event.currentTarget.blur()}
+            onMouseLeave={(event) => event.currentTarget.blur()}
+            className="group/allbrands inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-indigo-700 transition-colors duration-200 hover:bg-indigo-50 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
+          >
+            <Car size={13} strokeWidth={2.6} aria-hidden />
+            <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{filteredBrands.length} {pluralWord(filteredBrands.length, "марка", "марки", "марок")}</strong><span className="sr-only"> · Усі марки</span></span>
+            <ChevronRight
+              size={13}
+              strokeWidth={3}
+              aria-hidden
+              className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
+            />
+          </Link>
+        )}
+      </div>
+
       {/* overflow-hidden on the wrapper below, on top of overflow-x-auto/
           y-hidden on the scroll rail inside it — a card's hover shadow
           isn't clipped by its own overflow-hidden (only a descendant's is),
@@ -1349,7 +1306,7 @@ const AutoSection: React.FC<AutoProps> = ({
           За цим запитом марок не знайдено.
         </div>
       ) : (
-        <div className={`relative overflow-hidden ${useFixedBrandTable ? "" : "mt-4 sm:mt-5"}`}>
+        <div className={`home-picker-track-shell relative overflow-hidden ${useFixedBrandTable ? "" : "mt-4 sm:mt-5"}`}>
           <div
             ref={brandPagesRef}
             onScroll={handleBrandPagesScroll}
@@ -1431,44 +1388,8 @@ const AutoSection: React.FC<AutoProps> = ({
           </div>
         </div>
       )}
-      <div className="mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
-        {!showAllBrands ? (
-          <SectionPagination
-            page={safeBrandPage + 1}
-            totalPages={totalBrandPages}
-            onPrev={handlePrevPage}
-            onNext={handleNextPage}
-            canGoPrev={canGoPrev}
-            canGoNext={canGoNext}
-            tone="indigo"
-          />
-        ) : null}
-        {/* Homepage-widget-only (this same brandsListNode is reused verbatim
-            for the filter/compact embed, which has no use for a link back to
-            /auto) — moved here from the header's search column, next to the
-            control it's actually paired with. Unboxed to match
-            SectionPagination beside it: no border/shadow/backdrop-blur chip,
-            just a plain hover-tinted pill so the pair reads as one light
-            control row instead of two separate cards. */}
-        {useFixedBrandTable && !showAllBrands && !selectedBrand && (
-          <Link
-            href="/auto"
-            aria-label="Переглянути всі марки автомобілів"
-            onClick={(event) => event.currentTarget.blur()}
-            onMouseLeave={(event) => event.currentTarget.blur()}
-            className="group/allbrands inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-indigo-700 transition-colors duration-200 hover:bg-indigo-50 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
-          >
-            <Car size={13} strokeWidth={2.6} aria-hidden />
-            Усі марки
-            <ChevronRight
-              size={13}
-              strokeWidth={3}
-              aria-hidden
-              className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
-            />
-          </Link>
-        )}
-      </div>
+
+
     </motion.div>
   );
 
@@ -1479,31 +1400,18 @@ const AutoSection: React.FC<AutoProps> = ({
     // animating its own differently-timed effect.
     //
     return (
-      <div className={`group/auto select-none ${isFilterVariant ? "" : "home-glow-section home-glow-section-auto relative isolate overflow-hidden border-y border-indigo-100/70 bg-[radial-gradient(150%_120%_at_-25%_-35%,rgba(99,102,241,0.12),transparent_66%),radial-gradient(140%_120%_at_120%_130%,rgba(59,130,246,0.1),transparent_64%),linear-gradient(179deg,rgba(234,238,255,0.66)_0%,rgba(240,244,255,0.5)_44%,rgba(231,240,251,0.62)_100%)] pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_-1px_0_rgba(37,99,235,0.08),0_14px_36px_-16px_rgba(30,64,175,0.12)] transition-[border-color,box-shadow] duration-[600ms] ease-out hover:border-indigo-300/80 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(79,70,229,0.22),inset_0_0_120px_-46px_rgba(99,102,241,0.45),0_28px_64px_-22px_rgba(67,56,202,0.3)] sm:pb-6 sm:pt-6"}`}>
-      {!isFilterVariant && (
-        <>
-          <DeferredAutoBackdrop />
-          {/* edge bridges — melt this section's fill into the neighbours above
-              (hero) and below (categories) so there's no hard seam */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[linear-gradient(to_bottom,rgba(202,206,255,0.55)_0%,rgba(202,206,255,0.1)_58%,transparent_100%)]" />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-12 bg-[linear-gradient(to_bottom,transparent_0%,rgba(231,240,251,0.55)_100%)]" />
-          {/* section hover — the panel ignites: an electric indigo/violet bloom
-              swells in from the corners and an iridescent band sweeps across */}
-          <div className="home-scroll-decor pointer-events-none absolute -inset-8 z-0 opacity-0 transition-[opacity,transform] duration-[600ms] ease-out group-hover/auto:opacity-100 group-hover/auto:scale-[1.04] bg-[radial-gradient(circle_at_8%_10%,rgba(129,140,248,0.34),transparent_42%),radial-gradient(circle_at_94%_86%,rgba(99,102,241,0.28),transparent_40%),radial-gradient(circle_at_52%_-8%,rgba(56,189,248,0.2),transparent_44%),radial-gradient(circle_at_50%_112%,rgba(79,70,229,0.16),transparent_58%)]" />
-          <div className="home-scroll-decor pointer-events-none absolute inset-y-0 -left-1/3 z-[1] w-2/3 -translate-x-1/4 opacity-0 transition-[opacity,transform] duration-[900ms] ease-out group-hover/auto:translate-x-[70%] group-hover/auto:opacity-100 bg-[linear-gradient(105deg,transparent_0%,rgba(165,180,252,0.16)_38%,rgba(255,255,255,0.34)_50%,rgba(129,140,248,0.14)_62%,transparent_100%)]" />
-          {/* machined panel edges + one diagonal light streak — a touch of metal */}
-          <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/auto:shadow-[0_0_22px_rgba(129,140,248,0.7)]" />
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(49,46,129,0.18),transparent)]" />
-          <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
-        </>
-      )}
+      <div className={`group/auto select-none ${isFilterVariant ? "" : "home-picker-section home-glow-section home-glow-section-auto relative isolate overflow-hidden"}`}>
+      {!isFilterVariant && (<>
+        <DeferredAutoBackdrop />
+        <div className="home-picker-atmosphere" aria-hidden="true" />
+      </>)}
       <div
         ref={isFilterVariant ? undefined : autoRevealRef}
         className={`relative z-10 ${isFilterVariant ? "" : `section-reveal-auto ${autoRevealClassName} page-shell-inline flex flex-col gap-3 sm:gap-4`}`}
       >
         {!isFilterVariant && (
           <div className="group/search relative">
-            <div className="home-auto-grid grid gap-5 md:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] md:items-stretch md:gap-8 lg:gap-10">
+            <div className="home-picker-layout home-auto-grid grid gap-5 md:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] md:items-stretch md:gap-8 lg:gap-10">
               {/* LEFT on md+ (left column of the grid); below md the grid
                   collapses to one column and stacks by DOM order, which
                   would otherwise put this — now first in the markup — above
@@ -1511,17 +1419,36 @@ const AutoSection: React.FC<AutoProps> = ({
                   layout reads. order-2 keeps it stacking after the list on
                   narrow screens, order-1 restores it to the actual left
                   column from md up. */}
-              <div className="reveal-search order-2 min-w-0 md:order-1">
-                <div className="reveal-search-panel relative flex h-full min-w-0 flex-col overflow-hidden rounded-[26px] border border-indigo-100 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.10),transparent_42%),radial-gradient(circle_at_96%_100%,rgba(56,189,248,0.10),transparent_44%),linear-gradient(150deg,#ffffff_0%,#f6f7ff_54%,#eef2ff_100%)] p-4 text-slate-800 shadow-[0_20px_48px_-26px_rgba(30,41,90,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
+              <div className="home-picker-rail reveal-search order-2 min-w-0 md:order-1">
+                <div className="reveal-search-panel relative flex min-w-0 flex-col text-slate-800">
                   <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/70 to-transparent" />
 
                   <div>
-                    <div className="mb-2.5 flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-600">
-                        Навігація підбору
-                      </span>
-                      <span className="h-px flex-1 bg-gradient-to-r from-indigo-300/50 to-transparent" />
-                    </div>
+                    <HomePickerHeading>
+                    {selectedBrand && showSummaryTable ? (
+                      <>
+                        Ваше авто{" "}
+                        <span className="text-emerald-600">готове до підбору</span>
+                      </>
+                    ) : selectedBrand && activeTab === "engine" && selectedModel ? (
+                      <>
+                        Модифікація{" "}
+                        <span className="text-blue-600">
+                          {selectedBrand.name} {selectedModel}
+                        </span>
+                      </>
+                    ) : selectedBrand ? (
+                      <>
+                        Моделі{" "}
+                        <span className="text-blue-600">{selectedBrand.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        Запчастини{" "}
+                        <span className="text-blue-600">за маркою та моделлю</span>
+                      </>
+                    )}
+                  </HomePickerHeading>
                     {renderStepNavigation(false)}
                   </div>
 
@@ -1532,13 +1459,14 @@ const AutoSection: React.FC<AutoProps> = ({
                       than above it — it explains the steps just shown, not
                       the panel as a whole, so it reads better as a caption
                       to them than as an intro before them. */}
+                  {showSummaryTable && (
+                    <p className="home-description">Модифікацію обрано. Перейдіть до каталогу запчастин або додайте ще одне авто.</p>
+                  )}
                   {!selectedBrand && (
                     <p className="home-description mt-3.5 text-[15px] font-medium leading-[1.68] text-slate-700 sm:text-[16px]">
-                      Оберіть{" "}
-                      <span className="font-semibold text-slate-800">марку та модель</span>{" "}
-                      — покажемо лише сумісні запчастини. У каталозі{" "}
-                      <span className="font-semibold text-indigo-700">{carBrands.length}+ марок</span>{" "}
-                      легкових авто з моделями й модифікаціями.
+                      Оберіть <span className="font-semibold text-slate-800">марку, модель, рік випуску та двигун</span>,
+                      щоб перейти до запчастин для свого автомобіля.
+                      У каталозі — <span className="font-semibold text-indigo-700">{carBrands.length} {pluralWord(carBrands.length, "марка", "марки", "марок")} авто</span>.
                     </p>
                   )}
 
@@ -1548,175 +1476,18 @@ const AutoSection: React.FC<AutoProps> = ({
                       its own icon inside the field, so it never doubles up),
                       and the whole row gets a real hover treatment now that
                       it's clickable. */}
-                  <div className="mt-4 border-t border-indigo-100 pt-4">
-                  <AnimatePresence mode="wait" initial={false}>
-                    {!isSearchOpen ? (
-                      // "Усі марки автомобілів" used to sit right beside this
-                      // trigger as a second button — moved down next to the
-                      // brand grid's own pager instead (see useFixedBrandTable
-                      // near the SectionPagination below), since that's the
-                      // control it's actually paired with.
-                      <motion.div
-                        key="buttons"
-                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                      >
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.currentTarget.blur();
-                            setIsSearchOpen(true);
-                          }}
-                          onMouseLeave={(event) => event.currentTarget.blur()}
-                          className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-indigo-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(67,56,202,0.26)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-indigo-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
-                        >
-                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-indigo-200/70 bg-indigo-100 text-indigo-600 shadow-[0_0_16px_rgba(99,102,241,0.16)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-indigo-300 group-hover/trigger:bg-indigo-200">
-                            <Search size={16} strokeWidth={2.2} aria-hidden />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[14.5px] font-black leading-tight text-slate-800">
-                              {selectedBrand
-                                ? activeTab === "engine"
-                                  ? "Пошук іншої моделі"
-                                  : "Пошук моделі"
-                                : "Пошук марки"}
-                            </span>
-                          </span>
-                          <ChevronRight
-                            size={16}
-                            strokeWidth={3}
-                            aria-hidden
-                            className="shrink-0 text-indigo-400 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
-                          />
-                        </button>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="field"
-                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                      >
-                        <AutoBrandSearchInput
-                          key={selectedBrand ? "model" : "brand"}
-                          onChange={
-                            selectedBrand
-                              ? (value) => {
-                                  setModelSearchTerm(value);
-                                  if (activeTab === "engine") setActiveTab("model");
-                                }
-                              : handleSearchChange
-                          }
-                          examples={selectedBrand ? MODEL_SEARCH_EXAMPLES : undefined}
-                          ariaLabel={
-                            selectedBrand
-                              ? activeTab === "engine"
-                                ? "Пошук іншої моделі"
-                                : "Пошук моделі"
-                              : "Пошук марки"
-                          }
-                          onCollapse={() => setIsSearchOpen(false)}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  </div>
 
-                  {selectedBrand && (
+
+                  {selectedBrand && !showSummaryTable && (
                     <p className="mt-2.5 text-[11px] font-bold uppercase leading-snug tracking-[0.12em] text-indigo-600">
                       {activeTab === "engine"
                         ? "Уточніть рік, двигун і параметри"
                         : "Оберіть модель і модифікацію"}
                     </p>
                   )}
-                  <span className={`block px-0.5 text-[11.5px] font-medium text-slate-600 ${selectedBrand ? "mt-1.5" : "mt-2.5"}`}>
-                    {(selectedBrand ? modelSearchTerm : searchTerm).trim() ? "Знайдено " : "Доступно для пошуку: "}
-                    <strong className="font-extrabold tabular-nums text-indigo-700">
-                      {selectedBrand ? modelCount ?? 0 : filteredBrands.length}
-                    </strong>{" "}
-                    {selectedBrand
-                      ? pluralWord(modelCount ?? 0, "модель", "моделі", "моделей")
-                      : pluralWord(filteredBrands.length, "марка", "марки", "марок")}
-                  </span>
 
-                  {selectedBrand && (activeTab === "model" || activeTab === "engine") && (
-                    <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50/50 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                      <div className="flex items-center gap-1.5">
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-[10px] font-black uppercase leading-none tracking-[0.1em] text-indigo-700">
-                            Рік
-                          </span>
-                          <span className="mt-0.5 hidden truncate text-[9px] font-semibold leading-none tabular-nums text-slate-500 min-[420px]:block">
-                            {yearMeta.bounds
-                              ? `${yearMeta.bounds.min}–${yearMeta.bounds.max}`
-                              : selectedYear != null
-                                ? `Обрано ${selectedYear}`
-                                : "Будь-який"}
-                          </span>
-                        </div>
-
-                        <div className="flex shrink-0 items-center rounded-[9px] border border-indigo-200 bg-white px-1 py-0.5 shadow-inner">
-                          {yearDigits.map((digit, place) => {
-                            const isSet = digit !== "";
-                            return (
-                              <div key={place} className="flex flex-col items-center">
-                                <button
-                                  type="button"
-                                  onClick={() => adjustYearDigit(place, 1)}
-                                  disabled={!canAdjustYearDigit(place, 1)}
-                                  aria-label="Збільшити розряд року"
-                                  className="flex h-2.5 w-4.5 items-center justify-center text-indigo-500 transition-colors hover:text-indigo-700 active:scale-90 disabled:opacity-20"
-                                >
-                                  <ChevronUp size={10} strokeWidth={3} />
-                                </button>
-                                <input
-                                  ref={(el) => { yearDigitRefs.current[place] = el; }}
-                                  type="text"
-                                  inputMode="numeric"
-                                  maxLength={1}
-                                  value={digit}
-                                  placeholder={yearPlaceholderDigits[place]}
-                                  onChange={(event) => handleYearDigitType(place, event.target.value)}
-                                  onKeyDown={(event) => handleYearDigitKeyDown(place, event)}
-                                  onFocus={(event) => event.currentTarget.select()}
-                                  aria-label={`Розряд року ${place + 1}`}
-                                  className={`h-4 w-4.5 border-0 border-b bg-transparent text-center text-[14px] font-black leading-none tabular-nums outline-none transition-colors focus:border-indigo-500 ${
-                                    isSet
-                                      ? "border-indigo-500 text-indigo-700"
-                                      : "border-slate-300 text-slate-800 placeholder:text-slate-300"
-                                  }`}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => adjustYearDigit(place, -1)}
-                                  disabled={!canAdjustYearDigit(place, -1)}
-                                  aria-label="Зменшити розряд року"
-                                  className="flex h-2.5 w-4.5 items-center justify-center text-indigo-500 transition-colors hover:text-indigo-700 active:scale-90 disabled:opacity-20"
-                                >
-                                  <ChevronDown size={10} strokeWidth={3} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        <button
-                          type="button"
-                          onClick={clearYearSelection}
-                          disabled={selectedYear == null && yearDigits.every((digit) => digit === "")}
-                          aria-label="Скинути рік випуску"
-                          title="Скинути рік"
-                          className="ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-indigo-200 bg-white text-indigo-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-25"
-                        >
-                          <X size={12} strokeWidth={3} />
-                        </button>
-                      </div>
-                      </div>
-                      {!yearMeta.bounds && !yearMeta.loading && yearMeta.error && (
-                        <span className="sr-only">{yearMeta.error}</span>
-                      )}
-                    </div>
+                  {selectedBrand && !showSummaryTable && (activeTab === "model" || activeTab === "engine") && (
+                    <VehicleYearSelect value={selectedYear} years={yearMeta.years ?? []} loading={yearMeta.loading} allowAny={activeTab !== "engine"} onChange={onYearSelect} />
                   )}
 
                   {/* Unique per step instead of one static sentence repeated
@@ -1724,7 +1495,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       own intro above, so this only fills in for "модель" and
                       "модифікація" — each referencing what was actually
                       picked, not a generic restatement. */}
-                  {selectedBrand && (
+                  {selectedBrand && !showSummaryTable && (
                     <p className="mt-4 border-t border-indigo-100 pt-3.5 text-[12px] font-medium leading-[1.55] text-slate-600 sm:text-[12.5px]">
                       {activeTab === "engine" && selectedModel ? (
                         <>
@@ -1754,62 +1525,88 @@ const AutoSection: React.FC<AutoProps> = ({
                   heading text is capped for readability). order-1 below md
                   so the list stacks above the search/nav panel instead of
                   under it — see the order-2/md:order-1 note on that panel. */}
-              <div className="reveal-head order-1 min-w-0 md:order-2">
-                <div className="reveal-head-panel relative max-w-[580px]">
-                  {/* Soft glow behind the heading — light, blurred wash
-                      lifting the title off the section background, same
-                      treatment as Brands/tovar's card headings. */}
-                  <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.2),transparent_70%)] blur-2xl" aria-hidden="true" />
-                  {/* Simple icon + text, matching HeroIntroCard's eyebrow —
-                      no trailing hairline (Hero doesn't have one either). */}
-                  <div className="flex items-center gap-3">
-                    <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-blue-600 to-sky-400 text-white shadow-[0_12px_28px_-8px_rgba(79,70,229,0.6),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(30,27,75,0.45)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
-                      {/* Original simple line-art car mark — same style
-                          language as HeroIntroCard's own custom eyebrow SVG
-                          (viewBox 24, thin round-cap stroke, no fill), so
-                          every homepage section's eyebrow icon reads as one
-                          consistent family instead of four different
-                          lucide-react styles. */}
-                      <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M4 16l1.3-4.9A2 2 0 0 1 7.2 9.6h9.6a2 2 0 0 1 1.9 1.5L20 16" />
-                        <path d="M3 16h18v2.5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V18H6v.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V16Z" />
-                        <circle cx="7.2" cy="16" r="1.3" />
-                        <circle cx="16.8" cy="16" r="1.3" />
-                      </svg>
-                    </span>
-                    <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-blue-600">
-                      Підбір за авто
-                    </span>
-                  </div>
-
-                  <h2 className="relative font-display font-display-readable mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-                    {selectedBrand && showSummaryTable ? (
-                      <>
-                        Ваше авто{" "}
-                        <span className="text-emerald-600">готове до підбору</span>
-                      </>
-                    ) : selectedBrand && activeTab === "engine" && selectedModel ? (
-                      <>
-                        Модифікація{" "}
-                        <span className="text-blue-600">
-                          {selectedBrand.name} {selectedModel}
-                        </span>
-                      </>
-                    ) : selectedBrand ? (
-                      <>
-                        Моделі{" "}
-                        <span className="text-blue-600">{selectedBrand.name}</span>
-                      </>
+              <div className="home-picker-results reveal-head order-1 min-w-0 md:order-2">
+                  <div className="home-picker-search-area" data-search-mode={selectedBrand && (activeTab === "engine" || showSummaryTable) ? "complete-step" : selectedBrand && modelCount === 0 ? "fallback" : "list"}>
+                  <HomePickerSearchControl
+                    mount={searchMount}
+                    count={null}
+                    unit={pluralWord(filteredBrands.length, "марка", "марки", "марок")}
+                    tone="indigo"
+                  >
+                  <AnimatePresence mode="wait" initial={false}>
+                    {!isSearchOpen ? (
+                      // "Усі марки автомобілів" used to sit right beside this
+                      // trigger as a second button — moved down next to the
+                      // brand grid's own pager instead (see useFixedBrandTable
+                      // near the SectionPagination below), since that's the
+                      // control it's actually paired with.
+                      <motion.div
+                        key="buttons"
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                      >
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.currentTarget.blur();
+                            setIsSearchOpen(true);
+                          }}
+                          onMouseLeave={(event) => event.currentTarget.blur()}
+                          aria-label={selectedBrand ? activeTab === "engine" ? "Пошук іншої моделі" : "Пошук моделі" : "Пошук марки"}
+                          className="home-picker-trigger group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-indigo-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(67,56,202,0.26)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-indigo-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
+                        >
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-indigo-200/70 bg-indigo-100 text-indigo-600 shadow-[0_0_16px_rgba(99,102,241,0.16)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-indigo-300 group-hover/trigger:bg-indigo-200">
+                            <Search size={16} strokeWidth={2.2} aria-hidden />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[14.5px] font-black leading-tight text-slate-800">
+                              Пошук
+                            </span>
+                          </span>
+                          <ChevronRight
+                            size={16}
+                            strokeWidth={3}
+                            aria-hidden
+                            className="shrink-0 text-indigo-400 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
+                          />
+                        </button>
+                      </motion.div>
                     ) : (
-                      <>
-                        Запчастини{" "}
-                        <span className="text-blue-600">для вашого авто</span>
-                      </>
+                      <motion.div
+                        key="field"
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                      >
+                        <AutoBrandSearchInput
+                          key={selectedBrand ? "model" : "brand"}
+                          defaultValue={selectedBrand ? modelSearchTerm : searchTerm}
+                          onChange={
+                            selectedBrand
+                              ? (value) => {
+                                  setModelSearchTerm(value);
+                                  if (activeTab === "engine") setActiveTab("model");
+                                }
+                              : handleSearchChange
+                          }
+                          examples={selectedBrand ? MODEL_SEARCH_EXAMPLES : undefined}
+                          ariaLabel={
+                            selectedBrand
+                              ? activeTab === "engine"
+                                ? "Пошук іншої моделі"
+                                : "Пошук моделі"
+                              : "Пошук марки"
+                          }
+                          onCollapse={() => setIsSearchOpen(false)}
+                        />
+                      </motion.div>
                     )}
-                  </h2>
-                  <span className="mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#4338ca_0%,#3b82f6_26%,#dbeafe_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(30,64,175,0.28)]" />
-                </div>
-
+                  </AnimatePresence>
+                  </HomePickerSearchControl>
+                  </div>
                 <motion.div
                   layout={shouldAnimate}
                   className="mt-5 overflow-hidden"
@@ -1829,12 +1626,13 @@ const AutoSection: React.FC<AutoProps> = ({
                       // still "engine" at this point (never reset on confirm).
                       <motion.div
                         key={`summary-${selectedCarLabel ?? selectedModel}`}
+                        className="home-auto-summary"
                         initial={shouldAnimate ? { opacity: 0, y: 10, scale: 0.98 } : false}
                         animate={shouldAnimate ? { opacity: 1, y: 0, scale: 1 } : undefined}
                         exit={shouldAnimate ? { opacity: 0, y: -8, scale: 0.99 } : undefined}
                         transition={shouldAnimate ? { duration: 0.28, ease: [0.22, 1, 0.36, 1] } : undefined}
                       >
-                        <div className="flex items-center gap-3 rounded-[16px] border border-emerald-200/70 bg-[radial-gradient(circle_at_10%_0%,rgba(52,211,153,0.14),transparent_44%),linear-gradient(150deg,#ffffff_0%,#f5fdf9_55%,#ecfdf5_100%)] px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(5,150,105,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                        <div className="home-auto-selected flex items-center gap-3 rounded-[16px] border border-emerald-200/70 bg-[radial-gradient(circle_at_10%_0%,rgba(52,211,153,0.14),transparent_44%),linear-gradient(150deg,#ffffff_0%,#f5fdf9_55%,#ecfdf5_100%)] px-3.5 py-3 shadow-[0_10px_26px_-14px_rgba(5,150,105,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]">
                           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border border-emerald-300/70 bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-[0_8px_18px_-6px_rgba(5,150,105,0.5),inset_0_1px_0_rgba(255,255,255,0.4)]">
                             <Check size={19} strokeWidth={2.6} aria-hidden />
                           </span>
@@ -1843,14 +1641,17 @@ const AutoSection: React.FC<AutoProps> = ({
                               Авто обрано
                             </span>
                             <span className="block truncate text-[15px] font-black tracking-[-0.01em] text-slate-800 sm:text-[16px]">
-                              {selectedCarLabel ?? `${selectedBrand.name} ${selectedModel ?? ""}`}
+                              {selectedCarLabel?.startsWith(`${selectedBrand.name} ${selectedModel ?? ""}`)
+                                ? <>{selectedBrand.name} {selectedModel}<span className="home-auto-year">{selectedYear}</span></>
+                                : selectedCarLabel ?? `${selectedBrand.name} ${selectedModel ?? ""}`}
                             </span>
                           </div>
+                          <button type="button" className="home-auto-remove" aria-label="Видалити вибране авто" onClick={() => selectedCarLabel && handleRemoveSavedCar(selectedCarLabel)}><X size={17} aria-hidden /></button>
                         </div>
 
                         {selectedModDetails &&
                           (selectedModDetails.volume || selectedModDetails.power || selectedModDetails.gearbox || selectedModDetails.drive) && (
-                            <div className="mt-2.5 flex flex-wrap gap-1.5">
+                            <div className="home-auto-specs mt-2.5 flex flex-wrap gap-1.5">
                               {[selectedModDetails.volume, selectedModDetails.power, selectedModDetails.gearbox, selectedModDetails.drive]
                                 .filter((value): value is string => Boolean(value))
                                 .map((value) => (
@@ -1864,7 +1665,7 @@ const AutoSection: React.FC<AutoProps> = ({
                             </div>
                           )}
 
-                        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                        <div className="home-auto-actions mt-3.5 flex flex-wrap items-center gap-2">
                           <Link
                             href="/katalog"
                             className="inline-flex items-center gap-1.5 rounded-[12px] border border-emerald-300/60 bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2.5 text-[12.5px] font-bold text-white shadow-[0_8px_20px_-8px_rgba(5,150,105,0.55)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_12px_26px_-8px_rgba(5,150,105,0.6)]"
@@ -1883,7 +1684,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         </div>
 
                         {selectedCarRows.filter((car) => car !== selectedCarLabel).length > 0 && (
-                          <div className="mt-3.5 border-t border-slate-100 pt-3">
+                          <div className="home-auto-saved mt-3.5 border-t border-slate-100 pt-3">
                             <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
                               Інші збережені авто
                             </span>
@@ -1891,8 +1692,8 @@ const AutoSection: React.FC<AutoProps> = ({
                               {selectedCarRows
                                 .filter((car) => car !== selectedCarLabel)
                                 .map((car) => (
+                                  <div key={car} className="home-auto-saved-row">
                                   <button
-                                    key={car}
                                     type="button"
                                     onClick={() => {
                                       setSelectedCarLabel(car);
@@ -1903,6 +1704,8 @@ const AutoSection: React.FC<AutoProps> = ({
                                   >
                                     {car}
                                   </button>
+                                  <button type="button" className="home-auto-remove" aria-label={`Видалити авто ${car}`} onClick={() => handleRemoveSavedCar(car)}><X size={15} aria-hidden /></button>
+                                  </div>
                                 ))}
                             </div>
                           </div>
@@ -1928,6 +1731,9 @@ const AutoSection: React.FC<AutoProps> = ({
                           searchTerm={modelSearchTerm}
                           onSearchTermChange={setModelSearchTerm}
                           onYearMetaChange={setYearMeta}
+                          searchSlotRef={setSearchMount}
+                          onOpenSearch={() => setIsSearchOpen(true)}
+                          searchExpanded={isSearchOpen}
                         />
                       </motion.div>
                     ) : activeTab === "engine" ? (
@@ -1966,7 +1772,7 @@ const AutoSection: React.FC<AutoProps> = ({
             </div>
           </div>
         )}
-        <div>
+        <div hidden={!isFilterVariant}>
           <div className={`relative z-10 ${isFilterVariant ? "px-3 pb-3 pt-2 sm:px-3.5 sm:pb-3.5 sm:pt-2.5" : "px-3 pb-3 pt-1.5 sm:px-4 sm:pb-4 sm:pt-1.5"}`}>
             {(() => {
               // Legacy count header for the lower grid (see
@@ -2093,89 +1899,7 @@ const AutoSection: React.FC<AutoProps> = ({
               {isFilterVariant && renderStepNavigation(false)}
 
               {isFilterVariant && selectedBrand && activeTab === "model" && (
-                <div className="mt-2.5 rounded-2xl border border-sky-100/80 bg-white/50 p-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                  <div className="mb-1.5 flex items-center gap-1.5 px-0.5">
-                    <span className="h-px w-3 shrink-0 bg-gradient-to-r from-transparent to-sky-300" aria-hidden />
-                    <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                      {selectedYear != null ? `Рік випуску: ${selectedYear}` : "Рік випуску: будь-який"}
-                    </span>
-                    <span className="h-px flex-1 bg-gradient-to-r from-sky-300 to-transparent" aria-hidden />
-                    {yearMeta.bounds && (
-                      <span className="shrink-0 text-[10px] font-bold tabular-nums text-slate-500">
-                        {yearMeta.bounds.min}–{yearMeta.bounds.max}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex justify-center">
-                  <div className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-sky-200 bg-[radial-gradient(circle_at_50%_-30%,rgba(125,211,252,0.35),transparent_60%),linear-gradient(150deg,#ffffff_0%,#f3faff_55%,#eaf7ff_100%)] px-2.5 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/80">
-                    <div className="flex items-center">
-                      {yearDigits.map((digit, place) => {
-                        const isSet = digit !== "";
-                        return (
-                          <div key={place} className="flex flex-col items-center">
-                            <button
-                              type="button"
-                              onClick={() => adjustYearDigit(place, 1)}
-                              disabled={!canAdjustYearDigit(place, 1)}
-                              aria-label="Збільшити розряд року"
-                              className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
-                            >
-                              <ChevronUp size={12} strokeWidth={3} />
-                            </button>
-                            <input
-                              ref={(el) => {
-                                yearDigitRefs.current[place] = el;
-                              }}
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={1}
-                              value={digit}
-                              placeholder={yearPlaceholderDigits[place]}
-                              onChange={(e) => handleYearDigitType(place, e.target.value)}
-                              onKeyDown={(e) => handleYearDigitKeyDown(place, e)}
-                              onFocus={(e) => e.currentTarget.select()}
-                              aria-label={`Розряд року ${place + 1}`}
-                              className={`w-4 border-0 border-b-2 bg-transparent text-center text-[15px] font-black leading-none tabular-nums outline-none transition-colors duration-200 focus:border-sky-500 ${
-                                isSet ? "border-sky-300 text-sky-700" : "border-slate-300 text-slate-800 placeholder:font-bold placeholder:text-slate-400"
-                              }`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => adjustYearDigit(place, -1)}
-                              disabled={!canAdjustYearDigit(place, -1)}
-                              aria-label="Зменшити розряд року"
-                              className="flex h-3.5 w-4 items-center justify-center text-slate-500 transition-colors duration-150 hover:text-sky-700 active:scale-90 disabled:opacity-25 disabled:hover:text-slate-500"
-                            >
-                              <ChevronDown size={12} strokeWidth={3} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={clearYearSelection}
-                      disabled={selectedYear == null && yearDigits.every((d) => d === "")}
-                      aria-label="Скинути рік випуску"
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-slate-600 transition-colors duration-150 hover:text-sky-700 disabled:opacity-35"
-                    >
-                      <X size={12} strokeWidth={3} />
-                      Скинути
-                    </button>
-                  </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-center gap-1.5">
-                    <Info size={12} strokeWidth={2.5} className="shrink-0 text-sky-500" aria-hidden />
-                    <p className="text-center text-[11px] font-semibold text-slate-600">
-                      {"Клікніть на цифру і введіть рік або скористайтесь стрілочками"}
-                    </p>
-                  </div>
-                  {!yearMeta.bounds && !yearMeta.loading && (
-                    <span className="mt-1 block text-center px-1 text-[11px] font-semibold text-slate-600">
-                      {yearMeta.error ?? "Роки випуску недоступні."}
-                    </span>
-                  )}
-                </div>
+                <VehicleYearSelect value={selectedYear} years={yearMeta.years ?? []} loading={yearMeta.loading} onChange={onYearSelect} />
               )}
 
               {isFilterVariant && selectedBrand && activeTab === "engine" && (

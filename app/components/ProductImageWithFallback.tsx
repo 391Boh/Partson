@@ -280,6 +280,11 @@ export default function ProductImageWithFallback({
         setRequestSrc("");
         setStatus("missing");
       }
+      if (syncWithProductGallery) {
+        window.dispatchEvent(new CustomEvent<ProductGallerySelectionDetail>(PRODUCT_GALLERY_SELECTION_EVENT, {
+          detail: { code: normalizedProductCode, imageUrl: null },
+        }));
+      }
       return;
     }
 
@@ -321,6 +326,7 @@ export default function ProductImageWithFallback({
     recoverySrc,
     requestSrc,
     selectedGallerySrc,
+    syncWithProductGallery,
   ]);
 
   const handleImageRef = useCallback(

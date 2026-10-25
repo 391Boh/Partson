@@ -5,8 +5,10 @@ import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useStat
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Info, Search, ShoppingBag, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
-import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import SectionPagination from "./SectionPagination";
+import HomePickerHeading from "./HomePickerHeading";
+import HomePickerSearchControl from "./HomePickerSearchControl";
+import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 import { buildCatalogProducerPath, buildManufacturerPath } from "app/lib/catalog-links";
@@ -19,8 +21,6 @@ import { getManufacturerCounts, type ManufacturerCountsApiPayload } from "app/li
 const ITEMS_PER_PAGE = 6;
 const SWIPE_INTENT_PX = 7;
 const SWIPE_VELOCITY_THRESHOLD = 0.34;
-
-const pluralizeBrandCount = pluralizeManufacturers;
 
 const pluralizeProductCount = pluralizeProducts;
 
@@ -218,7 +218,7 @@ function BrandTile({
         onSelect(brand);
       }}
       onMouseLeave={(event) => event.currentTarget.blur()}
-      className={`card-metal group/tile relative flex h-[138px] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] px-2 shadow-[0_5px_14px_-4px_rgba(15,118,110,0.15),inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_20px_44px_-16px_rgba(13,148,136,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70 sm:h-[154px] ${
+      className={`home-picker-tile home-picker-brand card-metal group/tile relative flex h-[138px] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[18px] px-2 shadow-[0_5px_14px_-4px_rgba(15,118,110,0.15),inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_20px_44px_-16px_rgba(13,148,136,0.4),inset_0_1px_0_rgba(255,255,255,0.95)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70 sm:h-[154px] ${
         isSelected
           ? "bg-white/85 shadow-[0_16px_36px_-16px_rgba(13,148,136,0.42),inset_0_1px_0_rgba(255,255,255,0.95)]"
           : "bg-white/35"
@@ -267,6 +267,7 @@ function BrandTile({
           </span>
         )}
       </span>
+      <span className="home-picker-tile-name">{brand.name}</span>
       {brand.productCount && brand.productCount > 0 ? (
         <span
           className={`relative whitespace-nowrap text-[11px] font-extrabold leading-none tabular-nums transition-colors duration-300 sm:text-[12px] ${
@@ -416,6 +417,7 @@ export default function BrandCarousel({
   const [search, setSearch] = useState("");
   // Search starts collapsed to a trigger button, same "Швидкий пошук"
   // pattern as Auto.tsx/tovar.tsx — expands into the field on click.
+  const [searchMount, setSearchMount] = useState<HTMLDivElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [selectedBrand, setSelectedBrand] = useState<BrandItem | null>(null);
@@ -769,23 +771,12 @@ export default function BrandCarousel({
 
   return (
     <section
-      className="home-glow-section home-glow-section-brands font-ui group/brandcars relative isolate w-full select-none overflow-hidden border-y border-cyan-100/70 bg-[radial-gradient(150%_120%_at_-25%_-30%,rgba(34,211,238,0.1),transparent_66%),radial-gradient(150%_120%_at_125%_130%,rgba(20,184,166,0.09),transparent_64%),linear-gradient(179deg,#e6f1fb_0%,#eaf5fb_44%,#e3f4f1_100%)] pb-5 pt-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(13,148,136,0.09),0_14px_36px_-16px_rgba(15,118,110,0.12)] transition-[border-color,box-shadow] duration-[600ms] ease-out hover:border-cyan-300/80 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(13,148,136,0.22),inset_0_0_120px_-46px_rgba(34,211,238,0.48),0_28px_60px_-22px_rgba(15,118,110,0.3)] sm:pb-6 sm:pt-6"
+      className="home-picker-section home-glow-section home-glow-section-brands font-ui group/brandcars relative isolate select-none overflow-hidden"
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
     >
       <DeferredBrandsBackdrop />
-      {/* edge bridges — blend into the categories section above and the
-          store (teal) section below */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[linear-gradient(to_bottom,rgba(214,238,246,0.55)_0%,rgba(214,238,246,0.1)_58%,transparent_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-14 bg-[linear-gradient(to_bottom,transparent_0%,rgba(206,244,240,0.6)_100%)]" />
-      {/* section hover — the panel lights up: a cyan / teal bloom swells in and a
-          bright band sweeps across */}
-      <div className="home-scroll-decor pointer-events-none absolute -inset-8 z-0 opacity-0 transition-[opacity,transform] duration-[600ms] ease-out group-hover/brandcars:opacity-100 group-hover/brandcars:scale-[1.04] bg-[radial-gradient(circle_at_9%_12%,rgba(34,211,238,0.32),transparent_42%),radial-gradient(circle_at_92%_84%,rgba(20,184,166,0.28),transparent_40%),radial-gradient(circle_at_50%_-8%,rgba(56,189,248,0.18),transparent_44%),radial-gradient(circle_at_52%_112%,rgba(45,212,191,0.16),transparent_58%)]" />
-      <div className="home-scroll-decor pointer-events-none absolute inset-y-0 -left-1/3 z-[1] w-2/3 -translate-x-1/4 opacity-0 transition-[opacity,transform] duration-[900ms] ease-out group-hover/brandcars:translate-x-[70%] group-hover/brandcars:opacity-100 bg-[linear-gradient(105deg,transparent_0%,rgba(103,232,249,0.16)_38%,rgba(255,255,255,0.34)_50%,rgba(45,212,191,0.14)_62%,transparent_100%)]" />
-      {/* machined panel edges + one diagonal light streak — a touch of metal */}
-      <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/brandcars:shadow-[0_0_22px_rgba(34,211,238,0.75)]" />
-      <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(15,118,110,0.18),transparent)]" />
-      <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
+      <div className="home-picker-atmosphere" aria-hidden="true" />
       <motion.div
         ref={brandsRevealRef}
         className={`section-reveal-brands ${brandsRevealClassName} page-shell-inline relative z-10 flex flex-col gap-3 sm:gap-4`}
@@ -802,51 +793,16 @@ export default function BrandCarousel({
             home-hero-grid, md:grid-cols-[minmax(0,1.06fr)_minmax(340px,0.94fr)])
             — narrow column mirrored to the left here since that's where the
             text card sits, not the right like in the hero. */}
-        <div className="home-brands-grid grid gap-5 md:grid-cols-[minmax(340px,0.94fr)_minmax(0,1.06fr)] md:items-stretch lg:gap-8">
-          <div className="reveal-head relative min-w-0 overflow-hidden rounded-[26px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.86)_58%,rgba(224,242,254,0.82)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(30,64,175,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 md:order-1 lg:p-7">
-            <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
-            {/* Soft glow anchored behind the heading — a light, blurred wash
-                (not a hard shape) so the title lifts off the card without
-                fighting the text's own contrast. Clipped by the card's own
-                overflow-hidden, painted before the text in DOM order so it
-                never needs z-index. */}
-            <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(13,148,136,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
-            {/* Simple icon + text, matching HeroIntroCard's eyebrow — no
-                trailing hairline (Hero doesn't have one either). */}
-            <div className="flex items-center gap-3">
-              <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 via-sky-500 to-sky-400 text-white shadow-[0_12px_28px_-8px_rgba(13,148,136,0.6),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(4,47,46,0.45)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
-                {/* Original simple line-art factory mark (sawtooth roof +
-                    chimney) — same style language as HeroIntroCard's own
-                    custom eyebrow SVG and the other homepage sections'
-                    eyebrow icons, instead of a generic lucide-react glyph. */}
-                <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M3 21V10.5l4.5 3v-3l4.5 3v-3l4.5 3v7.5" />
-                  <path d="M3 21h18" />
-                  <path d="M16.5 10.5V6.5h3.5v4" />
-                </svg>
-              </span>
-              <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-blue-600">
-                Виробники
-              </span>
-            </div>
-
-            <h2 className="relative font-display font-display-readable mt-4 text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-              Виробники:{" "}
-              <span className="text-blue-600">оригінали й аналоги</span>
-            </h2>
-            <span className="mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0d9488_0%,#14b8a6_26%,#ccfbf1_46%,#38bdf8_64%,transparent_100%)] shadow-[0_1px_2px_rgba(15,118,110,0.28)]" />
-            {/* lead — cites the real, live catalog size (visibleBrandCount,
-                derived from syncedBrands the same way the picker grid and
-                the "Доступно для пошуку" counter below are) and explains
-                what selecting a manufacturer actually does, instead of just
-                restating the heading. Was brands.length — the static seed
-                list's count (~124), which drifted from the live total
-                (~192) shown everywhere else on this same block. */}
+        <div className="home-picker-layout home-brands-grid grid gap-5 md:grid-cols-[minmax(340px,0.94fr)_minmax(0,1.06fr)] md:items-stretch lg:gap-8">
+          <div className="home-picker-rail reveal-head relative min-w-0 overflow-hidden rounded-[26px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.94)_0%,rgba(240,249,255,0.86)_58%,rgba(224,242,254,0.82)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(30,64,175,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 md:order-1 lg:p-7">
+            <HomePickerHeading>
+              Виробники{" "}
+              <span className="text-blue-600">автозапчастин</span>
+            </HomePickerHeading>
             <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-              <span className="font-semibold text-slate-800">{visibleBrandCount}+ виробників</span> —
-              оригінальні запчастини та перевірені{" "}
-              <span className="font-semibold text-blue-700">аналоги</span>. Оберіть
-              бренд, щоб переглянути всі його товари.
+              У каталозі — <span className="font-semibold text-slate-800">{visibleBrandCount} {pluralizeManufacturers(visibleBrandCount)}</span>.
+              Оберіть бренд, щоб переглянути <span className="font-semibold text-blue-700">оригінальні запчастини й аналоги</span>{" "}
+              для ремонту та техобслуговування автомобіля.
             </p>
 
             {/* Search — collapse-to-button, same pattern as Auto.tsx's
@@ -855,8 +811,28 @@ export default function BrandCarousel({
                 виробники" used to sit right under it as a second button —
                 moved down next to the pager instead (reveal-tail below),
                 since that's the control it's actually paired with. */}
-            <div className="mt-5">
+
+          </div>
+
+          {/* Selecting a tile now swaps the whole grid area for the detail
+              panel in place (AnimatePresence, one column, one shared
+              horizontal inset) instead of stacking an often-empty panel
+              underneath a full-width grid — the two states share this same
+              px-7/sm:px-10 inset so a tile's card and the panel's border
+              land on the exact same edges, with no swap-triggered width
+              jump. Arrow buttons only render inside the grid state (they
+              have no purpose over the detail panel), so this wrapper being
+              their `relative` positioning root the whole time is harmless
+              while the panel is showing — nothing else inside is absolute. */}
+          <div className="home-brand-cards relative min-w-0 px-7 sm:px-10 md:order-2">
+            <div className="home-picker-search-area">
               <div className="h-[62px]">
+              <HomePickerSearchControl
+                    mount={searchMount}
+                count={null}
+                unit={pluralizeManufacturers(filteredBrands.length)}
+                tone="blue"
+              >
               <AnimatePresence mode="wait" initial={false}>
                 {!isSearchOpen ? (
                   <motion.div
@@ -873,13 +849,14 @@ export default function BrandCarousel({
                         setIsSearchOpen(true);
                       }}
                       onMouseLeave={(event) => event.currentTarget.blur()}
-                      className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-blue-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(30,64,175,0.32)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-blue-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
+                      aria-label="Пошук виробника"
+                      className="home-picker-trigger group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-blue-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(30,64,175,0.32)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-blue-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
                     >
                       <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200/70 bg-blue-100 text-blue-600 shadow-[0_0_16px_rgba(59,130,246,0.16)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-blue-300 group-hover/trigger:bg-blue-200">
                         <Search size={16} strokeWidth={2.2} aria-hidden />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук виробника</span>
+                        <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук</span>
                       </span>
                       <ChevronRight
                         size={16}
@@ -901,29 +878,9 @@ export default function BrandCarousel({
                   </motion.div>
                 )}
               </AnimatePresence>
+              </HomePickerSearchControl>
               </div>
-
-              <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
-                {search.trim() ? "Знайдено " : "Доступно для пошуку: "}
-                <strong className="font-extrabold tabular-nums text-blue-700">
-                  {filteredBrands.length.toLocaleString("uk-UA")}
-                </strong>{" "}
-                {pluralizeBrandCount(filteredBrands.length)}
-              </span>
             </div>
-          </div>
-
-          {/* Selecting a tile now swaps the whole grid area for the detail
-              panel in place (AnimatePresence, one column, one shared
-              horizontal inset) instead of stacking an often-empty panel
-              underneath a full-width grid — the two states share this same
-              px-7/sm:px-10 inset so a tile's card and the panel's border
-              land on the exact same edges, with no swap-triggered width
-              jump. Arrow buttons only render inside the grid state (they
-              have no purpose over the detail panel), so this wrapper being
-              their `relative` positioning root the whole time is harmless
-              while the panel is showing — nothing else inside is absolute. */}
-          <div className="home-brand-cards relative min-w-0 px-7 sm:px-10 md:order-2">
             <AnimatePresence mode="wait" initial={false}>
               {selectedBrand ? (
                 <motion.div
@@ -948,12 +905,54 @@ export default function BrandCarousel({
                 </motion.div>
               ) : (
                 <motion.div
+                  className="home-picker-carousel"
                   key="grid"
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                 >
+<SectionPagination
+                      page={safePage + 1}
+                      totalPages={totalPages}
+                      onPrev={handlePrevPage}
+                      onNext={handleNextPage}
+                      canGoPrev={canGoPrev}
+                      canGoNext={canGoNext}
+                      tone="blue"
+            availableCount={filteredBrands.length}
+            availableUnit={pluralizeManufacturers(filteredBrands.length)}
+            showAvailableCount={true}
+            searchSlotRef={setSearchMount}
+            onSearch={() => setIsSearchOpen(true)}
+            searchLabel="Пошук виробника"
+            searchExpanded={isSearchOpen}
+                    />
+<div className="reveal-tail mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
+                    {/* Unboxed to match SectionPagination above: no
+                        border/shadow/backdrop-blur chip, just a plain
+                        hover-tinted pill — moved here from the intro column
+                        (see the comment up there) since it belongs with the
+                        control it actually pairs with. */}
+                    <SmartLink
+                      href="/manufacturers"
+                      prefetchOnIntent
+                      onClick={(event) => event.currentTarget.blur()}
+                      onMouseLeave={(event) => event.currentTarget.blur()}
+                      className="group/allbrands inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-blue-700 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
+                    >
+                      <ManufacturersIcon size={13} strokeWidth={2.6} aria-hidden />
+                      <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{filteredBrands.length} {pluralizeManufacturers(filteredBrands.length)}</strong><span className="sr-only"> · Усі виробники</span></span>
+                      <ChevronRight
+                        size={13}
+                        strokeWidth={3}
+                        aria-hidden
+                        className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
+                      />
+                    </SmartLink>
+                  </div>
+
+                  <div className="home-picker-track-shell">
                   <div
                     ref={attachBrandPages}
                     onScroll={handleBrandPagesScroll}
@@ -981,7 +980,7 @@ export default function BrandCarousel({
                           className="w-full min-w-0 shrink-0 snap-start bg-transparent px-1.5 [scroll-snap-stop:always] sm:px-2"
                         >
                           {Math.abs(pageIndex - safePage) <= 1 ? (
-                            <div className={`grid min-h-[286px] grid-cols-3 content-start gap-2.5 place-items-stretch sm:min-h-[320px] sm:gap-3${pageIndex === 0 ? " reveal-grid" : ""}`}>
+                            <div className={`home-picker-brand-page grid min-h-[286px] grid-cols-3 content-start gap-2.5 place-items-stretch sm:min-h-[320px] sm:gap-3${pageIndex === 0 ? " reveal-grid" : ""}`}>
                               {pageBrands.map((brand: BrandItem, idx: number) => (
                                 <BrandTile
                                   key={`${brand.name}-${pageIndex}-${idx}`}
@@ -994,7 +993,7 @@ export default function BrandCarousel({
                             </div>
                           ) : (
                             <div
-                              className="h-[286px] bg-transparent sm:h-[320px]"
+                              className="home-picker-brand-placeholder h-[286px] bg-transparent sm:h-[320px]"
                               aria-hidden="true"
                             />
                           )}
@@ -1002,38 +1001,9 @@ export default function BrandCarousel({
                       ))}
                     </div>
                   </div>
-                  <div className="reveal-tail mt-3 flex min-h-9 flex-wrap items-center justify-center gap-2">
-                    <SectionPagination
-                      page={safePage + 1}
-                      totalPages={totalPages}
-                      onPrev={handlePrevPage}
-                      onNext={handleNextPage}
-                      canGoPrev={canGoPrev}
-                      canGoNext={canGoNext}
-                      tone="blue"
-                    />
-                    {/* Unboxed to match SectionPagination above: no
-                        border/shadow/backdrop-blur chip, just a plain
-                        hover-tinted pill — moved here from the intro column
-                        (see the comment up there) since it belongs with the
-                        control it actually pairs with. */}
-                    <SmartLink
-                      href="/manufacturers"
-                      prefetchOnIntent
-                      onClick={(event) => event.currentTarget.blur()}
-                      onMouseLeave={(event) => event.currentTarget.blur()}
-                      className="group/allbrands inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-blue-700 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
-                    >
-                      <ManufacturersIcon size={13} strokeWidth={2.6} aria-hidden />
-                      Усі виробники
-                      <ChevronRight
-                        size={13}
-                        strokeWidth={3}
-                        aria-hidden
-                        className="transition-transform duration-200 ease-out group-hover/allbrands:translate-x-0.5"
-                      />
-                    </SmartLink>
                   </div>
+
+
                 </motion.div>
               )}
             </AnimatePresence>

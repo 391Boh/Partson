@@ -7,7 +7,7 @@ import { BadgePercent, Clock3, CreditCard, Headphones, Truck } from "lucide-reac
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
-import { waitForFirebaseAuthReady } from "app/lib/firebase-auth-state";
+import { loadPrivateProductPrice } from "app/lib/private-product-price-client";
 
 type ProductPurchasePanelClientProps = {
   lookupKeys: string[];
@@ -103,7 +103,10 @@ export default function ProductPurchasePanelClient(
   const isInStock = quantity > 0;
 
   const isMountedRef = useRef(true);
-  useEffect(() => () => { isMountedRef.current = false; }, []);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCostPrice, setShowCostPrice] = useState(false);
@@ -454,7 +457,6 @@ export default function ProductPurchasePanelClient(
     }
 
     let cancelled = false;
-    const controller = new AbortController();
     const cacheKey = partnerPriceCacheKey(partnerRequestUrl);
     const cached = readCachedPartnerPrice(cacheKey);
     if (cached) {
@@ -463,26 +465,9 @@ export default function ProductPurchasePanelClient(
     }
 
     const loadPartnerPrice = async () => {
-      const snapshot = await waitForFirebaseAuthReady();
-      const token = snapshot.user
-        ? await snapshot.user.getIdToken().catch(() => null)
-        : null;
-      if (!token || cancelled) return;
+      const payload = await loadPrivateProductPrice(lookupKeys);
+      if (!payload || cancelled) return;
 
-      const response = await fetch(partnerRequestUrl, {
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-        signal: controller.signal,
-      }).catch(() => null);
-      if (!response?.ok || cancelled) return;
-
-      const payload = (await response.json()) as {
-        promoPriceUah?: number | null;
-        isPartner?: boolean;
-      };
       const partnerAccess = payload.isPartner === true;
       const nextPromoPrice =
         partnerAccess &&
@@ -502,9 +487,8 @@ export default function ProductPurchasePanelClient(
     void loadPartnerPrice();
     return () => {
       cancelled = true;
-      controller.abort();
     };
-  }, [hasAuthenticatedUser, partnerRequestUrl]);
+  }, [hasAuthenticatedUser, partnerRequestUrl, lookupKeys]);
 
   // The three effects above only ever run again when their own dependencies
   // change (normalizedInitialPrice/requestUrl, publicPromoCheckUrl,
@@ -524,6 +508,9 @@ export default function ProductPurchasePanelClient(
         }
         if (params.getAll("lookup").length === 0) return;
 
+        const privatePayloadPromise = hasAuthenticatedUser && partnerRequestUrl
+          ? loadPrivateProductPrice(lookupKeys, true)
+          : null;
         const publicPayload = await fetch(`/api/product-price?${params.toString()}`, {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -557,16 +544,7 @@ export default function ProductPurchasePanelClient(
         );
 
         if (!hasAuthenticatedUser || !partnerRequestUrl) return;
-        const snapshot = await waitForFirebaseAuthReady();
-        const token = snapshot.user ? await snapshot.user.getIdToken().catch(() => null) : null;
-        if (!token || !isMountedRef.current) return;
-
-        const partnerPayload = await fetch(partnerRequestUrl, {
-          headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        })
-          .then((response) => (response.ok ? response.json() : null))
-          .catch(() => null) as { promoPriceUah?: number | null; isPartner?: boolean } | null;
+        const partnerPayload = await privatePayloadPromise;
         if (!isMountedRef.current || !partnerPayload) return;
 
         const partnerAccess = partnerPayload.isPartner === true;
@@ -631,13 +609,13 @@ export default function ProductPurchasePanelClient(
         price={effectivePriceUah ?? null}
       />
       <div className="product-purchase-body grid gap-6 p-5 sm:p-6">
-        <div className="product-purchase-offer min-w-0">
+        <div className="product-purchase-offer min-w-0" data-nosnippet>
           <div className="product-purchase-head flex items-center justify-between gap-3">
             <p className="product-purchase-label text-[10px] font-bold uppercase tracking-[0.14em] text-sky-700">
               {hasPromoPrice ? "Акційна ціна партнера" : "Ціна товару"}
             </p>
-            {hasCostPrice ? (
-              <div className="flex rounded-[8px] border border-slate-200 bg-slate-100 p-[2px]">
+              <div className="product-price-mode-slot" data-ready={hasCostPrice ? "true" : undefined} aria-hidden={!hasCostPrice} inert={!hasCostPrice}>
+              <div className="product-price-mode-controls flex rounded-[8px] border border-slate-200 bg-slate-100 p-[2px]">
                 <button
                   type="button"
                   onClick={() => setShowCostPrice(false)}
@@ -651,11 +629,12 @@ export default function ProductPurchasePanelClient(
                   className={`rounded-[6px] px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] transition ${showCostPrice ? "bg-white text-amber-700 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                 >Закуп</button>
               </div>
-            ) : null}
+              </div>
           </div>
 
+          <div className="product-price-value-slot" aria-live="polite" aria-busy={isLoading}>
           {isLoading && !showCostPrice ? (
-            <div className="product-purchase-price-skeleton h-[30px] w-36 animate-pulse rounded-lg bg-slate-200/70" role="status" aria-label="Завантажуємо ціну" />
+            <div className="product-purchase-price-skeleton h-[30px] w-36 rounded-lg bg-slate-200/70" role="status" aria-label="Завантажуємо ціну" />
           ) : hasPromoPrice && !showCostPrice ? (
             <div className="product-purchase-price-row flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <span className="product-purchase-price break-words text-rose-600">
@@ -675,8 +654,12 @@ export default function ProductPurchasePanelClient(
             </p>
           )}
 
-          {showPartnerDiscountTeaser && !isLoading && !showCostPrice && (
+          </div>
+          {(hasPromo || !hasServerPromoTeaser) && (
             <Link
+              aria-hidden={!showPartnerDiscountTeaser || isLoading || showCostPrice}
+              inert={!showPartnerDiscountTeaser || isLoading || showCostPrice}
+              data-price-teaser-visible={showPartnerDiscountTeaser && !isLoading && !showCostPrice ? "true" : "false"}
               href="/partnership"
               className="product-purchase-promo inline-flex w-fit items-center gap-1.5 rounded-full border border-rose-200 bg-gradient-to-r from-rose-50 to-rose-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.04em] text-rose-700 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] transition hover:border-rose-300 hover:from-rose-100 hover:to-rose-200"
             >
@@ -696,6 +679,7 @@ export default function ProductPurchasePanelClient(
 
           <div
             aria-live="polite"
+            data-nosnippet
             data-stock={isInStock ? "in" : "order"}
             className={`product-purchase-stock flex items-center gap-2.5 rounded-xl border ${isInStock ? "border-emerald-200/80 bg-emerald-50/70" : "border-amber-200/80 bg-amber-50/70"}`}
           >

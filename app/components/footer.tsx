@@ -21,7 +21,7 @@ import {
   Undo2,
   Wallet,
 } from "lucide-react";
-import { SiFacebook, SiInstagram, SiTelegram, SiViber } from "react-icons/si";
+import { SiFacebook, SiInstagram, SiTelegram, SiViber } from "./FooterSocialIcons";
 import React from "react";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 

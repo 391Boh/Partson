@@ -977,7 +977,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                 </SmartLink>
                             )}
                             {/* Price display */}
-                            <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-all duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
+                            <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-[background-color,border-color,box-shadow] duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
                                 <span hidden={isPriceLoading} className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
                                     {showCostPrice ? 'Закуп:' : 'Ціна:'}
                                 </span>

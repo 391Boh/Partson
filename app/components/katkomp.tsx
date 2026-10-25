@@ -29,6 +29,9 @@ interface CategoryProps {
   resetViewSignal?: number;
   selectedCars?: string[];
   sortOrder?: string;
+  /** The catalog filter header holds the search field (filtrtion.tsx). */
+  searchInHeader?: boolean;
+  onSearchPlaceholderChange?: (placeholder: string) => void;
 }
 
 interface SubgroupItem {
@@ -344,6 +347,8 @@ const Category: React.FC<CategoryProps> = ({
   resetViewSignal,
   selectedCars,
   sortOrder,
+  searchInHeader = false,
+  onSearchPlaceholderChange,
 }) => {
   const [localSearchTerm, setLocalSearchTerm] = useState("");
   const searchTerm = controlledSearchTerm ?? localSearchTerm;
@@ -713,6 +718,7 @@ const Category: React.FC<CategoryProps> = ({
       nextParams.delete("search");
       nextParams.delete("filter");
       nextParams.delete("carSearch");
+      nextParams.delete("vehicle");
     }
 
     const query = nextParams.toString();
@@ -757,6 +763,10 @@ const Category: React.FC<CategoryProps> = ({
     group: "Знайти групу товарів",
     subgroup: "Знайти підгрупу товарів",
   };
+  const headerPlaceholder = searchPlaceholderMap[step];
+  useEffect(() => {
+    if (searchInHeader) onSearchPlaceholderChange?.(headerPlaceholder);
+  }, [searchInHeader, onSearchPlaceholderChange, headerPlaceholder]);
 
   const handleCategorySelect = (name: string) => {
     setActiveCategory(name);
@@ -818,6 +828,7 @@ const Category: React.FC<CategoryProps> = ({
 
   return (
     <div className="flex h-full flex-col gap-2">
+      {(!searchInHeader || (!isSearchMode && Boolean(activeCategory || activeGroup))) && (
       <div className="catalog-filter-category-toolbar flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-extrabold text-slate-800">
           {!isSearchMode && (activeCategory || activeGroup) ? (
@@ -830,7 +841,7 @@ const Category: React.FC<CategoryProps> = ({
               {"\u041d\u0430\u0437\u0430\u0434"}
             </button>
           ) : null}
-          <span>{isSearchMode ? "\u041f\u043e\u0448\u0443\u043a" : headerLabelMap[step]}</span>
+          {!searchInHeader && <span>{isSearchMode ? "\u041f\u043e\u0448\u0443\u043a" : headerLabelMap[step]}</span>}
           {!isSearchMode &&
             activeTrail.map((item) => (
               <span
@@ -843,6 +854,7 @@ const Category: React.FC<CategoryProps> = ({
             ))}
         </div>
 
+        {!searchInHeader && (
         <label className="catalog-filter-search-shell group/search flex w-full shrink-0 items-center gap-2 sm:ml-auto sm:flex-1">
           <span className="sr-only">{searchLabelMap[step]}</span>
           <svg
@@ -878,11 +890,14 @@ const Category: React.FC<CategoryProps> = ({
             </button>
           )}
         </label>
+        )}
       </div>
+      )}
 
       <div
         ref={listRef}
-        className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white"
+        // No box of its own: the cards sit on the filter panel, like the car tab.
+        className="flex-1 overflow-auto"
       >
         {loading && (
           <FilterLoadingState label="Завантажуємо категорії" />

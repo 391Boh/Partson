@@ -128,6 +128,7 @@ export default function ProductNavBuyStrip({ name }: { name: string }) {
     <div
       ref={ref}
       className="product-nav-buy"
+      data-nosnippet
       aria-hidden={condensed ? undefined : true}
       inert={!condensed}
     >

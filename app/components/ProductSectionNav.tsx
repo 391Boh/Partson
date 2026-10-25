@@ -27,13 +27,16 @@ export default function ProductSectionNav({
     const nav = railRef.current?.closest("nav");
     if (!nav) return;
 
-    // Desktop pins the whole navigation row; phones pin only this nav (the
-    // row is `display: contents` there, globals.css).
-    const pinnedContainer = nav.closest<HTMLElement>(".product-navigation-row") || nav;
+    // Desktop pins the navigation row; phones share one sticky container
+    // for the admin bar and section navigation.
+    const mobileControls = nav.closest<HTMLElement>(".product-pinned-controls");
+    const navigationRow = nav.closest<HTMLElement>(".product-navigation-row") || nav;
     const observeSections = () => {
       observer?.disconnect();
-      // Track the reading area beneath whatever is actually pinned. On phones
-      // nothing is (globals.css), so only the site header covers the page.
+      const pinnedContainer = mobileControls && getComputedStyle(mobileControls).position === "sticky"
+        ? mobileControls
+        : navigationRow;
+      // Track the reading area beneath the header and pinned controls.
       const pinnedBottom = (element: HTMLElement | null | undefined) => {
         if (!element) return 0;
         const style = getComputedStyle(element);
@@ -66,16 +69,37 @@ export default function ProductSectionNav({
       sections.forEach((section) => observer?.observe(section));
     };
     observeSections();
-    const resizeObserver = new ResizeObserver(observeSections);
-    resizeObserver.observe(pinnedContainer);
-    if (pinnedContainer !== nav) resizeObserver.observe(nav);
+    // Rebuilding the observer reads styles and re-reports every section, so
+    // batch it to one frame.
+    let frame = 0;
+    const scheduleObserve = () => {
+      if (!frame) frame = window.requestAnimationFrame(() => { frame = 0; observeSections(); });
+    };
+    const resizeObserver = new ResizeObserver(scheduleObserve);
+    resizeObserver.observe(navigationRow);
+    if (mobileControls) resizeObserver.observe(mobileControls);
+    if (navigationRow !== nav) resizeObserver.observe(nav);
     const identity = nav.closest(".product-page")?.querySelector(".product-identity-sticky");
     if (identity) resizeObserver.observe(identity);
-    window.addEventListener("resize", observeSections);
+    // iOS Safari fires resize all through a scroll while its toolbar slides
+    // in and out (a few dozen px of height). Rebuilding on each of those
+    // during the gesture shook the pinned pills; only a real change counts.
+    let lastWidth = window.innerWidth;
+    let lastHeight = window.innerHeight;
+    const handleResize = () => {
+      const widthChanged = window.innerWidth !== lastWidth;
+      const heightChanged = Math.abs(window.innerHeight - lastHeight) > 150;
+      if (!widthChanged && !heightChanged) return;
+      lastWidth = window.innerWidth;
+      lastHeight = window.innerHeight;
+      scheduleObserve();
+    };
+    window.addEventListener("resize", handleResize);
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       observer?.disconnect();
       resizeObserver.disconnect();
-      window.removeEventListener("resize", observeSections);
+      window.removeEventListener("resize", handleResize);
     };
   }, [items]);
 

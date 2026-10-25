@@ -673,7 +673,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
                   }
                   <span className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${inStock ? "border-emerald-300/10 bg-emerald-400/[0.07] text-emerald-400/90" : "border-rose-300/10 bg-rose-400/[0.07] text-rose-300/80"}`}>
                     {inStock
-                      ? <><PackageCheck size={10} strokeWidth={2.5} aria-hidden="true" /><span className="max-[360px]:hidden">В наявності</span></>
+                      ? <>
+                          <PackageCheck size={10} strokeWidth={2.5} aria-hidden="true" />
+                          <span className="whitespace-nowrap">
+                            <span className={typeof p.quantity === "number" ? "max-sm:sr-only" : "max-[360px]:hidden"}>В наявності{typeof p.quantity === "number" ? " · " : ""}</span>
+                            {typeof p.quantity === "number" && <span className="tabular-nums">{p.quantity} шт.</span>}
+                          </span>
+                        </>
                       : <><PackageX size={10} strokeWidth={2.5} aria-hidden="true" /><span>Немає</span></>
                     }
                   </span>

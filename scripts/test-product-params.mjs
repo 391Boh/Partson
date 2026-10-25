@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 const load=(file,mocks)=>{const cjs={exports:{}};new Function('require','module','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{assert(name in mocks,name);return mocks[name]},cjs,cjs.exports);return cjs.exports;};
 const params=load('app/lib/product-params.ts',{});
+const fitment=load('app/lib/vehicle-fitment.ts',{'./car-model-search':load('app/lib/car-model-search.ts',{})});
 const products=Array.from({length:10},(_,index)=>({code:String(index),name:'Колодки',producer:index<2?'A':'B',description:`Монтажна позиція\t${index%2?'задня':'передня'}\nШирина\t${10+index} мм\nТип\t${index<2?'Zulu':'Alpha'}`,quantity:1}));
 let reads=0;
 const server=load('app/lib/catalog-params-server.ts',{
  'server-only':{},
+ './vehicle-fitment':fitment,
  'app/lib/catalog-server':{fetchCatalogProductsByQuery:async query=>{reads++;assert.equal(query.includeDescription,true);return{items:products.filter(item=>!query.producer||item.producer===query.producer),hasMore:false};}},
  'app/lib/catalog-page-route-cache':{catalogRouteCacheClearHooks:new Set()},
  'app/lib/catalog-search':{normalizeSearchQuery:query=>query.trim()},

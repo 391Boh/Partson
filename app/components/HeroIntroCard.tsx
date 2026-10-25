@@ -10,11 +10,16 @@ export default function HeroIntroCard() {
   return (
     <div className="home-intro home-intro-refined">
       <div className="home-intro-copy">
+        <p className="home-intro-eyebrow">
+          <span aria-hidden="true" />
+          Магазин запчастин · Львів
+        </p>
         <h1 className="font-display font-display-readable">
           Автозапчастини <span>для ремонту й ТО</span>
         </h1>
         <p className="home-intro-subtitle">
-          <strong>Оберіть авто або категорію</strong> — покажемо потрібні деталі. Сумісність перевіримо за VIN-кодом.
+          <strong>Оберіть авто або категорію</strong> — покажемо деталі, що підходять саме вашій машині.
+          Оригінали й аналоги в одному каталозі, а сумісність перевіримо за VIN-кодом.
         </p>
       </div>
 

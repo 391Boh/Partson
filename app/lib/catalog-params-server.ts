@@ -1,3 +1,4 @@
+import { readVehicleSelection, type VehicleSelection } from "./vehicle-fitment";
 import "server-only";
 
 import { fetchCatalogProductsByQuery, type CatalogProduct, type CatalogSearchFilter } from "app/lib/catalog-server";
@@ -25,6 +26,7 @@ export type CatalogParamsQuery = {
   subcategory: string;
   producer: string;
   selectedCars: string[];
+  vehicle?: VehicleSelection | null;
   selectedCategories: string[];
   searchQuery: string;
   searchFilter: CatalogSearchFilter;
@@ -38,6 +40,7 @@ export type CatalogParamsListOptions = {
   // Alphabetical order; only used when sortOrder (price) is "none".
   nameSort: "none" | "asc" | "desc";
   pricedOnly: boolean;
+  withPhoto?: boolean;
   priceFrom: number | null; // EUR, as /api/catalog-page receives it
   priceTo: number | null;
   inStock: boolean;
@@ -62,6 +65,7 @@ export const readCatalogParamsQuery = (body: Record<string, unknown>): CatalogPa
   subcategory: readString(body.subcategory),
   producer: readString(body.producer),
   selectedCars: readStringArray(body.selectedCars),
+  vehicle: readVehicleSelection(body.vehicle),
   selectedCategories: readStringArray(body.selectedCategories),
   searchQuery: normalizeSearchQuery(readString(body.searchQuery)),
   searchFilter: (SEARCH_FILTERS.has(readString(body.searchFilter))
@@ -74,6 +78,7 @@ export const readCatalogParamsListOptions = (body: Record<string, unknown>): Cat
   sortOrder: body.sortOrder === "asc" || body.sortOrder === "desc" ? body.sortOrder : "none",
   nameSort: body.sortOrder === "name_asc" ? "asc" : body.sortOrder === "name_desc" ? "desc" : "none",
   pricedOnly: body.pricedOnly === true,
+  withPhoto: body.withPhoto === true,
   priceFrom: readNonNegative(body.priceFrom),
   priceTo: readNonNegative(body.priceTo),
   inStock: body.inStock === true,
@@ -123,6 +128,7 @@ const buildBaseKey = (query: CatalogParamsQuery) =>
     query.subcategory,
     query.producer,
     query.selectedCars,
+    query.vehicle,
     query.selectedCategories,
     query.searchQuery,
     query.searchFilter,
@@ -139,6 +145,7 @@ const fetchBasePage = (
     cursor: options.cursor || null,
     cursorField: options.cursorField || null,
     selectedCars: query.selectedCars,
+    vehicle: query.vehicle,
     selectedCategories: query.selectedCategories,
     searchQuery: query.searchQuery,
     searchFilter: query.searchFilter,
@@ -246,7 +253,7 @@ export const getCatalogParamFacets = async (
   // Schema belongs to the category, not to a particular search/car/producer.
   // Keep its fields, options and ranges stable while contextual counts change.
   const schemaQuery: CatalogParamsQuery = {
-    ...query, producer: "", selectedCars: [], searchQuery: "", searchFilter: "all",
+    ...query, producer: "", selectedCars: [], vehicle: null, searchQuery: "", searchFilter: "all",
   };
   const [base, schemaBase] = await Promise.all([getBase(query), getBase(schemaQuery)]);
   const parsedList = base.entries.map((entry) => entry.params);
@@ -290,6 +297,7 @@ export const getCatalogProductsMatchingParams = async (
     .filter((entry) => matchesProductParamFilters(entry.params, filters))
     .map((entry) => entry.product)
     .filter((product) => {
+      if (list.withPhoto && product.hasPhoto !== true) return false;
       if (list.inStock && !(product.inStock || (product.quantity ?? 0) > 0)) return false;
       const price = readPrice(product);
       if ((list.pricedOnly || hasPriceRange) && price === null) return false;

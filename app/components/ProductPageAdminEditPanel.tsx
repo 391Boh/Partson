@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
 import { getAdminIdToken } from "app/lib/get-admin-token";
+import { loadPrivateProductPrice } from "app/lib/private-product-price-client";
 import { saveProductAdminFields, type ProductAdminEditFields } from "app/lib/product-admin-mutations";
 import { invalidateCatalogClientCache } from "app/lib/catalog-client-cache";
 import { notifyProductImageUpdated } from "app/lib/product-image-updates";
@@ -161,6 +162,15 @@ export default function ProductPageAdminEditPanel({
   };
   const [isAdmin, setIsAdmin] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // The sheet floats over the page; Escape folds it back into the bar.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
   const [editing, setEditing] = useState<FieldKey | null>(null);
   const [values, setValues] = useState({
     name: initialName,
@@ -281,22 +291,9 @@ export default function ProductPageAdminEditPanel({
     let cancelled = false;
 
     (async () => {
-      const token = await getAdminIdToken();
-      if (!token || cancelled) return;
-
-      const params = new URLSearchParams({ mode: "partner" });
-      // Code first, like every other description lookup (unique per product).
-      if (code) params.append("lookup", code);
-      if (values.article) params.append("lookup", values.article);
-      if (!params.has("lookup")) return;
-
       try {
-        const res = await fetch(`/api/product-price?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { promoPriceEuro?: number | null };
-        if (cancelled) return;
+        const data = await loadPrivateProductPrice([code, values.article]);
+        if (!data || cancelled) return;
         setValues((prev) => ({
           ...prev,
           promoPriceEuro:
@@ -935,32 +932,38 @@ export default function ProductPageAdminEditPanel({
   ];
 
   return (
-    // mb-3: the sticky breadcrumb row paints a white backdrop ~35px above
-    // itself (product-navigation-row::before); this keeps the bar clear of it.
-    <div className="mb-3 px-3 pt-3 pb-2 sm:px-5 lg:px-7">
+    // Pinned with the section navigation, directly above it (globals.css,
+    // .product-admin-bar). The editor opens as a sheet under the bar, so the
+    // page below never moves.
+    <div className="product-admin-bar" data-expanded={expanded ? "" : undefined}>
       {/* Collapse toggle + full-edit shortcut */}
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setExpanded((p) => !p)}
           aria-expanded={expanded}
-          className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-violet-200/70 bg-white px-2.5 text-left transition hover:border-violet-300"
+          aria-controls="product-admin-sheet"
+          className="product-admin-bar-toggle flex h-9 min-w-0 flex-1 items-center gap-2 rounded-[12px] px-1.5 pr-2.5 text-left"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-100 text-violet-600">
-            <Settings2 size={12} />
+          <span className="flex h-7 shrink-0 items-center gap-1.5 rounded-[9px] bg-violet-600 px-2 text-white shadow-[0_4px_10px_-4px_rgba(109,40,217,0.7)]">
+            <Settings2 size={13} aria-hidden="true" />
+            <span className="text-[10px] font-black uppercase tracking-[0.12em]">Адмін</span>
           </span>
-          <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.14em] text-violet-600">Адмін</span>
-          <span className="flex min-w-0 items-center gap-3 overflow-hidden pl-1 text-[11px] text-slate-500">
+          <span className="flex min-w-0 items-center gap-3 overflow-hidden pl-1 text-[12px] text-slate-500">
             {summary.map(({ label, value, tone }) => (
               <span key={label} className="shrink-0 whitespace-nowrap max-sm:[&:nth-child(n+2)]:hidden">
-                {label} <strong className={`font-bold tabular-nums ${tone || "text-slate-800"}`}>{value}</strong>
+                {label} <strong className={`font-bold tabular-nums ${tone || "text-slate-900"}`}>{value}</strong>
               </span>
             ))}
           </span>
-          <ChevronDown
-            size={14}
-            className={`ml-auto shrink-0 text-violet-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
-          />
+          <span className="ml-auto flex shrink-0 items-center gap-1 text-[11px] font-bold text-violet-700">
+            <span className="max-sm:hidden">{expanded ? "Згорнути" : "Редагувати"}</span>
+            <ChevronDown
+              size={15}
+              aria-hidden="true"
+              className={`text-violet-500 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+            />
+          </span>
         </button>
         {/* One form with every field pre-filled, same idea as the "new
             product" panel — an alternative to clicking each field below one
@@ -989,14 +992,14 @@ export default function ProductPageAdminEditPanel({
           }}
           title="Редагувати всі поля одразу"
           aria-label="Редагувати всі поля одразу"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-violet-200/70 bg-white text-violet-600 transition hover:border-violet-300 hover:bg-violet-50"
+          className="product-admin-bar-toggle flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-violet-700"
         >
-          <PenSquare size={14} />
+          <PenSquare size={15} />
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-2 overflow-hidden rounded-[12px] border border-violet-100 bg-white shadow-[0_4px_16px_rgba(109,40,217,0.08)]">
+        <div id="product-admin-sheet" className="product-admin-sheet">
           <div className="grid divide-slate-100 max-xl:divide-y md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_0.9fr] xl:divide-x">
           {SECTIONS.map((section) => (
             <div key={section.title} className="min-w-0 px-2.5 pt-2.5 pb-1.5">

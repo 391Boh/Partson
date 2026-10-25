@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
+import { encodeVehicleSelection, readVehicleSelection } from 'app/lib/vehicle-fitment';
 import { cleanCarModelForSearch } from 'app/lib/car-model-search';
 import { isCatalogSortOrder, priceSortOrder, type CatalogSortOrder } from 'app/lib/catalog-sort';
 import {
@@ -20,7 +21,7 @@ const MemoizedCatalogData = memo(CatalogData);
 
 const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
   ssr: false,
-  loading: () => <div className="h-12" aria-hidden="true" />,
+  loading: () => <div className="catalog-filter-loading" aria-hidden="true" />,
 });
 
 type InitialCatalogPagePayload = {
@@ -72,7 +73,7 @@ const SESSION_KEYS = {
   skipRemoteLoad: 'partson:catalogSkipRemoteLoad',
 };
 
-const FILTER_TOP_GAP = 14;
+const FILTER_TOP_GAP = 0;
 const FILTER_RESULTS_GAP = 10;
 const FILTER_RESULTS_FALLBACK_OFFSET = 88;
 
@@ -178,6 +179,7 @@ const Katalog: React.FC<KatalogProps> = ({
   const [priceFrom, setPriceFrom] = useState<number | null>(null);
   const [priceTo, setPriceTo] = useState<number | null>(null);
   const [inStock, setInStock] = useState(false);
+  const [withPhoto, setWithPhoto] = useState(false);
   const [selectedCarSelection, setSelectedCarSelection] =
     useState<PersistedCarSelection | null>(null);
   const [selectedVin, setSelectedVin] = useState<string | null>(null);
@@ -234,7 +236,18 @@ const Katalog: React.FC<KatalogProps> = ({
     !selectedCarSelection ||
     (currentSearchParams.get('carSearch') === '1' &&
       searchFilter === 'description' &&
-      searchQuery === cleanCarModelForSearch(selectedCarSelection.model || ''));
+      searchQuery === cleanCarModelForSearch(selectedCarSelection.model || '') &&
+      currentSearchParams.get('vehicle') === encodeVehicleSelection(selectedCarSelection));
+  const vehicleParam = currentSearchParams.get('vehicle') || '';
+  useEffect(() => {
+    const vehicle = readVehicleSelection(vehicleParam);
+    if (!vehicle || encodeVehicleSelection(selectedCarSelection) === vehicleParam) return;
+    const label = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(' ');
+    setSelectedCarSelection(current => encodeVehicleSelection(current) === vehicleParam ? current : { ...vehicle, label });
+    setSelectedCars(cars => cars.includes(label) ? cars : [...cars, label]);
+    // Only navigation updates this state; a live selection updates the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleParam]);
   const catalogStateReady = localReady && selectedCarCatalogSynced;
   const searchFilterLabels: Record<string, string> = {
     name: 'Назва',
@@ -257,14 +270,22 @@ const Katalog: React.FC<KatalogProps> = ({
     ? Boolean(firebaseUser)
     : (Boolean(firebaseUser) || isLikelyLoggedIn);
 
-  // Confirming a car modification no longer binds to an exact 1C fitment
-  // lookup — instead it drives a catalog "search by description" using the
-  // chosen model, with restyling wording removed because it rarely appears
-  // verbatim in product descriptions.
+  // Keep the complete configuration in the URL; model text retrieves
+  // candidates and the server checks their 1C application descriptions.
   const handleCarSelectionChange = useCallback(
     (selection: PersistedCarSelection | null) => {
       setSelectedCarSelection(selection);
-      if (!selection) return;
+      if (!selection) {
+        const nextParams = new URLSearchParams(searchParamsKey);
+        nextParams.delete('vehicle');
+        if (nextParams.get('carSearch') === '1') {
+          nextParams.delete('carSearch'); nextParams.delete('search'); nextParams.delete('filter');
+        }
+        const nextQuery = nextParams.toString();
+        if (nextQuery !== searchParamsKey) router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+        return;
+      }
+      setSelectedCars(cars => cars.includes(selection.label) ? cars : [...cars, selection.label]);
 
       const cleanedModel = cleanCarModelForSearch(selection.model || '');
       if (!cleanedModel) return;
@@ -275,6 +296,7 @@ const Katalog: React.FC<KatalogProps> = ({
       // Marks the search as car-driven so the filter header shows the "Авто"
       // chip instead of duplicating the raw model as a manual search query.
       nextParams.set('carSearch', '1');
+      nextParams.set('vehicle', encodeVehicleSelection(selection));
       const nextQuery = nextParams.toString();
       if (nextQuery !== searchParamsKey) {
         router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -380,6 +402,7 @@ const Katalog: React.FC<KatalogProps> = ({
     setPriceFrom(null);
     setPriceTo(null);
     setInStock(false);
+    setWithPhoto(false);
     setCarsLoaded(true);
     setLocalReady(true);
 
@@ -398,6 +421,7 @@ const Katalog: React.FC<KatalogProps> = ({
       nextParams.delete('filter');
     }
     nextParams.delete('carSearch');
+    nextParams.delete('vehicle');
     const query = nextParams.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [pathname, resetParam, router, searchParamsKey]);
@@ -417,6 +441,15 @@ const Katalog: React.FC<KatalogProps> = ({
     // the server grid (nothing to restore) or swaps it before the next paint.
     document.getElementById(CATALOG_RESTORE_STYLE_ID)?.remove();
     if (resetParam === '1' || resetParam === 'search') {
+      setLocalReady(true);
+      return;
+    }
+    const urlVehicle = readVehicleSelection(currentSearchParams.get('vehicle'));
+    if (urlVehicle) {
+      const label = [urlVehicle.brand, urlVehicle.model, urlVehicle.year].filter(Boolean).join(' ');
+      setSelectedCars([label]);
+      handleCarSelectionChangeRef.current({ ...urlVehicle, label });
+      skipRemoteLoadRef.current = true;
       setLocalReady(true);
       return;
     }
@@ -828,6 +861,7 @@ const Katalog: React.FC<KatalogProps> = ({
     }
     nextParams.delete('reset');
     nextParams.delete('carSearch');
+    nextParams.delete('vehicle');
     const nextQuery = nextParams.toString();
     if (nextQuery !== currentSearchParams.toString()) {
       router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -885,6 +919,8 @@ const Katalog: React.FC<KatalogProps> = ({
       }}
       inStock={inStock}
       onInStockChange={setInStock}
+      withPhoto={withPhoto}
+      onWithPhotoChange={setWithPhoto}
     />
   );
 
@@ -909,8 +945,9 @@ const Katalog: React.FC<KatalogProps> = ({
   // user's own wheel/touch momentum fought that motion and produced a visible
   // jerk. Once the gesture ends, catalogTopOffset is already at its final value
   // and there is nothing left to compensate for.
-  const prevCatalogTopOffsetRef = useRef(catalogTopOffset);
+  const prevCatalogTopOffsetRef = useRef(0);
   useLayoutEffect(() => {
+    if (filterHeight === 0) return;
     const prev = prevCatalogTopOffsetRef.current;
     prevCatalogTopOffsetRef.current = catalogTopOffset;
     if (prev === 0) return; // skip initial mount
@@ -921,7 +958,7 @@ const Katalog: React.FC<KatalogProps> = ({
     if (delta < 0 && window.scrollY > 0) {
       window.scrollBy(0, delta);
     }
-  }, [catalogTopOffset]);
+  }, [catalogTopOffset, filterHeight]);
 
   const fixedFilterLayer = (
     // Portaled into <body>, outside the layout's <main>: name it so assistive
@@ -932,7 +969,7 @@ const Katalog: React.FC<KatalogProps> = ({
       className="catalog-page catalog-filter-shell pointer-events-none fixed inset-x-0 z-40"
       style={{ top: `calc(var(--header-height, 4rem) + ${FILTER_TOP_GAP}px)` }}
     >
-      <div className="pointer-events-auto page-shell-inline -mt-px">
+      <div className="catalog-filter-fullwidth pointer-events-auto w-full">
         {filterSidebar}
       </div>
     </div>
@@ -944,7 +981,7 @@ const Katalog: React.FC<KatalogProps> = ({
       <div
         className="page-shell-inline relative"
         style={{
-          paddingTop: catalogTopOffset,
+          paddingTop: filterHeight > 0 ? catalogTopOffset : `calc(var(--catalog-filter-initial-height, 69px) + ${FILTER_RESULTS_GAP}px)`,
         }}
         {...{ [CATALOG_RESULTS_ATTRIBUTE]: '' }}
       >
@@ -963,6 +1000,7 @@ const Katalog: React.FC<KatalogProps> = ({
             priceFrom={priceFrom}
             priceTo={priceTo}
             inStock={inStock}
+            withPhoto={withPhoto}
             initialPagePayload={restoreChangesQuery ? null : initialPagePayload}
             initialQuerySignature={restoreChangesQuery ? null : initialQuerySignature}
             initialTotalCount={initialTotalCount}

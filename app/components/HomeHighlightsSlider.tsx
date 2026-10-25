@@ -2,9 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Gauge } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights";
+
+// Whole sentences up to ~120 characters: the half has a fixed height, and a
+// teaser cut mid-phrase with an ellipsis read as broken. The first sentence
+// always stays, even when it is longer.
+const TEASER_MAX_CHARS = 120;
+const teaserOf = (text: string) => {
+  const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+[.!?…]+(?=\s|$)|[^.!?…]+$/g) ?? [];
+  let teaser = "";
+  for (const sentence of sentences) {
+    const next = `${teaser} ${sentence.trim()}`.trim();
+    if (teaser && next.length > TEASER_MAX_CHARS) break;
+    teaser = next;
+  }
+  return teaser.replace(/\s*(?:\.{3}|…)$/, ".");
+};
 
 export default function HomeHighlightsSlider({ services, initialArticles = [], serverResolved = false }: { services: HomeHighlight[]; initialArticles?: HomeHighlight[]; serverResolved?: boolean }) {
   const [articles, setArticles] = useState<HomeHighlight[]>(() => initialArticles.length ? initialArticles : [HOME_BLOG_OVERVIEW]);
@@ -14,10 +29,12 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
   const [pageVisible, setPageVisible] = useState(true);
   const [announcement, setAnnouncement] = useState("");
   const sectionRef = useRef<HTMLElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ x: number; y: number } | null>(null);
-  // One article and its persistent service link do not need a carousel.
-  const hasNewContent = articles.length > 1 || services.length > 1;
-  const items = useMemo(() => hasNewContent ? [...articles, ...services] : articles, [articles, services, hasNewContent]);
+  // Two halves: the articles rotate on the left, the service stays on the
+  // right as its own panel, so only articles take part in the carousel.
+  const items = articles;
+  const service = services[0];
   const hasSlides = items.length > 1;
   const selected = selection.current;
   const selectedIndex = Math.max(0, items.findIndex((item) => item.id === selected.id));
@@ -62,6 +79,54 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
     return () => controller.abort();
   }, [serverResolved]);
 
+  // The contour's running light is measured in screen pixels (its stroke
+  // does not scale with the SVG), so it needs the block's real perimeter.
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      player.style.setProperty("--highlight-perimeter", `${Math.round(2 * (width + height))}px`);
+    });
+    observer.observe(player);
+    return () => observer.disconnect();
+  }, []);
+
+  // Only update the decorative stroke while visible; scrolling never changes
+  // the panel's geometry or React state. A short opacity tail settles at rest.
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || !inView || !pageVisible) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let lastY = window.scrollY;
+    let distance = 0;
+    let frame = 0;
+    let settleTimer = 0;
+    const paint = () => {
+      frame = 0;
+      const delta = window.scrollY - lastY;
+      lastY = window.scrollY;
+      if (reducedMotion.matches || !delta) return;
+      distance += delta * 1.05;
+      player.style.setProperty("--highlight-offset", `${-distance}px`);
+      player.style.setProperty("--highlight-pulse", String(.38 + Math.min(Math.abs(delta) / 150, .4)));
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        player.style.removeProperty("--highlight-pulse");
+      }, 180);
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(paint);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      player.style.removeProperty("--highlight-pulse");
+    };
+  }, [inView, pageVisible]);
+
   useEffect(() => {
     const syncVisibility = () => setPageVisible(!document.hidden);
     syncVisibility();
@@ -96,12 +161,14 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
 
   return (
     <section ref={sectionRef} data-server-resolved={serverResolved || undefined} className="home-highlights font-ui" aria-label="Статті та послуги PartsON">
-      <div className="page-shell-inline">
+      {/* Full bleed: both photos run edge to edge; the copy keeps to the page
+          shell's edges (--highlight-gutter in globals.css). */}
+      <div ref={playerRef} className={`home-highlights-player home-highlights-split${hasSlides ? "" : " is-static"}${service ? "" : " is-single"}${inView ? " is-in-view" : ""}`}>
         <div
-          className={`home-highlights-player${hasSlides ? "" : " is-static"}`}
+          className="home-highlights-stage"
           role={hasSlides ? "region" : undefined}
           aria-roledescription={hasSlides ? "карусель" : undefined}
-          aria-label="Статті та послуги PartsON"
+          aria-label={hasSlides ? "Статті блогу PartsON" : undefined}
           onKeyDown={(event) => {
             if (!hasSlides) return;
             if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
@@ -110,80 +177,111 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
             }
           }}
         >
-          <div className="home-highlights-stage">
-            {pendingSlide && (
-              <Image
-                key={`${pendingSlide.id}:${pendingSlide.image}`}
-                src={pendingSlide.image} alt="" fill aria-hidden="true"
-                sizes="(max-width: 767px) 100vw, (max-width: 1440px) 90vw, 1280px"
-                loading="eager" className="home-highlight-preload"
-                onLoad={commitPendingSlide}
-                onError={commitPendingSlide}
-              />
-            )}
-            {[...(previous ? [previous] : []), selected].map((item) => {
-              const outgoing = item !== selected;
-              return (
-                <article
-                  key={`${item.id}:${item.image}`}
-                  role={hasSlides ? "group" : undefined}
-                  aria-roledescription={hasSlides ? "слайд" : undefined}
-                  aria-label={hasSlides ? `${selectedIndex + 1} з ${items.length}: ${item.title}` : undefined}
-                  aria-hidden={outgoing || undefined}
-                  inert={outgoing}
-                  className={`home-highlight-feature${outgoing ? " is-previous" : previous ? " is-entering" : ""}`}
-                  onPointerDown={(event) => { if (hasSlides && event.isPrimary) gesture.current = { x: event.clientX, y: event.clientY }; }}
-                  onPointerCancel={() => { gesture.current = null; }}
-                  onPointerUp={(event) => {
-                    const start = gesture.current;
-                    gesture.current = null;
-                    if (!hasSlides || !start || event.pointerType === "mouse") return;
-                    const dx = event.clientX - start.x;
-                    const dy = event.clientY - start.y;
-                    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) select(selectedIndex + (dx < 0 ? 1 : -1));
-                  }}
-                >
-                  <div className="home-highlight-image">
-                    {serverResolved && <Image
-                      src={item.image} alt={item.imageAlt} fill
-                      sizes="(max-width: 767px) 100vw, (max-width: 1440px) 90vw, 1280px"
-                      loading={outgoing ? "lazy" : "eager"}
-                      className="home-highlight-cover"
-                      onLoad={event => { event.currentTarget.dataset.loaded = "true"; }}
-                    />}
-                  </div>
-                  <div className="home-highlight-copy">
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
-                    <span className="home-highlight-meta">{item.meta}</span>
-                    <div className="home-highlight-actions">
-                      <Link className="home-highlight-action" href={item.href} prefetch={false}><span>{item.action}</span><ArrowUpRight size={18} aria-hidden="true" /></Link>
-                      {item.kind === "article" && item.href !== "/blog" && (
-                        <Link className="home-highlight-blog-link" href="/blog" prefetch={false}>Усі статті<ArrowRight size={14} aria-hidden="true" /></Link>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {services[0] && (
-            <Link className="home-highlight-service-link" href={services[0].href} prefetch={false}>
-              <span className="home-highlight-service-image">
-                <Image src={services[0].image} alt="" fill sizes="76px" />
-              </span>
-              <span className="home-highlight-service-label">Комп’ютерна діагностика</span>
-              <ArrowUpRight size={18} aria-hidden="true" />
-            </Link>
+          {pendingSlide && (
+            <Image
+              key={`${pendingSlide.id}:${pendingSlide.image}`}
+              src={pendingSlide.image} alt="" fill aria-hidden="true"
+              sizes="(max-width: 767px) 100vw, 57vw"
+              loading="eager" className="home-highlight-preload"
+              onLoad={commitPendingSlide}
+              onError={commitPendingSlide}
+            />
           )}
+          {[...(previous ? [previous] : []), selected].map((item) => {
+            const outgoing = item !== selected;
+            return (
+              <article
+                key={`${item.id}:${item.image}`}
+                role={hasSlides ? "group" : undefined}
+                aria-roledescription={hasSlides ? "слайд" : undefined}
+                aria-label={hasSlides ? `${selectedIndex + 1} з ${items.length}: ${item.title}` : undefined}
+                aria-hidden={outgoing || undefined}
+                inert={outgoing}
+                className={`home-highlight-feature${outgoing ? " is-previous" : previous ? " is-entering" : ""}`}
+                onPointerDown={(event) => { if (hasSlides && event.isPrimary) gesture.current = { x: event.clientX, y: event.clientY }; }}
+                onPointerCancel={() => { gesture.current = null; }}
+                onPointerUp={(event) => {
+                  const start = gesture.current;
+                  gesture.current = null;
+                  if (!hasSlides || !start || event.pointerType === "mouse") return;
+                  const dx = event.clientX - start.x;
+                  const dy = event.clientY - start.y;
+                  if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) select(selectedIndex + (dx < 0 ? 1 : -1));
+                }}
+              >
+                <div className="home-highlight-image">
+                  {serverResolved && <Image
+                    src={item.image} alt={item.imageAlt} fill
+                    sizes="(max-width: 767px) 100vw, 57vw"
+                    loading={outgoing ? "lazy" : "eager"}
+                    className="home-highlight-cover"
+                    onLoad={event => { event.currentTarget.dataset.loaded = "true"; }}
+                  />}
+                </div>
+                <div className="home-highlight-copy">
+                  <span className="home-highlight-eyebrow">
+                    <BookOpen size={13} aria-hidden="true" />
+                    Блог PartsON
+                    {item.meta && item.meta !== "Блог PartsON" && <span className="home-highlight-eyebrow-meta">{item.meta}</span>}
+                  </span>
+                  <h3>{item.title}</h3>
+                  <p>{teaserOf(item.description)}</p>
+                  <div className="home-highlight-actions">
+                    <Link className="home-highlight-action" href={item.href} prefetch={false}><span>{item.action}</span><ArrowUpRight size={18} aria-hidden="true" /></Link>
+                    {item.href !== "/blog" && (
+                      <Link className="home-highlight-blog-link" href="/blog" prefetch={false}>Усі статті<ArrowRight size={14} aria-hidden="true" /></Link>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
           {hasSlides && <div className="home-highlights-controls">
             <span aria-hidden="true">{selectedIndex + 1}<span> / {items.length}</span></span>
-            <button type="button" aria-label="Попередній матеріал" disabled={items.length < 2} onClick={() => select(selectedIndex - 1)}><ChevronLeft size={18} aria-hidden="true" /></button>
-            <button type="button" aria-label="Наступний матеріал" disabled={items.length < 2} onClick={() => select(selectedIndex + 1)}><ChevronRight size={18} aria-hidden="true" /></button>
+            <button type="button" aria-label="Попередня стаття" onClick={() => select(selectedIndex - 1)}><ChevronLeft size={18} aria-hidden="true" /></button>
+            <button type="button" aria-label="Наступна стаття" onClick={() => select(selectedIndex + 1)}><ChevronRight size={18} aria-hidden="true" /></button>
           </div>}
           {hasSlides && <p className="home-highlights-announcement" aria-live="polite" aria-atomic="true">{announcement}</p>}
         </div>
+
+        {service && (
+          <Link className="home-highlight-service" href={service.href} prefetch={false}>
+            <span className="home-highlight-service-media" aria-hidden="true">
+              <Image src={service.image} alt="" fill sizes="(max-width: 767px) 38vw, 44vw" className="home-highlight-service-cover" />
+            </span>
+            <span className="home-highlight-service-card">
+              <span className="home-highlight-eyebrow">
+                <Gauge size={13} aria-hidden="true" />
+                Послуга в PartsON
+              </span>
+              <span className="home-highlight-service-title">{service.title}</span>
+              {service.meta && <span className="home-highlight-service-meta">{service.meta}</span>}
+              <span className="home-highlight-service-cta">
+                {service.action}
+                <ArrowUpRight size={18} aria-hidden="true" />
+              </span>
+            </span>
+          </Link>
+        )}
+
+        <svg className="home-highlights-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="home-highlights-outline-base-gradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#5eead4" stopOpacity=".25" />
+              <stop offset=".3" stopColor="#5eead4" stopOpacity=".8" />
+              <stop offset=".7" stopColor="#7dd3fc" stopOpacity=".8" />
+              <stop offset="1" stopColor="#7dd3fc" stopOpacity=".25" />
+            </linearGradient>
+            <linearGradient id="home-highlights-outline-gradient" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ccfff7" />
+              <stop offset=".5" stopColor="#67e8f9" />
+              <stop offset="1" stopColor="#ccfff7" />
+            </linearGradient>
+          </defs>
+          <rect className="home-highlights-outline-base" x="0" y="0" width="100" height="100" />
+          <rect className="home-highlights-outline-glow" x="0" y="0" width="100" height="100" />
+          <rect className="home-highlights-outline-trace" x="0" y="0" width="100" height="100" />
+        </svg>
       </div>
     </section>
   );

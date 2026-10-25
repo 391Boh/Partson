@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import StarRatingInput from "./StarRatingInput";
+import { observeNearViewport } from "app/lib/shared-intersection-observer";
 
 interface Review {
   id: string;
@@ -64,6 +65,7 @@ export default function ProductReviewsSection({
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [authorName, setAuthorName] = useState("");
+  const sectionRef = useRef<HTMLElement>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
   const requestVersionRef = useRef(0);
 
@@ -132,20 +134,17 @@ export default function ProductReviewsSection({
     setLoadError(false);
     setShowAll(false);
 
-    if (initialReviews === null) {
-      void load();
+    // Reviews already render from SSR. Refresh when the reader approaches
+    // this section, leaving bandwidth and main-thread time for the hero.
+    let stopObserving = () => {};
+    if (sectionRef.current && typeof IntersectionObserver !== "undefined") {
+      stopObserving = observeNearViewport(sectionRef.current, "300px", () => { void load(); });
     } else {
-      const refreshId = window.setTimeout(() => {
-        void load();
-      }, 1800);
-      return () => {
-        window.clearTimeout(refreshId);
-        requestVersionRef.current += 1;
-        activeRequestRef.current?.abort();
-      };
+      void load();
     }
 
     return () => {
+      stopObserving();
       requestVersionRef.current += 1;
       activeRequestRef.current?.abort();
     };
@@ -184,7 +183,7 @@ export default function ProductReviewsSection({
   const visible = showAll ? reviews : reviews.slice(0, 3);
 
   return (
-    <section className="product-reviews border-t border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
+    <section ref={sectionRef} className="product-reviews border-t border-slate-100/80 px-3 py-3 sm:px-4 sm:py-3.5">
       <div className="product-reviews-card overflow-hidden rounded-[16px] border border-slate-200/80 bg-white shadow-[0_10px_22px_rgba(15,23,42,0.05)]">
         {/* ── header ── */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 bg-[linear-gradient(135deg,rgba(248,250,252,0.99),rgba(240,249,255,0.97)_50%,rgba(255,255,255,0.94)_100%)] px-3.5 py-2.5 sm:px-4">

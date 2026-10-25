@@ -38,6 +38,7 @@ import {
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { stripRomanNumeralsFromModel, stripTrailingChassisCode } from "app/lib/car-model-search";
 import { fetchCatalogCount } from "app/lib/catalog-count-client";
+import { loadEuroRate as loadSharedEuroRate } from "app/lib/euro-rate-client";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import {
   buildProductImageBatchKey,
@@ -67,6 +68,7 @@ interface DataProps {
   priceFrom?: number | null;
   priceTo?: number | null;
   inStock?: boolean;
+  withPhoto?: boolean;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
   initialTotalCount?: number | null;
@@ -184,8 +186,6 @@ const VIRTUAL_WINDOW_STEP_ROWS = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT = 2;
 const SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS = 520;
 const DEFAULT_EURO_RATE = 50;
-const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
-const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
 
 // Backend field aliases (use escapes to stay ASCII-friendly)
 const NAME_FIELDS = [
@@ -477,61 +477,6 @@ const writeCachedPriceEntry = (code: string, price: number | null) => {
   } catch {}
   try {
     window.localStorage.setItem(`${PRICE_CACHE_PREFIX}${code}`, payload);
-  } catch {}
-};
-
-const readCachedEuroRate = () => {
-  if (typeof window === "undefined") return null;
-
-  const readFromStorage = (storage: Storage) => {
-    try {
-      const raw = storage.getItem(EURO_RATE_CACHE_KEY);
-      if (!raw) return null;
-
-      const parsed = JSON.parse(raw) as { rate?: number; t?: number };
-      if (
-        !parsed ||
-        typeof parsed.t !== "number" ||
-        typeof parsed.rate !== "number" ||
-        !Number.isFinite(parsed.rate) ||
-        parsed.rate <= 0
-      ) {
-        return null;
-      }
-
-      if (Date.now() - parsed.t > EURO_RATE_CACHE_TTL_MS) {
-        storage.removeItem(EURO_RATE_CACHE_KEY);
-        return null;
-      }
-
-      return parsed.rate;
-    } catch {
-      return null;
-    }
-  };
-
-  const sessionHit = readFromStorage(window.sessionStorage);
-  if (sessionHit != null) return sessionHit;
-
-  try {
-    return readFromStorage(window.localStorage);
-  } catch {
-    return null;
-  }
-};
-
-const writeCachedEuroRate = (rate: number) => {
-  if (typeof window === "undefined") return;
-  if (!Number.isFinite(rate) || rate <= 0) return;
-
-  const payload = JSON.stringify({ rate, t: Date.now() });
-
-  try {
-    window.sessionStorage.setItem(EURO_RATE_CACHE_KEY, payload);
-  } catch {}
-
-  try {
-    window.localStorage.setItem(EURO_RATE_CACHE_KEY, payload);
   } catch {}
 };
 
@@ -1251,6 +1196,7 @@ function useCatalogData(params: {
   selectedCars: string[];
   selectedCategories: string[];
   rawSearchQuery: string;
+  vehicle?: string;
   searchFilter: "all" | "article" | "name" | "code" | "producer" | "description";
   groupFromURL: string | null;
   subcategoryFromURL: string | null;
@@ -1265,6 +1211,7 @@ function useCatalogData(params: {
   priceFrom?: number | null;
   priceTo?: number | null;
   inStock?: boolean;
+  withPhoto?: boolean;
   includeCostPrices?: boolean;
   includePartnerPrices?: boolean;
   getAdminAuthToken?: () => Promise<string | null>;
@@ -1286,6 +1233,7 @@ function useCatalogData(params: {
     selectedCars,
     selectedCategories,
     rawSearchQuery,
+    vehicle = "",
     searchFilter,
     groupFromURL,
     subcategoryFromURL,
@@ -1298,6 +1246,7 @@ function useCatalogData(params: {
     priceFrom = null,
     priceTo = null,
     inStock = false,
+    withPhoto = false,
     includeCostPrices = false,
     includePartnerPrices = false,
     getAdminAuthToken,
@@ -1316,7 +1265,7 @@ function useCatalogData(params: {
     [hasUrlCategoryFilter, selectedCategories]
   );
   const effectiveServerSortOrder = sortOrder;
-  const canUseCursorPagination = selectedCars.length === 0;
+  const canUseCursorPagination = Boolean(vehicle) || selectedCars.length === 0;
   const shouldAllowCatalogDirectPriceLookup = true;
   // Paint the complete server-rendered first page on the initial client render.
   // Priming it only from the reset effect caused an avoidable empty/partial
@@ -1405,6 +1354,7 @@ function useCatalogData(params: {
     () =>
       buildCatalogQuerySignature({
         normalizedSearch,
+        vehicle,
         searchFilter,
         selectedCars,
         selectedCategories: effectiveSelectedCategories,
@@ -1416,6 +1366,7 @@ function useCatalogData(params: {
         paramFilters,
         sortOrder: effectiveServerSortOrder,
         pricedOnly,
+        withPhoto,
         priceFrom,
         priceTo,
         priceRate:
@@ -1424,6 +1375,7 @@ function useCatalogData(params: {
       }),
     [
       normalizedSearch,
+      vehicle,
       searchFilter,
       selectedCars,
       effectiveSelectedCategories,
@@ -1435,6 +1387,7 @@ function useCatalogData(params: {
       paramFilters,
       effectiveServerSortOrder,
       pricedOnly,
+      withPhoto,
       priceFrom,
       priceTo,
       euroRate,
@@ -2752,50 +2705,15 @@ function useCatalogData(params: {
 
   // ? РєСѓСЂСЃ Р· РќРћР’РћР“Рћ PROXY: /api/proxy?endpoint=euro
   useEffect(() => {
-    const cachedRate = readCachedEuroRate();
-    if (cachedRate != null) {
-      setEuroRate((prev) => (prev === cachedRate ? prev : cachedRate));
-      setEuroRateReady(true);
-      return;
-    }
-
     let cancelled = false;
-
-    const loadEuroRate = async () => {
-      try {
-        const res = await fetch("/api/proxy?endpoint=euro", {
-          cache: "no-store",
-        });
-
-        if (!res.ok) return;
-
-        const json: { rate?: number } = await res.json();
-
-        if (!cancelled && typeof json?.rate === "number") {
-          const nextRate = json.rate;
-          writeCachedEuroRate(nextRate);
-          setEuroRate((prev) => (prev === nextRate ? prev : nextRate));
-        }
-      } catch (e) {
-        console.error("Не вдалося завантажити курс EUR", e);
-      } finally {
-        if (!cancelled) setEuroRateReady(true);
-      }
-    };
-
-    const timeoutId =
-      typeof window !== "undefined"
-        ? window.setTimeout(() => {
-            void loadEuroRate();
-          }, 220)
-        : null;
-
-    return () => {
-      cancelled = true;
-      if (timeoutId != null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
+    // A cached rate resolves immediately; cold callers share one request.
+    // Prices must not wait on an artificial timer after cards have mounted.
+    void loadSharedEuroRate().then((rate) => {
+      if (cancelled) return;
+      if (rate != null) setEuroRate((prev) => prev === rate ? prev : rate);
+      setEuroRateReady(true);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -2846,6 +2764,7 @@ function useCatalogData(params: {
         cursorField: normalizeCacheString(cursorField),
         q: normalizeCacheString(trimmed),
         filter: searchFilter || "all",
+        vehicle,
         cars: normalizeCacheList(selectedCars),
         cats: normalizeCacheList(effectiveSelectedCategories),
         group: normalizeOptionalCacheString(groupFromURL),
@@ -2856,6 +2775,7 @@ function useCatalogData(params: {
         params: paramFilters,
         sort: effectiveServerSortOrder || "none",
         pricedOnly,
+        withPhoto,
         priceFrom,
         priceTo,
         priceRate:
@@ -2864,6 +2784,7 @@ function useCatalogData(params: {
       }),
     [
       searchFilter,
+      vehicle,
       selectedCars,
       effectiveSelectedCategories,
       groupFromURL,
@@ -2874,6 +2795,7 @@ function useCatalogData(params: {
       paramFilters,
       effectiveServerSortOrder,
       pricedOnly,
+      withPhoto,
       priceFrom,
       priceTo,
       euroRate,
@@ -2941,6 +2863,7 @@ function useCatalogData(params: {
             selectedCars,
             selectedCategories: effectiveSelectedCategories,
             searchQuery: normalizedSearch,
+            vehicle,
             searchFilter,
             group: groupFromURL,
             subcategory: subcategoryFromURL,
@@ -2950,6 +2873,7 @@ function useCatalogData(params: {
             paramFilters,
             sortOrder: effectiveServerSortOrder,
             pricedOnly,
+            withPhoto,
             priceFrom: priceFrom != null ? Math.round((priceFrom / euroRate) * 100) / 100 : null,
             priceTo: priceTo != null ? Math.round((priceTo / euroRate) * 100) / 100 : null,
             inStock,
@@ -3034,6 +2958,7 @@ function useCatalogData(params: {
       expandHierarchyFromURL,
       groupFromURL,
       normalizedSearch,
+      vehicle,
       producerFromURL,
       searchFilter,
       selectedCars,
@@ -3042,6 +2967,7 @@ function useCatalogData(params: {
       effectiveServerSortOrder,
       subcategoryFromURL,
       pricedOnly,
+      withPhoto,
       priceFrom,
       priceTo,
       inStock,
@@ -3120,10 +3046,10 @@ function useCatalogData(params: {
         body: JSON.stringify({
           directPage: true, offset, page: targetPage, limit: pageSize,
           selectedCars, selectedCategories: effectiveSelectedCategories,
-          searchQuery: correctedQuery || normalizedSearch, searchFilter,
+          searchQuery: correctedQuery || normalizedSearch, searchFilter, vehicle,
           group: groupFromURL, subcategory: subcategoryFromURL, producer: producerFromURL,
           expandHierarchy: expandHierarchyFromURL, promoOnly, paramFilters,
-          sortOrder: effectiveServerSortOrder, pricedOnly,
+          sortOrder: effectiveServerSortOrder, pricedOnly, withPhoto,
           priceFrom: priceFrom != null ? Math.round(priceFrom / euroRate * 100) / 100 : null,
           priceTo: priceTo != null ? Math.round(priceTo / euroRate * 100) / 100 : null,
           inStock,
@@ -3169,9 +3095,9 @@ function useCatalogData(params: {
     } finally {
       if (directRequestRef.current === controller) hideNextPageLoader(true);
     }
-  }, [dataStartIndex, selectedCars, effectiveSelectedCategories, correctedQuery, normalizedSearch,
+  }, [dataStartIndex, selectedCars, effectiveSelectedCategories, correctedQuery, normalizedSearch, vehicle,
     searchFilter, groupFromURL, subcategoryFromURL, producerFromURL, expandHierarchyFromURL,
-    promoOnly, paramFilters, effectiveServerSortOrder, pricedOnly, priceFrom, priceTo, euroRate, inStock,
+    promoOnly, paramFilters, effectiveServerSortOrder, pricedOnly, withPhoto, priceFrom, priceTo, euroRate, inStock,
     showNextPageLoader, hideNextPageLoader, applyResolvedPagePrices]);
 
   useEffect(() => () => { directRequestRef.current?.abort(); }, []);
@@ -3798,7 +3724,7 @@ function useCatalogData(params: {
   // establish a real total.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (selectedCars.length === 0 && !normalizedSearch) return;
+    if (selectedCars.length === 0 && !normalizedSearch && !withPhoto) return;
     if (catalogTotalCount !== null) return;
     if (!hasLoadedOnce) return;
     if (loading || filterLoading) return;
@@ -3807,6 +3733,7 @@ function useCatalogData(params: {
     const controller = new AbortController();
 
     const params = new URLSearchParams();
+    if (vehicle) params.set("vehicle", vehicle);
     for (const car of selectedCars) params.append("car", car);
     for (const category of effectiveSelectedCategories) params.append("category", category);
     if (normalizedSearch) {
@@ -3825,6 +3752,7 @@ function useCatalogData(params: {
       params.set("priceTo", String(Math.round((priceTo / euroRate) * 100) / 100));
     }
     if (inStock) params.set("inStock", "1");
+    if (withPhoto) params.set("withPhoto", "1");
 
     fetchCatalogCount(params.toString())
       .then((payload: { totalCount?: number; exact?: boolean } | null) => {
@@ -3845,12 +3773,14 @@ function useCatalogData(params: {
     loading,
     filterLoading,
     normalizedSearch,
+    vehicle,
     searchFilter,
     groupFromURL,
     subcategoryFromURL,
     producerFromURL,
     expandHierarchyFromURL,
     pricedOnly,
+    withPhoto,
     priceFrom,
     priceTo,
     euroRate,
@@ -4583,6 +4513,7 @@ const Data: React.FC<DataProps> = ({
   priceFrom = null,
   priceTo = null,
   inStock = false,
+  withPhoto = false,
   initialPagePayload = null,
   initialQuerySignature = null,
   viewMode = "grid",
@@ -4600,6 +4531,7 @@ const Data: React.FC<DataProps> = ({
   const currentSearchParams = useMemo(() => searchParams ?? new URLSearchParams(), [searchParams]);
 
   const rawSearchQuery = currentSearchParams.get("search") || "";
+  const vehicle = currentSearchParams.get("vehicle") || "";
   const searchFilter =
     (currentSearchParams.get("filter") as "all" | "article" | "name" | "code" | "producer" | "description") ||
     "all";
@@ -4769,6 +4701,7 @@ const Data: React.FC<DataProps> = ({
     catalogQuerySignature,
     catalogReadyQuerySignature,
   } = useCatalogData({
+    vehicle,
     selectedCars,
     selectedCategories,
     rawSearchQuery,
@@ -4781,6 +4714,7 @@ const Data: React.FC<DataProps> = ({
     paramFilters: paramFiltersFromURL,
     sortOrder,
     pricedOnly,
+    withPhoto,
     priceFrom,
     priceTo,
     inStock,
@@ -4937,7 +4871,7 @@ const Data: React.FC<DataProps> = ({
   // getModelGroupBreakdown (app/lib/auto-directory-data.ts).
   useEffect(() => {
     if (!hasLoadedOnce || loading || error) return;
-    if (searchFilter !== "description") return;
+    if (searchFilter !== "description" || vehicle) return;
 
     if (
       filteredData.length > 0 ||
@@ -4982,6 +4916,7 @@ const Data: React.FC<DataProps> = ({
     catalogTotalCount,
     rawSearchQuery,
     currentSearchParams,
+    vehicle,
     router,
   ]);
 
@@ -4989,6 +4924,7 @@ const Data: React.FC<DataProps> = ({
     () =>
       JSON.stringify({
         search: rawSearchQuery.trim(),
+        vehicle,
         searchFilter,
         groupFromURL,
         subcategoryFromURL,
@@ -4999,12 +4935,14 @@ const Data: React.FC<DataProps> = ({
         selectedCars,
         sortOrder,
         pricedOnly,
+        withPhoto,
         priceFrom,
         priceTo,
         inStock,
       }),
     [
       rawSearchQuery,
+      vehicle,
       searchFilter,
       groupFromURL,
       subcategoryFromURL,
@@ -5015,6 +4953,7 @@ const Data: React.FC<DataProps> = ({
       selectedCars,
       sortOrder,
       pricedOnly,
+      withPhoto,
       priceFrom,
       priceTo,
       inStock,

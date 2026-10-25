@@ -1,16 +1,14 @@
 "use client";
 
-// Browser cache of the UAH/EUR rate. The format (key, `{ rate, t }`, TTL)
-// matches readCachedEuroRate/writeCachedEuroRate in app/components/Data.tsx,
-// which writes the same entry when the catalog loads the rate — keep the two
-// in sync until Data.tsx imports these helpers too.
+// Shared rate cache and in-flight request for catalog and product views.
 const EURO_RATE_CACHE_KEY = "partson:v1:euro-rate";
 const EURO_RATE_CACHE_TTL_MS = 1000 * 60 * 30;
 
 export const readCachedEuroRate = (): number | null => {
   if (typeof window === "undefined") return null;
-  for (const storage of [window.sessionStorage, window.localStorage]) {
+  for (const storageName of ["sessionStorage", "localStorage"] as const) {
     try {
+      const storage = window[storageName];
       const raw = storage.getItem(EURO_RATE_CACHE_KEY);
       if (!raw) continue;
       const parsed = JSON.parse(raw) as { rate?: unknown; t?: unknown };
@@ -34,8 +32,9 @@ export const readCachedEuroRate = (): number | null => {
 export const writeCachedEuroRate = (rate: number) => {
   if (typeof window === "undefined" || !Number.isFinite(rate) || rate <= 0) return;
   const payload = JSON.stringify({ rate, t: Date.now() });
-  for (const storage of [window.sessionStorage, window.localStorage]) {
+  for (const storageName of ["sessionStorage", "localStorage"] as const) {
     try {
+      const storage = window[storageName];
       storage.setItem(EURO_RATE_CACHE_KEY, payload);
     } catch {
       // ignore

@@ -21,6 +21,8 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
 import GroupPreviewImage, { loadGroupPreview } from "app/components/GroupPreviewImage";
 import SectionPagination from "./SectionPagination";
+import HomePickerSearchControl from "./HomePickerSearchControl";
+import HomePickerHeading from "./HomePickerHeading";
 import { DeferredCategoryBackdrop } from "./DeferredHomeVisuals";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
@@ -595,6 +597,7 @@ const ProductFetcher: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState("");
   // Search starts collapsed to a trigger button, same "Швидкий пошук" pattern
   // as Auto.tsx's brand search — expands into the field on click.
+  const [searchMount, setSearchMount] = useState<HTMLDivElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<ProductNode | null>(null);
@@ -1069,35 +1072,160 @@ const ProductFetcher: React.FC<Props> = ({
       ref={sectionRef}
       // A muted ocean-blue palette now bridges the indigo car picker and the
       // teal manufacturers section without the previous sharp purple band.
-      className="home-fade-in group/selector home-glow-section home-glow-section-sky font-ui relative tovar-touch min-h-[390px] w-full overflow-hidden border-y border-sky-100 bg-[radial-gradient(150%_120%_at_-25%_-30%,rgba(14,165,233,0.09),transparent_66%),radial-gradient(150%_120%_at_125%_130%,rgba(103,232,249,0.07),transparent_64%),linear-gradient(178deg,#edf7fb_0%,#f5fbfd_50%,#edf8f8_100%)] pb-5 pt-5 select-none shadow-[inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(3,105,161,0.07),0_14px_36px_-16px_rgba(8,145,178,0.09)] transition-[border-color,box-shadow] duration-500 hover:border-sky-200 hover:shadow-[inset_0_1px_0_#fff,inset_0_-1px_0_rgba(3,105,161,0.11),inset_0_0_120px_-46px_rgba(56,189,248,0.22),0_24px_54px_-20px_rgba(8,145,178,0.13)] sm:pb-6 sm:pt-6"
+      className="home-picker-section home-glow-section home-glow-section-sky font-ui group/selector relative tovar-touch overflow-hidden"
     >
       <DeferredCategoryBackdrop />
-      {/* top bridge — receives the car-picker's indigo fade */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-16 bg-[image:linear-gradient(to_bottom,rgba(206,216,255,0.5)_0%,rgba(206,216,255,0.08)_55%,transparent_100%)]" />
-      {/* bottom bridge — eases into the manufacturers section */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-10 bg-[image:linear-gradient(to_bottom,transparent_0%,rgba(214,238,246,0.5)_100%)]" />
-      {/* Soft sky/cyan blooms keep the hover lively without a neon cast. */}
-      <div className="home-scroll-decor pointer-events-none absolute -inset-8 z-0 opacity-0 transition-[opacity,transform] duration-[600ms] ease-out group-hover/selector:opacity-100 group-hover/selector:scale-[1.04] bg-[radial-gradient(circle_at_10%_14%,rgba(14,165,233,0.18),transparent_42%),radial-gradient(circle_at_90%_84%,rgba(103,232,249,0.14),transparent_40%),radial-gradient(circle_at_50%_-8%,rgba(56,189,248,0.1),transparent_44%),radial-gradient(circle_at_52%_112%,rgba(8,145,178,0.09),transparent_58%)]" />
-      <div className="home-scroll-decor pointer-events-none absolute inset-y-0 -left-1/3 z-[1] w-2/3 -translate-x-1/4 opacity-0 transition-[opacity,transform] duration-[900ms] ease-out group-hover/selector:translate-x-[70%] group-hover/selector:opacity-100 bg-[linear-gradient(105deg,transparent_0%,rgba(207,250,254,0.14)_38%,rgba(255,255,255,0.34)_50%,rgba(56,189,248,0.09)_62%,transparent_100%)]" />
-      {/* machined panel edges + one diagonal light streak — a touch of metal */}
-      <span className="home-scroll-decor pointer-events-none absolute inset-x-0 top-0 z-[2] h-[3px] bg-[linear-gradient(to_bottom,rgba(255,255,255,0.95),rgba(255,255,255,0.32)_46%,transparent)] transition-[box-shadow] duration-500 group-hover/selector:shadow-[0_0_22px_rgba(56,189,248,0.38)]" />
-      <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[2px] bg-[linear-gradient(to_top,rgba(14,116,144,0.16),transparent)]" />
-      <span className="pointer-events-none absolute inset-0 z-[1] opacity-60 bg-[linear-gradient(101deg,transparent_0%,transparent_33%,rgba(255,255,255,0.24)_47%,rgba(255,255,255,0.32)_50%,rgba(255,255,255,0.2)_53%,transparent_66%,transparent_100%)]" />
-      {/* Category list now sits in the left, wide slot and the
-          heading + search block in the right slot — the two swapped
-          which slot they occupy, the track widths themselves are unchanged. */}
+      <div className="home-picker-atmosphere" aria-hidden="true" />
       <div
         ref={catsRevealRef}
-        className={`section-reveal-cats ${catsRevealClassName} home-category-grid page-shell-inline relative z-10 grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10`}
+        className={`section-reveal-cats ${catsRevealClassName} home-picker-layout home-category-grid page-shell-inline relative z-10 grid gap-5 lg:grid-cols-2 lg:items-stretch lg:gap-8 xl:gap-10`}
       >
-        <motion.div {...entryMotion} className="relative z-10 min-w-0">
+
+
+        <motion.div {...entryMotion} className="home-picker-results relative z-10 min-w-0">
+        <div className="home-picker-search-area">
+                <HomePickerSearchControl
+                    mount={searchMount}
+                  count={null}
+                  unit={activeCategory || searchTerm.trim()
+                    ? pluralWord(browseNodes.length, "група", "групи", "груп")
+                    : pluralWord(browseNodes.length, "категорія", "категорії", "категорій")}
+                  tone="sky"
+                >
+                <AnimatePresence mode="wait" initial={false}>
+                  {!isSearchOpen ? (
+                    <motion.div
+                      key="buttons"
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.currentTarget.blur();
+                          setIsSearchOpen(true);
+                        }}
+                        onMouseLeave={(event) => event.currentTarget.blur()}
+                        aria-label="Пошук категорії"
+                        className="home-picker-trigger group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                      >
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
+                          <Search size={16} strokeWidth={2.2} aria-hidden />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук</span>
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          strokeWidth={3}
+                          aria-hidden
+                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
+                        />
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="field"
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                    >
+                      <ProductSearchInput
+                        searchTerm={searchTerm}
+                        onSearchChange={setSearchTerm}
+                        suggestions={searchSuggestions}
+                        onCollapse={() => setIsSearchOpen(false)}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                </HomePickerSearchControl>
+              </div>
         {filteredGroups.length > 0 ? (
-          <div className="home-category-cards relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
+          <div className="home-picker-carousel home-category-cards relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
+<SectionPagination
+              page={page}
+              totalPages={totalPages}
+              onPrev={prevPage}
+              onNext={nextPage}
+              canGoPrev={page > 1}
+              canGoNext={page < totalPages}
+              tone="sky"
+              availableCount={browseNodes.length}
+              availableUnit={activeCategory || searchTerm.trim() ? pluralWord(browseNodes.length, "група", "групи", "груп") : pluralWord(browseNodes.length, "категорія", "категорії", "категорій")}
+              showAvailableCount={true}
+            searchSlotRef={setSearchMount}
+              onSearch={() => setIsSearchOpen(true)}
+              searchLabel="Пошук категорії"
+              searchExpanded={isSearchOpen}
+            />
+{activeCategory && !searchTerm.trim() ? (
+              <div className="reveal-tail relative mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 px-2 sm:px-3">
+                {/* Keep the back action and current category together; page controls live beside the list. */}
+                <button
+                  type="button"
+                  onClick={closeCategory}
+                  className="group/back col-start-1 inline-flex min-h-10 min-w-0 shrink-0 items-center gap-1.5 justify-self-start border-0 bg-transparent px-1 text-xs font-extrabold text-sky-700 shadow-none transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
+                >
+                  <ArrowLeft size={16} strokeWidth={2.4} className="text-cyan-600 transition-[color,transform] duration-300 group-hover/back:-translate-x-0.5 group-hover/back:text-cyan-600" />
+                  {browseTrail.length > 0 ? "Назад" : "Категорії"}
+                </button>
+                <div className="col-start-2 min-w-0 justify-self-end text-right">
+                  <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
+                    {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="reveal-tail relative mt-3 flex min-h-10 flex-wrap items-center gap-2.5 px-2 sm:px-3">
+                {/* Pagination now sits directly beside the counter text
+                    instead of centered across the whole row — a plain flex
+                    row, no grow on either side, so it reads as one group
+                    instead of two things pinned to opposite/centered spots.
+                    The counter still caps its own width and truncates, so
+                    an unusually long count can't push the pagination out
+                    of the row. */}
+                <div className="min-w-0 max-w-[65%]">
+                  <h3 className="truncate text-[17px] font-black tracking-[-0.02em] text-slate-800 sm:text-xl">
+                    <span className="text-sky-600 tabular-nums">{browseNodes.length}</span>{" "}
+                    {searchTerm.trim()
+                      ? pluralWord(browseNodes.length, "група", "групи", "груп")
+                      : `${pluralWord(browseNodes.length, "категорія", "категорії", "категорій")} товарів`}
+                  </h3>
+                </div>
+                {!searchTerm.trim() && (
+                  // Unboxed to match SectionPagination beside it: no
+                  // border/shadow/backdrop-blur chip, just a plain
+                  // hover-tinted pill — moved here from the intro column
+                  // (see the comment up there) since it belongs with the
+                  // row it actually pairs with.
+                  <Link
+                    href="/groups"
+                    onClick={(event) => event.currentTarget.blur()}
+                    onMouseLeave={(event) => event.currentTarget.blur()}
+                    className="group/allgroups ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-sky-700 transition-colors duration-200 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                  >
+                    <LayoutGrid size={13} strokeWidth={2.6} aria-hidden />
+                    <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{browseNodes.length} {activeCategory || searchTerm.trim() ? pluralWord(browseNodes.length, "група", "групи", "груп") : pluralWord(browseNodes.length, "категорія", "категорії", "категорій")}</strong><span className="sr-only"> · Усі групи товарів</span></span>
+                    <ChevronRight
+                      size={13}
+                      strokeWidth={3}
+                      aria-hidden
+                      className="transition-transform duration-200 ease-out group-hover/allgroups:translate-x-0.5"
+                    />
+                  </Link>
+                )}
+              </div>
+            )}
+
             {/* No more edge arrows flanking the grid — they moved down next
                 to the "Сторінка X/Y" readout below, so the grid itself no
                 longer needs the px-6/px-8 side padding that used to clear
                 them; it now sits flush with the rest of this column. */}
-            <div className="relative">
+            <div className="home-picker-track-shell relative">
               <div
                 ref={groupPagesRef}
                 onScroll={handleGroupPagesScroll}
@@ -1115,7 +1243,7 @@ const ProductFetcher: React.FC<Props> = ({
                       aria-hidden="true"
                       className="w-full min-w-full flex-none snap-start px-1 pb-3 [scroll-snap-stop:always] sm:px-1.5 sm:pb-4"
                     >
-                      <div className="h-[350px] sm:h-[392px]" />
+                      <div className="home-picker-category-placeholder h-[350px] sm:h-[392px]" />
                     </div>
                   );
                 }
@@ -1132,7 +1260,7 @@ const ProductFetcher: React.FC<Props> = ({
                       // buttons in Auto.tsx) for a crisper, more contained
                       // hover instead of a wide diffuse bloom.
                       const cardBase =
-                        "card-metal group/category relative flex h-[170px] min-w-0 overflow-hidden rounded-[18px] bg-white/35 shadow-[0_3px_10px_-3px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_10px_26px_-10px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] sm:h-[190px]";
+                        "home-picker-tile home-picker-category card-metal group/category relative flex h-[170px] min-w-0 overflow-hidden rounded-[18px] bg-white/35 shadow-[0_3px_10px_-3px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.6)] transition-[background-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_10px_26px_-10px_rgba(14,165,233,0.28),inset_0_1px_0_rgba(255,255,255,0.95)] sm:h-[190px]";
                       const cardClass = searchCategory
                         ? `${cardBase} flex-col text-left`
                         : activeCategory
@@ -1310,97 +1438,8 @@ const ProductFetcher: React.FC<Props> = ({
               </div>
               </div>
             </div>
-            {activeCategory && !searchTerm.trim() ? (
-              <div className="reveal-tail relative mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 sm:px-3">
-                {/* Same 1fr/auto/1fr grid as the counter row below — the
-                    pagination used to be absolutely centered over this row,
-                    which could collide with the category name on the right
-                    the same way it could with the counter. Explicit
-                    col-start on every item (not left to DOM-order
-                    auto-placement) since the middle item — the pagination —
-                    doesn't render at all when there's only one page, which
-                    would otherwise shift the name into the middle column. */}
-                <button
-                  type="button"
-                  onClick={closeCategory}
-                  className="group/back col-start-1 inline-flex min-h-10 min-w-0 shrink-0 items-center gap-1.5 justify-self-start border-0 bg-transparent px-1 text-xs font-extrabold text-sky-700 shadow-none transition-colors duration-300 hover:text-cyan-600 focus-visible:outline-none focus-visible:text-cyan-600 focus-visible:underline focus-visible:decoration-2 focus-visible:underline-offset-4"
-                >
-                  <ArrowLeft size={16} strokeWidth={2.4} className="text-cyan-600 transition-[color,transform] duration-300 group-hover/back:-translate-x-0.5 group-hover/back:text-cyan-600" />
-                  {browseTrail.length > 0 ? "Назад" : "Категорії"}
-                </button>
-                {totalPages > 1 ? (
-                  <div className="col-start-2 justify-self-center">
-                    <SectionPagination
-                      page={page}
-                      totalPages={totalPages}
-                      onPrev={prevPage}
-                      onNext={nextPage}
-                      canGoPrev={page > 1}
-                      canGoNext={page < totalPages}
-                      tone="sky"
-                    />
-                  </div>
-                ) : null}
-                <div className="col-start-3 min-w-0 justify-self-end text-right">
-                  <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
-                    {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="reveal-tail relative mt-3 flex min-h-10 flex-wrap items-center gap-2.5 px-2 sm:px-3">
-                {/* Pagination now sits directly beside the counter text
-                    instead of centered across the whole row — a plain flex
-                    row, no grow on either side, so it reads as one group
-                    instead of two things pinned to opposite/centered spots.
-                    The counter still caps its own width and truncates, so
-                    an unusually long count can't push the pagination out
-                    of the row. */}
-                <div className="min-w-0 max-w-[65%]">
-                  <h3 className="truncate text-[17px] font-black tracking-[-0.02em] text-slate-800 sm:text-xl">
-                    <span className="text-sky-600 tabular-nums">{browseNodes.length}</span>{" "}
-                    {searchTerm.trim()
-                      ? pluralWord(browseNodes.length, "група", "групи", "груп")
-                      : `${pluralWord(browseNodes.length, "категорія", "категорії", "категорій")} товарів`}
-                  </h3>
-                </div>
-                {totalPages > 1 ? (
-                  <div className="shrink-0">
-                    <SectionPagination
-                      page={page}
-                      totalPages={totalPages}
-                      onPrev={prevPage}
-                      onNext={nextPage}
-                      canGoPrev={page > 1}
-                      canGoNext={page < totalPages}
-                      tone="sky"
-                    />
-                  </div>
-                ) : null}
-                {!searchTerm.trim() && (
-                  // Unboxed to match SectionPagination beside it: no
-                  // border/shadow/backdrop-blur chip, just a plain
-                  // hover-tinted pill — moved here from the intro column
-                  // (see the comment up there) since it belongs with the
-                  // row it actually pairs with.
-                  <Link
-                    href="/groups"
-                    onClick={(event) => event.currentTarget.blur()}
-                    onMouseLeave={(event) => event.currentTarget.blur()}
-                    className="group/allgroups ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-sky-700 transition-colors duration-200 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                  >
-                    <LayoutGrid size={13} strokeWidth={2.6} aria-hidden />
-                    Усі групи товарів
-                    <ChevronRight
-                      size={13}
-                      strokeWidth={3}
-                      aria-hidden
-                      className="transition-transform duration-200 ease-out group-hover/allgroups:translate-x-0.5"
-                    />
-                  </Link>
-                )}
-              </div>
-            )}
+
+
           </div>
         ) : showSkeleton ? (
           <div>
@@ -1472,59 +1511,19 @@ const ProductFetcher: React.FC<Props> = ({
 
         <motion.aside
         {...entryMotion}
-        className="group/search relative z-10 w-full min-w-0 lg:self-center"
+        className="home-picker-rail group/search relative z-10 w-full min-w-0 lg:self-center"
       >
             <div className="reveal-head relative max-w-[440px] overflow-hidden rounded-[26px] border border-sky-200/70 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.86)_58%,rgba(236,254,255,0.80)_100%)] p-5 shadow-[0_18px_46px_-26px_rgba(3,105,161,0.28),inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-6 lg:max-w-none lg:p-7">
-              {/* One framed card now holds eyebrow → heading → search →
-                  all-groups link as a single cohesive block, instead of the
-                  four sitting loose on the section background — gives the
-                  heading and search button the same visual weight as the
-                  category cards next to them. */}
-              <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
-              {/* Soft glow behind the heading — light, blurred wash lifting
-                  the title off the card, clipped by overflow-hidden. */}
-              <span className="pointer-events-none absolute -left-6 top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.22),transparent_70%)] blur-2xl" aria-hidden="true" />
-              {/* Simple icon + text, matching HeroIntroCard's eyebrow —
-                  dropped the glowing dot and trailing hairline, and sized
-                  the icon square the same as Auto.tsx/Brands.tsx (h-10 w-10)
-                  instead of a slightly smaller one, for one consistent
-                  eyebrow across all the homepage's picker sections. */}
-              <div className="flex items-center gap-3">
-                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-400 text-white shadow-[0_12px_28px_-8px_rgba(14,165,233,0.40),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-2px_6px_-2px_rgba(3,105,161,0.32)] after:pointer-events-none after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_30%_22%,rgba(255,255,255,0.6),transparent_52%)]">
-                  {/* Original simple line-art categories mark (four rounded
-                      tiles) — same style language as HeroIntroCard's own
-                      custom eyebrow SVG and the other homepage sections'
-                      eyebrow icons, instead of a generic lucide-react glyph. */}
-                  <svg viewBox="0 0 24 24" className="relative h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" />
-                    <rect x="13" y="13" width="7.5" height="7.5" rx="1.6" />
-                  </svg>
-                </span>
-                <span className="text-[11px] font-extrabold uppercase leading-none tracking-[0.2em] text-sky-700">
-                  Категорії
-                </span>
-              </div>
-
-              {/* title — oversized display, two-tone */}
-              <h2 className="relative mt-4 font-display text-[25px] font-black leading-[1.08] tracking-[-0.02em] text-slate-950 [text-shadow:0_1px_0_#fff] min-[480px]:text-[28px] sm:text-[33px] lg:text-[28px] xl:text-[32px]">
-                Запчастини
-                <br className="hidden min-[420px]:block" />{" "}
+              <HomePickerHeading>
+                Каталог запчастин
+                {" "}
                 <span className="whitespace-nowrap text-sky-700">за категоріями</span>
-              </h2>
-
-              <span className="reveal-bar mt-4 block h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#0369a1_0%,#0ea5e9_28%,#e0f2fe_48%,#67e8f9_68%,transparent_100%)] shadow-[0_1px_2px_rgba(3,105,161,0.18)]" />
-
-              {/* lead — concrete category examples read as more informative
-                  than "categories and groups" while staying just as short;
-                  points at the cards below by content ("оберіть категорію"),
-                  not by screen position ("поруч" — meaningless once this
-                  card and the grid stack on mobile). */}
+              </HomePickerHeading>
               <p className="home-description mt-4 max-w-[46ch] text-[15px] font-medium leading-[1.68] text-slate-700 [text-shadow:0_1px_0_#fff] sm:text-[16px]">
-                Від{" "}
-                <span className="font-semibold text-slate-800">гальм і ходової</span> до електрики та кузова — кожна категорія з підгрупами. Знаєте назву чи артикул? Скористайтеся{" "}
-                <span className="font-semibold text-sky-700">пошуком</span>.
+                <span className="font-semibold text-slate-800">Гальма, підвіска, двигун, фільтри й електрика</span>{" "}
+                — знайдіть потрібний розділ. Оберіть групу або підгрупу,
+                щоб переглянути товари, чи скористайтеся{" "}
+                <span className="font-semibold text-sky-700">пошуком за назвою</span>.
               </p>
 
               {/* search — the primary action. Same collapse-to-button
@@ -1533,65 +1532,7 @@ const ProductFetcher: React.FC<Props> = ({
                   sky blue to match this section instead of Auto's dark
                   glass panel (this heading sits directly on a light
                   card, not inside a dark nav panel). */}
-              <div className="mt-5">
-                <AnimatePresence mode="wait" initial={false}>
-                  {!isSearchOpen ? (
-                    <motion.div
-                      key="buttons"
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    >
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.currentTarget.blur();
-                          setIsSearchOpen(true);
-                        }}
-                        onMouseLeave={(event) => event.currentTarget.blur()}
-                        className="group/trigger inline-flex w-full items-center gap-3 rounded-[16px] border border-sky-200/80 bg-white/70 px-3.5 py-3 text-left shadow-[0_10px_26px_-14px_rgba(3,105,161,0.24)] backdrop-blur-sm transition-colors duration-200 ease-out hover:border-sky-300 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
-                      >
-                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200/70 bg-sky-100 text-sky-700 shadow-[0_0_16px_rgba(56,189,248,0.13)] transition-[background-color,border-color,transform] duration-200 ease-out group-hover/trigger:scale-[1.06] group-hover/trigger:border-sky-300 group-hover/trigger:bg-sky-200">
-                          <Search size={16} strokeWidth={2.2} aria-hidden />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[14.5px] font-black leading-tight text-slate-800">Пошук категорії</span>
-                        </span>
-                        <ChevronRight
-                          size={16}
-                          strokeWidth={3}
-                          aria-hidden
-                          className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
-                        />
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="field"
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    >
-                      <ProductSearchInput
-                        searchTerm={searchTerm}
-                        onSearchChange={setSearchTerm}
-                        suggestions={searchSuggestions}
-                        onCollapse={() => setIsSearchOpen(false)}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
-                <span className="mt-2.5 block px-0.5 text-[11px] font-medium text-slate-600">
-                  {searchTerm.trim() ? "Знайдено " : "Доступно для пошуку: "}
-                  <strong className="font-extrabold tabular-nums text-sky-700">
-                    {showSkeleton ? "—" : filteredRows.length}
-                  </strong>
-                  {!showSkeleton && <> {pluralWord(filteredRows.length, "група", "групи", "груп")}</>}
-                </span>
-              </div>
 
               <div className="hidden" aria-hidden="true">
                 {showSkeleton ? (
@@ -1718,10 +1659,11 @@ const ProductFetcher: React.FC<Props> = ({
                     )}
                   </motion.div>
                 )}
-              
+
             </div>
             </div>
         </motion.aside>
+
       </div>
     </section>
   );

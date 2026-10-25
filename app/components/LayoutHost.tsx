@@ -11,7 +11,7 @@ import PullToRefresh from "./PullToRefresh";
 import ScrollPerformanceGuard from "./ScrollPerformanceGuard";
 import NavigationProgress from "./NavigationProgress";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronUp, MessageCircle, Plus, Shield } from "lucide-react";
+import { ChevronUp, FolderTree, MessageCircle, Plus, Shield } from "lucide-react";
 import {
   CATALOG_PAGE_CACHE_VERSION,
   CATALOG_PRODUCTS_CACHE_KEY,
@@ -30,6 +30,10 @@ const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
 });
 
 const ProductFullEditModal = dynamic(() => import("./ProductFullEditModal"), {
+  ssr: false,
+});
+
+const AdminCatalogWindow = dynamic(() => import("./AdminCatalogWindow"), {
   ssr: false,
 });
 
@@ -233,6 +237,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // The catalog editor (groups, producers) has its own floating button.
+  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const closeCatalog = useCallback(() => setIsCatalogOpen(false), []);
   const [productEditTarget, setProductEditTarget] = useState<ProductFullEditTarget | null>(null);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
@@ -1100,9 +1107,21 @@ export default function LayoutHost({ children }: LayoutHostProps) {
                     <span className="pointer-events-none absolute inset-x-2 top-1 h-4 rounded-full bg-gradient-to-b from-white/25 to-transparent" />
                     <Plus size={23} strokeWidth={2.6} className="relative transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" aria-hidden="true" />
                   </button>
+                  {!isCatalogOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCatalogOpen(true)}
+                      aria-label="Каталог: групи та виробники"
+                      title="Каталог: групи та виробники"
+                      className="group relative isolate z-20 flex h-11 w-11 items-center justify-center overflow-hidden rounded-[15px] border border-emerald-200/40 bg-[linear-gradient(145deg,#064e3b,#059669_55%,#14b8a6)] text-white shadow-[0_12px_26px_rgba(5,150,105,0.30)] transition-[transform,border-color,box-shadow,filter] duration-200 hover:border-emerald-100/75 hover:brightness-110 hover:shadow-[0_17px_34px_rgba(5,150,105,0.40)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300/45 sm:h-12 sm:w-12 sm:rounded-[16px]"
+                    >
+                      <span className="pointer-events-none absolute inset-x-2 top-1 h-4 rounded-full bg-gradient-to-b from-white/25 to-transparent" />
+                      <FolderTree size={21} strokeWidth={2.3} className="relative transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setIsAdminPanelOpen(true)}
+                    onClick={() => { setIsCatalogOpen(false); setIsAdminPanelOpen(true); }}
                     aria-label="Відкрити адмін-панель"
                     title="Адмін-панель"
                     className="group relative isolate z-20 flex h-14 w-14 items-center justify-center overflow-visible rounded-[18px] border border-indigo-200/35 bg-[linear-gradient(145deg,#312e81,#4f46e5_55%,#0ea5e9)] text-white shadow-[0_14px_30px_rgba(67,56,202,0.28)] transition-[transform,border-color,box-shadow,filter] duration-200 hover:border-indigo-100/70 hover:brightness-110 hover:shadow-[0_20px_38px_rgba(67,56,202,0.38)] active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300/45 sm:h-[60px] sm:w-[60px] sm:rounded-[20px]"
@@ -1150,6 +1169,8 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           onPrefillSent={() => setPrefillMessage(null)}
         />
       )}
+
+      {isAdmin && isCatalogOpen && <AdminCatalogWindow onClose={closeCatalog} />}
 
       {isAdmin && isCreateModalOpen && (
         <ProductCreateModal

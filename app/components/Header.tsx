@@ -103,7 +103,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
     if (user) void loadAccountInfoModule().catch(() => undefined);
     if (AuthModalComponent) return;
     void loadAuthModalModule().then((module) => {
-      setAuthModalComponent(() => module.default);
+      React.startTransition(() => setAuthModalComponent(() => module.default));
     });
   };
 
@@ -193,10 +193,12 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   const toggleModal = (name: keyof typeof modals) => {
     closeExternalOverlays();
     setShowSearchModal(false);
-    setModals((prev) => {
+    const updateModal = () => setModals((prev) => {
       const next = { contact: false, order: false, auth: false };
       return prev[name] ? next : { ...next, [name]: true };
     });
+    if (name === 'auth') React.startTransition(updateModal);
+    else updateModal();
     if (name === 'auth') {
       setAuthInitialMode(undefined);
       setAuthInitialTab(null);
@@ -253,7 +255,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
       setActiveMenu('');
       setShowSearchModal(false);
       setAuthInitialTab('vins');
-      setModals({ contact: false, order: false, auth: true });
+      React.startTransition(() => setModals({ contact: false, order: false, auth: true }));
     };
 
     window.addEventListener('openAccountVin', handleOpenAccountVin);
@@ -277,7 +279,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
       setShowSearchModal(false);
       setAuthInitialMode(detail?.initialMode ?? 'login');
       setAuthInitialTab(detail?.initialAccountTab ?? null);
-      setModals({ contact: false, order: false, auth: true });
+      React.startTransition(() => setModals({ contact: false, order: false, auth: true }));
     };
 
     window.addEventListener('openAuthModal', handleOpenAuthModal);
@@ -341,7 +343,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
     let cancelled = false;
     void loadAuthModalModule().then((module) => {
       if (!cancelled) {
-        setAuthModalComponent(() => module.default);
+        React.startTransition(() => setAuthModalComponent(() => module.default));
       }
     });
 

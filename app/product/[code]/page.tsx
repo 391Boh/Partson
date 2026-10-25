@@ -152,9 +152,9 @@ const loadProductPageReviews = (code: string) =>
   );
 
 const loadProductPageGallery = (code: string) =>
-  resolveWithTimeout(
+  resolveWithTimeout<string[] | null>(
     () => fetchProductGalleryImageUrls(code),
-    [],
+    null,
     PRODUCT_PAGE_GALLERY_TIMEOUT_MS
   );
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
@@ -1716,8 +1716,6 @@ export async function generateMetadata({
   });
 
   const description = buildProductMetaDescription({
-    priceUah: shouldIndexProduct ? seoPriceForMeta.priceUah : null,
-    inStock: routeProduct ? routeProduct.quantity > 0 : null,
     productName: seoVisibleProductName,
     producer: productProducer,
     article: productArticle,
@@ -1875,7 +1873,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const firestorePresence = getProductFirestorePresence();
   const earlyReviewsPromise = earlyResolvedCode
     ? firestorePresence && !firestorePresence.reviews.has(earlyResolvedCode)
-      ? Promise.resolve<ProductPageReviews>([null, null])
+      ? Promise.resolve<ProductPageReviews>([null, []])
       : loadProductPageReviews(earlyResolvedCode)
     : null;
   const earlyGalleryImagesPromise = earlyResolvedCode
@@ -2141,10 +2139,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
-  const [[reviewStats, initialReviews], galleryImageUrls] = await Promise.all([
+  const [[reviewStats, initialReviews], galleryResult] = await Promise.all([
     reviewsPromise,
     galleryImagesPromise,
   ]);
+  // null means unknown (timeout/failure); [] is a confirmed empty gallery.
+  const galleryImageUrls = galleryResult ?? [];
   // Google's Product rich-result eligibility requires at least one of
   // offers/review/aggregateRating. A price-on-request product with no
   // reviews yet would otherwise ship a Product block with none of the
@@ -2295,6 +2295,22 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // layout's loader then fetches the full site stylesheet without blocking
   // first paint. Without the file the full stylesheet stays render-blocking.
   const criticalCssHref = resolveCriticalCssHref("product");
+  const adminEditGate = (
+    <ProductPageAdminEditGate
+      code={product.code || resolvedCode}
+      article={product.article || ""}
+      name={product.name || ""}
+      producer={product.producer || ""}
+      priceEuro={product.priceEuro ?? null}
+      costPriceEuro={product.costPriceEuro ?? null}
+      group={product.group || ""}
+      subGroup={product.subGroup || ""}
+      category={product.category || ""}
+      quantity={product.quantity ?? 0}
+      description={product.description || ""}
+    />
+  );
+
   return (
     <div
       className={`product-page min-h-screen text-slate-900 ${isModalView ? "bg-white" : ""}`}
@@ -2315,21 +2331,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             isModalView ? "rounded-2xl" : "rounded-[24px] sm:rounded-[32px]"
           }`}
         >
-          {/* Admins edit first, so the panel opens the card instead of
-              trailing every section below. Renders nothing for visitors. */}
-          <ProductPageAdminEditGate
-            code={product.code || resolvedCode}
-            article={product.article || ""}
-            name={product.name || ""}
-            producer={product.producer || ""}
-            priceEuro={product.priceEuro ?? null}
-            costPriceEuro={product.costPriceEuro ?? null}
-            group={product.group || ""}
-            subGroup={product.subGroup || ""}
-            category={product.category || ""}
-            quantity={product.quantity ?? 0}
-            description={product.description || ""}
-          />
+          {/* In the quick-view modal there is no pinned navigation row: the
+              admin bar opens the card instead. Renders nothing for visitors. */}
+          {isModalView && adminEditGate}
           <header className="product-hero relative border-b border-slate-200/80 bg-white px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
             <div className="relative mx-auto max-w-[1280px]">
               {!isModalView && (
@@ -2351,15 +2355,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       ))}
                     </ol>
                   </nav>
-                  <ProductNavBuyStrip name={visibleProductName} />
-                  <ProductSectionNav
-                    items={[
-                      { href: "#product-description", label: "Опис і характеристики", shortLabel: "Опис" },
-                      { href: "#product-alternatives", label: "Аналоги" },
-                      { href: "#product-reviews", label: "Відгуки" },
-                      { href: "#product-faq", label: "Популярні запитання", shortLabel: "Питання" },
-                    ]}
-                  />
+                  <div className="product-pinned-controls">
+                    {/* Admin bar, pinned with the navigation directly above it. The
+                        slot keeps its row reserved for admins from first paint
+                        (app/lib/admin-layout-hint.ts), so the page doesn't drop. */}
+                    <div className="product-admin-slot">{adminEditGate}</div>
+                    <ProductNavBuyStrip name={visibleProductName} />
+                    <ProductSectionNav
+                      items={[
+                        { href: "#product-description", label: "Опис і характеристики", shortLabel: "Опис" },
+                        { href: "#product-alternatives", label: "Аналоги" },
+                        { href: "#product-reviews", label: "Відгуки" },
+                        { href: "#product-faq", label: "Популярні запитання", shortLabel: "Питання" },
+                      ]}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -2395,6 +2405,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       code={product.code || resolvedCode}
                       productName={product.name}
                       initialImages={galleryImageUrls}
+                      initialImagesResolved={galleryResult !== null}
                       mainImageSrc={productHasKnownPhoto ? productSeoImagePath : null}
                     />
                   </div>

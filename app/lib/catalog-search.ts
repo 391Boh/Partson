@@ -111,6 +111,7 @@ export async function searchProductFields<T extends SearchItem>(options: {
   cursor: string;
   sort: SearchSortOrder;
   fetchPage: (field: SearchField, cursor: string, limit: number) => Promise<SearchPage<T>>;
+  matches?: (item: T) => boolean;
 }): Promise<SearchPage<T>> {
   const sort = options.sort;
   // 1C's price-sorted mode can't be paged: it ignores the cursor and returns
@@ -131,7 +132,7 @@ export async function searchProductFields<T extends SearchItem>(options: {
     while (more && (scanAll ? batches < MAX_SORTED_SCAN_BATCHES : matches.length <= options.limit)) {
       const page = await options.fetchPage(field, cursor, batchSize);
       batches += 1;
-      matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field)));
+      matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field) && (!options.matches || options.matches(item))));
       more = page.hasMore;
       if (more && (!page.items.length || !page.nextCursor || seenCursors.has(page.nextCursor))) {
         throw new Error("Search source returned a non-advancing cursor");

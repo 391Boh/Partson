@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { loadCatalogSearch } from './lib/catalog-search-harness.mjs';
+const load = file => {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL(`../app/lib/${file}.ts`, import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>load(name.replace('./',''))});
+  return exports;
+};
+const { matchesVehicleFitment: matches, readVehicleSelection, encodeVehicleSelection } = load('vehicle-fitment');
+const car = {brand:'VOLKSWAGEN',model:'Passat B3',year:1991,volume:'1.8',power:null,gearbox:null,drive:null};
+const desc = 'VW PASSAT B3/B4 1.6-2.8 02.88-05.97\n\nМонтажна позиція\tзадн\nДовжина\t1625.0 мм';
+assert(matches(desc,car));
+assert(!matches('SEAT TOLEDO I; VW CADDY I, GOLF I, PASSAT B3/B4 1.5D/1.6D/1.9D 08.76-03.99',car));
+assert(!matches(desc,{...car,year:2005}));
+assert(!matches(desc,{...car,volume:'3.0'}));
+assert(!matches(desc,{...car,model:'Passat B6'}));
+assert(!matches('AUDI PASSAT B3 1.8 1988-1997',car));
+assert(!matches('AUDI A4 B5; VW GOLF IV 1.8 1990-1998',car));
+assert(!matches('VW PASSAT B3 1.8 1988-1997; AUDI A4 3.0 2000-2008',{...car,year:2005,volume:'3.0'}));
+assert(matches('VW PASSAT B3 1.8 1988-1997; AUDI A4 3.0 2000-2008',car));
+assert(!matches('VW PASSAT B3 1.8 88-97',{...car,year:1998}));
+assert(matches('VW PASSAT B3 1.8 02.88-',car));
+assert(!matches('VW PASSAT B3 1.8 02.88-',{...car,year:1987}));
+assert(!matches('VW PASSAT B3 1.8 150 HP',{...car,power:'90'}));
+assert(!matches('VW PASSAT B3 1.8 MT',{...car,gearbox:'АКПП'}));
+assert(!matches('VW PASSAT B3 1.8 AWD',{...car,drive:'FWD'}));
+assert(!matches('VW PASSAT B3 1.8 RWD',{...car,drive:'FWD'}));
+assert(!matches('VW PASSAT B30 1.8',car));
+assert(!matches('VW PASSAT B3\nКоментар\tAUDI A4 B5',{...car,brand:'AUDI',model:'A4 B5'}));
+assert(matches('Застосування\tVW PASSAT B3 1.8 1988-1997',car));
+assert(!matches('AUDI A4 B5, A6 C5 1.6-4.2 1994-2008',{...car,brand:'AUDI',model:'A4 B5',volume:'5.0',year:2000}));
+assert(!matches('VW PASSAT',car),'A model family alone cannot confirm a generation and year');
+assert(!matches(undefined,car));
+assert.equal(readVehicleSelection('invalid'),null);
+assert(encodeVehicleSelection(car).includes('1991'));
+
+// Empty early batches must be skipped; totals and cursors describe accepted
+// products, rather than the unfiltered description-search candidate set.
+const source = Array.from({length:70},(_,i)=>({Код:String(i+1).padStart(4,'0'),НомерПоКаталогу:`A${i}`,Наименование:'Трос Passat',Кількість:1,Описание:i<40?'VW PASSAT B6 2.0 2005-2010':desc}));
+const calls=[];
+const catalog=loadCatalogSearch(async(endpoint,{body})=>{
+  calls.push({endpoint,body});
+  const after=body.ПослеКода || body.Курсор || body.cursor || '';
+  const start=after ? source.findIndex(p=>p.Код===after)+1 : 0;
+  const limit=body.Лимит || 32;
+  const items=source.slice(start,start+limit);
+  return {status:200,text:JSON.stringify({items,total_count:70,has_more:start+limit<source.length,next_cursor:items.at(-1)?.Код || ''})};
+});
+const first=await catalog.fetchCatalogProductsByQuery({vehicle:car,searchQuery:'Passat B3',searchFilter:'description',selectedCars:['saved label'],limit:5,includePriceEnrichment:false});
+assert.equal(first.items.length,5);
+assert(first.items.every(item=>Number(item.code)>40));
+assert(first.hasMore);assert(first.nextCursor);
+assert(calls.length>=2,'Must continue through an entire batch of incompatible applications');
+assert(calls.every(c=>c.endpoint==='allgoods' && c.body.ВключатьОписание===true));
+const next=await catalog.fetchCatalogProductsByQuery({vehicle:car,limit:5,cursor:first.nextCursor,includePriceEnrichment:false});
+assert.equal(next.items.length,5);
+assert(!next.items.some(item=>first.items.some(p=>p.code===item.code)));
+const empty=await catalog.fetchCatalogProductsByQuery({vehicle:{...car,year:2020},limit:5,includePriceEnrichment:false});
+assert.equal(empty.items.length,0);assert.equal(empty.hasMore,false);assert.equal(empty.totalCount,0);
+const failing=loadCatalogSearch(async()=>({status:503,text:'unavailable'}));
+await assert.rejects(failing.fetchCatalogProductsByQuery({vehicle:car,limit:5,includePriceEnrichment:false,retries:0}));
+console.log('PASS: application brand/model/generation, years, engine, power, gearbox, drive, scoped descriptions, cursor paging, empty results and upstream failure.');

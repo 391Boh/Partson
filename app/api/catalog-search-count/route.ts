@@ -1,3 +1,4 @@
+import { readVehicleSelection } from "app/lib/vehicle-fitment";
 import { NextResponse } from "next/server";
 
 import {
@@ -54,6 +55,7 @@ const getProductCountKey = (item: CatalogProduct) => {
 
 const buildCountCacheKey = (params: URLSearchParams) =>
   JSON.stringify({
+    vehicle: readVehicleSelection(params.get("vehicle")),
     search: normalizeString(params.get("search")),
     filter: normalizeSearchFilter(params.get("filter")),
     group: normalizeString(params.get("group")),
@@ -63,6 +65,7 @@ const buildCountCacheKey = (params: URLSearchParams) =>
     cars: params.getAll("car").map(normalizeString).filter(Boolean).sort(),
     categories: params.getAll("category").map(normalizeString).filter(Boolean).sort(),
     pricedOnly: params.get("pricedOnly") === "1",
+    withPhoto: params.get("withPhoto") === "1",
     priceFrom: normalizeString(params.get("priceFrom")),
     priceTo: normalizeString(params.get("priceTo")),
     inStock: params.get("inStock") === "1",
@@ -106,6 +109,7 @@ const fetchSearchCount = async (
     Boolean(group) ||
     Boolean(subcategory) ||
     Boolean(producer) ||
+    params.get("withPhoto") === "1" ||
     pricedOnly ||
     priceFrom !== null ||
     priceTo !== null ||
@@ -131,6 +135,7 @@ const fetchSearchCount = async (
       limit: COUNT_PAGE_LIMIT,
       cursor,
       cursorField,
+      vehicle: readVehicleSelection(params.get("vehicle")),
       selectedCars,
       selectedCategories,
       searchQuery,
@@ -148,6 +153,7 @@ const fetchSearchCount = async (
       preferLegacySource: false,
       forceAllgoodsSource: true,
       pricedItemsOnly: pricedOnly,
+      withPhotoOnly: params.get("withPhoto") === "1",
       priceFrom,
       priceTo,
       onlyInStock: inStock,

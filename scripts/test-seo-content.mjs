@@ -13,12 +13,31 @@ function load(file) {
   return exports;
 }
 const { buildProductSeoTitle: title, buildProductMetaDescription: description, buildProductImageAlt: alt } = load('app/lib/product-seo-copy');
-const product = { productName: 'Гальмівний диск VW GOLF VII (ANALOG/123)', producer: 'BREMBO', article: '09.9772.11' };
+const product = { productName: 'Гальмівний диск VW GOLF VII (ANALOG/123)', producer: 'BREMBO', article: '09.9772.11', subGroup: 'Гальмівні диски' };
 assert.ok(title({ name: 'Трос ручн. гальм. лів. AUDI 80 бараб,', producer: 'Adriauto', article: 'AD030213' }).includes('AUDI'), 'Abbreviations must not hide vehicle fitment');
 const text = description(product);
-assert.ok(text.includes('VW GOLF VII') && text.includes('BREMBO') && text.includes('09.9772.11'));
+assert.ok(text.startsWith('Гальмівні диски: BREMBO 09.9772.11'));
+assert.ok(!text.includes('VW GOLF VII'), 'Description complements title/H1 instead of repeating the complete product name');
+assert.ok(!description({ productName: 'Фільтр MEGANE 02-', subGroup: 'Фільтр MEGANE 02-' }).includes('MEGANE'), 'Do not repeat the name when a category duplicates it');
 assert.ok(text.length <= 160);
 assert.ok(!text.includes('ANALOG'));
+assert.ok(text.includes('купити у Львові') && text.includes('Підбір за VIN'));
+assert.ok(!/ціна|грн|наявн|замовлення/iu.test(text), text);
+assert.equal(description({ ...product, priceUah: 1250, inStock: true }), text);
+assert.equal(description({ ...product, priceUah: 9876, inStock: false }), text);
+assert.ok(description({ subGroup: 'Повітряний фільтр(Повітря)' }).startsWith('Повітряний фільтр —'));
+assert.ok(description({ subGroup: 'Фільтр (АКПП)' }).startsWith('Фільтр (АКПП) —'));
+assert.ok(description({ subGroup: 'Повітряні фільтри' }).startsWith('Повітряні фільтри'));
+for (const example of [
+ { productName: 'Фільтр повітря KIA RIO HYUNDAI ACCENT 02-', producer: 'ALPHA', article: 'AF1741' },
+ { productName: 'Подушка двигуна ASTRA H 1.9CDTi 04-', producer: 'FEBI', article: '12345' },
+ { productName: 'Щітка склоочисника '.repeat(10), producer: 'BOSCH', article: '3397118901' },
+]) {
+ const copy = description(example);
+ assert.ok(copy.length <= 160 && copy.endsWith('доставка по Україні.'), copy);
+ assert.ok(copy.includes(example.article) && copy.includes('у Львові'), copy);
+}
+
 assert.notEqual(text, description({ ...product, article: '09.9772.12' }));
 assert.ok(title({ name: product.productName, producer: product.producer, article: product.article }).endsWith('| PartsON'));
 assert.equal((title({ name: 'Фільтр BOSCH AB123', producer: 'BOSCH', article: 'AB123' }).match(/AB123/g) || []).length, 1);

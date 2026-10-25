@@ -1365,7 +1365,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   );
   const [rawInitialPagePayload, seoFacets, productTreeDataset, manufacturersDirectoryData] = await Promise.all([
     resolveWithTimeout(
-      () => hasParamFilters
+      () => (hasParamFilters || Boolean(normalizeValue(resolvedSearchParams.vehicle)))
         ? Promise.resolve(null)
         : promoOnly
         ? fetchPromoCatalogPayload()

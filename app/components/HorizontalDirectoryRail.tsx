@@ -13,6 +13,7 @@ import {
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
+import { useRowCappedList } from "../lib/row-capped-list";
 
 type HorizontalDirectoryRailProps = {
   children: ReactNode;
@@ -194,6 +195,10 @@ export default function HorizontalDirectoryRail({
   };
 
   const move = (direction: -1 | 1) => goToPage(currentPage + direction, "smooth");
+
+  // In the catalog filter the mobileList rail is laid out as a vertical
+  // grid (globals.css), so it scrolls down past four rows instead of paging.
+  useRowCappedList(railRef, mobileList, children);
 
   // A swipe should move by a full page (every column currently visible),
   // not by a single column — so only the first column of each page group

@@ -1,4 +1,5 @@
 import "server-only";
+import { readVehicleSelection, vehicleModelQuery, matchesVehicleFitment, type VehicleSelection } from "./vehicle-fitment";
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductPromoPriceOverride } from "./product-promo-overrides";
@@ -171,6 +172,7 @@ const IN_STOCK_FIELDS = [
   "isInStock",
 ];
 const ALLGOODS_ONLY_IN_STOCK_FIELD = "\u0422\u043e\u043b\u044c\u043a\u043e\u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438"; // \u0422\u043e\u043b\u044c\u043a\u043e\u0412\u041d\u0430\u043b\u0438\u0447\u0438\u0438
+const ALLGOODS_ONLY_WITH_PHOTO_FIELD = "ТолькоЗФото";
 const ALLGOODS_LIMIT_FIELD = "\u041b\u0438\u043c\u0438\u0442";
 const ALLGOODS_CURSOR_FIELD = "\u041f\u043e\u0441\u043b\u0435\u041a\u043e\u0434\u0430";
 const ALLGOODS_NAME_FIELD = "\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435";
@@ -721,6 +723,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   retryDelayMs?: number;
   cacheTtlMs?: number;
   pricedItemsOnly?: boolean;
+  withPhotoOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
   /** Default browse order: products with a sale price before the rest. */
@@ -751,6 +754,9 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   if (options.pricedItemsOnly) {
     requestBodyBase[ALLGOODS_ONLY_WITH_PRICE_FIELD] = true;
   }
+  if (options.withPhotoOnly) {
+    requestBodyBase[ALLGOODS_ONLY_WITH_PHOTO_FIELD] = true;
+  }
   if (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom)) {
     requestBodyBase["ЦенаОт"] = options.priceFrom;
   }
@@ -765,8 +771,19 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
   const hasUsablePrice = (item: CatalogProduct) =>
     hasSalePrice(item) || item.hasPrice === true;
 
-  const filterPricedItems = (items: CatalogProduct[]) =>
-    options.pricedItemsOnly ? items.filter(hasUsablePrice) : items;
+  // "З фото" is filtered by 1C through ТолькоЗФото; the local pass keeps
+  // the listing correct on a 1C build that predates that parameter and
+  // would otherwise silently ignore it.
+  // Roughly a third of the catalog carries no picture, so a page filtered
+  // locally would come back short and end the listing early. Ask 1C for more
+  // rows than the page needs and slice back down after filtering. Once 1C
+  // applies ТолькоЗФото itself this only over-reads by a few rows.
+  const sourceLimit = options.withPhotoOnly ? Math.min(500, Math.ceil(limit / 0.6)) : limit;
+
+  const filterPricedItems = (items: CatalogProduct[]) => {
+    const priced = options.pricedItemsOnly ? items.filter(hasUsablePrice) : items;
+    return options.withPhotoOnly ? priced.filter((item) => item.hasPhoto === true) : priced;
+  };
 
   const sortPricedWindow = (items: CatalogProduct[]) => {
     const sortDirection = requestBodyBase[ALLGOODS_SORT_PRICE_FIELD];
@@ -837,6 +854,10 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     !isPriceSorted &&
     !isNameSorted &&
     !options.pricedItemsOnly &&
+    // The priced-first walk builds its own request bodies and item windows,
+    // so it cannot run the "З фото" fallback filter; that listing takes the
+    // ordinary cursor path below.
+    !options.withPhotoOnly &&
     options.priceFrom == null &&
     options.priceTo == null &&
     (!requestedCursor || requestedCursor.startsWith(PRICED_FIRST_CURSOR_PREFIX))
@@ -863,13 +884,38 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     return fetchPriceSortedPage();
   }
 
+  if (options.withPhotoOnly) {
+    const skip = requestedCursor ? 0 : (page - 1) * limit;
+    const accepted: CatalogProduct[] = [];
+    let after = requestedCursor;
+    let exhausted = false;
+    for (let batch = 0; accepted.length <= skip + limit; batch++) {
+      if (batch >= 200) throw new Error("Photo filter scan exceeded its page budget");
+      const parsed = await requestAllgoodsPage({
+        ...requestBodyBase, [ALLGOODS_LIMIT_FIELD]: Math.min(500, Math.max(64, sourceLimit)),
+        ...(after ? { [ALLGOODS_CURSOR_FIELD]: after } : {}),
+      });
+      accepted.push(...filterPricedItems(parsed.items));
+      const next = parsed.nextCursor || deriveAllgoodsFallbackCursor(parsed.items);
+      if (!parsed.hasMore) { exhausted = true; break; }
+      if (!next || next === after) throw new Error("CATALOG_PAGINATION_STALLED");
+      after = next;
+    }
+    const items = accepted.slice(skip, skip + limit);
+    const hasMore = accepted.length > skip + limit || !exhausted;
+    // Resume after the last displayed product, not the end of an over-read
+    // source batch. This also works when older 1C ignores ТолькоЗФото.
+    return { items, hasMore, nextCursor: hasMore ? items.at(-1)?.code || "" : "",
+      cursorField: null, totalCount: exhausted && !requestedCursor ? accepted.length : null };
+  }
+
   if (requestedCursor) {
     let parsed = await requestAllgoodsPage({
       ...requestBodyBase,
       // 1C already performs its own one-row look-ahead (`Лимит + 1`) and
       // returns only `Лимит` items. Sending `limit + 1` here caused the API
       // cursor to advance past an item that was never returned to the client.
-      [ALLGOODS_LIMIT_FIELD]: limit,
+      [ALLGOODS_LIMIT_FIELD]: sourceLimit,
       [ALLGOODS_CURSOR_FIELD]: requestedCursor,
     });
     let items = filterPricedItems(parsed.items);
@@ -886,7 +932,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       const freshParsed = await requestAllgoodsPage(
         {
           ...requestBodyBase,
-          [ALLGOODS_LIMIT_FIELD]: limit,
+          [ALLGOODS_LIMIT_FIELD]: sourceLimit,
           [ALLGOODS_CURSOR_FIELD]: requestedCursor,
         },
         0
@@ -1018,12 +1064,19 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
           hasMore = unpricedRemainExpected;
           break;
         }
-        const taken = ordered.slice(0, remaining);
+        const eligible = filterPricedItems(ordered);
+        if (!eligible.length) {
+          const last = ordered[ordered.length - 1];
+          state = { u: false, p: priceOf(last), c: last.code || "" };
+          if (windowComplete) { state = { u: true, p: null, c: "" }; hasMore = unpricedRemainExpected; }
+          continue;
+        }
+        const taken = eligible.slice(0, remaining);
         if (keep) items.push(...taken);
         remaining -= taken.length;
         const last = taken[taken.length - 1];
         state = { u: false, p: priceOf(last), c: last.code || "" };
-        if (taken.length === ordered.length && windowComplete) {
+        if (taken.length === eligible.length && windowComplete) {
           state = { u: true, p: null, c: "" };
           hasMore = unpricedRemainExpected;
         }
@@ -1035,7 +1088,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
         if (state.c) body[ALLGOODS_CURSOR_FIELD] = state.c;
         const parsed = await requestAllgoodsPage(body);
         requests += 1;
-        const unpriced = parsed.items.filter((item) => priceOf(item) === null);
+        const unpriced = filterPricedItems(parsed.items).filter((item) => priceOf(item) === null);
         const taken = unpriced.slice(0, remaining);
         if (keep) items.push(...taken);
         remaining -= taken.length;
@@ -1056,7 +1109,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       return { items, state, remaining, hasMore: hasMore && (remaining === 0 || requests >= maxRequests) };
     };
 
-    const totalCount = includeUnpriced ? allTotal : pricedTotal;
+    const totalCount = options.withPhotoOnly ? null : includeUnpriced ? allTotal : pricedTotal;
     const startState: SortState = { u: false, p: null, c: "" };
     let state = decode(requestedCursor) ?? startState;
     const targetPage =
@@ -1349,7 +1402,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
             : { ...requestBodyBase, [ALLGOODS_LIMIT_FIELD]: limit },
           direct ? 0 : undefined
         );
-        if (probe.sortMode === "name_v1") {
+        if (probe.sortMode === "name_v1" && !options.withPhotoOnly) {
           if (direct) {
             if (probe.directOffset !== options.directOffset) throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
             return { ...probe, items: probe.items.slice(0, limit), cursorField: null };
@@ -1405,6 +1458,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
       return snapshot.products.filter((item) => {
         if (body[ALLGOODS_ONLY_IN_STOCK_FIELD] === true && !(item.inStock || (item.quantity ?? 0) > 0)) return false;
         if (options.pricedItemsOnly && !hasUsablePrice(item)) return false;
+        if (options.withPhotoOnly && item.hasPhoto !== true) return false;
         const price = typeof item.priceEuro === "number" && item.priceEuro > 0 ? item.priceEuro : null;
         if (typeof options.priceFrom === "number" && (price === null || price < options.priceFrom)) return false;
         if (typeof options.priceTo === "number" && (price === null || price > options.priceTo)) return false;
@@ -1433,7 +1487,7 @@ const fetchAllgoodsProductsPageDetailed = async (options: {
     for (let currentPage = 1; currentPage <= page; currentPage += 1) {
       const body: Record<string, unknown> = {
         ...requestBodyBase,
-        [ALLGOODS_LIMIT_FIELD]: limit,
+        [ALLGOODS_LIMIT_FIELD]: sourceLimit,
       };
       if (cursor) {
         body[ALLGOODS_CURSOR_FIELD] = cursor;
@@ -1880,6 +1934,7 @@ export const fetchCatalogProductsPage = async (options: {
 };
 
 const fetchCatalogProductsByQueryInner = async (options: {
+  vehicle?: VehicleSelection | null;
   directOffset?: number;
   page?: number;
   limit?: number;
@@ -1904,6 +1959,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
   forceAllgoodsSource?: boolean;
   includeDescription?: boolean;
   pricedItemsOnly?: boolean;
+  withPhotoOnly?: boolean;
   priceFrom?: number | null;
   priceTo?: number | null;
   onlyInStock?: boolean;
@@ -2162,6 +2218,10 @@ const fetchCatalogProductsByQueryInner = async (options: {
       allgoodsBaseBody[ALLGOODS_ONLY_IN_STOCK_FIELD] = true;
     }
 
+    if (options.withPhotoOnly) {
+      allgoodsBaseBody[ALLGOODS_ONLY_WITH_PHOTO_FIELD] = true;
+    }
+
     if (group && !subcategory) {
       allgoodsBaseBody[ALLGOODS_GROUP_FIELD] = group;
     } else if (subcategory) {
@@ -2189,6 +2249,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
           options.cacheTtlMs ??
           (page === 1 ? 1000 * 20 : 1000 * 15),
         pricedItemsOnly: options.pricedItemsOnly,
+        withPhotoOnly: options.withPhotoOnly,
         priceFrom: options.priceFrom,
         priceTo: options.priceTo,
         pricedFirst: !q,
@@ -2210,7 +2271,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
       return fetchAllgoodsProductsPageDetailed({
         page, limit, body, directOffset: options.directOffset,
         timeoutMs: options.timeoutMs, retries: 0, cacheTtlMs: options.cacheTtlMs,
-        pricedItemsOnly: options.pricedItemsOnly, priceFrom: options.priceFrom, priceTo: options.priceTo,
+        pricedItemsOnly: options.pricedItemsOnly, withPhotoOnly: options.withPhotoOnly,
+        priceFrom: options.priceFrom, priceTo: options.priceTo,
         pricedFirst: !searchQuery,
       });
     }
@@ -2225,8 +2287,9 @@ const fetchCatalogProductsByQueryInner = async (options: {
         const fields: SearchField[] = searchFilter === "all"
           ? ["name", "article", "code", "producer", "description"]
           : [searchFilter as SearchField];
-        const runSearchPage = (after: string) => searchProductFields({
+        const runSearchPage = (after: string) => searchProductFields<CatalogProduct>({
           query: searchQuery, fields, limit, cursor: after, sort: searchSort,
+          matches: options.vehicle ? item => matchesVehicleFitment(item.description, options.vehicle!) : undefined,
           fetchPage: (field, sourceCursor, batchLimit) => {
             const body = { ...allgoodsBaseBody, [fieldKeys[field]]:
               field === "article" || field === "code" ? compactSearchQuery : searchQuery };
@@ -2246,7 +2309,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
               page: 1, limit: batchLimit, body, cursor: sourceCursor,
               timeoutMs: options.timeoutMs, retries: options.retries,
               retryDelayMs: options.retryDelayMs, cacheTtlMs: options.cacheTtlMs,
-              pricedItemsOnly: options.pricedItemsOnly, priceFrom: options.priceFrom, priceTo: options.priceTo,
+              pricedItemsOnly: options.pricedItemsOnly, withPhotoOnly: options.withPhotoOnly,
+        priceFrom: options.priceFrom, priceTo: options.priceTo,
             });
           },
         });
@@ -2331,6 +2395,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
       (typeof item.priceEuro === "number" && Number.isFinite(item.priceEuro) && item.priceEuro > 0) ||
       item.hasPrice === true;
     if (options.pricedItemsOnly && !hasUsablePrice) return false;
+    if (options.withPhotoOnly && item.hasPhoto !== true) return false;
 
     const hasPriceBound =
       (typeof options.priceFrom === "number" && Number.isFinite(options.priceFrom)) ||
@@ -2389,7 +2454,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
     }
     const batchItems = parseItemsFromText(response.text);
     const matchedItems =
-      options.pricedItemsOnly || options.priceFrom != null || options.priceTo != null
+      options.pricedItemsOnly || options.withPhotoOnly || options.priceFrom != null || options.priceTo != null
         ? batchItems.filter(matchesPriceOptions)
         : batchItems;
     const pageItems = matchedItems.slice(windowStart, windowStart + limit);
@@ -2432,10 +2497,24 @@ const fetchCatalogProductsByQueryInner = async (options: {
 export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInner = async (
   options
 ) => {
+  if (options.withPhotoOnly) options = { ...options, forceAllgoodsSource: true };
+  const vehicle = readVehicleSelection(options.vehicle);
+  if (vehicle) {
+    if (options.directOffset !== undefined) throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
+    const query = vehicleModelQuery(vehicle);
+    if (!query) return { items: [], hasMore: false, nextCursor: "", totalCount: 0 };
+    const continuation = decodeSearchCursor(options.cursor || "");
+    const result = await fetchCatalogProductsByQueryInner({
+      ...options, vehicle, selectedCars: [], searchQuery: query, searchFilter: "description",
+      cursor: continuation?.cursor ?? options.cursor,
+      forceAllgoodsSource: true, includeDescription: true, preferLegacySource: false,
+    });
+    return { ...result, nextCursor: encodeSearchCursor(query, result.nextCursor) };
+  }
   if (options.directOffset !== undefined) {
     // Multi-car / expanded hierarchy are assembled from multiple independent
     // streams and cannot share a single offset without an upstream union.
-    if ((options.selectedCars?.length || 0) > 0 || options.expandHierarchy || (options.selectedCategories?.length || 0) > 1) {
+    if (options.withPhotoOnly || (options.selectedCars?.length || 0) > 0 || options.expandHierarchy || (options.selectedCategories?.length || 0) > 1) {
       throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
     }
     return fetchCatalogProductsByQueryInner({ ...options, forceAllgoodsSource: true });

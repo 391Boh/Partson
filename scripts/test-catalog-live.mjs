@@ -13,9 +13,11 @@ vm.runInNewContext(ts.transpileModule(readFileSync('app/api/catalog-live/route.t
  'app/api/_lib/partner-auth': {verifyPartnerRequest:async()=>false},
  'app/lib/product-edit-overrides': {getProductEditOverride:code=>code==='edited'?{name:'Нова назва',quantity:7,priceEuro:30}:null},
  'app/lib/catalog-server': {
+  CATALOG_CODE_LOOKUP_FIELDS: ['Код'],
+  fetchCatalogProductsByCodes: async () => null,
   fetchExactCatalogProductByLookup: async(code, options)=>{
    // A short shared cache: repeated polls from many tabs must not each hit 1C.
-   assert.equal(options.cacheTtlMs,20000);requests++;active++;peak=Math.max(peak,active);
+   assert.equal(options.cacheTtlMs,45000);requests++;active++;peak=Math.max(peak,active);
    await new Promise(resolve=>setTimeout(resolve,2));active--;
    if(fail)return null;
    return {code,name:'Товар',article:'A-'+code,producer:'Brand',quantity,priceEuro:price,costPriceEuro:999,description:'private'};

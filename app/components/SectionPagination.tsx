@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 // Shared pagination control for the homepage's three catalogue widgets
 // (Auto/tovar/Brands). Deliberately unboxed — no shared bordered/shadowed
@@ -39,6 +39,14 @@ type SectionPaginationProps = {
   canGoNext: boolean;
   tone?: SectionPaginationTone;
   className?: string;
+  counterLabel?: string;
+  availableCount?: number;
+  availableUnit?: string;
+  showAvailableCount?: boolean;
+  onSearch?: () => void;
+  searchSlotRef?: (node: HTMLDivElement | null) => void;
+  searchLabel?: string;
+  searchExpanded?: boolean;
 };
 
 export default function SectionPagination({
@@ -50,8 +58,16 @@ export default function SectionPagination({
   canGoNext,
   tone = "sky",
   className = "",
+  counterLabel = "Сторінка",
+  availableCount,
+  availableUnit,
+  showAvailableCount = true,
+  onSearch,
+  searchSlotRef,
+  searchLabel = "Пошук",
+  searchExpanded = false,
 }: SectionPaginationProps) {
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && (availableCount == null || !showAvailableCount)) return null;
   const t = TONE[tone];
   const progress = totalPages > 1 ? (page - 1) / (totalPages - 1) : 1;
 
@@ -59,7 +75,7 @@ export default function SectionPagination({
     <div
       role="group"
       aria-label={`Сторінка ${page} з ${totalPages}`}
-      className={`inline-flex items-center gap-2 ${className}`}
+      className={`section-pagination inline-flex items-center gap-2 ${className}`}
     >
       <button
         type="button"
@@ -71,8 +87,11 @@ export default function SectionPagination({
         <ChevronLeft size={17} strokeWidth={2.6} />
       </button>
 
-      <div className="flex flex-col items-center gap-1 px-0.5">
-        <span className="text-[11px] font-bold leading-none tabular-nums">
+      <div className="section-pagination-count flex flex-col items-center gap-1 px-0.5">
+        {showAvailableCount ? (
+          <span className="section-pagination-label hidden">{availableCount == null ? counterLabel : <>Доступно <strong>{availableCount}{availableUnit ? ` ${availableUnit}` : ""}</strong></>}</span>
+        ) : null}
+        <span className="section-pagination-value text-[11px] font-bold leading-none tabular-nums">
           <span className={t.active}>{page}</span>
           <span className="text-slate-400"> / {totalPages}</span>
         </span>
@@ -82,6 +101,11 @@ export default function SectionPagination({
             style={{ width: `${Math.max(10, progress * 100)}%` }}
           />
         </span>
+        {searchSlotRef ? <div className="home-picker-search-slot" ref={searchSlotRef} /> : onSearch && (
+          <button type="button" className="home-picker-search-toggle" onClick={onSearch} aria-label={searchLabel} aria-expanded={searchExpanded}>
+            <Search size={14} strokeWidth={2} aria-hidden /> Пошук
+          </button>
+        )}
       </div>
 
       <button

@@ -12,6 +12,7 @@ import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import ManufacturerCatalogProducts from "app/manufacturers/[slug]/ManufacturerCatalogProducts";
 import { brands } from "app/components/brandsData";
+import { resolveRenamedProducerRedirect } from "app/lib/producer-rename-redirects";
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
@@ -1234,6 +1235,9 @@ export async function generateMetadata({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
+    // A producer renamed or replaced in the admin panel keeps its old URL.
+    const renamed = await resolveRenamedProducerRedirect(slug);
+    if (renamed) permanentRedirect(renamed);
     notFound();
   }
 
@@ -1288,6 +1292,9 @@ export default async function ManufacturerDetailPage({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
+    // A producer renamed or replaced in the admin panel keeps its old URL.
+    const renamed = await resolveRenamedProducerRedirect(slug);
+    if (renamed) permanentRedirect(renamed);
     notFound();
   }
   if (slug !== producer.slug) {

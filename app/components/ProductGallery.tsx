@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import ProductGalleryThumbnail from "./ProductGalleryThumbnail";
 import { ChevronLeft, ChevronRight, ImagePlus, Loader2, X } from "lucide-react";
 
 import { useProductImageUpdate } from "app/lib/product-image-updates";
@@ -21,11 +21,14 @@ export default function ProductGallery({
   code,
   productName,
   initialImages = [],
+  initialImagesResolved = false,
   mainImageSrc = null,
 }: {
   code: string;
   productName: string;
   initialImages?: string[];
+  // A confirmed empty server result needs no duplicate browser lookup.
+  initialImagesResolved?: boolean;
   // The main 1C photo shown above this strip — included here as the first,
   // non-removable tile so this reads as one unified "pick a photo" list
   // (main + additional) instead of a separate reset button next to a
@@ -82,7 +85,7 @@ export default function ProductGallery({
   }, []);
 
   useEffect(() => {
-    if (!code || initialImages.length > 0) return;
+    if (!code || initialImagesResolved || initialImages.length > 0) return;
     const controller = new AbortController();
     void fetch(`/api/product-gallery?code=${encodeURIComponent(code)}`, {
       signal: controller.signal,
@@ -95,7 +98,7 @@ export default function ProductGallery({
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [code, initialImages.length]);
+  }, [code, initialImages.length, initialImagesResolved]);
 
   useEffect(() => {
     if (!code || !isAdmin) return;
@@ -145,6 +148,15 @@ export default function ProductGallery({
         detail: { code, imageUrl },
       })
     );
+  }, [code]);
+
+  useEffect(() => {
+    const syncSelection = (event: Event) => {
+      const detail = (event as CustomEvent<ProductGallerySelectionDetail>).detail;
+      if (detail?.code.trim() === code.trim()) setSelectedImageUrl(detail.imageUrl || null);
+    };
+    window.addEventListener(PRODUCT_GALLERY_SELECTION_EVENT, syncSelection);
+    return () => window.removeEventListener(PRODUCT_GALLERY_SELECTION_EVENT, syncSelection);
   }, [code]);
 
   useEffect(() => {
@@ -264,8 +276,6 @@ export default function ProductGallery({
     };
   }, [canSwipe]);
 
-  if (photoUrls.length === 0 && !isAdmin) return null;
-
   const arrowButton = (direction: -1 | 1) => (
     <button
       type="button"
@@ -313,13 +323,10 @@ export default function ProductGallery({
               aria-pressed={!selectedImageUrl}
               className="product-gallery-thumb"
             >
-              <Image
+              <ProductGalleryThumbnail
+                key={currentMainImageSrc}
                 src={currentMainImageSrc}
                 alt={`${productName} — основне фото`}
-                fill
-                sizes="56px"
-                loading="lazy"
-                className="object-contain p-1"
               />
             </button>
             {isAdmin ? <span className="product-gallery-badge">Основне</span> : null}
@@ -334,19 +341,10 @@ export default function ProductGallery({
               aria-pressed={selectedImageUrl === image.url}
               className="product-gallery-thumb"
             >
-              {/* Thumbnails render at 64-72px CSS, but image.url points at the
-                  raw, full-resolution Firebase Storage upload (up to 3MB) —
-                  a plain <img> pulled that whole file for a postage-stamp
-                  preview. Firebase Storage is already an allowed remote
-                  pattern in next.config.ts, so next/image downsizes and
-                  re-encodes (AVIF/WebP) it through the normal optimizer. */}
-              <Image
+              <ProductGalleryThumbnail
+                key={image.url}
                 src={image.url}
                 alt={`${productName} — додаткове фото ${index + 1}`}
-                fill
-                sizes="56px"
-                loading="lazy"
-                className="object-contain p-1"
               />
             </button>
             {isAdmin && (
@@ -368,7 +366,7 @@ export default function ProductGallery({
           </div>
         ))}
 
-        {isAdmin && (
+        {isAdmin ? (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -381,6 +379,11 @@ export default function ProductGallery({
             ) : (
               <ImagePlus className="h-4 w-4" />
             )}
+            <span>Додати</span>
+          </button>
+        ) : (
+          <button type="button" disabled tabIndex={-1} aria-hidden="true" className="product-gallery-add product-gallery-admin-preview">
+            <ImagePlus className="h-4 w-4" />
             <span>Додати</span>
           </button>
         )}
