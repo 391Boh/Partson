@@ -12,7 +12,8 @@ try {
   const cover=page.locator('.home-highlights[data-server-resolved]:visible .home-highlight-feature:not(.is-previous) img');
   await cover.waitFor();
   await cover.evaluate(img=>img.decode());
-  assert.equal(await cover.getAttribute('loading'),'eager');
+  assert.notEqual(await cover.getAttribute('loading'),'lazy');
+  assert(await page.locator('link[rel=preload][as=image]').count() > 0, 'First cover is preloaded from server HTML');
   const src=await cover.evaluate(img => img.currentSrc);
   assert((await response.text()).includes('home-highlight-cover'), 'Initial HTML includes a cover before hydration');
   const html=await response.text();

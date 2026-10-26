@@ -67,7 +67,9 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
     const controller = new AbortController();
     // Revalidate the small preview payload at hydration. The server-provided
     // cover is already downloading; API latency never gates its first paint.
-    void fetch("/api/home-blog?view=all", { signal: controller.signal })
+    // Refresh after the initial render, without competing with the hero and
+    // first article cover. Cached server content is already usable immediately.
+    const refresh = () => { void fetch("/api/home-blog?view=all", { signal: controller.signal })
       .then(response => response.ok ? response.json() : null)
       .then((payload: { items?: HomeHighlight[] } | null) => {
         if (!controller.signal.aborted && payload?.items?.length) {
@@ -82,9 +84,10 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
           }
         }
       })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [serverResolved]);
+      .catch(() => {}); };
+    const timer = window.setTimeout(refresh, initialArticles.length ? 2000 : 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [serverResolved, initialArticles.length]);
 
   // The contour's running light is measured in screen pixels (its stroke
   // does not scale with the SVG), so it needs the block's real perimeter.
@@ -220,7 +223,8 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                   {serverResolved && <Image
                     src={item.image} alt={item.imageAlt} fill
                     sizes="(max-width: 767px) 100vw, 57vw"
-                    loading={outgoing ? "lazy" : "eager"}
+                    preload={!outgoing && item.id === initialArticles[0]?.id}
+                    loading={item.id === initialArticles[0]?.id && !outgoing ? undefined : outgoing ? "lazy" : "eager"}
                     className="home-highlight-cover"
                     onLoad={event => { event.currentTarget.dataset.loaded = "true"; }}
                   />}

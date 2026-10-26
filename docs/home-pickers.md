@@ -138,3 +138,47 @@ Refined the store overview with a shared heading, left-hand desktop Google map a
 
 ### Faster homepage article preview
 Replaced the 600ms server race with a streamed result and a shared compact-highlight cache (600s, blog-posts invalidation tag). Previously a cold database result could be discarded and retried after hydration, then text waited for cover decode. The first real article now appears independently of image decoding; identical API refreshes do not preload the same slide again. Subsequent slide changes still retain the previous decoded cover until replacement is ready. ESLint, TypeScript, production build and mobile/desktop first-paint checks passed. No deployment.
+
+
+### SEO copy with a single store background
+Replaced the repeated foreground storefront/display gallery with one different original shop photo (storefront/photos/bg/store-2.webp) behind the assortment copy. A directional light gradient protects text contrast; the absolutely positioned photograph does not change layout. Edited the main heading to “Автозапчастини у Львові”, simplified the introduction, clarified assortment headings and made the assistance copy more actionable. Desktop map remains left; FAQ stays native and keyboard accessible. Checked 1440/390/320px layouts, eager map/stable geometry, one background image, source asset loading, links, TypeScript, ESLint and production compilation. Follow-up is local only; production bc2a820 was not changed.
+
+
+### Google 360° store tour before questions
+Integrated the owner's Google photosphere in StoreVirtualTour immediately before the help/questions block. Verified the real PartsON interior in Google's iframe at 1440px and 390px, including attribution and native fullscreen controls. Preserve the full encoded photosphere ID; using its decoded image ID opens outdoor Street View instead. The original external link also needs the iu parameter (without it Google returns HTTP 400).
+
+The viewer reserves a 440px/320px frame and loads only within 500px of the viewport, or after explicit activation. Before activation the iframe cannot capture page scrolling or keyboard focus. Start/finish controls preserve geometry and retain the existing iframe rather than reloading Google. scripts/test-store-virtual-tour.mjs passed at 1440/390/320px; targeted ESLint, TypeScript and production compilation passed. Current changes remain local; production bc2a820 is unchanged.
+
+
+Tour visual polish: light directional header/footer gradients, compass accent, localized 2–3px corner blur clear of Google controls/credits, and an animated launch button with a single reveal and hover sheen. Blur disappears during interaction; prefers-reduced-motion disables animation. Desktop/mobile real-panorama inspection, 1440/390/320px interaction and geometry checks, reduced-motion checks, ESLint, TypeScript and production compilation passed. Local only, no deployment.
+
+
+Facade-first tour: start at the linked exterior photosphere CAoSHENJQUJJaERweU82YUFqUGxzLVlzYjl1U2lUTm0=, heading 160°, pitch 0°. Verified the PartsON signage/entrance and Google navigation back inside. The outbound link now uses Google Maps map_action=pano with the same full panorama ID. This supersedes the previous interior start and iu-specific outbound-link requirement. No deployment.
+
+
+### Homepage loading refinement
+Tour: a 20KB original facade poster gives the reserved viewer immediate visual content while Google starts; the iframe preloads within 900px, with the same facade-first panorama and scroll/focus controls. Tightened header spacing; retained corner treatment and reduced-motion behavior. The official location map stays server-rendered and now uses native lazy loading, removing offscreen Google work from initial loading.
+Blog: preload the first streamed article cover from server HTML, retain readable text independent of image/API completion, and defer the background refresh 2s when server articles already exist. No artificial delay for an empty result.
+Verified 390/1440px real Google screenshots and full-page asset traversal: no HTTP errors, JS errors, broken loaded images or horizontal overflow; 320/390/1440px tour controls and stable geometry; first-article stalled-cover/API regression; map geometry; ESLint, TypeScript, production compilation. Local lab CLS 0 on mobile and desktop. No deployment.
+
+
+### Blog timeout recovery
+Removed eager console.error logging from the strict blog list accessor; callers still receive the rejection for ISR preservation. Homepage previews catch transient failures outside the persistent cache, retain the last successful in-process result, share one in-flight request, and wait 30s before retrying. Successful empty results still clear removed posts. Cold failures show the existing blog overview. No timeout increase or deployment. Regression test scripts/test-home-blog-cache.mjs covers failure, concurrency, cooldown, recovery and successful deletion; ESLint and TypeScript passed.
+
+
+Information-card redesign: consolidated the detached SEO heading/intro into the photograph-backed assortment panel. One h2, local catalogue kicker, three numbered h3 rows, a primary catalogue action, secondary delivery link and compact directory navigation. Original 29KB shop photo stays lazy and decorative; no new client code. Preserved adjacent map/tour/help. Checked 390/1440px screenshots on the development server, headings/links, image decode and no horizontal overflow; ESLint, TypeScript and CSS compilation passed. No deployment.
+
+
+Shared photographic frame: moved the single decorative shop image behind the entire location/assortment grid, including the map surround. Increased image visibility, added a translucent readable copy surface and coordinated map footer. Fine-pointer hover gently scales/saturates the photograph and fades a gradient overlay; no map controls or attribution are covered. Reduced-motion disables transitions/zoom; mobile uses the static treatment. Desktop-hover and mobile screenshots, image decode, heading/navigation counts, overflow, ESLint, TypeScript and CSS build passed. No deployment.
+
+
+Full-component background: the single shop photograph now belongs directly to home-store-editorial and covers the complete section, including location, tour and help surrounds. Reserved content layers stay above it; responsive cover cropping, readability gradients, fine-pointer hover and reduced-motion behavior are preserved. Checked mobile/desktop section screenshots, single h2, navigation and overflow, plus ESLint/CSS build. Local only.
+
+
+Natural-scale background and open layout: replaced the 600px cropped background with an optimized 765×1020 WebP from the original shop photo, capped at its native width with no cover stretch, filter or hover zoom. Edge masks blend into the section gradient. Removed decorative card borders/backgrounds/shadows from the grid, copy, tour shell and help; retained rounded actual map/panorama viewports. Hover changes photo opacity only. Mobile/desktop screenshots, headings/navigation/overflow, ESLint and CSS build checked. Local only.
+
+
+Depth refinement: subtle top-left light, soft contact shadows under map and panorama, restrained heading shadow, button depth and highlighted rules. Open layout and natural-scale photo retained; no new containers, assets or JavaScript. Mobile/desktop screenshots and geometry checks, CSS build and diff checks passed. Local only.
+
+
+Location/tour design refresh: added a compact location heading, unified address/contact/review footer with restrained star accent, matching typography and soft viewport shadows. Tour now has a small editorial kicker, a 360° heading, underlined Google link and a pill launch control with compass medallion. Preserved Google controls/attribution, facade start, activation/finish behavior and lazy loading. Real Google desktop/mobile screenshots, map layout checks and tour keyboard/geometry tests at 320/390/1440px passed, as did ESLint, TypeScript and CSS compilation. No deployment.

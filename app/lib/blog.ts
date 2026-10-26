@@ -156,14 +156,9 @@ export const getPublishedBlogPosts = cache(async () => {
 // returning [] so a Firestore timeout during revalidation keeps serving the
 // last good render. The lenient getPublishedBlogPosts() above turned one
 // timeout into an empty blog cached for the whole revalidate window.
-export const getPublishedBlogPostsOrThrow = cache(async () => {
-  try {
-    return await getPublishedBlogPostsCached();
-  } catch (error) {
-    console.error("Failed to load blog posts", error);
-    throw error;
-  }
-});
+// Let each caller handle the rejection. Logging here raised a development
+// error overlay even when the homepage had already caught the timeout.
+export const getPublishedBlogPostsOrThrow = cache(() => getPublishedBlogPostsCached());
 
 // Unlike getPublishedBlogPosts(), a failed lookup is rethrown rather than mapped to
 // null: callers treat null as "no such post" and answer 404, so a Firestore
