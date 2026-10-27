@@ -494,7 +494,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       {
         "@type": "ListItem",
         position: 3,
-        name: group.label,
+        name: buildVisibleGroupName(group.label),
         item: canonicalPageUrl,
       },
     ],

@@ -995,7 +995,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       {
         "@type": "ListItem",
         position: 3,
-        name: item.groupLabel,
+        name: buildVisibleGroupName(item.groupLabel),
         item: `${siteUrl}${groupPagePath}`,
       },
   ];
@@ -1005,7 +1005,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       {
         "@type": "ListItem",
         position: 4,
-        name: item.parentSubgroupLabel,
+        name: buildVisibleGroupName(item.parentSubgroupLabel),
         item: `${siteUrl}${buildGroupItemPath(
           item.groupSlug,
           item.parentSubgroupSlug || item.itemSlug
@@ -1014,7 +1014,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       {
         "@type": "ListItem",
         position: 5,
-        name: item.label,
+        name: buildVisibleGroupName(item.label),
         item: canonicalPageUrl,
       }
     );
@@ -1022,7 +1022,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 4,
-      name: item.label,
+      name: buildVisibleGroupName(item.label),
       item: canonicalPageUrl,
     });
   }
