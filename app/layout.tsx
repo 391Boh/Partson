@@ -172,6 +172,35 @@ const analyticsConsentBootstrap = `
       wait_for_update:500
     });
     w.gtag('set','ads_data_redaction',!advertisingGranted);
+    // The banner is in the server HTML, so visitors tap it before hydration;
+    // React would then hydrate synchronously inside that tap (~1 s INP on
+    // phones). Until the banner hydrates, record the choice here: same
+    // cookies, hidden by the data-consent-preferences rule. On hydration the
+    // banner reads the cookies and updates Google consent as for a returning
+    // visitor.
+    // React also hydrates synchronously on pointer/touch down, so those stop
+    // here too (their default actions, and so the click, still happen).
+    var consentButton=function(e){
+      if(d.documentElement.getAttribute('data-consent-hydrated'))return null;
+      return e.target&&e.target.closest&&e.target.closest('[data-consent-action]');
+    };
+    ['pointerdown','pointerup','mousedown','mouseup','touchstart','touchend'].forEach(function(type){
+      d.addEventListener(type,function(e){if(consentButton(e))e.stopImmediatePropagation();},{capture:true,passive:true});
+    });
+    d.addEventListener('click',function(e){
+      var root=d.documentElement;
+      var button=consentButton(e);
+      if(!button)return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var choice=button.getAttribute('data-consent-action')==='all'?'granted':'denied';
+      var tail='; Path=/; Max-Age=15552000; SameSite=Lax'+(w.location.protocol==='https:'?'; Secure':'');
+      d.cookie='partson_analytics_consent='+choice+tail;
+      d.cookie='partson_advertising_consent='+choice+tail;
+      root.setAttribute('data-analytics-consent',choice);
+      root.setAttribute('data-advertising-consent',choice);
+      root.setAttribute('data-consent-preferences','complete');
+    },true);
   })(window,document);
 `;
 

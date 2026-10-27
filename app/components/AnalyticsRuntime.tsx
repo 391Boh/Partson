@@ -282,6 +282,9 @@ function AnalyticsConsentBanner({
       updateGoogleConsent(selection);
     }
     onConsentChange(selection);
+    // From here on the buttons below handle taps; the <head> bootstrap only
+    // covers the window before hydration (see layout.tsx).
+    document.documentElement.dataset.consentHydrated = "true";
 
     const openSettings = () => {
       const currentSelection = readConsentSelection();
@@ -405,6 +408,7 @@ function AnalyticsConsentBanner({
       <div className="analytics-consent-actions mt-4 grid grid-cols-2 gap-2">
         <button
           type="button"
+          data-consent-action={showDetails ? undefined : "necessary"}
           onClick={() =>
             showDetails
               ? saveSelection({ analyticsGranted, advertisingGranted })
@@ -416,6 +420,7 @@ function AnalyticsConsentBanner({
         </button>
         <button
           type="button"
+          data-consent-action="all"
           onClick={() =>
             saveSelection({ analyticsGranted: true, advertisingGranted: true })
           }
