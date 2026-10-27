@@ -13,7 +13,7 @@ import {
   stripRomanNumeralsFromModel,
   stripTrailingChassisCode,
 } from "app/lib/car-model-search";
-import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, peekSnapshotFitmentFamilies, type CatalogProduct } from "app/lib/catalog-server";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -609,6 +609,37 @@ export const readModelBreakdownSnapshot = async (
     return null;
   }
 };
+
+// The make's model families that fit the most products ("Lanos", "Aveo",
+// "Sprinter" — the first word of "Lanos (KLAT)"), counted from the fitment
+// lines of product descriptions where the make is explicit: what the brand
+// page's description lists, instead of a sentence that only swaps the make
+// name. Purely numeric or one/two-letter families ("124", "C", "GT") read
+// as codes, so they are skipped unless they mix letters and digits ("X5").
+// [] until the catalog snapshot is warm; the page then keeps the neutral
+// sentence until its next revalidation.
+const isCountableModelFamily = (family: string) =>
+  /^[A-Za-z]{3,}$/.test(family) || /^(?:[A-Za-z]+\d+|\d+[A-Za-z]+)[A-Za-z\d]*$/.test(family);
+const readableFamily = (family: string) =>
+  /^[A-Z]{4,}$/.test(family) ? family[0] + family.slice(1).toLowerCase() : family;
+export const getPopularModelFamilies = cache(
+  async (brand: string, models: readonly AutoModelListEntry[], limit = 4): Promise<string[]> => {
+    const counts = peekSnapshotFitmentFamilies(brand);
+    if (!counts || counts.size === 0) return [];
+    // The site's own spelling when the make lists that family ("Lanos").
+    const spelling = new Map<string, string>();
+    for (const model of models) {
+      const family = model.name.trim().split(/\s+/)[0] || "";
+      const key = family.toUpperCase();
+      if (family && (!spelling.has(key) || family !== key)) spelling.set(key, family);
+    }
+    return Array.from(counts)
+      .filter(([family]) => isCountableModelFamily(family))
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, limit)
+      .map(([family]) => readableFamily(spelling.get(family) ?? family));
+  }
+);
 
 const writeModelBreakdownSnapshot = async (brand: string, model: string, data: BreakdownData) => {
   try {

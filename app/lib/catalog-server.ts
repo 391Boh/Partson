@@ -1,4 +1,5 @@
 import "server-only";
+import { splitProductFitmentLine } from "app/lib/product-fitment-format";
 import { readVehicleSelection, vehicleModelQuery, matchesVehicleFitment, type VehicleSelection } from "./vehicle-fitment";
 
 import { oneCRequest } from "app/api/_lib/oneC";
@@ -3476,6 +3477,66 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
   }
 
   throw new Error("Full catalog snapshot exceeded its page limit");
+};
+
+// The 1C description of one product from the warm snapshot, or "" — never
+// waits for a scan. Product-page metadata reads the fitment line from it
+// without a separate 1C description call (that one streams in later).
+const snapshotDescriptionIndex = new WeakMap<FullCatalogSnapshot, Map<string, string>>();
+export const peekSnapshotProductDescription = (code: string) => {
+  const snapshot = fullCatalogCache;
+  const key = (code || "").trim().toLowerCase();
+  if (!snapshot || !key) return "";
+  let index = snapshotDescriptionIndex.get(snapshot);
+  if (!index) {
+    index = new Map();
+    for (const product of snapshot.products) {
+      if (product.code && product.description) index.set(product.code.trim().toLowerCase(), product.description);
+    }
+    snapshotDescriptionIndex.set(snapshot, index);
+  }
+  return index.get(key) || "";
+};
+
+// How many products fit each model family of a make, from the fitment line
+// of the warm snapshot's descriptions ("DAEWOO LANOS (KLAT)" → DAEWOO ›
+// LANOS) — the make is explicit there, unlike product names. null while the
+// snapshot is cold; never waits for a scan.
+const FITMENT_MAKE_ALIASES: Record<string, string> = {
+  VW: "VOLKSWAGEN", MB: "MERCEDES-BENZ", MERCEDES: "MERCEDES-BENZ", "MERCEDES BENZ": "MERCEDES-BENZ",
+};
+const fitmentMake = (brand: string) => {
+  const key = brand.trim().toUpperCase();
+  return FITMENT_MAKE_ALIASES[key] ?? key;
+};
+const snapshotFitmentFamilies = new WeakMap<FullCatalogSnapshot, Map<string, Map<string, number>>>();
+export const peekSnapshotFitmentFamilies = (brand: string): Map<string, number> | null => {
+  const snapshot = fullCatalogCache;
+  if (!snapshot) return null;
+  let byMake = snapshotFitmentFamilies.get(snapshot);
+  if (!byMake) {
+    byMake = new Map();
+    for (const product of snapshot.products) {
+      const line = (product.description || "").split(/\r?\n/)[0]?.trim();
+      const fitment = line ? splitProductFitmentLine(line) : null;
+      if (!fitment) continue;
+      const seen = new Set<string>();
+      for (const group of fitment.groups) {
+        const make = fitmentMake(group.brand);
+        for (const model of group.models) {
+          const family = model.trim().split(/\s+/)[0]?.toUpperCase() || "";
+          const key = `${make}::${family}`;
+          if (!family || seen.has(key)) continue;
+          seen.add(key);
+          const families = byMake.get(make) ?? new Map<string, number>();
+          families.set(family, (families.get(family) ?? 0) + 1);
+          byMake.set(make, families);
+        }
+      }
+    }
+    snapshotFitmentFamilies.set(snapshot, byMake);
+  }
+  return byMake.get(fitmentMake(brand)) ?? new Map();
 };
 
 // Stale-while-revalidate: a full catalog walk costs ~20 sequential 1C calls

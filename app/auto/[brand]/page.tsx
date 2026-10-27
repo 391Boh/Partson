@@ -8,7 +8,7 @@ import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import { carBrands } from "app/components/carBrands";
-import { findCarBrandBySlug, getModelsForBrand } from "app/lib/auto-directory-data";
+import { findCarBrandBySlug, getModelsForBrand, getPopularModelFamilies } from "app/lib/auto-directory-data";
 import { buildCarBrandInfoParagraph } from "app/lib/car-brand-info";
 import { formatCarBrandWithCyrillic, getCarBrandCyrillicName } from "app/lib/car-brand-cyrillic";
 import { buildAutoBrandPath, buildAutoModelPath } from "app/lib/catalog-links";
@@ -56,8 +56,15 @@ interface AutoBrandPageProps {
 // Deliberately avoids "наявність"/"N моделей" — the title (see
 // generateMetadata below) already owns that claim — so the two read as
 // distinct sentences instead of echoing each other.
-const buildBrandModelsDescription = (brandName: string) =>
-  `Оберіть модель ${formatCarBrandWithCyrillic(brandName)} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні.`;
+// Popular families (most products in stock) make each make's sentence its
+// own: "Запчастини для BMW 3er, 5er, X5 і 1er — …".
+const buildBrandModelsDescription = (brandName: string, popularFamilies: readonly string[] = []) => {
+  const families = popularFamilies.filter(Boolean);
+  const subject = families.length > 1
+    ? `Запчастини для ${formatCarBrandWithCyrillic(brandName)} ${families.slice(0, -1).join(", ")} і ${families[families.length - 1]} та інших моделей`
+    : `Оберіть модель ${formatCarBrandWithCyrillic(brandName)}`;
+  return `${subject} — оригінали й аналоги, ціни та підбір деталей у каталозі PartsON. Магазин у Львові, доставка по Україні.`;
+};
 
 export async function generateMetadata({ params }: AutoBrandPageProps): Promise<Metadata> {
   const { brand: brandSlug } = await params;
@@ -90,7 +97,8 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
     cyrillicTitle && cyrillicTitle !== `Запчастини ${brand.name} (${cyrillicName})`
       ? cyrillicTitle
       : buildFirstFittingSeoTitle(`Запчастини ${brand.name}`, titleTails);
-  const description = appendSeoContact(buildBrandModelsDescription(brand.name));
+  const popularFamilies = await getPopularModelFamilies(brand.name, modelsData?.models ?? [], 3);
+  const description = appendSeoContact(buildBrandModelsDescription(brand.name, popularFamilies));
 
   return buildPageMetadata({
     title,
@@ -135,7 +143,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
   // below it already says "моделі".
   const title = `Запчастини ${brand.name} за моделлю`;
   const brandPath = buildAutoBrandPath(brand.name);
-  const pageDescription = buildBrandModelsDescription(brand.name);
+  const pageDescription = buildBrandModelsDescription(brand.name, await getPopularModelFamilies(brand.name, models, 3));
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",

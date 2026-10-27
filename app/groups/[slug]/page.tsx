@@ -36,6 +36,10 @@ import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
+
+// Display only: slugs and 1C filters keep the raw 1C label.
+const buildVisibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
 import { getGroupSeoCopy } from "app/lib/seo-copy";
 import {
   appendSeoContactLast,
@@ -182,12 +186,12 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 // buildAdaptiveSeoTitle drops the decorative suffix rather than risk a
 // Google-truncated title once the layout's " | PartsON" template is added.
 const buildGroupTitle = (label: string) =>
-  buildAdaptiveSeoTitle(buildVisibleProductName(label), " — каталог запчастин");
+  buildAdaptiveSeoTitle(buildVisibleGroupName(label), " — каталог запчастин");
 
 // The <title> targets the commercial query ("амортизація купити", "… ціна",
 // "… львів"); the on-page H1 keeps the calmer buildGroupTitle wording.
 const buildGroupSeoTitle = (label: string) =>
-  buildFirstFittingSeoTitle(buildVisibleProductName(label), [
+  buildFirstFittingSeoTitle(buildVisibleGroupName(label), [
     " — купити запчастини, ціни у Львові",
     " — купити запчастини, ціни",
     " — запчастини, ціни",
@@ -211,7 +215,7 @@ const buildGroupDescription = (
   productCount: number,
   subgroups: GroupDescriptionSubgroup[]
 ) => {
-  const visibleLabel = buildVisibleProductName(label);
+  const visibleLabel = buildVisibleGroupName(label);
   const productLabel =
     productCount > 0
       ? `${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}`
@@ -219,7 +223,7 @@ const buildGroupDescription = (
   const rankedSubgroups = subgroups
     .filter((subgroup) => subgroup.productCount > 0)
     .sort((a, b) => b.productCount - a.productCount)
-    .map((subgroup) => lowerFirstSeoWord(buildVisibleProductName(subgroup.label)));
+    .map((subgroup) => lowerFirstSeoWord(buildVisibleGroupName(subgroup.label)));
   const buildSubgroupClause = (namedCount: number) => {
     const named = rankedSubgroups.slice(0, namedCount);
     if (!named.length) return "";
@@ -246,7 +250,7 @@ const buildGroupHeroDescription = (
   _subgroupsCount: number,
   hasSubgroups: boolean
 ) => {
-  const visibleLabel = buildVisibleProductName(label);
+  const visibleLabel = buildVisibleGroupName(label);
 
   if (hasSubgroups) {
     return `Оберіть групу запчастин у категорії «${visibleLabel}». Далі можна переглянути товари, порівняти виробників, ціну та наявність.`;
@@ -263,7 +267,7 @@ const buildGroupHeroDetails = (
   label: string,
   hasSubgroups: boolean
 ) => {
-  const visibleLabel = buildVisibleProductName(label);
+  const visibleLabel = buildVisibleGroupName(label);
 
   if (hasSubgroups) {
     return "Перед замовленням перевірте артикул, сторону встановлення та застосування до вашої модифікації автомобіля.";
@@ -364,7 +368,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       `ціна ${group.label}`,
       "групи автозапчастин",
     ],
-    openGraphTitle: `${buildVisibleProductName(group.label)} — каталог автозапчастин | PartsON`,
+    openGraphTitle: `${buildVisibleGroupName(group.label)} — каталог автозапчастин | PartsON`,
     // The segment's opengraph-image/twitter-image card (1200×630) supplies
     // og/twitter images; explicit ones here would override it.
     image: null,
@@ -409,8 +413,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   const primaryImagePath = productPreview?.url || categoryIconPath;
   const primaryImageUrl = `${siteUrl}${primaryImagePath}`;
   const primaryImageAlt =
-    productPreview?.alt || `Категорія автозапчастин «${buildVisibleProductName(group.label)}»`;
-  const visibleGroupLabel = buildVisibleProductName(group.label);
+    productPreview?.alt || `Категорія автозапчастин «${buildVisibleGroupName(group.label)}»`;
+  const visibleGroupLabel = buildVisibleGroupName(group.label);
   const hasSubgroups = group.subgroups.length > 0;
   const description = buildGroupDescription(
     group.label,
@@ -606,7 +610,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               stretches the cards next to it. */}
           <div className="cat-groups">
             {group.subgroups.map((subgroup) => {
-              const subgroupName = buildVisibleProductName(subgroup.label);
+              const subgroupName = buildVisibleGroupName(subgroup.label);
               const subgroupPreview = getGroupProductPreview({
                 categoryLabel: group.label,
                 itemLabel: subgroup.label,
@@ -660,7 +664,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                             href={buildGroupItemPath(group.slug, child.slug)}
                             className="cat-subgroup"
                           >
-                            <span className="cat-subgroup-name">{buildVisibleProductName(child.label)}</span>
+                            <span className="cat-subgroup-name">{buildVisibleGroupName(child.label)}</span>
                             <span className="cat-subgroup-count">{formatCount(child.productCount)}</span>
                           </CatalogPrefetchLink>
                         </li>

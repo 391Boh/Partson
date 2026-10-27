@@ -12,6 +12,7 @@ import {
   writeCatalogBrowserCache,
 } from "app/lib/catalog-client-cache";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import { fetchCatalogTree } from "app/lib/onec-proxy-client";
 import {
@@ -93,10 +94,11 @@ const stripParentheticalMeta = (value: string) => {
     .trim();
   return normalized || normalizeLabel(value);
 };
+// Display only: selection and 1C filters keep the raw label.
 const getCompactDisplayLabel = (value: string) =>
-  buildVisibleProductName(
+  formatCatalogLabel(buildVisibleProductName(
     stripParentheticalMeta(value) || "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0438"
-  );
+  ));
 const normalizeCategoryKey = (value: string) =>
   normalizeLabel(value).toLowerCase().replace(/\s+/g, " ");
 const normalizeNodeName = (node?: ProductNode | null) => {

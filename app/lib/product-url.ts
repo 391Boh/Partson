@@ -1,4 +1,5 @@
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
 
 export const safeDecodeURIComponent = (value: string): string => {
   try {
@@ -70,7 +71,8 @@ export const buildVisibleCategoryLabel = (value: string) => {
   if (!source) return "";
 
   const cleaned = source.replace(/\s*\([^)]*\)/g, "").replace(/\s{2,}/g, " ").trim();
-  return cleaned || source;
+  // Display only (spelling, "/" spacing): filters and slugs use the raw label.
+  return formatCatalogLabel(cleaned || source);
 };
 
 // Real cross-reference codes only ever use Latin letters, digits, dots,

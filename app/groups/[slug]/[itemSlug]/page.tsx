@@ -53,6 +53,10 @@ import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-format";
+
+// Display only: slugs and 1C filters keep the raw 1C label.
+const buildVisibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import {
@@ -639,10 +643,10 @@ const SEO_DESCRIPTION_TAILS = [
 // Names the leading brands so the snippet answers "which makers?" and
 // matches brand-qualified queries ("масляний фільтр bosch").
 const buildGroupItemDescription = (item: GroupItemPageData) => {
-  const visibleLabel = buildVisibleProductName(item.label);
+  const visibleLabel = buildVisibleGroupName(item.label);
   // buildVisibleProductName("") returns the generic "Товар" placeholder.
   const visibleParentLabel = item.parentSubgroupLabel
-    ? buildVisibleProductName(item.parentSubgroupLabel)
+    ? buildVisibleGroupName(item.parentSubgroupLabel)
     : "";
   const subject =
     visibleParentLabel &&
@@ -703,9 +707,9 @@ const buildStaticSlugCandidates = (
 const GROUP_ITEM_TITLE_TAILS = [" — купити, ціни у Львові", " — купити, ціни", " — ціни"] as const;
 
 const buildGroupItemTitle = (item: GroupItemPageData) => {
-  const visibleLabel = buildVisibleProductName(item.label);
+  const visibleLabel = buildVisibleGroupName(item.label);
   const visibleContext = item.parentSubgroupLabel
-    ? buildVisibleProductName(item.parentSubgroupLabel)
+    ? buildVisibleGroupName(item.parentSubgroupLabel)
     : "";
   const hasDistinctContext =
     Boolean(visibleContext) &&
@@ -883,9 +887,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   });
   const primaryImagePath = productPreview?.url || categoryIconPath;
   const primaryImageUrl = `${siteUrl}${primaryImagePath}`;
-  const visibleLabel = buildVisibleProductName(item.label);
-  const visibleGroupLabel = buildVisibleProductName(item.groupLabel);
-  const visibleParentLabel = buildVisibleProductName(item.parentSubgroupLabel);
+  const visibleLabel = buildVisibleGroupName(item.label);
+  const visibleGroupLabel = buildVisibleGroupName(item.groupLabel);
+  const visibleParentLabel = buildVisibleGroupName(item.parentSubgroupLabel);
   const primaryImageAlt =
     productPreview?.alt || `Категорія автозапчастин «${visibleLabel}»`;
   const pageDescription = item.parentSubgroupLabel
@@ -970,7 +974,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
             subGroup: product.subGroup,
             category: product.category,
           })}`,
-          name: buildVisibleProductName(product.name),
+          name: fixCatalogSpelling(buildVisibleProductName(product.name)),
         })),
       }
     : null;
@@ -1172,7 +1176,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                     </span>
                     <div className="min-w-0 flex-1">
                       <span className="block font-semibold leading-snug">
-                        {buildVisibleProductName(child.label)}
+                        {buildVisibleGroupName(child.label)}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1.5 self-start">

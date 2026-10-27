@@ -7,26 +7,37 @@ function load(file) {
   if (modules.has(file)) return modules.get(file);
   const exports = {};
   modules.set(file, exports);
+  const dir = file.slice(0, file.lastIndexOf('/'));
+  // "app/lib/x" from the alias, "./x" relative to the importing module.
+  const resolve = (name) => name.startsWith('./') ? `${dir}/${name.slice(2)}` : name;
   vm.runInNewContext(ts.transpileModule(readFileSync(`${file}.ts`, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, require: load });
+  }).outputText, { exports, require: (name) => load(resolve(name)) });
   return exports;
 }
 const { buildProductSeoTitle: title, buildProductMetaDescription: description, buildProductImageAlt: alt } = load('app/lib/product-seo-copy');
 const product = { productName: 'Гальмівний диск VW GOLF VII (ANALOG/123)', producer: 'BREMBO', article: '09.9772.11', subGroup: 'Гальмівні диски' };
 assert.ok(title({ name: 'Трос ручн. гальм. лів. AUDI 80 бараб,', producer: 'Adriauto', article: 'AD030213' }).includes('AUDI'), 'Abbreviations must not hide vehicle fitment');
 const text = description(product);
-assert.ok(text.startsWith('Гальмівні диски: BREMBO 09.9772.11'));
-assert.ok(!text.includes('VW GOLF VII'), 'Description complements title/H1 instead of repeating the complete product name');
-assert.ok(!description({ productName: 'Фільтр MEGANE 02-', subGroup: 'Фільтр MEGANE 02-' }).includes('MEGANE'), 'Do not repeat the name when a category duplicates it');
+// The part in the singular, its maker and article, then the cars it fits.
+assert.equal(text, 'Гальмівний диск BREMBO 09.9772.11 для VW Golf VII. Оригінали й аналоги, перевірка сумісності за VIN. Купити в PartsON: Львів, доставка по Україні.');
+assert.ok(description({ productName: 'Фільтр MEGANE 02-', subGroup: 'Фільтр MEGANE 02-' }).startsWith('Фільтр для Megane (з 2002).'), 'A category equal to the name adds nothing');
 assert.ok(text.length <= 160);
 assert.ok(!text.includes('ANALOG'));
-assert.ok(text.includes('купити у Львові') && text.includes('Підбір за VIN'));
+// The 1C fitment line wins over the name and lists each make first.
+const fitted = description({ productName: 'Диск гальмівний передній VIVARO TRAFIC 01-', producer: 'BOSCH', article: '0986479B69', subGroup: 'Гальмівні диски',
+  fitmentSource: 'NISSAN NAVARA NP300, PRIMASTAR; OPEL VIVARO A; RENAULT TRAFIC II 1.9D-2.5D 02.01-\n\nМонтажна позиція\tпередн' });
+assert.ok(fitted.startsWith('Диск гальмівний передній BOSCH 0986479B69 для Nissan Navara NP300; Opel Vivaro A; Renault Trafic II'), fitted);
+assert.ok(fitted.length <= 160, fitted);
+// Display spelling of 1C labels: typos fixed, never in the raw value.
+assert.ok(description({ productName: 'Трос щеплення RECORD 1.8 83-', producer: 'Adriauto', article: 'AD330137' }).startsWith('Трос зчеплення Adriauto'));
+assert.ok(description({ productName: 'Вимикач світла заднього ходу Aveo 11-', producer: 'VERNET', article: 'RS5635', subGroup: 'Перерключателі/ вмикачі',
+  fitmentSource: 'CHEVROLET AVEO (T300) 1.2-1.6 05.11-' }).includes('для Chevrolet Aveo (T300)'), 'CHEVROLET is a fitment make');
 assert.ok(!/ціна|грн|наявн|замовлення/iu.test(text), text);
 assert.equal(description({ ...product, priceUah: 1250, inStock: true }), text);
 assert.equal(description({ ...product, priceUah: 9876, inStock: false }), text);
-assert.ok(description({ subGroup: 'Повітряний фільтр(Повітря)' }).startsWith('Повітряний фільтр —'));
-assert.ok(description({ subGroup: 'Фільтр (АКПП)' }).startsWith('Фільтр (АКПП) —'));
+assert.ok(description({ subGroup: 'Повітряний фільтр(Повітря)' }).startsWith('Повітряний фільтр.'));
+assert.ok(description({ subGroup: 'Фільтр (АКПП)' }).startsWith('Фільтр (АКПП).'));
 assert.ok(description({ subGroup: 'Повітряні фільтри' }).startsWith('Повітряні фільтри'));
 for (const example of [
  { productName: 'Фільтр повітря KIA RIO HYUNDAI ACCENT 02-', producer: 'ALPHA', article: 'AF1741' },
@@ -35,7 +46,7 @@ for (const example of [
 ]) {
  const copy = description(example);
  assert.ok(copy.length <= 160 && copy.endsWith('доставка по Україні.'), copy);
- assert.ok(copy.includes(example.article) && copy.includes('у Львові'), copy);
+ assert.ok(copy.includes(example.article) && copy.includes('Львів'), copy);
 }
 
 assert.notEqual(text, description({ ...product, article: '09.9772.12' }));

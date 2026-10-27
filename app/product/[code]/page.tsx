@@ -24,9 +24,12 @@ import {
   findCatalogProductByCode,
   findFullCatalogSnapshotProduct,
   toPriceUah,
+  peekSnapshotProductDescription,
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
+import { buildProductImageVariantPath } from "app/lib/product-image-variant-path";
 import ProductIdentitySticky from "app/components/ProductIdentitySticky";
 import ProductSectionNav from "app/components/ProductSectionNav";
 import ProductNavBuyStrip from "app/components/ProductNavBuyStrip";
@@ -372,7 +375,8 @@ const buildPureProductName = (
     subGroup?: string;
   }
 ) => {
-  const baseName = buildVisibleProductName(value);
+  // Display only: canonical URLs are built from the raw 1C name.
+  const baseName = fixCatalogSpelling(buildVisibleProductName(value));
   if (!baseName) return "Товар";
 
   const loweredBaseName = baseName.toLowerCase();
@@ -457,7 +461,8 @@ const buildFrontendProductHeading = (
     subGroup?: string;
   }
 ) => {
-  const baseName = buildVisibleProductName(value);
+  // Display only: canonical URLs are built from the raw 1C name.
+  const baseName = fixCatalogSpelling(buildVisibleProductName(value));
   if (!baseName) return "Товар";
 
   let cleaned = baseName;
@@ -1710,6 +1715,11 @@ export async function generateMetadata({
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
   const productImageUrl = `${siteUrl}${productImagePath}`;
+  const productImageAlt = buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle });
+  // The same photo at 16:9 for link previews that crop to landscape.
+  const productWideImagePath = routeProduct?.hasPhoto === true
+    ? buildProductImageVariantPath(routeProduct.code || resolvedCode, "16x9", productImageAlt, routeProduct.article)
+    : "";
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
   const shouldIndexProduct =
     !isModalView && Boolean(routeProduct) && isPublicCatalogProduct(routeProduct);
@@ -1730,6 +1740,7 @@ export async function generateMetadata({
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
+    fitmentSource: routeProduct?.description || peekSnapshotProductDescription(routeProduct?.code || resolvedCode),
   });
 
   const keywords = buildProductSeoKeywords({
@@ -1766,10 +1777,10 @@ export async function generateMetadata({
       url: canonicalUrl,
       title: seoTitle,
       description,
-      images: [{
-        url: productImageUrl,
-        alt: buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle }),
-      }],
+      images: [
+        { url: productImageUrl, alt: productImageAlt },
+        ...(productWideImagePath ? [{ url: `${siteUrl}${productWideImagePath}`, alt: productImageAlt }] : []),
+      ],
       siteName: "PartsON",
       locale: "uk_UA",
     },
@@ -1777,7 +1788,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: seoTitle,
       description,
-      images: [{ url: productImageUrl, alt: buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle }) }],
+      images: [{ url: productWideImagePath ? `${siteUrl}${productWideImagePath}` : productImageUrl, alt: productImageAlt }],
     },
     robots: {
       index: shouldIndexProduct,
@@ -2113,6 +2124,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
+    fitmentSource: product.description || peekSnapshotProductDescription(product.code || resolvedCode),
   });
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;
@@ -2181,7 +2193,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
         quantity: product.quantity,
         priceUah: initialPriceUah,
         canonicalUrl,
-        imageUrls: [productSeoImageUrl, ...galleryImageUrls],
+        // Google asks for 1x1, 4x3 and 16x9 versions of the product image.
+        imageUrls: [
+          productSeoImageUrl,
+          ...(["4x3", "16x9"] as const).map((ratio) => `${siteUrl}${buildProductImageVariantPath(
+            product.code || resolvedCode,
+            ratio,
+            buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article }),
+            product.article
+          )}`),
+          ...galleryImageUrls,
+        ],
         aggregateRating: reviewStats ?? undefined,
         reviews: initialReviews ?? undefined,
       })
@@ -2198,11 +2220,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
     siteUrl,
     canonicalUrl,
     name: visibleProductName,
-    topCategoryName: topCategoryPath ? buildVisibleProductName(productCategory) : undefined,
+    topCategoryName: topCategoryPath ? buildVisibleCategoryLabel(productCategory) : undefined,
     topCategoryPath: topCategoryPath || undefined,
-    groupName: productGroup || undefined,
+    groupName: visibleProductGroup || undefined,
     groupPath: groupLandingPath,
-    subGroupName: productSubgroup || undefined,
+    subGroupName: visibleProductSubgroup || undefined,
     subGroupPath: productSubgroup ? categoryLandingHref : null,
   });
   const isInStock = Number.isFinite(product.quantity) && product.quantity > 0;

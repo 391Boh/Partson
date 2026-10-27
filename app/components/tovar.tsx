@@ -16,6 +16,7 @@ import {
 } from "app/lib/catalog-client-cache";
 import { buildCatalogCategoryPath } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { transliterateLatinToUkrainian, stripSoftSign, fixLayoutEnglishToUkrainian } from "app/lib/transliterate";
@@ -67,7 +68,8 @@ const MAX_CHILDREN_PER_NODE = 250;
 const MAX_GROUPS_FOR_RENDER = 240;
 const MAX_CATEGORY_ROWS = 1800;
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const getDisplayLabel = (value: string) => buildVisibleProductName(value || "Без назви");
+// Display only: picks and filters use the raw 1C name.
+const getDisplayLabel = (value: string) => formatCatalogLabel(buildVisibleProductName(value || "Без назви"));
 const MOTION_EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 const pluralWord = (n: number, one: string, few: string, many: string) => {
@@ -1175,7 +1177,7 @@ const ProductFetcher: React.FC<Props> = ({
                 </button>
                 <div className="col-start-2 min-w-0 justify-self-end text-right">
                   <p className="truncate text-sm font-extrabold text-slate-700 sm:text-base">
-                    {buildVisibleProductName(currentBrowseNode?.name || activeCategory.name)}
+                    {getDisplayLabel(currentBrowseNode?.name || activeCategory.name)}
                   </p>
                 </div>
               </div>
@@ -1249,7 +1251,7 @@ const ProductFetcher: React.FC<Props> = ({
                 }
                 const cardElements = pageGroups.map((group, index) => {
                       const id = pageIndex * browseItemsPerPage + index;
-                      const label = buildVisibleProductName(group.name);
+                      const label = getDisplayLabel(group.name);
                       const isSearchActive = Boolean(searchTerm.trim());
                       const searchCategory = isSearchActive ? searchGroupParents.get(group) : undefined;
                       // Frameless cards: no border/ring, near-transparent at
@@ -1275,7 +1277,7 @@ const ProductFetcher: React.FC<Props> = ({
                             <span className="relative flex min-h-0 flex-1 items-center justify-between gap-2.5 bg-transparent px-3 py-2.5 transition-colors duration-300 group-hover/category:bg-white/40">
                               <span className="min-w-0">
                                 <span className="line-clamp-2 text-[13px] font-extrabold leading-tight text-slate-800 transition-colors duration-300 group-hover/category:text-sky-900 sm:text-[14px]">{label}</span>
-                                <span className="mt-1 block truncate text-[10px] font-semibold text-sky-700">{buildVisibleProductName(searchCategory.name)}</span>
+                                <span className="mt-1 block truncate text-[10px] font-semibold text-sky-700">{getDisplayLabel(searchCategory.name)}</span>
                               </span>
                               <ChevronRight size={18} className="shrink-0 text-sky-700 transition-colors duration-300 group-hover/category:text-cyan-600" />
                             </span>
