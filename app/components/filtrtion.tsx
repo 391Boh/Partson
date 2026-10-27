@@ -662,18 +662,36 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined' || collapsed) return;
 
-    // One scroll event is enough. Keeping the listener mounted only while the
-    // panel is open avoids frame-by-frame work and makes both scroll directions
-    // close it immediately, including short trackpad gestures near page top.
+    // Keeping the listener mounted only while the panel is open avoids
+    // frame-by-frame work; both scroll directions close it, including short
+    // trackpad gestures near page top.
+    let baseline = window.scrollY;
     const handleScroll = () => {
       // The catalog jumps to the top on every URL change; that jump must not
       // close a panel this component just opened on purpose (see below).
-      if (Date.now() < ignoreScrollCloseUntilRef.current) return;
+      // Likewise a pick inside the panel (make → models → modifications)
+      // resizes it, and the browser's scroll anchoring then nudges the page
+      // by a few pixels: those are not the user scrolling away.
+      if (Date.now() < ignoreScrollCloseUntilRef.current) {
+        baseline = window.scrollY;
+        return;
+      }
+      if (Math.abs(window.scrollY - baseline) < 24) return;
       setCollapsed(true);
+    };
+    const handleInsidePointer = (event: PointerEvent) => {
+      const root = rootRef.current;
+      if (!root || !(event.target instanceof Node) || !root.contains(event.target)) return;
+      ignoreScrollCloseUntilRef.current = Math.max(ignoreScrollCloseUntilRef.current, Date.now() + 1200);
+      baseline = window.scrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    document.addEventListener('pointerdown', handleInsidePointer, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('pointerdown', handleInsidePointer, { capture: true });
+    };
   }, [collapsed]);
 
   useEffect(() => {
