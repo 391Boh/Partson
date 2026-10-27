@@ -8,7 +8,7 @@ import { getPublishedBlogPostsOrThrow } from "./blog";
 // second Firestore lookup for its legacy inline cover. Cache the small WebP
 // itself so repeat requests need neither image decoding nor database access.
 export const getHomeBlogCover = unstable_cache(
-  async (slug: string, _version: string): Promise<string | null> => {
+  async (slug: string, _version: string, width = 960): Promise<string | null> => {
     void _version; // Included in unstable_cache's argument key for edited covers.
     const posts = await getPublishedBlogPostsOrThrow();
     const post = posts.find(item => item.slug === slug);
@@ -16,11 +16,11 @@ export const getHomeBlogCover = unstable_cache(
     if (!source) return null;
     const image = await sharp(Buffer.from(source[1], "base64"))
       .rotate()
-      .resize({ width: 960, withoutEnlargement: true })
+      .resize({ width, withoutEnlargement: true })
       .webp({ quality: 72 })
       .toBuffer();
     return image.toString("base64");
   },
-  ["home-blog-cover-v1"],
+  ["home-blog-cover-v2"],
   { revalidate: 600, tags: ["blog-posts"] },
 );

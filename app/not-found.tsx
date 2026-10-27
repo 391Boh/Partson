@@ -53,10 +53,12 @@ export default function NotFound() {
   const stylesheetHref = resolveSiteStylesheetHref();
   return (
     <div className="page-shell-inline flex min-h-[72vh] items-center justify-center py-10 sm:py-16">
-      {/* A real 404 response skips the root layout's <head> stylesheet
-          loader, which left this page unstyled; React hoists this into <head>. */}
+      {/* Next also renders this boundary as a fallback on successful routes.
+          A JSX stylesheet link hoists a preload there, downloading the full
+          CSS on every page. A local style import only loads when the actual
+          404 markup reaches the browser, including with JavaScript disabled. */}
       {stylesheetHref ? (
-        <link rel="stylesheet" href={stylesheetHref} precedence="default" />
+        <style dangerouslySetInnerHTML={{ __html: `@import url(${JSON.stringify(stylesheetHref)});` }} />
       ) : null}
 
       <section

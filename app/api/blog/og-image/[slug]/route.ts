@@ -70,12 +70,21 @@ export async function GET(request: Request, context: OgImageRouteContext) {
   const { slug } = await context.params;
   const searchParams = new URL(request.url).searchParams;
   if (searchParams.get("preview") === "1") {
-    const image = await getHomeBlogCover(decodeURIComponent(slug), searchParams.get("v") || "");
+    const width = Number(searchParams.get("w") || 960);
+    if (![320, 360, 420, 512, 640, 768, 960].includes(width)) {
+      return new NextResponse(null, { status: 400 });
+    }
+    const version = searchParams.get("v") || "";
+    const image = await getHomeBlogCover(decodeURIComponent(slug), version, width);
     if (!image) return new NextResponse(null, { status: 404 });
     return new NextResponse(new Uint8Array(Buffer.from(image, "base64")), {
       headers: {
         "content-type": "image/webp",
-        "cache-control": "public, max-age=600, s-maxage=600, stale-while-revalidate=86400",
+        // `v` is the post's updatedAt (home-blog-highlights.ts): an edited
+        // cover gets a new URL, so a versioned one never changes.
+        "cache-control": version
+          ? "public, max-age=31536000, immutable"
+          : "public, max-age=600, s-maxage=600, stale-while-revalidate=86400",
       },
     });
   }

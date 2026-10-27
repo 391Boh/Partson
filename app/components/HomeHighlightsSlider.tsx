@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type ImageLoaderProps } from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Gauge } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights"
 const TEASER_MAX_CHARS = 120;
 // Homepage preview URLs already serve a resized, cached WebP.
 const isPreparedCover = (image: string) => image.startsWith("/api/blog/og-image/") && image.includes("preview=1");
+const preparedCoverLoader = ({ src, width }: ImageLoaderProps) => `${src}&w=${Math.max(320, Math.min(width, 960))}`;
 const teaserOf = (text: string) => {
   const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+[.!?…]+(?=\s|$)|[^.!?…]+$/g) ?? [];
   let teaser = "";
@@ -193,7 +194,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
             <Image
               key={`${pendingSlide.id}:${pendingSlide.image}`}
               src={pendingSlide.image} alt="" fill aria-hidden="true"
-              unoptimized={isPreparedCover(pendingSlide.image)}
+              loader={isPreparedCover(pendingSlide.image) ? preparedCoverLoader : undefined}
               sizes="(max-width: 767px) 100vw, 57vw"
               loading="eager" className="home-highlight-preload"
               onLoad={commitPendingSlide}
@@ -225,7 +226,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                 <div className="home-highlight-image">
                   {serverResolved && <Image
                     src={item.image} alt={item.imageAlt} fill
-                    unoptimized={isPreparedCover(item.image)}
+                    loader={isPreparedCover(item.image) ? preparedCoverLoader : undefined}
                     fetchPriority={!outgoing && item.id === initialArticles[0]?.id ? "high" : "auto"}
                     sizes="(max-width: 767px) 100vw, 57vw"
                     preload={!outgoing && item.id === initialArticles[0]?.id}

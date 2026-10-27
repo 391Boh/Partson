@@ -15,11 +15,11 @@ export const FONT_FACE_CSS = `@font-face {
    remain available from the complete face above, fetched only when used. */
 @font-face {
   font-family: "Exo 2";
-  src: url("/fonts/exo2-latin-cyrillic.woff2") format("woff2-variations");
+  src: url("/fonts/exo2-ui-v1.woff2") format("woff2-variations");
   font-style: normal;
   font-weight: 400 900;
   font-display: optional;
-  unicode-range: U+0000-052F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2116, U+2122, U+2212, U+FEFF, U+FFFD;
+  unicode-range: U+0000-017F, U+0400-045F, U+0490-0491, U+2000-206F, U+20A0-20CF, U+2116, U+2122, U+2212, U+FEFF, U+FFFD;
 }
 
 `;

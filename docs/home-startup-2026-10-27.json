@@ -1,0 +1,4795 @@
+{
+  "conditions": {
+    "cpu": 4,
+    "latencyMs": 80,
+    "downloadBytesPerSecond": 200000,
+    "freshBrowserCache": true
+  },
+  "summary": [
+    {
+      "width": 390,
+      "ttfb": {
+        "before": 49,
+        "after": 43
+      },
+      "domInteractive": {
+        "before": 1428,
+        "after": 1176
+      },
+      "domLoaded": {
+        "before": 1428,
+        "after": 1177
+      },
+      "fcp": {
+        "before": 1588,
+        "after": 1408
+      },
+      "lcp": {
+        "before": 1588,
+        "after": 1408
+      },
+      "cls": {
+        "before": 0.006544020358499525,
+        "after": 0
+      }
+    },
+    {
+      "width": 1440,
+      "ttfb": {
+        "before": 20,
+        "after": 31
+      },
+      "domInteractive": {
+        "before": 1435,
+        "after": 1240
+      },
+      "domLoaded": {
+        "before": 1435,
+        "after": 1242
+      },
+      "fcp": {
+        "before": 1612,
+        "after": 1468
+      },
+      "lcp": {
+        "before": 2712,
+        "after": 2368
+      },
+      "cls": {
+        "before": 0,
+        "after": 0
+      }
+    }
+  ],
+  "before": {
+    "origin": "http://localhost:3104",
+    "conditions": {
+      "cpu": 4,
+      "latencyMs": 80,
+      "downloadBytesPerSecond": 200000,
+      "freshBrowserCache": true
+    },
+    "results": [
+      {
+        "width": 390,
+        "sample": 0,
+        "status": 200,
+        "errors": [],
+        "ttfb": 381,
+        "domInteractive": 1880,
+        "domLoaded": 1881,
+        "fcp": 1936,
+        "lcp": 1936,
+        "cls": 0.006544020358499525,
+        "longTasks": [
+          {
+            "start": 3721.10000000149,
+            "duration": 53
+          },
+          {
+            "start": 4099.800000000745,
+            "duration": 54
+          },
+          {
+            "start": 4365.699999999255,
+            "duration": 113
+          },
+          {
+            "start": 5769.5,
+            "duration": 57
+          }
+        ],
+        "htmlBytes": 35083,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 408,
+            "ms": 2407,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1-768.webp",
+            "start": 460,
+            "ms": 1193,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 461,
+            "ms": 201,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 461,
+            "ms": 1229,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 461,
+            "ms": 1484,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 461,
+            "ms": 1648,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 461,
+            "ms": 1903,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 461,
+            "ms": 2203,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 461,
+            "ms": 3163,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 461,
+            "ms": 3224,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 462,
+            "ms": 2443,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 462,
+            "ms": 2683,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 462,
+            "ms": 2774,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 462,
+            "ms": 2937,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 462,
+            "ms": 3149,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 462,
+            "ms": 3373,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 462,
+            "ms": 3493,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 462,
+            "ms": 3612,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 462,
+            "ms": 3875,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 1084,
+            "ms": 3103,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1848,
+            "ms": 2040,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4499,
+            "ms": 131,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4643,
+            "ms": 137,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 5011,
+            "ms": 698,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 5012,
+            "ms": 180,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 5012,
+            "ms": 240,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 5012,
+            "ms": 451,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5013,
+            "ms": 150,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5013,
+            "ms": 201,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5014,
+            "ms": 456,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5014,
+            "ms": 350,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5014,
+            "ms": 493,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5014,
+            "ms": 396,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5014,
+            "ms": 524,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5014,
+            "ms": 537,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5014,
+            "ms": 570,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5014,
+            "ms": 584,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5014,
+            "ms": 606,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Audi.svg",
+            "start": 5763,
+            "ms": 232,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/BMW.svg",
+            "start": 5764,
+            "ms": 216,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chery.svg",
+            "start": 5765,
+            "ms": 192,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chrysler.svg",
+            "start": 5766,
+            "ms": 199,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Citroen.svg",
+            "start": 5766,
+            "ms": 161,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5783,
+            "ms": 168,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5783,
+            "ms": 248,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5784,
+            "ms": 429,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5784,
+            "ms": 435,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5784,
+            "ms": 316,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5785,
+            "ms": 338,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5786,
+            "ms": 411,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5786,
+            "ms": 389,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5786,
+            "ms": 450,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5787,
+            "ms": 455,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5787,
+            "ms": 486,
+            "bytes": 1334,
+            "type": "css"
+          }
+        ],
+        "initialJsBytes": 206153
+      },
+      {
+        "width": 390,
+        "sample": 1,
+        "status": 200,
+        "errors": [],
+        "ttfb": 31,
+        "domInteractive": 1428,
+        "domLoaded": 1428,
+        "fcp": 1584,
+        "lcp": 1584,
+        "cls": 0.006544020358499525,
+        "longTasks": [
+          {
+            "start": 1427.5,
+            "duration": 89
+          },
+          {
+            "start": 3437.60000000149,
+            "duration": 57
+          },
+          {
+            "start": 3783.5,
+            "duration": 68
+          },
+          {
+            "start": 4017.39999999851,
+            "duration": 180
+          },
+          {
+            "start": 5451.300000000745,
+            "duration": 60
+          }
+        ],
+        "htmlBytes": 33554,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 107,
+            "ms": 2554,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 107,
+            "ms": 3364,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 109,
+            "ms": 205,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1-768.webp",
+            "start": 109,
+            "ms": 1247,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 109,
+            "ms": 1292,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 109,
+            "ms": 1548,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 110,
+            "ms": 1712,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 110,
+            "ms": 3212,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 110,
+            "ms": 3286,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 110,
+            "ms": 1966,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 110,
+            "ms": 2266,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 110,
+            "ms": 2521,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 110,
+            "ms": 2858,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 110,
+            "ms": 2897,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 110,
+            "ms": 3580,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 110,
+            "ms": 3060,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 110,
+            "ms": 3264,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 111,
+            "ms": 3420,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 111,
+            "ms": 3637,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 111,
+            "ms": 3863,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1561,
+            "ms": 2016,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4230,
+            "ms": 134,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4332,
+            "ms": 138,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 4696,
+            "ms": 696,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 4696,
+            "ms": 177,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 4696,
+            "ms": 238,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 4697,
+            "ms": 446,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 4698,
+            "ms": 161,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 4699,
+            "ms": 204,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 4699,
+            "ms": 468,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 4699,
+            "ms": 364,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 4699,
+            "ms": 490,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 4699,
+            "ms": 400,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 4699,
+            "ms": 541,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 4699,
+            "ms": 526,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 4700,
+            "ms": 565,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 4700,
+            "ms": 595,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 4700,
+            "ms": 609,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Audi.svg",
+            "start": 5445,
+            "ms": 231,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/BMW.svg",
+            "start": 5447,
+            "ms": 214,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chery.svg",
+            "start": 5448,
+            "ms": 184,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chrysler.svg",
+            "start": 5449,
+            "ms": 198,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Citroen.svg",
+            "start": 5449,
+            "ms": 160,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5468,
+            "ms": 170,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5468,
+            "ms": 244,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5469,
+            "ms": 426,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5469,
+            "ms": 431,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5470,
+            "ms": 311,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5471,
+            "ms": 333,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5471,
+            "ms": 385,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5471,
+            "ms": 408,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5472,
+            "ms": 445,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5472,
+            "ms": 451,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5473,
+            "ms": 474,
+            "bytes": 1334,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/9567-054265fba97cab08.js",
+            "start": 5822,
+            "ms": 288,
+            "bytes": 1443,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/api/home-blog?view=all",
+            "start": 5917,
+            "ms": 150,
+            "bytes": 1343,
+            "type": "fetch"
+          }
+        ],
+        "initialJsBytes": 206153
+      },
+      {
+        "width": 390,
+        "sample": 2,
+        "status": 200,
+        "errors": [],
+        "ttfb": 49,
+        "domInteractive": 1427,
+        "domLoaded": 1428,
+        "fcp": 1588,
+        "lcp": 1588,
+        "cls": 0.006544020358499525,
+        "longTasks": [
+          {
+            "start": 1427.3999999985099,
+            "duration": 98
+          },
+          {
+            "start": 3774.89999999851,
+            "duration": 54
+          },
+          {
+            "start": 4026.60000000149,
+            "duration": 128
+          },
+          {
+            "start": 5447.60000000149,
+            "duration": 63
+          }
+        ],
+        "htmlBytes": 33554,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 116,
+            "ms": 2550,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 116,
+            "ms": 3359,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 118,
+            "ms": 215,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1-768.webp",
+            "start": 118,
+            "ms": 1250,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 118,
+            "ms": 1281,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 118,
+            "ms": 1536,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 118,
+            "ms": 3208,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 118,
+            "ms": 3275,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 119,
+            "ms": 1699,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 119,
+            "ms": 1955,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 119,
+            "ms": 2255,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 119,
+            "ms": 2510,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 119,
+            "ms": 2840,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 119,
+            "ms": 2884,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 119,
+            "ms": 3567,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 119,
+            "ms": 3049,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 120,
+            "ms": 3252,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 120,
+            "ms": 3415,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 120,
+            "ms": 3626,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 120,
+            "ms": 3858,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1569,
+            "ms": 2012,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4177,
+            "ms": 132,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4317,
+            "ms": 134,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 4686,
+            "ms": 695,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 4687,
+            "ms": 176,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 4687,
+            "ms": 237,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 4688,
+            "ms": 454,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 4688,
+            "ms": 160,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 4689,
+            "ms": 205,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 4689,
+            "ms": 475,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 4689,
+            "ms": 489,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 4689,
+            "ms": 355,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 4689,
+            "ms": 400,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 4689,
+            "ms": 527,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 4689,
+            "ms": 541,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 4689,
+            "ms": 564,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 4689,
+            "ms": 595,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 4690,
+            "ms": 609,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Audi.svg",
+            "start": 5439,
+            "ms": 227,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/BMW.svg",
+            "start": 5441,
+            "ms": 210,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chery.svg",
+            "start": 5442,
+            "ms": 194,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chrysler.svg",
+            "start": 5442,
+            "ms": 201,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Citroen.svg",
+            "start": 5443,
+            "ms": 163,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5463,
+            "ms": 165,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5464,
+            "ms": 239,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5464,
+            "ms": 398,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5465,
+            "ms": 440,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5465,
+            "ms": 306,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5466,
+            "ms": 328,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5466,
+            "ms": 402,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5467,
+            "ms": 380,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5467,
+            "ms": 433,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5467,
+            "ms": 447,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5468,
+            "ms": 476,
+            "bytes": 1334,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/9567-054265fba97cab08.js",
+            "start": 5832,
+            "ms": 276,
+            "bytes": 1443,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/api/home-blog?view=all",
+            "start": 5877,
+            "ms": 157,
+            "bytes": 1343,
+            "type": "fetch"
+          }
+        ],
+        "initialJsBytes": 206153
+      },
+      {
+        "width": 1440,
+        "sample": 0,
+        "status": 200,
+        "errors": [],
+        "ttfb": 14,
+        "domInteractive": 1424,
+        "domLoaded": 1425,
+        "fcp": 1612,
+        "lcp": 2728,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1423.800000000745,
+            "duration": 87
+          },
+          {
+            "start": 4156.10000000149,
+            "duration": 63
+          }
+        ],
+        "htmlBytes": 33554,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 114,
+            "ms": 2658,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 114,
+            "ms": 3467,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1.webp",
+            "start": 116,
+            "ms": 2596,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 116,
+            "ms": 210,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 116,
+            "ms": 1282,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 116,
+            "ms": 1544,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 116,
+            "ms": 2821,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 116,
+            "ms": 3074,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 116,
+            "ms": 3269,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 116,
+            "ms": 3351,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 116,
+            "ms": 3554,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 117,
+            "ms": 3337,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 117,
+            "ms": 3561,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 117,
+            "ms": 3613,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 117,
+            "ms": 3628,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 117,
+            "ms": 3710,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 117,
+            "ms": 3974,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 117,
+            "ms": 3764,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 117,
+            "ms": 3987,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 118,
+            "ms": 4161,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1413,
+            "ms": 1422,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1555,
+            "ms": 1651,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 4210,
+            "ms": 144,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4393,
+            "ms": 132,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/api/proxy?endpoint=euro",
+            "start": 4529,
+            "ms": 95,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4699,
+            "ms": 134,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 5067,
+            "ms": 899,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 5068,
+            "ms": 179,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 5068,
+            "ms": 245,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 5068,
+            "ms": 454,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5069,
+            "ms": 162,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5069,
+            "ms": 198,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5070,
+            "ms": 349,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5070,
+            "ms": 402,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5070,
+            "ms": 483,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5070,
+            "ms": 498,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5070,
+            "ms": 535,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5070,
+            "ms": 543,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5070,
+            "ms": 572,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5070,
+            "ms": 605,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5070,
+            "ms": 617,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 5317,
+            "ms": 441,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 5318,
+            "ms": 445,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 5318,
+            "ms": 549,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5393.22299b39461f3ae9.js",
+            "start": 5318,
+            "ms": 797,
+            "bytes": 13481,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 5319,
+            "ms": 580,
+            "bytes": 3197,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Parts/cutout/filtr.webp",
+            "start": 5319,
+            "ms": 969,
+            "bytes": 15986,
+            "type": "img"
+          }
+        ],
+        "initialJsBytes": 206153
+      },
+      {
+        "width": 1440,
+        "sample": 1,
+        "status": 200,
+        "errors": [],
+        "ttfb": 30,
+        "domInteractive": 1436,
+        "domLoaded": 1437,
+        "fcp": 1624,
+        "lcp": 2712,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1436.4000000022352,
+            "duration": 96
+          },
+          {
+            "start": 4141.5,
+            "duration": 62
+          }
+        ],
+        "htmlBytes": 33554,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 109,
+            "ms": 2657,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 109,
+            "ms": 3460,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1.webp",
+            "start": 110,
+            "ms": 2581,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 111,
+            "ms": 203,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 111,
+            "ms": 1297,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 111,
+            "ms": 1560,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 111,
+            "ms": 2821,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 111,
+            "ms": 3293,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 111,
+            "ms": 3571,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 111,
+            "ms": 3076,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 111,
+            "ms": 3331,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 111,
+            "ms": 3353,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 112,
+            "ms": 3585,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 112,
+            "ms": 3637,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 112,
+            "ms": 3968,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 112,
+            "ms": 3615,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 112,
+            "ms": 3735,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 112,
+            "ms": 3786,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 112,
+            "ms": 3989,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 112,
+            "ms": 4161,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1425,
+            "ms": 1073,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1579,
+            "ms": 1599,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 4194,
+            "ms": 140,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4388,
+            "ms": 133,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/api/proxy?endpoint=euro",
+            "start": 4516,
+            "ms": 98,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4683,
+            "ms": 131,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 5052,
+            "ms": 932,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 5053,
+            "ms": 189,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 5053,
+            "ms": 240,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 5054,
+            "ms": 449,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5055,
+            "ms": 164,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5055,
+            "ms": 208,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5055,
+            "ms": 464,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5055,
+            "ms": 495,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5055,
+            "ms": 366,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5056,
+            "ms": 403,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5056,
+            "ms": 530,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5056,
+            "ms": 545,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5056,
+            "ms": 576,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5056,
+            "ms": 592,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5056,
+            "ms": 613,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 5301,
+            "ms": 426,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 5302,
+            "ms": 449,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 5303,
+            "ms": 561,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5393.22299b39461f3ae9.js",
+            "start": 5303,
+            "ms": 771,
+            "bytes": 13481,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 5303,
+            "ms": 590,
+            "bytes": 3197,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Parts/cutout/filtr.webp",
+            "start": 5304,
+            "ms": 973,
+            "bytes": 15986,
+            "type": "img"
+          }
+        ],
+        "initialJsBytes": 206153
+      },
+      {
+        "width": 1440,
+        "sample": 2,
+        "status": 200,
+        "errors": [],
+        "ttfb": 20,
+        "domInteractive": 1435,
+        "domLoaded": 1435,
+        "fcp": 1608,
+        "lcp": 2704,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1434.699999999255,
+            "duration": 90
+          },
+          {
+            "start": 4137.699999999255,
+            "duration": 60
+          }
+        ],
+        "htmlBytes": 33554,
+        "resources": [
+          {
+            "url": "http://localhost:3104/fonts/exo2-latin-cyrillic.woff2",
+            "start": 106,
+            "ms": 2657,
+            "bytes": 91600,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z",
+            "start": 107,
+            "ms": 3459,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/storefront/photos/partson-store-1.webp",
+            "start": 108,
+            "ms": 2580,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 109,
+            "ms": 202,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/styles/critical-home.5977ed49d3.css",
+            "start": 109,
+            "ms": 1299,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 109,
+            "ms": 1561,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 109,
+            "ms": 3293,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 109,
+            "ms": 2820,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 109,
+            "ms": 3074,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 109,
+            "ms": 3570,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 109,
+            "ms": 3330,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 109,
+            "ms": 3352,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 110,
+            "ms": 3586,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 110,
+            "ms": 3615,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 110,
+            "ms": 3637,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 110,
+            "ms": 3719,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 110,
+            "ms": 3786,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 110,
+            "ms": 3967,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/app/page-bba01454637f67e1.js",
+            "start": 110,
+            "ms": 3988,
+            "bytes": 15948,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/styles/site.5977ed49d3.css",
+            "start": 110,
+            "ms": 4161,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1424,
+            "ms": 1085,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3104/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1575,
+            "ms": 1601,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 4189,
+            "ms": 143,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/favicon-partson-v3.ico",
+            "start": 4375,
+            "ms": 136,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3104/api/proxy?endpoint=euro",
+            "start": 4508,
+            "ms": 103,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 4679,
+            "ms": 132,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 5049,
+            "ms": 934,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 5049,
+            "ms": 176,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 5049,
+            "ms": 235,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 5050,
+            "ms": 444,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/KIA.svg",
+            "start": 5051,
+            "ms": 159,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mitsubishi.svg",
+            "start": 5051,
+            "ms": 204,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Chevrolet.svg",
+            "start": 5051,
+            "ms": 459,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Peugeot.svg",
+            "start": 5051,
+            "ms": 487,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Volvo.svg",
+            "start": 5051,
+            "ms": 368,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Geely.svg",
+            "start": 5051,
+            "ms": 399,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Renault.svg",
+            "start": 5051,
+            "ms": 525,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Jaguar.svg",
+            "start": 5051,
+            "ms": 540,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Suzuki.svg",
+            "start": 5051,
+            "ms": 569,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/DAF.svg",
+            "start": 5052,
+            "ms": 584,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/Carlogo/Mazda.svg",
+            "start": 5052,
+            "ms": 607,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 5297,
+            "ms": 414,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 5298,
+            "ms": 451,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 5298,
+            "ms": 557,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/5393.22299b39461f3ae9.js",
+            "start": 5299,
+            "ms": 765,
+            "bytes": 13481,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 5299,
+            "ms": 584,
+            "bytes": 3197,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3104/Parts/cutout/filtr.webp",
+            "start": 5300,
+            "ms": 937,
+            "bytes": 15986,
+            "type": "img"
+          }
+        ],
+        "initialJsBytes": 206153
+      }
+    ]
+  },
+  "after": {
+    "origin": "http://localhost:3107",
+    "conditions": {
+      "cpu": 4,
+      "latencyMs": 80,
+      "downloadBytesPerSecond": 200000,
+      "freshBrowserCache": true
+    },
+    "results": [
+      {
+        "width": 390,
+        "sample": 0,
+        "status": 200,
+        "errors": [],
+        "ttfb": 76,
+        "domInteractive": 1176,
+        "domLoaded": 1182,
+        "fcp": 1508,
+        "lcp": 1508,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1175.699999999255,
+            "duration": 143
+          },
+          {
+            "start": 1342.1000000014901,
+            "duration": 83
+          },
+          {
+            "start": 2644,
+            "duration": 52
+          },
+          {
+            "start": 2700.10000000149,
+            "duration": 52
+          },
+          {
+            "start": 2822.10000000149,
+            "duration": 56
+          },
+          {
+            "start": 3383.699999999255,
+            "duration": 71
+          },
+          {
+            "start": 4495.900000002235,
+            "duration": 94
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 115,
+            "ms": 1057,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 117,
+            "ms": 206,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1-768.webp",
+            "start": 117,
+            "ms": 1002,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=420",
+            "start": 118,
+            "ms": 820,
+            "bytes": 31034,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 118,
+            "ms": 1024,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 118,
+            "ms": 1203,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 119,
+            "ms": 1166,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 119,
+            "ms": 1248,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 119,
+            "ms": 1300,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 119,
+            "ms": 1376,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 119,
+            "ms": 2494,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 119,
+            "ms": 2524,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 119,
+            "ms": 1505,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 119,
+            "ms": 1555,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 119,
+            "ms": 2088,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 120,
+            "ms": 1539,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 120,
+            "ms": 1690,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 120,
+            "ms": 1771,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 120,
+            "ms": 2102,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1182,
+            "ms": 2173,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1426,
+            "ms": 579,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 3461,
+            "ms": 177,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3465,
+            "ms": 182,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 3733,
+            "ms": 701,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 3733,
+            "ms": 183,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 3734,
+            "ms": 243,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 3735,
+            "ms": 451,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 3736,
+            "ms": 167,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 3736,
+            "ms": 210,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 3736,
+            "ms": 360,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 3736,
+            "ms": 482,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 3736,
+            "ms": 496,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 3736,
+            "ms": 407,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 3737,
+            "ms": 532,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 3737,
+            "ms": 547,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 3737,
+            "ms": 570,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 3737,
+            "ms": 592,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 3737,
+            "ms": 615,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Audi.svg",
+            "start": 4488,
+            "ms": 232,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/BMW.svg",
+            "start": 4490,
+            "ms": 214,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chery.svg",
+            "start": 4491,
+            "ms": 183,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chrysler.svg",
+            "start": 4492,
+            "ms": 197,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Citroen.svg",
+            "start": 4493,
+            "ms": 158,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4511,
+            "ms": 171,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4512,
+            "ms": 244,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4513,
+            "ms": 401,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4514,
+            "ms": 445,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4514,
+            "ms": 305,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4515,
+            "ms": 332,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4515,
+            "ms": 406,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4516,
+            "ms": 382,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4517,
+            "ms": 427,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4517,
+            "ms": 450,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4517,
+            "ms": 481,
+            "bytes": 1334,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/api/home-blog?view=all",
+            "start": 4930,
+            "ms": 96,
+            "bytes": 1343,
+            "type": "fetch"
+          }
+        ],
+        "initialJsBytes": 206189
+      },
+      {
+        "width": 390,
+        "sample": 1,
+        "status": 200,
+        "errors": [],
+        "ttfb": 43,
+        "domInteractive": 1173,
+        "domLoaded": 1176,
+        "fcp": 1404,
+        "lcp": 1404,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1173.3999999985099,
+            "duration": 106
+          },
+          {
+            "start": 1301.3999999985099,
+            "duration": 80
+          },
+          {
+            "start": 2647.599999997765,
+            "duration": 52
+          },
+          {
+            "start": 2700.699999999255,
+            "duration": 51
+          },
+          {
+            "start": 2821.2999999970198,
+            "duration": 60
+          },
+          {
+            "start": 3392.699999999255,
+            "duration": 140
+          },
+          {
+            "start": 4493.39999999851,
+            "duration": 63
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 119,
+            "ms": 1054,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 122,
+            "ms": 205,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=420",
+            "start": 122,
+            "ms": 812,
+            "bytes": 31034,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1-768.webp",
+            "start": 122,
+            "ms": 1000,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 122,
+            "ms": 1021,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 123,
+            "ms": 1200,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 123,
+            "ms": 2498,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 123,
+            "ms": 1164,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 123,
+            "ms": 1261,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 123,
+            "ms": 2522,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 123,
+            "ms": 1298,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 123,
+            "ms": 1366,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 123,
+            "ms": 1500,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 123,
+            "ms": 1560,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 123,
+            "ms": 2085,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 123,
+            "ms": 1531,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 123,
+            "ms": 1672,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 123,
+            "ms": 1764,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 123,
+            "ms": 2101,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1175,
+            "ms": 2181,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1381,
+            "ms": 610,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 3557,
+            "ms": 181,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3566,
+            "ms": 180,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 3734,
+            "ms": 695,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 3735,
+            "ms": 168,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 3736,
+            "ms": 243,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 3736,
+            "ms": 460,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 3738,
+            "ms": 159,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 3738,
+            "ms": 204,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 3738,
+            "ms": 482,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 3738,
+            "ms": 489,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 3738,
+            "ms": 354,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 3738,
+            "ms": 399,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 3738,
+            "ms": 534,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 3738,
+            "ms": 540,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 3738,
+            "ms": 570,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 3738,
+            "ms": 602,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 3738,
+            "ms": 616,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Audi.svg",
+            "start": 4485,
+            "ms": 229,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/BMW.svg",
+            "start": 4489,
+            "ms": 217,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chery.svg",
+            "start": 4490,
+            "ms": 194,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chrysler.svg",
+            "start": 4491,
+            "ms": 200,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Citroen.svg",
+            "start": 4491,
+            "ms": 162,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4509,
+            "ms": 168,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4509,
+            "ms": 249,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4510,
+            "ms": 415,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4510,
+            "ms": 451,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4510,
+            "ms": 309,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4511,
+            "ms": 338,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4511,
+            "ms": 405,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4512,
+            "ms": 389,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4512,
+            "ms": 444,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4513,
+            "ms": 457,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4513,
+            "ms": 487,
+            "bytes": 1334,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/api/home-blog?view=all",
+            "start": 4935,
+            "ms": 93,
+            "bytes": 1343,
+            "type": "fetch"
+          }
+        ],
+        "initialJsBytes": 206189
+      },
+      {
+        "width": 390,
+        "sample": 2,
+        "status": 200,
+        "errors": [],
+        "ttfb": 34,
+        "domInteractive": 1176,
+        "domLoaded": 1177,
+        "fcp": 1408,
+        "lcp": 1408,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1175.699999999255,
+            "duration": 95
+          },
+          {
+            "start": 1293.7999999970198,
+            "duration": 87
+          },
+          {
+            "start": 2700.5,
+            "duration": 51
+          },
+          {
+            "start": 2815.5,
+            "duration": 59
+          },
+          {
+            "start": 3384.5,
+            "duration": 60
+          },
+          {
+            "start": 4494,
+            "duration": 64
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 115,
+            "ms": 1058,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 117,
+            "ms": 209,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=420",
+            "start": 117,
+            "ms": 816,
+            "bytes": 31034,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1-768.webp",
+            "start": 117,
+            "ms": 1003,
+            "bytes": 43036,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 118,
+            "ms": 1025,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 118,
+            "ms": 1205,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 118,
+            "ms": 2488,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 118,
+            "ms": 1167,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 118,
+            "ms": 1242,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 118,
+            "ms": 1309,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 118,
+            "ms": 2532,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 119,
+            "ms": 1378,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 119,
+            "ms": 1491,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 119,
+            "ms": 1535,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 119,
+            "ms": 1551,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 119,
+            "ms": 2097,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 119,
+            "ms": 1663,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 119,
+            "ms": 1768,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 119,
+            "ms": 2088,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1177,
+            "ms": 2179,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=192&q=75",
+            "start": 1381,
+            "ms": 595,
+            "bytes": 2905,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 3450,
+            "ms": 176,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3453,
+            "ms": 180,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 3728,
+            "ms": 700,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 3729,
+            "ms": 182,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 3730,
+            "ms": 242,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 3730,
+            "ms": 451,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 3731,
+            "ms": 164,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 3732,
+            "ms": 209,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 3732,
+            "ms": 369,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 3732,
+            "ms": 471,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 3732,
+            "ms": 494,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 3732,
+            "ms": 405,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 3732,
+            "ms": 531,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 3732,
+            "ms": 546,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 3732,
+            "ms": 570,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 3732,
+            "ms": 599,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 3733,
+            "ms": 614,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Audi.svg",
+            "start": 4485,
+            "ms": 236,
+            "bytes": 6398,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/BMW.svg",
+            "start": 4487,
+            "ms": 219,
+            "bytes": 3460,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chery.svg",
+            "start": 4488,
+            "ms": 195,
+            "bytes": 2649,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chrysler.svg",
+            "start": 4488,
+            "ms": 202,
+            "bytes": 2196,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Citroen.svg",
+            "start": 4489,
+            "ms": 165,
+            "bytes": 1449,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4510,
+            "ms": 166,
+            "bytes": 886,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4511,
+            "ms": 247,
+            "bytes": 2629,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4511,
+            "ms": 427,
+            "bytes": 7890,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4511,
+            "ms": 433,
+            "bytes": 7695,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4512,
+            "ms": 314,
+            "bytes": 949,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4513,
+            "ms": 335,
+            "bytes": 929,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4513,
+            "ms": 388,
+            "bytes": 1015,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4513,
+            "ms": 410,
+            "bytes": 3390,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4514,
+            "ms": 449,
+            "bytes": 1072,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4515,
+            "ms": 453,
+            "bytes": 1097,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4516,
+            "ms": 483,
+            "bytes": 1334,
+            "type": "css"
+          },
+          {
+            "url": "http://localhost:3107/api/home-blog?view=all",
+            "start": 4927,
+            "ms": 95,
+            "bytes": 1343,
+            "type": "fetch"
+          }
+        ],
+        "initialJsBytes": 206189
+      },
+      {
+        "width": 1440,
+        "sample": 0,
+        "status": 200,
+        "errors": [],
+        "ttfb": 42,
+        "domInteractive": 1240,
+        "domLoaded": 1242,
+        "fcp": 1576,
+        "lcp": 2368,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1240.3999999985099,
+            "duration": 117
+          },
+          {
+            "start": 1382.199999999255,
+            "duration": 110
+          },
+          {
+            "start": 3169.5,
+            "duration": 52
+          },
+          {
+            "start": 3295.699999999255,
+            "duration": 72
+          },
+          {
+            "start": 4230.5,
+            "duration": 129
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 113,
+            "ms": 1178,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1.webp",
+            "start": 115,
+            "ms": 2226,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 116,
+            "ms": 194,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=960",
+            "start": 116,
+            "ms": 3087,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 116,
+            "ms": 1092,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 116,
+            "ms": 1325,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 116,
+            "ms": 1341,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 116,
+            "ms": 2937,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 116,
+            "ms": 3005,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 116,
+            "ms": 1573,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 117,
+            "ms": 1632,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 117,
+            "ms": 1811,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 117,
+            "ms": 1973,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 117,
+            "ms": 2157,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 117,
+            "ms": 2389,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 117,
+            "ms": 2816,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 117,
+            "ms": 2599,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 117,
+            "ms": 2839,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 117,
+            "ms": 3102,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1228,
+            "ms": 1408,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1242,
+            "ms": 2952,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1493,
+            "ms": 1269,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 3357,
+            "ms": 199,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/api/proxy?endpoint=euro",
+            "start": 3679,
+            "ms": 109,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3846,
+            "ms": 182,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 4434,
+            "ms": 240,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 4459,
+            "ms": 184,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 4459,
+            "ms": 912,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 4460,
+            "ms": 250,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 4460,
+            "ms": 460,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4462,
+            "ms": 167,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4462,
+            "ms": 338,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4462,
+            "ms": 407,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4462,
+            "ms": 496,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4462,
+            "ms": 527,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4463,
+            "ms": 488,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4463,
+            "ms": 578,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4463,
+            "ms": 586,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4463,
+            "ms": 616,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4463,
+            "ms": 631,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4463,
+            "ms": 653,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 4465,
+            "ms": 704,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 4465,
+            "ms": 741,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 4465,
+            "ms": 845,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 4466,
+            "ms": 881,
+            "bytes": 3197,
+            "type": "script"
+          }
+        ],
+        "initialJsBytes": 206189
+      },
+      {
+        "width": 1440,
+        "sample": 1,
+        "status": 200,
+        "errors": [],
+        "ttfb": 19,
+        "domInteractive": 1239,
+        "domLoaded": 1241,
+        "fcp": 1468,
+        "lcp": 2364,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1238.699999999255,
+            "duration": 96
+          },
+          {
+            "start": 1356,
+            "duration": 77
+          },
+          {
+            "start": 3193.800000000745,
+            "duration": 51
+          },
+          {
+            "start": 3341.300000000745,
+            "duration": 67
+          },
+          {
+            "start": 4221.5,
+            "duration": 121
+          },
+          {
+            "start": 5404.5,
+            "duration": 54
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 108,
+            "ms": 1179,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1.webp",
+            "start": 110,
+            "ms": 2227,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 110,
+            "ms": 209,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=960",
+            "start": 111,
+            "ms": 3111,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 112,
+            "ms": 1100,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 112,
+            "ms": 1333,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 112,
+            "ms": 2976,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 112,
+            "ms": 3050,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 112,
+            "ms": 1339,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 112,
+            "ms": 1579,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 112,
+            "ms": 1632,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 112,
+            "ms": 1836,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 113,
+            "ms": 1977,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 113,
+            "ms": 2306,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 113,
+            "ms": 3057,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 113,
+            "ms": 2464,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 113,
+            "ms": 2532,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 113,
+            "ms": 2704,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 113,
+            "ms": 3094,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1227,
+            "ms": 1118,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1240,
+            "ms": 2948,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1434,
+            "ms": 1008,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 3398,
+            "ms": 198,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/api/proxy?endpoint=euro",
+            "start": 3727,
+            "ms": 110,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3885,
+            "ms": 185,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 4412,
+            "ms": 287,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 4428,
+            "ms": 923,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 4429,
+            "ms": 182,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 4429,
+            "ms": 256,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 4429,
+            "ms": 473,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4430,
+            "ms": 164,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4431,
+            "ms": 335,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4431,
+            "ms": 500,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4431,
+            "ms": 553,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4431,
+            "ms": 418,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4431,
+            "ms": 493,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4431,
+            "ms": 591,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4431,
+            "ms": 607,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4431,
+            "ms": 628,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4431,
+            "ms": 635,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4431,
+            "ms": 665,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 4503,
+            "ms": 646,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 4504,
+            "ms": 684,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 4504,
+            "ms": 787,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5393.22299b39461f3ae9.js",
+            "start": 4504,
+            "ms": 991,
+            "bytes": 13481,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 4505,
+            "ms": 817,
+            "bytes": 3197,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Parts/cutout/filtr.webp",
+            "start": 4505,
+            "ms": 1161,
+            "bytes": 15986,
+            "type": "img"
+          }
+        ],
+        "initialJsBytes": 206189
+      },
+      {
+        "width": 1440,
+        "sample": 2,
+        "status": 200,
+        "errors": [],
+        "ttfb": 31,
+        "domInteractive": 1240,
+        "domLoaded": 1242,
+        "fcp": 1456,
+        "lcp": 2380,
+        "cls": 0,
+        "longTasks": [
+          {
+            "start": 1240.0999999977648,
+            "duration": 87
+          },
+          {
+            "start": 3327.599999997765,
+            "duration": 61
+          },
+          {
+            "start": 4221.699999999255,
+            "duration": 115
+          },
+          {
+            "start": 5397.699999999255,
+            "duration": 52
+          }
+        ],
+        "htmlBytes": 33997,
+        "resources": [
+          {
+            "url": "http://localhost:3107/fonts/exo2-ui-v1.woff2",
+            "start": 110,
+            "ms": 1179,
+            "bytes": 50476,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/storefront/photos/partson-store-1.webp",
+            "start": 111,
+            "ms": 2242,
+            "bytes": 89404,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fpartson-logo-v3.webp&w=96&q=90",
+            "start": 112,
+            "ms": 209,
+            "bytes": 2801,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/styles/critical-home.5977ed49d3.css",
+            "start": 112,
+            "ms": 1102,
+            "bytes": 43892,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/webpack-96cf6a443625c39f.js",
+            "start": 112,
+            "ms": 1335,
+            "bytes": 3234,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/main-app-966b422450b386bb.js",
+            "start": 112,
+            "ms": 1342,
+            "bytes": 974,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4bd1b696-8a4ab4fdf0ae305a.js",
+            "start": 112,
+            "ms": 2976,
+            "bytes": 63675,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/3794-7c2591830e519925.js",
+            "start": 112,
+            "ms": 3045,
+            "bytes": 66117,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq?preview=1&v=2026-08-07T13%3A47%3A58.005Z&w=960",
+            "start": 112,
+            "ms": 3111,
+            "bytes": 123168,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8500-01a63dafd809e317.js",
+            "start": 112,
+            "ms": 1582,
+            "bytes": 3852,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8437-2a15227080781d99.js",
+            "start": 113,
+            "ms": 1633,
+            "bytes": 5832,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1869-f5da7884caeb8b9f.js",
+            "start": 113,
+            "ms": 1835,
+            "bytes": 3305,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/943-b56c7980e2a325cf.js",
+            "start": 113,
+            "ms": 1978,
+            "bytes": 6627,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1510-952152f0c47cece1.js",
+            "start": 113,
+            "ms": 2316,
+            "bytes": 6924,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/layout-ce59e038efb616cb.js",
+            "start": 113,
+            "ms": 3066,
+            "bytes": 25978,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/global-error-61e9d38407f140db.js",
+            "start": 113,
+            "ms": 2473,
+            "bytes": 1076,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/error-18d4aa12bbc555c9.js",
+            "start": 114,
+            "ms": 2532,
+            "bytes": 2302,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8927-735876f36e3b1f0b.js",
+            "start": 114,
+            "ms": 2712,
+            "bytes": 3543,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/app/page-f1af54e54396e3fb.js",
+            "start": 114,
+            "ms": 3094,
+            "bytes": 15984,
+            "type": "script"
+          },
+          {
+            "url": "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk",
+            "start": 1230,
+            "ms": 1327,
+            "bytes": 0,
+            "type": "iframe"
+          },
+          {
+            "url": "http://localhost:3107/styles/site.5977ed49d3.css",
+            "start": 1241,
+            "ms": 2950,
+            "bytes": 177726,
+            "type": "link"
+          },
+          {
+            "url": "http://localhost:3107/_next/image?url=%2Fimages%2Finformation%2Fdiagnostics-hero-v1.webp&w=640&q=75",
+            "start": 1426,
+            "ms": 1017,
+            "bytes": 14308,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7254.32e1f4a782b886aa.js",
+            "start": 3379,
+            "ms": 198,
+            "bytes": 10095,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/api/proxy?endpoint=euro",
+            "start": 3700,
+            "ms": 109,
+            "bytes": 314,
+            "type": "fetch"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/1889.4d0d21aab4142532.js",
+            "start": 3868,
+            "ms": 180,
+            "bytes": 8416,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/favicon-partson-v3.ico",
+            "start": 4400,
+            "ms": 293,
+            "bytes": 8565,
+            "type": "other"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4735-c7f1e7f215801ffd.js",
+            "start": 4416,
+            "ms": 918,
+            "bytes": 39316,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5116.d749dd1a4985abee.js",
+            "start": 4416,
+            "ms": 180,
+            "bytes": 2909,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/4401.f8cf699370a56566.js",
+            "start": 4416,
+            "ms": 248,
+            "bytes": 5078,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/6253.a2f94978520aa2c3.js",
+            "start": 4417,
+            "ms": 458,
+            "bytes": 14335,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/KIA.svg",
+            "start": 4417,
+            "ms": 148,
+            "bytes": 886,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mitsubishi.svg",
+            "start": 4418,
+            "ms": 328,
+            "bytes": 2629,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Chevrolet.svg",
+            "start": 4418,
+            "ms": 494,
+            "bytes": 7890,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Volvo.svg",
+            "start": 4418,
+            "ms": 433,
+            "bytes": 949,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Geely.svg",
+            "start": 4418,
+            "ms": 487,
+            "bytes": 929,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Peugeot.svg",
+            "start": 4418,
+            "ms": 540,
+            "bytes": 7695,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Renault.svg",
+            "start": 4418,
+            "ms": 583,
+            "bytes": 1015,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Jaguar.svg",
+            "start": 4418,
+            "ms": 616,
+            "bytes": 3390,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Suzuki.svg",
+            "start": 4418,
+            "ms": 620,
+            "bytes": 1072,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/DAF.svg",
+            "start": 4419,
+            "ms": 635,
+            "bytes": 1097,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/Carlogo/Mazda.svg",
+            "start": 4419,
+            "ms": 658,
+            "bytes": 1334,
+            "type": "img"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8943.44a858b4052fd02c.js",
+            "start": 4487,
+            "ms": 633,
+            "bytes": 2528,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/7287-59f0f9e8167bb22f.js",
+            "start": 4488,
+            "ms": 715,
+            "bytes": 2259,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/8917-b2d44f752d30a765.js",
+            "start": 4488,
+            "ms": 797,
+            "bytes": 5998,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/5393.22299b39461f3ae9.js",
+            "start": 4488,
+            "ms": 981,
+            "bytes": 13481,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/_next/static/chunks/9943.88ed70c20c20883c.js",
+            "start": 4488,
+            "ms": 813,
+            "bytes": 3197,
+            "type": "script"
+          },
+          {
+            "url": "http://localhost:3107/Parts/cutout/filtr.webp",
+            "start": 4489,
+            "ms": 1157,
+            "bytes": 15986,
+            "type": "img"
+          }
+        ],
+        "initialJsBytes": 206189
+      }
+    ]
+  }
+}

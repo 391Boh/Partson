@@ -58,7 +58,7 @@ const buildStylesheetLoaderScript = (href: string) => {
   const criticalSelector = JSON.stringify(
     `link[rel="stylesheet"][data-precedence="${CRITICAL_CSS_PRECEDENCE}"]`
   );
-  return `(function(){var h=${hrefJson},d=document,w=window;if(d.querySelector(${criticalSelector})){var p=new Promise(function(r){var l=d.createElement("link");l.rel="stylesheet";l.href=h;l.media="print";l.onload=l.onerror=function(){l.media="all";r()};d.head.appendChild(l)});w.__partsonCssReady=p}else{d.write('<link rel="stylesheet" href="'+h+'">')}})();`;
+  return `(function(){var h=${hrefJson},d=document,w=window;if(d.querySelector(${criticalSelector})){w.__partsonCssReady=new Promise(function(r){function load(){var l=d.createElement("link");l.rel="stylesheet";l.href=h;l.media="print";l.fetchPriority="low";l.onload=l.onerror=function(){l.media="all";r()};d.head.appendChild(l)}if(d.readyState==="loading"&&w.location.pathname==="/")d.addEventListener("DOMContentLoaded",load,{once:true});else load()})}else{d.write('<link rel="stylesheet" href="'+h+'">')}})();`;
 };
 
 const siteUrl = getSiteUrl();
@@ -443,12 +443,12 @@ export default function RootLayout({
         />
         <script dangerouslySetInnerHTML={{ __html: partnerPriceHintBootstrap }} />
         <script dangerouslySetInnerHTML={{ __html: adminLayoutHintBootstrap }} />
-        <noscript>
-          <link rel="stylesheet" href={globalStylesheetHref} />
-        </noscript>
+        {/* A JSX <link> here makes React hoist an unconditional preload,
+            competing with the critical stylesheet even when JS is enabled. */}
+        <noscript dangerouslySetInnerHTML={{ __html: `<link rel="stylesheet" href="${globalStylesheetHref}">` }} />
         <link
           rel="preload"
-          href="/fonts/exo2-latin-cyrillic.woff2"
+          href="/fonts/exo2-ui-v1.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
