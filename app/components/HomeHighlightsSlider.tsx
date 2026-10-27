@@ -10,6 +10,10 @@ import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights"
 // teaser cut mid-phrase with an ellipsis read as broken. The first sentence
 // always stays, even when it is longer.
 const TEASER_MAX_CHARS = 120;
+const VISUALLY_HIDDEN = {
+  position: "absolute", width: 1, height: 1, padding: 0, margin: -1,
+  overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0,
+} as const;
 // Homepage preview URLs already serve a resized, cached WebP.
 const isPreparedCover = (image: string) => image.startsWith("/api/blog/og-image/") && image.includes("preview=1");
 const preparedCoverLoader = ({ src, width }: ImageLoaderProps) => `${src}&w=${Math.max(320, Math.min(width, 960))}`;
@@ -173,7 +177,10 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
   if (!selected) return null;
 
   return (
-    <section ref={sectionRef} data-server-resolved={serverResolved || undefined} className="home-highlights font-ui" aria-label="Статті та послуги PartsON">
+    <section ref={sectionRef} data-server-resolved={serverResolved || undefined} className="home-highlights font-ui" aria-labelledby="home-highlights-title">
+      {/* Slides carry h3 titles; this keeps the outline h1 → h2 → h3.
+          Hidden inline: .sr-only is not in the homepage's critical CSS. */}
+      <h2 id="home-highlights-title" style={VISUALLY_HIDDEN}>Статті та послуги PartsON</h2>
       {/* Full bleed: both photos run edge to edge; the copy keeps to the page
           shell's edges (--highlight-gutter in globals.css). */}
       <div ref={playerRef} className={`home-highlights-player home-highlights-split${hasSlides ? "" : " is-static"}${service ? "" : " is-single"}${inView ? " is-in-view" : ""}`}>

@@ -32,6 +32,11 @@ assert(!matches('VW PASSAT B3\nКоментар\tAUDI A4 B5',{...car,brand:'AUDI
 assert(matches('Застосування\tVW PASSAT B3 1.8 1988-1997',car));
 assert(!matches('AUDI A4 B5, A6 C5 1.6-4.2 1994-2008',{...car,brand:'AUDI',model:'A4 B5',volume:'5.0',year:2000}));
 assert(!matches('VW PASSAT',car),'A model family alone cannot confirm a generation and year');
+const vivaro={brand:'OPEL',model:'Vivaro A',year:2005};
+assert(matches('NISSAN NAVARA NP300, PRIMASTAR; OPEL VIVARO A; RENAULT TRAFIC II 1.9D-2.5D 02.01-',vivaro),'A letter generation names the generation without dates');
+assert(!matches('OPEL VIVARO B 1.6D 05.14-',vivaro),'Another letter generation does not match');
+assert(!matches('OPEL VIVARO',vivaro),'A bare family still cannot confirm the year');
+assert(matches('OPEL ASTRA G, ZAFIRA A',{brand:'OPEL',model:'Astra G',year:2001}));
 assert(!matches(undefined,car));
 assert.equal(readVehicleSelection('invalid'),null);
 assert(encodeVehicleSelection(car).includes('1991'));

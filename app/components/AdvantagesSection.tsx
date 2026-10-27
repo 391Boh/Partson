@@ -31,7 +31,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
             <div className="home-story-copy-body flex flex-1 flex-col pt-4 sm:pt-5">
               <header className="home-store-heading home-store-card-heading">
                 <span className="home-store-kicker">Каталог PartsON · Львів</span>
-                <h2 className="font-display font-display-readable">Автозапчастини<br /><span>для вашого авто</span></h2>
+                <h2 className="font-display font-display-readable">Автозапчастини{" "}<br /><span>для вашого авто</span></h2>
                 <p>Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.</p>
               </header>
               <div className="home-store-assortment">
@@ -78,7 +78,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           <div className="home-store-help-copy">
             <MessageCircle className="home-store-help-icon" size={25} aria-hidden="true" />
             <span className="home-store-help-kicker">Запитання та відповіді</span>
-            <h3 id="parts-help-title">Допоможемо обрати<br />й замовити</h3>
+            <h3 id="parts-help-title">Допоможемо обрати{" "}<br />й замовити</h3>
             <p>Не впевнені, яка деталь підійде? Напишіть менеджеру марку й модель авто або артикул. VIN-код допоможе перевірити сумісність.</p>
             <OpenChatButton message="Допоможіть підібрати деталь для мого авто." label="Запитати менеджера" title="Написати менеджеру для підбору запчастини" className="parts-help-button" />
           </div>

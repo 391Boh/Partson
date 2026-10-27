@@ -103,7 +103,10 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
         const scoped = !/\d[.,]\d|\d{2,4}\s*-/.test(entry) ? `${entry} ${sharedTail}` : entry;
         // A bare family name ("VW Passat") cannot confirm a selected
         // generation/year. Require at least a generation or a dated range.
-        if ((generation.length || vehicle.year) && !listedGenerations && !/(?<![\d.])(?:\d{2}\.)?\d{2,4}\s*-/.test(scoped)) continue;
+        // A letter generation is part of the model itself ("VIVARO A",
+        // "ASTRA G"): naming it already pins the generation's years.
+        const namesLetterGeneration = /\s[A-Z]$/.test(model);
+        if ((generation.length || vehicle.year) && !listedGenerations && !namesLetterGeneration && !/(?<![\d.])(?:\d{2}\.)?\d{2,4}\s*-/.test(scoped)) continue;
         if (matchesConstraints(scoped, vehicle)) return true;
       }
     }
