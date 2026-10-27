@@ -9,7 +9,7 @@ const fixtures = [
 const browser = await chromium.launch({ channel: 'chrome' });
 try {
   for (const width of [1440, 390]) {
-    const page = await browser.newPage({ viewport: { width, height: 1100 } });
+    const page = await browser.newPage({ viewport: { width, height: 1100 }, reducedMotion: 'reduce' });
     await page.addInitScript(() => localStorage.setItem('partson:selectedCars', JSON.stringify(['AUDI A4 2010', 'VOLVO V60 2018'])));
     await page.route('**/api/proxy?*', async route => {
       const url = new URL(route.request().url());
@@ -30,13 +30,10 @@ try {
     const initial = await geometry();
     await section.getByRole('button', { name: 'Обрати BMW', exact: true }).click();
     await section.locator('.vehicle-model-choice').first().click();
-    await page.waitForFunction(() => {
-      const year = document.querySelector('.home-slot-auto .vehicle-year-control select');
-      return year && !year.disabled && year.options.length > 1;
-    });
-    await section.locator('.vehicle-year-control select').first().selectOption({ index: 1 });
     const modifications = section.locator('.vehicle-modifications');
     await modifications.waitFor();
+    // The year is the first step of the modification list itself.
+    await modifications.locator('.vehicle-mod-choice[data-kind="year"]').first().click();
     await page.waitForTimeout(700);
     assert.deepEqual(await geometry(), initial, 'Modification step keeps its height');
     for (let step = 0; step < 10; step++) {

@@ -848,7 +848,7 @@ const AutoSection: React.FC<AutoProps> = ({
     const activeStepIndex = steps.findIndex((step) => step.id === activeTab);
 
     return (
-      <nav aria-label="Кроки підбору авто" className="home-picker-steps relative">
+      <nav aria-label="Кроки підбору авто" className="home-picker-steps home-auto-navigation relative">
         <div
           className={`pointer-events-none absolute left-[16%] top-[23px] z-0 h-[3px] w-[34%] rounded-full ${
             dark
@@ -943,6 +943,7 @@ const AutoSection: React.FC<AutoProps> = ({
                   setActiveTab(step.id);
                 }}
                 aria-current={isActive ? "step" : undefined}
+                data-step-state={isActive ? "active" : isDone ? "complete" : "upcoming"}
                 title={step.label}
                 disabled={!isEnabled}
                 className={`relative flex min-h-[56px] min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-300 ease-out ${buttonTone} ${
@@ -975,7 +976,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       onError={handleBrandLogoLoadError}
                     />
                   ) : (
-                    index + 1
+                    isDone ? <Check size={16} strokeWidth={2.5} aria-hidden="true" /> : index + 1
                   )}
                 </span>
                 {/* Same expressive treatment as the benefit chips in
@@ -1486,10 +1487,6 @@ const AutoSection: React.FC<AutoProps> = ({
                     </p>
                   )}
 
-                  {selectedBrand && !showSummaryTable && (activeTab === "model" || activeTab === "engine") && (
-                    <VehicleYearSelect value={selectedYear} years={yearMeta.years ?? []} loading={yearMeta.loading} allowAny={activeTab !== "engine"} onChange={onYearSelect} />
-                  )}
-
                   {/* Unique per step instead of one static sentence repeated
                       regardless of progress: the "марка" step already has its
                       own intro above, so this only fills in for "модель" and
@@ -1700,7 +1697,7 @@ const AutoSection: React.FC<AutoProps> = ({
                                       lastSelectedLabelRef.current = car;
                                       setSelectedVin("");
                                     }}
-                                    className="max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11.5px] font-semibold text-slate-600 transition-colors duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                                    className="max-w-full truncate rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11.5px] font-semibold text-sky-800 transition-colors duration-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
                                   >
                                     {car}
                                   </button>
@@ -1799,7 +1796,7 @@ const AutoSection: React.FC<AutoProps> = ({
                           {activeTab === "engine"
                             ? `Виберіть модифікацію ${selectedModel ?? ""}`
                             : `Виберіть модель ${selectedBrand.name}`}
-                          <span className="pointer-events-none absolute left-0 -bottom-0.5 h-[2px] w-full rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-violet-400 origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/auto:scale-x-100 shadow-[0_4px_12px_rgba(99,102,241,0.3)]" />
+                          <span className="pointer-events-none absolute left-0 -bottom-0.5 h-[2px] w-full rounded-full bg-gradient-to-r from-sky-600 via-blue-500 to-teal-600 origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/auto:scale-x-100 shadow-[0_4px_12px_rgba(99,102,241,0.3)]" />
                         </span>
                       </h2>
                       <span className="shrink-0 text-[12px] text-slate-400 leading-tight whitespace-nowrap min-h-[1em]">

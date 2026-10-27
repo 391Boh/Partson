@@ -14,17 +14,17 @@ type SectionPaginationTone = "sky" | "blue" | "indigo";
 
 const TONE = {
   sky: {
-    icon: "text-slate-500 hover:bg-sky-50 hover:text-sky-700",
+    icon: "text-sky-700 hover:bg-sky-50 hover:text-sky-800",
     active: "text-sky-700",
     fill: "bg-sky-500",
   },
   blue: {
-    icon: "text-slate-500 hover:bg-blue-50 hover:text-blue-700",
+    icon: "text-blue-700 hover:bg-blue-50 hover:text-blue-800",
     active: "text-blue-700",
     fill: "bg-blue-500",
   },
   indigo: {
-    icon: "text-slate-500 hover:bg-indigo-50 hover:text-indigo-700",
+    icon: "text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800",
     active: "text-indigo-700",
     fill: "bg-indigo-500",
   },
@@ -91,7 +91,7 @@ export default function SectionPagination({
         {showAvailableCount ? (
           <span className="section-pagination-label hidden">{availableCount == null ? counterLabel : <>Доступно <strong>{availableCount}{availableUnit ? ` ${availableUnit}` : ""}</strong></>}</span>
         ) : null}
-        <span className="section-pagination-value text-[11px] font-bold leading-none tabular-nums">
+        <span aria-live="polite" aria-atomic="true" className="section-pagination-value text-[11px] font-bold leading-none tabular-nums">
           <span className={t.active}>{page}</span>
           <span className="text-slate-400"> / {totalPages}</span>
         </span>

@@ -3,7 +3,7 @@
 import VehicleYearSelect from "./VehicleYearSelect";
 import { fetchAutoDirectory } from "app/lib/onec-proxy-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Compass, Gauge, Settings2, SlidersHorizontal, X, Zap } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Compass, Gauge, Settings2, SlidersHorizontal, X, Zap } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 import type { YearMeta } from "./CarModels";
@@ -58,6 +58,7 @@ interface Filters {
 }
 
 const LABEL_YEAR = "Рік";
+const LABEL_YEAR_OF_MANUFACTURE = "Рік випуску";
 const LABEL_EMPTY_MODS = "Модифікацій не знайдено.";
 const LABEL_SELECT_MODEL_FIRST = "Оберіть модель, щоб завантажити модифікації.";
 const LABEL_MODS = "Модифікації";
@@ -193,6 +194,11 @@ const CarModifications: React.FC<Props> = ({
   const [loadingYears, setLoadingYears] = useState(false);
   const [loadingMods, setLoadingMods] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 1C answered, but has no years / modifications for this model (models
+  // added from product fitment carry neither). Not an error: the buyer can
+  // still continue with brand + model (+ year) only.
+  const [yearsUnavailable, setYearsUnavailable] = useState(false);
+  const [modsUnavailable, setModsUnavailable] = useState(false);
   // Apply the chosen year immediately, without an extra confirmation step.
   const [selectedYear, setSelectedYear] = useState<number | "">(initialYear ?? "");
   const [optionPage, setOptionPage] = useState(0);
@@ -217,7 +223,10 @@ const CarModifications: React.FC<Props> = ({
 
     const cacheKey = `${selectedBrand}||${selectedModel}`;
     if (yearCache.has(cacheKey)) {
-      setYearOptions(yearCache.get(cacheKey) ?? []);
+      const cachedYears = yearCache.get(cacheKey) ?? [];
+      setYearOptions(cachedYears);
+      setYearsUnavailable(cachedYears.length === 0);
+      setError(null);
       setSelectedYear(initialYear ?? "");
       setFilters({ volume: "", power: "", gearbox: "", drive: "" });
       setModifications([]);
@@ -227,6 +236,7 @@ const CarModifications: React.FC<Props> = ({
     let cancelled = false;
     setLoadingYears(true);
     setError(null);
+    setYearsUnavailable(false);
     setYearOptions([]);
     setSelectedYear(initialYear ?? "");
     setModifications([]);
@@ -237,17 +247,15 @@ const CarModifications: React.FC<Props> = ({
       [AUTO_FIELDS.model]: selectedModel,
     })
       .then((data) => {
-        if (!Array.isArray(data) || data.length === 0) {
-          throw new Error("Не вдалося отримати роки для вибраної моделі");
-        }
         const currentYear = new Date().getFullYear();
         const years = new Set<number>();
-        data.forEach((item) => {
+        (Array.isArray(data) ? data : []).forEach((item) => {
           if (!item || typeof item !== "object") return;
           const record = item as Record<string, unknown>;
           const start = toNumber(record[AUTO_FIELDS.yearStart]);
           const endRaw = toNumber(record[AUTO_FIELDS.yearEnd]);
-          if (start == null) return;
+          // 0 is 1C's "year unknown".
+          if (start == null || start === 0) return;
           const end = endRaw == null || endRaw === 0 ? currentYear : endRaw;
           if (start > end) return;
           for (let y = start; y <= end; y += 1) years.add(y);
@@ -255,6 +263,7 @@ const CarModifications: React.FC<Props> = ({
         const sorted = Array.from(years).sort((a, b) => a - b);
         if (!cancelled) {
           setYearOptions(sorted);
+          setYearsUnavailable(sorted.length === 0);
           yearCache.set(cacheKey, sorted);
         }
       })
@@ -282,6 +291,7 @@ const CarModifications: React.FC<Props> = ({
     let cancelled = false;
     setLoadingMods(true);
     setError(null);
+    setModsUnavailable(false);
     setModifications([]);
 
     fetchAutoRows({
@@ -291,7 +301,8 @@ const CarModifications: React.FC<Props> = ({
     })
       .then((data) => {
         if (!Array.isArray(data) || data.length === 0) {
-          throw new Error("Не вдалося отримати модифікації для вибраного авто");
+          if (!cancelled) setModsUnavailable(true);
+          return;
         }
         const uniqueMap = new Map<string, Modification>();
         data.forEach((item) => {
@@ -452,7 +463,10 @@ const CarModifications: React.FC<Props> = ({
               : []
   ), [isSelectingYear, yearOptions, isSelectingVolume, volumeOptions, isSelectingPower, powerOptions, isSelectingGearbox, gearboxOptions, isSelectingDrive, driveOptions]);
 
-  const yearPerPage = (isCompact ? 3 : 4) * 2;
+  // Hosted on the homepage the year is picked in this list, as compact
+  // tiles: three rows of four instead of two rows of tall option cards.
+  const yearPerPage = (isCompact ? 3 : 4) * (onYearMetaChange && !isCompact ? 3 : 2);
+  const yearsInList = isSelectingYear && Boolean(onYearMetaChange);
   // Fixed column count (not responsive) so a page is always exactly two rows
   // — matches the model grid in CarModels.tsx (grid-cols-4, 8 per page).
   const filterColumns = isCompact ? 3 : 4;
@@ -529,7 +543,7 @@ const CarModifications: React.FC<Props> = ({
   }, [selectedYear, isSelectingVolume, isSelectingPower, isSelectingGearbox, isSelectingDrive, currentStepValues.length]);
 
   const currentStepLabel = isSelectingYear
-    ? ""
+    ? (onYearMetaChange ? LABEL_YEAR_OF_MANUFACTURE : "")
     : isSelectingVolume
       ? LABEL_SELECT_VOLUME
       : isSelectingPower
@@ -542,7 +556,9 @@ const CarModifications: React.FC<Props> = ({
   // One distinct icon per filter step — gives the label above the chip grid
   // (and each chip's own top accent, below) a clear, scannable identity
   // instead of every step reading as the same plain muted line of text.
-  const currentStepIcon = isSelectingVolume
+  const currentStepIcon = yearsInList
+    ? CalendarDays
+    : isSelectingVolume
     ? Gauge
     : isSelectingPower
       ? Zap
@@ -614,6 +630,9 @@ const CarModifications: React.FC<Props> = ({
 
   const isLoading = loadingYears || loadingMods;
   const headerCount = showResults ? uniqueMods.length : currentStepValues.length;
+  // No years at all, or no modifications for the picked year: say so and let
+  // the buyer continue with what is known instead of a dead end.
+  const missingDetails = selectedYear ? modsUnavailable : yearsUnavailable;
 
   return (
     <div data-complete={showResults ? "true" : undefined} className={`vehicle-modifications w-full flex flex-col ${isCompact ? "gap-2" : "gap-2.5"}`}>
@@ -624,7 +643,7 @@ const CarModifications: React.FC<Props> = ({
           provided): the parent already shows a "Виберіть модифікацію ..."
           heading of its own there, and stacking this on top of it just
           duplicated the same "here's the count" message twice. */}
-      {!onYearMetaChange && (
+      {!onYearMetaChange && !missingDetails && (
         <div className="vehicle-mod-header flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 text-indigo-700 shadow-[0_6px_14px_rgba(99,102,241,0.09)]">
@@ -709,6 +728,22 @@ const CarModifications: React.FC<Props> = ({
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-600">
           {error}
         </p>
+      ) : missingDetails ? (
+        <div className="vehicle-mod-missing rounded-[14px] border border-sky-100 bg-sky-50/70 px-3.5 py-3">
+          <p className="text-[13px] font-semibold leading-snug text-slate-800">
+            {selectedYear
+              ? `Модифікації ${selectedModel} ${selectedYear} ще не заповнені в каталозі.`
+              : `Роки випуску ${selectedModel} ще не вказані в каталозі.`}
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+            Покажемо запчастини, у сумісності яких є {selectedYear ? "ця модель і рік" : "ця модель"}. Точний підбір менеджер перевірить за VIN.
+          </p>
+          <button type="button" onClick={handleConfirm} className="vehicle-mod-confirm mt-3">
+            <Check size={17} strokeWidth={2.2} aria-hidden="true" />
+            Показати запчастини
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
       ) : (
         <div
           className={`vehicle-mod-content flex flex-col ${showResults ? "" : `justify-center ${isCompact ? "min-h-[176px]" : "min-h-[212px]"}`}`}
@@ -729,22 +764,15 @@ const CarModifications: React.FC<Props> = ({
             </div>
           )}
 
-          {/* A hosted selector stays in the parent search panel. */}
-          {!showResults && yearOptions.length > 0 && (
-            onYearMetaChange ? (
-              isSelectingYear ? (
-                <div className="vehicle-year-hint">
-                  <p>Оберіть рік випуску у списку «Рік випуску».</p>
-                </div>
-              ) : null
-            ) : (
-              <VehicleYearSelect value={typeof selectedYear === "number" ? selectedYear : null} years={yearOptions} loading={loadingYears} allowAny={false} onChange={year => handleYearChange(year == null ? "" : String(year))} />
-            )
+          {/* Hosted (homepage): years are the first step of this list, see
+              yearsInList. Elsewhere the year keeps its own select. */}
+          {!showResults && yearOptions.length > 0 && !onYearMetaChange && (
+            <VehicleYearSelect value={typeof selectedYear === "number" ? selectedYear : null} years={yearOptions} loading={loadingYears} allowAny={false} onChange={year => handleYearChange(year == null ? "" : String(year))} />
           )}
 
           {/* Filter step chips — edge-arrow pagination matches the model grid
               in CarModels.tsx instead of the compact pill control. */}
-          {!isSelectingYear && !showResults && (
+          {(!isSelectingYear || yearsInList) && !showResults && (
             currentStepValues.length === 0 ? (
               <div className="py-4 text-center text-xs text-slate-400">{LABEL_EMPTY_MODS}</div>
             ) : (
@@ -779,10 +807,11 @@ const CarModifications: React.FC<Props> = ({
                                 key={value}
                                 type="button"
                                 onClick={() => handleStepSelect(value)}
+                                data-kind={yearsInList ? "year" : undefined}
                                 className="vehicle-mod-choice group/category relative flex min-h-[76px] min-w-0 flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[16px] border border-sky-200/95 bg-[radial-gradient(circle_at_50%_-8%,rgba(125,211,252,0.44),transparent_48%),linear-gradient(150deg,#ffffff_0%,#f3faff_50%,#e9f8ff_100%)] px-2.5 py-2.5 text-center shadow-[0_10px_24px_rgba(15,23,42,0.09),0_3px_9px_rgba(14,116,144,0.06),inset_0_1px_0_rgba(255,255,255,1)] ring-1 ring-white/90 transition-[border-color,background-color,box-shadow] duration-300 ease-out hover:border-sky-500 hover:bg-[radial-gradient(circle_at_50%_-8%,rgba(103,232,249,0.68),transparent_52%),linear-gradient(150deg,#ffffff_0%,#e6f8ff_52%,#dbeafe_100%)] hover:shadow-[0_20px_36px_rgba(2,132,199,0.24),0_0_0_3px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[92px] sm:px-3"
                               >
                                 <span className="pointer-events-none absolute inset-x-6 top-0 h-[3px] rounded-full bg-[linear-gradient(90deg,transparent,#0ea5e9_30%,#e0f2fe_50%,#38bdf8_70%,transparent)] opacity-0 transition-opacity duration-300 group-hover/category:opacity-100" />
-                                {currentStepIcon && (
+                                {currentStepIcon && !yearsInList && (
                                   <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600 transition-colors duration-300 ease-out group-hover/category:bg-sky-600 group-hover/category:text-white sm:h-7 sm:w-7">
                                     {React.createElement(currentStepIcon, { size: 13, strokeWidth: 2.4, "aria-hidden": true })}
                                   </span>

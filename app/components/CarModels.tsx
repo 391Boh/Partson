@@ -1,6 +1,7 @@
 "use client";
 
 import VehicleYearSelect from "./VehicleYearSelect";
+import VehicleYearRail from "./VehicleYearRail";
 import Link from "next/link";
 import { buildAutoBrandPath } from "app/lib/catalog-links";
 import { pluralizeModels } from "app/lib/pluralize-uk";
@@ -816,6 +817,12 @@ const extractErrorMessage = (text: string) => {
           isCompact ? "min-h-[90px] px-1" : "min-h-[100px] px-1.5"
         }`}
       >
+        {/* Hosted on the homepage: the year filter sits in the list itself,
+            above the toolbar, and stays put while a filtered list reloads. */}
+        {onYearMetaChange && !loading && (
+          <VehicleYearRail value={selectedYear ?? null} years={yearOptions} loading={yearLoading && yearOptions.length === 0} onChange={onYearSelect} />
+        )}
+
         {(loading || (yearLoading && selectedYear != null)) && (
           <div
             className="flex justify-center items-center py-6"
