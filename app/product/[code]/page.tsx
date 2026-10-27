@@ -30,6 +30,7 @@ import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
 import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import { buildProductImageVariantPath } from "app/lib/product-image-variant-path";
+import { getProductSnapshotFitment } from "app/lib/product-sitemap";
 import ProductIdentitySticky from "app/components/ProductIdentitySticky";
 import ProductSectionNav from "app/components/ProductSectionNav";
 import ProductNavBuyStrip from "app/components/ProductNavBuyStrip";
@@ -1740,7 +1741,9 @@ export async function generateMetadata({
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubGroup,
     subGroup: productCategory ? productSubGroup : "",
-    fitmentSource: routeProduct?.description || peekSnapshotProductDescription(routeProduct?.code || resolvedCode),
+    fitmentSource: routeProduct?.description
+      || peekSnapshotProductDescription(routeProduct?.code || resolvedCode)
+      || await getProductSnapshotFitment(routeProduct?.code || resolvedCode),
   });
 
   const keywords = buildProductSeoKeywords({
@@ -2124,7 +2127,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     category: productCategory || productGroup,
     group: productCategory ? productGroup : productSubgroup,
     subGroup: productCategory ? productSubgroup : "",
-    fitmentSource: product.description || peekSnapshotProductDescription(product.code || resolvedCode),
+    fitmentSource: product.description
+      || peekSnapshotProductDescription(product.code || resolvedCode)
+      || await getProductSnapshotFitment(product.code || resolvedCode),
   });
   const categoryCatalogGroupValue =
     productGroup || productCategory || productSubgroup;

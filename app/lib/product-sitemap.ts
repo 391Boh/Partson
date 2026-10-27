@@ -137,6 +137,9 @@ export type ProductSitemapEntry = {
   hasPhoto?: boolean;
   quantity: number;
   priceEuro?: number | null;
+  // The fitment line (first line of the 1C description), saved at build so
+  // product and brand pages have it without a warm in-memory catalog.
+  fitment?: string;
 };
 
 const normalizeProductCodes = (codes: string[]) => {
@@ -161,6 +164,12 @@ const normalizeProductCodes = (codes: string[]) => {
   }
 
   return uniqueCodes;
+};
+
+const FITMENT_LINE_MAX_LENGTH = 400;
+const firstDescriptionLine = (value?: string) => {
+  const line = (value || "").split(/\r?\n/)[0]?.replace(/\s+/g, " ").trim() || "";
+  return line ? line.slice(0, FITMENT_LINE_MAX_LENGTH) : undefined;
 };
 
 const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | null => {
@@ -191,6 +200,7 @@ const toProductSitemapEntry = (product: CatalogProduct): ProductSitemapEntry | n
     hasPhoto: product.hasPhoto,
     quantity: Number.isFinite(product.quantity) ? Math.max(0, product.quantity) : 0,
     priceEuro,
+    fitment: firstDescriptionLine(product.description),
   };
 };
 
@@ -229,6 +239,7 @@ const toSnapshotProductSitemapEntry = (value: unknown): ProductSitemapEntry | nu
     hasPhoto: record.hasPhoto,
     quantity,
     priceEuro,
+    fitment: firstDescriptionLine(record.fitment),
   };
 };
 
@@ -734,6 +745,15 @@ export const getAllPricedProductSitemapEntries = async () => {
 
 export const getAllProductSitemapSnapshotEntries = async () =>
   readProductSitemapEntriesSnapshot();
+
+// The build-time fitment line of one product, or "" (see ProductSitemapEntry).
+let snapshotFitmentByCode: Promise<Map<string, string>> | null = null;
+export const getProductSnapshotFitment = async (code: string) => {
+  snapshotFitmentByCode ??= readProductSitemapEntriesSnapshot().then((entries) =>
+    new Map(entries.filter((entry) => entry.fitment).map((entry) => [entry.code.toLowerCase(), entry.fitment!]))
+  );
+  return (await snapshotFitmentByCode).get((code || "").trim().toLowerCase()) || "";
+};
 
 export const getAllPricedProductSitemapSnapshotEntries = async () => {
   const pricedEntries = await readPricedProductSitemapEntriesSnapshot();

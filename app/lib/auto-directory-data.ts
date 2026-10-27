@@ -13,7 +13,9 @@ import {
   stripRomanNumeralsFromModel,
   stripTrailingChassisCode,
 } from "app/lib/car-model-search";
-import { fetchCatalogProductsByQuery, peekSnapshotFitmentFamilies, type CatalogProduct } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import { splitProductFitmentLine } from "app/lib/product-fitment-format";
+import { getAllProductSitemapSnapshotEntries } from "app/lib/product-sitemap";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -616,15 +618,45 @@ export const readModelBreakdownSnapshot = async (
 // page's description lists, instead of a sentence that only swaps the make
 // name. Purely numeric or one/two-letter families ("124", "C", "GT") read
 // as codes, so they are skipped unless they mix letters and digits ("X5").
-// [] until the catalog snapshot is warm; the page then keeps the neutral
-// sentence until its next revalidation.
+// Read from the product snapshot written at build (generate-seo-counts), so
+// the prerendered page already has them; [] when that file has none.
 const isCountableModelFamily = (family: string) =>
   /^[A-Za-z]{3,}$/.test(family) || /^(?:[A-Za-z]+\d+|\d+[A-Za-z]+)[A-Za-z\d]*$/.test(family);
 const readableFamily = (family: string) =>
   /^[A-Z]{4,}$/.test(family) ? family[0] + family.slice(1).toLowerCase() : family;
+const FITMENT_MAKE_ALIASES: Record<string, string> = {
+  VW: "VOLKSWAGEN", MB: "MERCEDES-BENZ", MERCEDES: "MERCEDES-BENZ", "MERCEDES BENZ": "MERCEDES-BENZ",
+};
+const fitmentMake = (brand: string) => {
+  const key = brand.trim().toUpperCase();
+  return FITMENT_MAKE_ALIASES[key] ?? key;
+};
+// make → family → products, from the fitment lines saved at build time.
+const fitmentFamiliesByMake = cache(async (): Promise<Map<string, Map<string, number>>> => {
+  const byMake = new Map<string, Map<string, number>>();
+  const entries = await getAllProductSitemapSnapshotEntries().catch(() => []);
+  for (const entry of entries) {
+    const fitment = entry.fitment ? splitProductFitmentLine(entry.fitment) : null;
+    if (!fitment) continue;
+    const seen = new Set<string>();
+    for (const group of fitment.groups) {
+      const make = fitmentMake(group.brand);
+      for (const model of group.models) {
+        const family = model.trim().split(/\s+/)[0]?.toUpperCase() || "";
+        const key = `${make}::${family}`;
+        if (!family || seen.has(key)) continue;
+        seen.add(key);
+        const families = byMake.get(make) ?? new Map<string, number>();
+        families.set(family, (families.get(family) ?? 0) + 1);
+        byMake.set(make, families);
+      }
+    }
+  }
+  return byMake;
+});
 export const getPopularModelFamilies = cache(
   async (brand: string, models: readonly AutoModelListEntry[], limit = 4): Promise<string[]> => {
-    const counts = peekSnapshotFitmentFamilies(brand);
+    const counts = (await fitmentFamiliesByMake()).get(fitmentMake(brand));
     if (!counts || counts.size === 0) return [];
     // The site's own spelling when the make lists that family ("Lanos").
     const spelling = new Map<string, string>();
