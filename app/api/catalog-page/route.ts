@@ -6,11 +6,22 @@ import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
   fetchCatalogProductsByQuery,
   fetchPromoCatalogProducts,
+  listCatalogFromSnapshot,
   searchCatalogIndex,
 } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
-import { encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
+import { decodeSearchCursor, encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import { buildCatalogCategoryPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
+
+// Snapshot listings page by position in the filtered snapshot.
+const SNAPSHOT_CURSOR_FIELD = "snapshot";
+const SNAPSHOT_CURSOR_PREFIX = "snap-v1:";
+const encodeSnapshotCursor = (offset: number) => `${SNAPSHOT_CURSOR_PREFIX}${offset}`;
+const decodeSnapshotCursor = (value: string): number | null => {
+  if (!value.startsWith(SNAPSHOT_CURSOR_PREFIX)) return null;
+  const offset = Number(value.slice(SNAPSHOT_CURSOR_PREFIX.length));
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : null;
+};
 
 // Ranked suggestions page by position in the ranked list, not by 1C code.
 const RANK_CURSOR_PREFIX = "rank-v1:";
@@ -317,7 +328,9 @@ export async function POST(request: Request) {
     pruneRouteSuccessCache();
 
     const cacheHit = getFreshRouteCacheValue(routeCacheKey);
-    if (cacheHit) {
+    // A cached 1C answer without a total loses to the snapshot listing below,
+    // which has the exact count.
+    if (cacheHit && typeof cacheHit.totalCount === "number") {
       return NextResponse.json(withoutCostPrices(cacheHit), {
         headers: { "cache-control": "no-store" },
       });
@@ -424,20 +437,24 @@ export async function POST(request: Request) {
     // the header's quick-search box sends on every keystroke, and what a
     // fresh /katalog search loads before the user touches any other filter —
     // can be answered straight from the in-memory catalog snapshot instead of
-    // a live 1C round trip (see searchCatalogIndex's own comment). Anything
-    // with a facet filter, sort, price range, car binding,
-    // or pagination past page 1 falls straight through untouched.
+    // a live 1C round trip (see searchCatalogIndex's own comment), and so can
+    // its next pages (the "search" cursor it hands out). Anything with a facet
+    // filter, sort, price range or car binding goes to listCatalogFromSnapshot
+    // below instead.
     const searchIndexFilter: SearchField | "all" | null =
       effectiveSearchFilter;
     const isSuggestions = body.purpose === "suggestions";
     const rankCursor = isSuggestions ? decodeRankCursor(queryBase.cursor || "") : null;
+    const searchCursor =
+      !isSuggestions && queryBase.cursorField === "search" ? decodeSearchCursor(queryBase.cursor || "") : null;
     const canUseSearchIndex =
       Boolean(normalizedSearchQuery) &&
       searchIndexFilter !== null &&
-      queryBase.page === 1 &&
+      (queryBase.page === 1 || searchCursor !== null) &&
       directOffset === null &&
-      (!queryBase.cursor || rankCursor !== null) &&
-      !queryBase.cursorField &&
+      (!queryBase.cursor || rankCursor !== null || searchCursor !== null) &&
+      (!queryBase.cursorField || searchCursor !== null) &&
+      !queryBase.vehicle &&
       queryBase.selectedCars.length === 0 &&
       queryBase.selectedCategories.length === 0 &&
       !normalizedGroup &&
@@ -453,19 +470,21 @@ export async function POST(request: Request) {
       !queryBase.inStock;
 
     if (canUseSearchIndex && searchIndexFilter) {
-      const indexResult = await searchCatalogIndex(rankCursor?.query ?? normalizedSearchQuery, {
+      const indexResult = await searchCatalogIndex(rankCursor?.query ?? searchCursor?.query ?? normalizedSearchQuery, {
         filter: searchIndexFilter,
         limit: queryBase.limit,
+        afterCode: searchCursor?.cursor,
         rank: isSuggestions,
         offset: rankCursor?.offset ?? 0,
       });
 
       if (indexResult) {
-        const usedQuery = indexResult.correctedQuery || rankCursor?.query || normalizedSearchQuery;
+        const usedQuery =
+          indexResult.correctedQuery || rankCursor?.query || searchCursor?.query || normalizedSearchQuery;
         const shown = (rankCursor?.offset ?? 0) + indexResult.items.length;
         const hasMore = isSuggestions
           ? shown < indexResult.totalCount
-          : indexResult.items.length < indexResult.totalCount;
+          : indexResult.hasMore ?? indexResult.items.length < indexResult.totalCount;
         const payload: CatalogPageApiPayload = {
           items: indexResult.items,
           prices: buildInlinePrices(indexResult.items),
@@ -478,7 +497,7 @@ export async function POST(request: Request) {
               : encodeSearchCursor(usedQuery, indexResult.items[indexResult.items.length - 1].code),
           cursorField: "search",
           totalCount: indexResult.totalCount,
-          ...(indexResult.correctedQuery && !rankCursor ? { correctedQuery: indexResult.correctedQuery } : {}),
+          ...(indexResult.correctedQuery && !rankCursor && !searchCursor ? { correctedQuery: indexResult.correctedQuery } : {}),
           ...(indexResult.facets
             ? {
                 facets: {
@@ -516,6 +535,60 @@ export async function POST(request: Request) {
           { items: [], prices: {}, images: {}, hasMore: false, nextCursor: "" },
           { headers: { "cache-control": "no-store" } }
         );
+      }
+    }
+
+    // Every other listing (category, producer, price, stock, photo, sort,
+    // car fitment, search with filters) is answered from the same snapshot,
+    // which applies allgoods' own filters and returns the exact total — the
+    // catalog counter needs it, and 1C under load times out on exactly these
+    // queries. It continues with its own "snapshot" offset cursor; a listing
+    // already paging through 1C stays there.
+    const snapshotCursorOffset =
+      queryBase.cursorField === SNAPSHOT_CURSOR_FIELD ? decodeSnapshotCursor(queryBase.cursor || "") : null;
+    const canUseSnapshotListing =
+      !isSuggestions &&
+      // The car picker sends the car's label in selectedCars, but the actual
+      // filter is the vehicle fitment (+ description search), which the
+      // snapshot applies itself.
+      (queryBase.selectedCars.length === 0 || Boolean(queryBase.vehicle)) &&
+      (queryBase.cursorField ? snapshotCursorOffset !== null : !queryBase.cursor);
+    if (canUseSnapshotListing) {
+      const listing = await listCatalogFromSnapshot({
+        searchQuery: normalizedSearchQuery,
+        searchFilter: effectiveSearchFilter,
+        group: normalizedGroup,
+        subcategory: normalizedSubcategory,
+        producer: normalizedProducer,
+        selectedCategories: normalizedSelectedCategories,
+        expandHierarchy,
+        vehicle: queryBase.vehicle,
+        sortOrder: queryBase.sortOrder,
+        nameSort: queryBase.nameSort,
+        pricedOnly: queryBase.pricedOnly,
+        withPhoto: queryBase.withPhoto,
+        inStock: queryBase.inStock,
+        priceFrom: queryBase.priceFrom,
+        priceTo: queryBase.priceTo,
+        offset: snapshotCursorOffset ?? directOffset ?? (queryBase.page - 1) * queryBase.limit,
+        limit: queryBase.limit,
+      });
+      // An empty search result may be a product created since the last scan:
+      // let 1C confirm it.
+      if (listing && !(normalizedSearchQuery && listing.totalCount === 0)) {
+        const payload: CatalogPageApiPayload = {
+          items: listing.items,
+          prices: buildInlinePrices(listing.items),
+          images: {},
+          hasMore: listing.hasMore,
+          nextCursor: listing.hasMore ? encodeSnapshotCursor(listing.nextOffset) : "",
+          cursorField: listing.hasMore ? SNAPSHOT_CURSOR_FIELD : "",
+          totalCount: listing.totalCount,
+          ...(directOffset !== null ? { directOffset } : {}),
+        };
+        return NextResponse.json(withoutCostPrices(payload), {
+          headers: { "cache-control": "no-store" },
+        });
       }
     }
 

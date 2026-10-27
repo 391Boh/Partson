@@ -79,7 +79,13 @@ const hasCatalogPageSessionCache = (cacheKey: string) => {
   if (typeof window === "undefined") return false;
 
   try {
-    return Boolean(window.sessionStorage.getItem(cacheKey));
+    const raw = window.sessionStorage.getItem(cacheKey);
+    if (!raw) return false;
+    const cached = JSON.parse(raw) as { expiresAt?: number; items?: unknown[] };
+    if (typeof cached.expiresAt === "number" && cached.expiresAt > Date.now() &&
+        Array.isArray(cached.items) && cached.items.length > 0) return true;
+    window.sessionStorage.removeItem(cacheKey);
+    return false;
   } catch {
     return false;
   }

@@ -36,6 +36,22 @@ export const CRITICAL_TARGETS = {
     // stylesheet. Its above-the-fold rows must already have their layout.
     "app/components/HeroSavedProfile.tsx",
   ],
+  catalog: [
+    "app/layout.tsx",
+    "app/katalog/page.tsx",
+    // The desktop filter mounts immediately after hydration, even while
+    // the non-blocking full stylesheet is still arriving.
+    "app/components/filtrtion.tsx",
+    "app/auto/page.tsx",
+    "app/auto/[brand]/page.tsx",
+    "app/auto/[brand]/[model]/page.tsx",
+    "app/groups/page.tsx",
+    "app/groups/[slug]/page.tsx",
+    "app/groups/[slug]/[itemSlug]/page.tsx",
+    "app/manufacturers/page.tsx",
+    "app/manufacturers/[slug]/page.tsx",
+    "app/components/Search.tsx",
+  ],
   inform: [
     "app/layout.tsx",
     "app/inform/layout.tsx",

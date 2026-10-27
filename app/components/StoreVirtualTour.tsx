@@ -66,7 +66,7 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
           onLoad={() => setLoaded(true)}
           className={loaded ? "is-loaded" : undefined}
         />}
-        <div className="home-store-tour-lens" aria-hidden="true"><span /><span /><span /><span /></div>
+        <div className="home-store-tour-lens" aria-hidden="true" />
         {loaded && !interactive && <button ref={startButtonRef} type="button" className="home-store-tour-start" onClick={startTour}><Compass size={19} aria-hidden="true" />Розпочати тур 360°</button>}
       </div>
       <div className="home-store-tour-footer">

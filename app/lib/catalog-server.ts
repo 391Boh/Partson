@@ -3243,6 +3243,10 @@ type FullCatalogSnapshot = {
   // boundary, it just answers the same already-gated question instantly
   // instead of with a fresh live 1C round trip per key.
   promoPrices: Map<string, number>;
+  // 1C's own Группа/Подгруппа per product (before normalizeProduct promotes a
+  // missing category), keyed like catalogItemKey — what allgoods filters on,
+  // so listCatalogFromSnapshot matches exactly the same products.
+  rawFacets?: Map<string, { group: string; subGroup: string }>;
 };
 
 const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
@@ -3250,6 +3254,10 @@ const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
 
 let fullCatalogCache: (FullCatalogSnapshot & { fetchedAt: number }) | null = null;
 let fullCatalogRefreshPromise: Promise<FullCatalogSnapshot> | null = null;
+let fullCatalogRefreshStartedAt = 0;
+let fullCatalogRefreshFailedAt = 0;
+const FULL_CATALOG_SCAN_HUNG_MS = 1000 * 60 * 10;
+const FULL_CATALOG_RETRY_AFTER_FAILURE_MS = 1000 * 60;
 
 // Called after an admin product edit (see app/api/product-update/route.ts).
 // This snapshot backs several fast, cache-only reads added this session
@@ -3296,19 +3304,64 @@ const applySnapshotPatch = (product: CatalogProduct, patch: SnapshotProductPatch
   return next;
 };
 
+// Products created through the admin panel, keyed like snapshotPatches. A
+// rescan already running when the product was created would not contain it,
+// so it is appended to that rescan's result too.
+const snapshotInserts = new Map<string, { product: CatalogProduct; at: number }>();
+
 const applySnapshotPatches = <T extends FullCatalogSnapshot>(snapshot: T, scanStartedAt: number): T => {
   for (const [code, { at }] of snapshotPatches) {
     // A scan that started after the edit already read the new data from 1C.
     if (at <= scanStartedAt) snapshotPatches.delete(code);
   }
-  if (snapshotPatches.size === 0) return snapshot;
-  return {
-    ...snapshot,
-    products: snapshot.products.map((product) => {
-      const entry = snapshotPatches.get(normalizeFacetValue(product.code));
-      return entry ? applySnapshotPatch(product, entry.patch) : product;
-    }),
+  for (const [code, { at }] of snapshotInserts) {
+    if (at <= scanStartedAt) snapshotInserts.delete(code);
+  }
+  if (snapshotPatches.size === 0 && snapshotInserts.size === 0) return snapshot;
+  const products = snapshot.products.map((product) => {
+    const entry = snapshotPatches.get(normalizeFacetValue(product.code));
+    return entry ? applySnapshotPatch(product, entry.patch) : product;
+  });
+  const present = new Set(products.map((product) => normalizeFacetValue(product.code)));
+  for (const [code, { product }] of snapshotInserts) {
+    if (!present.has(code)) products.push(product);
+  }
+  return { ...snapshot, products };
+};
+
+export function addFullCatalogSnapshotProduct(product: CatalogProduct) {
+  const key = normalizeFacetValue(product.code);
+  if (!key) return;
+  snapshotInserts.set(key, { product, at: Date.now() });
+
+  if (!fullCatalogCache) return;
+  const exists = fullCatalogCache.products.some((item) => normalizeFacetValue(item.code) === key);
+  fullCatalogCache = {
+    ...fullCatalogCache,
+    products: exists
+      ? fullCatalogCache.products.map((item) => (normalizeFacetValue(item.code) === key ? product : item))
+      : [...fullCatalogCache.products, product],
   };
+}
+
+// Cache-only lookup by exact code or article in the warm snapshot: lets the
+// product page open a product missing from the build-time sitemap snapshot
+// (created after the deploy) without waiting on a slow 1C search.
+export const findFullCatalogSnapshotProduct = (token: string): CatalogProduct | null => {
+  if (!fullCatalogCache) return null;
+  if (Date.now() - fullCatalogCache.fetchedAt >= FULL_CATALOG_FRESH_TTL_MS) {
+    void getFullCatalogSnapshot().catch(() => undefined);
+  }
+  const compact = (value: string) => value.trim().toLowerCase().replace(/[\s./_-]+/g, "");
+  const wanted = compact(token || "");
+  if (wanted.length < 4) return null;
+
+  let articleMatch: CatalogProduct | null = null;
+  for (const product of fullCatalogCache.products) {
+    if (compact(product.code || "") === wanted) return product;
+    if (!articleMatch && compact(product.article || "") === wanted) articleMatch = product;
+  }
+  return articleMatch;
 };
 
 export function patchFullCatalogSnapshotProduct(code: string, patch: SnapshotProductPatch) {
@@ -3335,6 +3388,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
   const promoKeys = new Set<string>();
   const promoPercents = new Map<string, number>();
   const promoPrices = new Map<string, number>();
+  const rawFacets = new Map<string, { group: string; subGroup: string }>();
   const seen = new Set<string>();
   let cursor = "";
   const seenCursors = new Set([cursor]);
@@ -3379,6 +3433,10 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
       if (!key || seen.has(key)) continue;
       seen.add(key);
       products.push(product);
+      rawFacets.set(key, {
+        group: readFirstString(record, GROUP_FIELDS),
+        subGroup: readFirstString(record, SUBGROUP_FIELDS),
+      });
 
       const promoPriceEuro = readFirstNumber(record, PROMO_PRICE_FIELDS, Number.NaN);
       if (Number.isFinite(promoPriceEuro) && promoPriceEuro > 0) {
@@ -3409,7 +3467,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
         (nextCursor && records.length > 0)
     );
 
-    if (!hasMore) return { products, promoKeys, promoPercents, promoPrices };
+    if (!hasMore) return { products, promoKeys, promoPercents, promoPrices, rawFacets };
     if (!nextCursor || records.length === 0 || seenCursors.has(nextCursor)) {
       throw new Error("Full catalog snapshot returned a non-advancing cursor");
     }
@@ -3438,10 +3496,21 @@ const getFullCatalogSnapshot = async (): Promise<{
   }
 
   const refresh = () => {
+    // A scan stuck past its ceiling (a 1C call that never settled) would
+    // otherwise pin every later reader to the old snapshot for good.
+    if (fullCatalogRefreshPromise && now - fullCatalogRefreshStartedAt > FULL_CATALOG_SCAN_HUNG_MS) {
+      fullCatalogRefreshPromise = null;
+    }
     if (!fullCatalogRefreshPromise) {
+      // After a failed scan, wait before the next one: each attempt is ~20
+      // heavy 1C calls, and every search request would otherwise start one.
+      if (fullCatalogCache && now - fullCatalogRefreshFailedAt < FULL_CATALOG_RETRY_AFTER_FAILURE_MS) {
+        return Promise.reject(new Error("Full catalog snapshot refresh is backing off"));
+      }
       const scanStartedAt = Date.now();
       const scanGeneration = fullCatalogGeneration;
-      fullCatalogRefreshPromise = scanFullCatalogSnapshot()
+      fullCatalogRefreshStartedAt = scanStartedAt;
+      const ownPromise: Promise<FullCatalogSnapshot> = scanFullCatalogSnapshot()
         .then((scanned) => {
           const snapshot = applySnapshotPatches(scanned, scanStartedAt);
           // Invalidated mid-scan: keep it usable but stale, so the next read
@@ -3453,9 +3522,17 @@ const getFullCatalogSnapshot = async (): Promise<{
           fullCatalogCache = { ...snapshot, fetchedAt };
           return snapshot;
         })
+        .catch((error: unknown) => {
+          fullCatalogRefreshFailedAt = Date.now();
+          console.warn(
+            `[catalog] full snapshot refresh failed: ${error instanceof Error ? error.message : String(error)}`
+          );
+          throw error;
+        })
         .finally(() => {
-          fullCatalogRefreshPromise = null;
+          if (fullCatalogRefreshPromise === ownPromise) fullCatalogRefreshPromise = null;
         });
+      fullCatalogRefreshPromise = ownPromise;
     }
     return fullCatalogRefreshPromise;
   };
@@ -3546,10 +3623,13 @@ export const searchCatalogIndex = async (
     /** Quick-search suggestions: most relevant first, paged by position. */
     rank?: boolean;
     offset?: number;
+    /** Catalog search page 2+: continue after this code (code order). */
+    afterCode?: string;
   }
 ): Promise<{
   items: CatalogProduct[];
   totalCount: number;
+  hasMore?: boolean;
   correctedQuery?: string;
   facets?: SearchFacets;
 } | null> => {
@@ -3566,7 +3646,9 @@ export const searchCatalogIndex = async (
   // Reuses the exact same fresh/stale bookkeeping fetchPromoCatalogProducts
   // relies on, so a search request also keeps the shared snapshot warm even
   // on a site where the promo filter itself is rarely clicked.
-  const { snapshot } = await getFullCatalogSnapshot();
+  const snapshotResult = await getFullCatalogSnapshot().catch(() => null);
+  if (!snapshotResult) return null;
+  const { snapshot, stale } = snapshotResult;
 
   const fields: SearchField[] =
     options.filter === "all" ? ["name", "article", "code", "producer", "description"] : [options.filter];
@@ -3584,10 +3666,16 @@ export const searchCatalogIndex = async (
   };
 
   const offset = Math.max(0, Math.floor(options.offset || 0));
+  const afterCode = options.afterCode || "";
   const respond = (matches: CatalogProduct[], usedQuery: string, correctedQuery?: string) => {
     const ordered = options.rank ? rankSearchMatches(matches, usedQuery) : matches;
+    const start = afterCode && !options.rank
+      ? ordered.findIndex((product) => product.code > afterCode)
+      : offset;
+    const items = start < 0 ? [] : ordered.slice(start, start + options.limit);
     return {
-      items: ordered.slice(offset, offset + options.limit),
+      items,
+      hasMore: start >= 0 && start + items.length < ordered.length,
       totalCount: matches.length,
       ...(correctedQuery ? { correctedQuery } : {}),
       ...(options.rank && offset === 0 && matches.length > 3 ? { facets: buildSearchFacets(matches) } : {}),
@@ -3634,7 +3722,135 @@ export const searchCatalogIndex = async (
     if (altMatches.length > 0) return respond(altMatches, alternative, alternative);
   }
 
+  // Nothing in the snapshot. A stale one can predate the product, and an
+  // article/code may belong to one created on another server since the last
+  // scan — let the live 1C path answer those instead of a hard "not found".
+  if (stale || /\d/.test(trimmedQuery)) return null;
+
   return { items: [], totalCount: 0 };
+};
+
+export type SnapshotListingQuery = {
+  searchQuery: string;
+  searchFilter: SearchField | "all";
+  group: string;
+  subcategory: string;
+  producer: string;
+  selectedCategories: string[];
+  expandHierarchy: boolean;
+  vehicle: VehicleSelection | null;
+  sortOrder: "none" | "asc" | "desc";
+  nameSort: "none" | "asc" | "desc";
+  pricedOnly: boolean;
+  withPhoto: boolean;
+  inStock: boolean;
+  priceFrom: number | null;
+  priceTo: number | null;
+  offset: number;
+  limit: number;
+};
+
+// 1C's raw Группа/Подгруппа for a product (see FullCatalogSnapshot.rawFacets);
+// a product added after the scan falls back to undoing normalizeProduct's
+// category promotion.
+const readSnapshotRawFacets = (snapshot: FullCatalogSnapshot, product: CatalogProduct) => {
+  const raw = snapshot.rawFacets?.get(catalogItemKey(product));
+  if (raw) return raw;
+  if (product.subGroup) return { group: product.group, subGroup: product.subGroup };
+  if (product.category) return { group: product.category, subGroup: product.group };
+  return { group: product.group, subGroup: "" };
+};
+
+const hasSnapshotSalePrice = (product: CatalogProduct) =>
+  typeof product.priceEuro === "number" && Number.isFinite(product.priceEuro) && product.priceEuro > 0;
+
+const compareCodes = (a: CatalogProduct, b: CatalogProduct) =>
+  a.code < b.code ? -1 : a.code > b.code ? 1 : 0;
+
+/**
+ * Any catalog listing the warm snapshot can answer exactly — the same filters
+ * allgoods applies (see ОбщегоНазначения: Группа = grandparent folder,
+ * Подгруппа = parent folder, sale price in EUR, Код order with priced items
+ * first) — with the full match count. Instant and immune to 1C load, so
+ * paging never stalls and the catalog counter always has a real total.
+ * Null when there is no snapshot yet; the caller then uses the live 1C path.
+ */
+export const listCatalogFromSnapshot = async (
+  query: SnapshotListingQuery
+): Promise<{ items: CatalogProduct[]; totalCount: number; hasMore: boolean; nextOffset: number } | null> => {
+  if (!fullCatalogCache) {
+    void getFullCatalogSnapshot().catch(() => undefined);
+    return null;
+  }
+  const snapshotResult = await getFullCatalogSnapshot().catch(() => null);
+  if (!snapshotResult) return null;
+  const { snapshot } = snapshotResult;
+
+  let branches: CatalogHierarchyBranch[] = [];
+  if (query.expandHierarchy && query.selectedCategories.length === 0 && (query.group || query.subcategory)) {
+    branches = await resolveHierarchyBranches(query.group, query.subcategory).catch(() => []);
+  }
+  if (branches.length === 0) {
+    if (query.group && !query.subcategory) branches = [{ group: query.group }];
+    else if (query.subcategory) branches = [{ group: query.group, subcategory: query.subcategory }];
+    else if (query.selectedCategories.length > 0) branches = [{ group: "", subcategory: query.selectedCategories[0] }];
+  }
+
+  const searchFields: SearchField[] = !query.searchQuery
+    ? []
+    : query.searchFilter === "all"
+      ? ["name", "article", "code", "producer", "description"]
+      : [query.searchFilter];
+  const producer = normalizeFacetValue(query.producer);
+
+  const matches = snapshot.products.filter((product) => {
+    if (branches.length > 0) {
+      const raw = readSnapshotRawFacets(snapshot, product);
+      const inBranch = branches.some(
+        (branch) =>
+          (!branch.group || sameCatalogFacet(raw.group, branch.group)) &&
+          (!branch.subcategory || sameCatalogFacet(raw.subGroup, branch.subcategory))
+      );
+      if (!inBranch) return false;
+    }
+    if (producer && normalizeFacetValue(product.producer) !== producer) return false;
+    if (query.withPhoto && !product.hasPhoto) return false;
+    if (query.inStock && !(product.quantity > 0)) return false;
+    const priced = hasSnapshotSalePrice(product);
+    if (query.pricedOnly && !priced) return false;
+    if (query.priceFrom !== null && !((product.priceEuro ?? 0) >= query.priceFrom)) return false;
+    if (query.priceTo !== null && !((product.priceEuro ?? 0) <= query.priceTo)) return false;
+    if (searchFields.length > 0 && !searchFields.some((field) => matchesSearchField(product, query.searchQuery, field))) {
+      return false;
+    }
+    if (query.vehicle && !matchesVehicleFitment(product.description, query.vehicle)) return false;
+    return true;
+  });
+
+  if (query.sortOrder !== "none") {
+    const direction = query.sortOrder === "asc" ? 1 : -1;
+    matches.sort((a, b) => {
+      const aPriced = hasSnapshotSalePrice(a);
+      const bPriced = hasSnapshotSalePrice(b);
+      if (aPriced !== bPriced) return aPriced ? -1 : 1;
+      return ((a.priceEuro ?? 0) - (b.priceEuro ?? 0)) * direction || compareCodes(a, b);
+    });
+  } else if (query.nameSort !== "none") {
+    const direction = query.nameSort === "asc" ? 1 : -1;
+    matches.sort((a, b) => compareProductNames(a, b, direction));
+  } else if (query.searchQuery) {
+    matches.sort(compareCodes);
+  } else {
+    matches.sort((a, b) => {
+      const aPriced = hasSnapshotSalePrice(a);
+      return aPriced !== hasSnapshotSalePrice(b) ? (aPriced ? -1 : 1) : compareCodes(a, b);
+    });
+  }
+
+  const offset = Math.max(0, Math.floor(query.offset));
+  const items = matches.slice(offset, offset + query.limit);
+  const nextOffset = offset + items.length;
+  return { items, totalCount: matches.length, hasMore: nextOffset < matches.length, nextOffset };
 };
 
 // key -> product index over the warm full-catalog snapshot, rebuilt only

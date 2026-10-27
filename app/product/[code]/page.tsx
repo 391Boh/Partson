@@ -22,6 +22,7 @@ import {
   fetchEuroRate,
   fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
+  findFullCatalogSnapshotProduct,
   toPriceUah,
 } from "app/lib/catalog-server";
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
@@ -99,6 +100,9 @@ import { buildOfferShippingDetails } from "app/lib/shipping-policy";
 // an extra round trip, see the enrichLookupCandidate fix in catalog-server.ts).
 // ISR caches a successful render for an hour, so paying this cost occasionally
 // is far cheaper than wrongly 404ing a real product.
+// 1C internal product code: "00-00004175", or "РТ-00001873" for products
+// created on the site.
+const ONEC_PRODUCT_CODE_PATTERN = /^(?:\d{2,}|[А-ЯҐЄІЇ]{1,3})-\d{4,}$/u;
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
@@ -1288,6 +1292,11 @@ const findCatalogProductByLookupToken = async (token: string) => {
     if (sitemapMatch) return sitemapMatch;
   }
 
+  // Products created after the deploy are missing from the sitemap snapshot;
+  // the in-memory catalog snapshot has them without a slow 1C search.
+  const snapshotMatch = findFullCatalogSnapshotProduct(token);
+  if (snapshotMatch) return snapshotMatch;
+
   const fastMatch = await getFirstResolvedNonNull([
     findCatalogProductByCode(
       token,
@@ -1402,8 +1411,9 @@ const resolveProductCodeFromRouteParamUncached = async (rawCode: string) => {
   // name slug — skip slug-based resolution entirely to avoid burning the resolver
   // budget on a guaranteed-miss global catalog scan.
   const hasCodePrefix = Boolean(directCode) && directCode !== decodedParam;
-  // Pure numeric-dash codes (e.g. "00-00000100") are direct 1C codes, not SEO slugs.
-  const isDirectNumericCode = !hasCodePrefix && /^\d{2,}-\d{4,}$/.test(decodedParam);
+  // 1C codes (e.g. "00-00000100", or "РТ-00001873" for products created on
+  // the site) are direct codes, not SEO slugs.
+  const isDirectNumericCode = !hasCodePrefix && ONEC_PRODUCT_CODE_PATTERN.test(decodedParam);
   const looksLikeSeoNameSlug =
     !hasCodePrefix && !isDirectNumericCode && decodedParam.includes("-") && !decodedParam.includes("~");
   const directProduct = directCode && !looksLikeSeoNameSlug
@@ -1510,9 +1520,9 @@ const canUseDirectProductCodeFallback = (rawCode: string) => {
   if (!decodedParam) return false;
   if (extractProductRouteSlugsFromParam(decodedParam)) return false;
 
-  // Pure numeric code with dashes (e.g. "00-00000100") — standard 1C internal code format.
-  // These are not SEO slugs: no letters, so there is no name/article ambiguity.
-  if (/^\d{2,}-\d{4,}$/.test(decodedParam)) return true;
+  // 1C internal code ("00-00000100", "РТ-00001873"). Not an SEO slug: slugs
+  // are lowercase Latin, so a digit or uppercase Cyrillic prefix can't clash.
+  if (ONEC_PRODUCT_CODE_PATTERN.test(decodedParam)) return true;
 
   return decodedParam.includes("~") || !decodedParam.includes("-");
 };
@@ -1616,11 +1626,9 @@ export async function generateMetadata({
           PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS
         );
   if (!routeData.code && canUseDirectFallbackCode && fallbackCode) {
-    const directProduct = await resolveWithTimeout(
-      () => getCatalogProduct(fallbackCode),
-      null,
-      700
-    );
+    const directProduct =
+      findFullCatalogSnapshotProduct(fallbackCode) ??
+      (await resolveWithTimeout(() => getCatalogProduct(fallbackCode), null, 700));
     if (directProduct) {
       routeData = {
         code: (directProduct.code || directProduct.article || fallbackCode).trim(),
@@ -1831,13 +1839,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
         ])
     : null;
   const sitemapRouteData = await sitemapRouteDataPromise;
+  // A direct code URL ("/product/РТ-00001873") of a product created after the
+  // deploy: the warm catalog snapshot answers it at once, before the slow
+  // name-slug recovery below.
+  const isDirectCodeRoute = canUseDirectFallbackCode && Boolean(fallbackCodeFromRoute) && !routeSlugs;
+  const snapshotDirectProduct =
+    !sitemapRouteData && isDirectCodeRoute ? findFullCatalogSnapshotProduct(fallbackCodeFromRoute) : null;
   let routeData =
     sitemapRouteData ??
-    (canUseDirectFallbackCode && fallbackCodeFromRoute && !routeSlugs
+    (isDirectCodeRoute
       ? {
-          code: "",
+          code: (snapshotDirectProduct?.code || "").trim(),
           isSeoRoute: false,
-          product: null,
+          product: snapshotDirectProduct,
         }
       : await resolveWithTimeout(
           () => getResolvedProductRouteData(rawCode || ""),

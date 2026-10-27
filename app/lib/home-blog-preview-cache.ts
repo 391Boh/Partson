@@ -9,7 +9,7 @@ import { buildHomeBlogHighlights } from "./home-blog-highlights";
 // editor's invalidation tag; failed reads must not cache an empty preview list.
 const getCachedHighlights = unstable_cache(
   async () => buildHomeBlogHighlights(await getPublishedBlogPostsOrThrow()),
-  ["home-blog-highlights-v1"],
+  ["home-blog-highlights-v2"],
   { revalidate: 600, tags: ["blog-posts"] },
 );
 

@@ -346,22 +346,22 @@ function AnalyticsConsentBanner({
     <aside
       role="region"
       aria-labelledby="analytics-consent-title"
-      className="analytics-consent-banner fixed inset-x-3 bottom-3 z-[120] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[18px] border border-white/10 bg-[#0f1f33]/95 p-4 text-white shadow-[0_18px_44px_rgba(2,6,23,0.42)] backdrop-blur-md sm:inset-x-auto sm:bottom-5 sm:left-5 sm:w-[380px]"
+      className="analytics-consent-banner fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[120] max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[20px] border border-slate-200 bg-white p-4 text-slate-900 sm:bottom-5 sm:p-5"
     >
-      <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-sky-400/15 text-sky-300" aria-hidden="true">
-          <Cookie size={18} strokeWidth={2} />
+      <div className="analytics-consent-intro flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[image:linear-gradient(135deg,#0369a1,#0e7490)] text-white shadow-[0_6px_14px_-6px_rgba(3,105,161,0.7)]" aria-hidden="true">
+          <Cookie size={19} strokeWidth={2.2} />
         </span>
         <div className="min-w-0">
-          <p id="analytics-consent-title" className="text-[14px] font-bold leading-5 text-white">
+          <p id="analytics-consent-title" className="font-display font-display-readable text-[15.5px] font-extrabold leading-5 text-slate-900">
             {hasStoredChoice ? "Налаштування cookies" : "Ми використовуємо cookies"}
           </p>
-          <p className="mt-0.5 text-[12.5px] leading-[1.45] text-slate-300">
+          <p className="mt-1 text-[13px] leading-[1.5] text-slate-600">
             Аналітика й реклама вимкнені до вашого вибору.{" "}
             <Link
               href="/inform/privacy"
               prefetch={false}
-              className="font-semibold text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:text-sky-200"
+              className="font-semibold text-sky-700 underline decoration-sky-700/30 underline-offset-2 transition-colors hover:text-sky-900 hover:decoration-sky-700 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               Детальніше
             </Link>
@@ -370,19 +370,19 @@ function AnalyticsConsentBanner({
       </div>
 
       {showDetails ? (
-        <div className="mt-3 divide-y divide-white/10 rounded-[13px] bg-white/[0.05]">
+        <div className="analytics-consent-details mt-4 divide-y divide-slate-200 rounded-[14px] border border-slate-200 bg-slate-50">
           <div className="flex items-center justify-between gap-3 px-3 py-2.5">
             <span className="min-w-0">
-              <span className="block text-[12.5px] font-semibold text-white">Необхідні</span>
-              <span className="block text-[11.5px] leading-4 text-slate-400">Кошик, вхід, безпека</span>
+              <span className="block text-[13px] font-semibold text-slate-900">Необхідні</span>
+              <span className="block text-[12px] leading-4 text-slate-500">Кошик, вхід, безпека</span>
             </span>
-            <span className="shrink-0 text-[11.5px] font-semibold text-slate-400">Завжди</span>
+            <span className="shrink-0 rounded-full bg-slate-200/70 px-2 py-0.5 text-[11.5px] font-semibold text-slate-600">Завжди</span>
           </div>
           {toggles.map((toggle) => (
             <label key={toggle.key} className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5">
               <span className="min-w-0">
-                <span className="block text-[12.5px] font-semibold text-white">{toggle.label}</span>
-                <span className="block text-[11.5px] leading-4 text-slate-400">{toggle.hint}</span>
+                <span className="block text-[13px] font-semibold text-slate-900">{toggle.label}</span>
+                <span className="block text-[12px] leading-4 text-slate-500">{toggle.hint}</span>
               </span>
               <span className="relative inline-flex shrink-0">
                 <input
@@ -390,7 +390,7 @@ function AnalyticsConsentBanner({
                   role="switch"
                   checked={toggle.checked}
                   onChange={(event) => toggle.onChange(event.target.checked)}
-                  className="peer h-6 w-10 cursor-pointer appearance-none rounded-full bg-slate-600 transition-colors checked:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f1f33]"
+                  className="peer h-6 w-10 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors checked:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
                 />
                 <span
                   aria-hidden="true"
@@ -402,7 +402,7 @@ function AnalyticsConsentBanner({
         </div>
       ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="analytics-consent-actions mt-4 grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() =>
@@ -410,7 +410,7 @@ function AnalyticsConsentBanner({
               ? saveSelection({ analyticsGranted, advertisingGranted })
               : saveSelection({ analyticsGranted: false, advertisingGranted: false })
           }
-          className="inline-flex min-h-10 items-center justify-center rounded-[11px] border border-white/15 bg-white/[0.06] px-3 text-[12.5px] font-semibold text-slate-100 transition hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+          className="inline-flex min-h-11 items-center justify-center rounded-[12px] border border-slate-300 bg-white px-3 text-[13px] font-bold text-slate-800 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
         >
           {showDetails ? "Зберегти вибір" : "Лише необхідні"}
         </button>
@@ -419,7 +419,7 @@ function AnalyticsConsentBanner({
           onClick={() =>
             saveSelection({ analyticsGranted: true, advertisingGranted: true })
           }
-          className="inline-flex min-h-10 items-center justify-center rounded-[11px] bg-sky-500 px-3 text-[12.5px] font-bold text-white transition hover:bg-sky-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+          className="inline-flex min-h-11 items-center justify-center rounded-[12px] bg-[image:linear-gradient(135deg,#0369a1,#0e7490)] px-3 text-[13px] font-extrabold text-white shadow-[0_8px_18px_-8px_rgba(3,105,161,0.75)] transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
         >
           Дозволити все
         </button>
@@ -428,7 +428,7 @@ function AnalyticsConsentBanner({
         <button
           type="button"
           onClick={() => setShowDetails(true)}
-          className="mx-auto mt-2 flex min-h-8 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-slate-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+          className="analytics-consent-settings mx-auto mt-2 flex min-h-9 items-center gap-1.5 rounded-md px-2 text-[12.5px] font-semibold text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         >
           <Settings2 size={13} aria-hidden="true" />
           Налаштувати
@@ -450,7 +450,7 @@ export default function AnalyticsRuntime({
   const [advertisingGranted, setAdvertisingGranted] = useState(false);
   const handleConsentChange = useCallback(
     (selection: GoogleConsentSelection) => {
-      if (selection.analyticsGranted || selection.advertisingGranted) {
+      if (enabled && (selection.analyticsGranted || selection.advertisingGranted)) {
         // Configure the queue before enabling page views. GA events queued
         // ahead of config would otherwise have no destination on slow loads.
         prepareAnalyticsQueue(mode, googleTagManagerId, googleAnalyticsId);
@@ -458,7 +458,7 @@ export default function AnalyticsRuntime({
       setAnalyticsGranted(selection.analyticsGranted);
       setAdvertisingGranted(selection.advertisingGranted);
     },
-    [googleAnalyticsId, googleTagManagerId, mode]
+    [enabled, googleAnalyticsId, googleTagManagerId, mode]
   );
 
   useEffect(() => {
@@ -486,13 +486,16 @@ export default function AnalyticsRuntime({
     plerdySuid,
   ]);
 
-  if (!enabled) return null;
-
+  // The consent banner always mounts: the "cookie settings" buttons (footer,
+  // privacy page) only dispatch an event it listens for. Google/Plerdy stay
+  // gated by `enabled` above and in the page-view tracker below.
   return (
     <>
-      <Suspense fallback={null}>
-        <AnalyticsPageViewTracker enabled={analyticsGranted} />
-      </Suspense>
+      {enabled ? (
+        <Suspense fallback={null}>
+          <AnalyticsPageViewTracker enabled={analyticsGranted} />
+        </Suspense>
+      ) : null}
       <AnalyticsConsentBanner onConsentChange={handleConsentChange} />
     </>
   );

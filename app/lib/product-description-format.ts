@@ -7,10 +7,15 @@
 // display only; the raw text stays untouched for admin editing.
 
 import { normalizeProductDisplayName } from "app/lib/product-display-name";
+import { splitProductFitmentLine, type ProductFitmentGroup } from "app/lib/product-fitment-format";
 
 export type ProductDescriptionSpec = { label: string; value: string };
 
 export type ParsedProductDescription = {
+  // The first line, when it's a brand/model fitment list; it's then left
+  // out of `paragraphs`. `fitmentText` keeps it verbatim for plain text.
+  fitment: ProductFitmentGroup[] | null;
+  fitmentText: string;
   paragraphs: string[];
   specs: ProductDescriptionSpec[];
 };
@@ -87,6 +92,18 @@ export const parseProductDescription = (
     .map((line) => line.replace(/[  ]+/g, " ").trim())
     .filter(Boolean);
 
+  let fitment: ProductFitmentGroup[] | null = null;
+  let fitmentText = "";
+  if (lines.length > 0 && !SPEC_LINE.test(lines[0])) {
+    const split = splitProductFitmentLine(lines[0]);
+    if (split) {
+      fitment = split.groups;
+      fitmentText = lines.shift()!;
+      // The part description before the car list stays a normal paragraph.
+      if (split.prefix) paragraphs.push(normalizeProductDisplayName(split.prefix));
+    }
+  }
+
   for (const line of lines) {
     const specMatch = line.match(SPEC_LINE);
     if (specMatch) {
@@ -102,12 +119,16 @@ export const parseProductDescription = (
     paragraphs.push(normalizeProductDisplayName(line.replace(/\t+/g, " ")));
   }
 
-  return { paragraphs, specs };
+  return { fitment, fitmentText, paragraphs, specs };
 };
 
 // Plain-text rendering of the same structure, for places that can only show
 // a string (meta descriptions, JSON-LD).
 export const formatProductDescriptionText = (text: string | null | undefined) => {
-  const { paragraphs, specs } = parseProductDescription(text);
-  return [...paragraphs, ...specs.map((spec) => `${spec.label}: ${spec.value}`)].join("\n");
+  const { fitmentText, paragraphs, specs } = parseProductDescription(text);
+  return [
+    ...(fitmentText ? [fitmentText] : []),
+    ...paragraphs,
+    ...specs.map((spec) => `${spec.label}: ${spec.value}`),
+  ].join("\n");
 };

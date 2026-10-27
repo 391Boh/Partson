@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import React from "react";
+import React, { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -25,6 +25,44 @@ import BlogAdminActions from "./BlogAdminActions";
 type BlogPostPageProps = { params: Promise<{ slug: string }> };
 
 export const revalidate = 3600;
+
+const RELATED_POSTS_MIN_HEIGHT = 360;
+
+function RelatedBlogPostsFallback() {
+  return (
+    <section className="blog-related" aria-labelledby="blog-related-title" style={{ minHeight: RELATED_POSTS_MIN_HEIGHT }}>
+      <h2 id="blog-related-title">Читайте також</h2>
+      <p role="status">Завантажуємо інші статті…</p>
+    </section>
+  );
+}
+
+async function RelatedBlogPosts({ currentSlug }: { currentSlug: string }) {
+  const otherPosts = (await getPublishedBlogPosts())
+    .filter((other) => other.slug !== currentSlug)
+    .slice(0, 3);
+
+  if (otherPosts.length === 0) return null;
+
+  return (
+    <section className="blog-related" aria-labelledby="blog-related-title" style={{ minHeight: RELATED_POSTS_MIN_HEIGHT }}>
+      <h2 id="blog-related-title">Читайте також</h2>
+      <ul>
+        {otherPosts.map((other) => (
+          <li key={other.slug}>
+            <Link href={`/blog/${other.slug}`}>
+              <BookOpen size={18} aria-hidden="true" />
+              <span>
+                <strong>{other.title}</strong>
+                <small>{blogReadingMinutes(other.content)} хв читання</small>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 const getVideoEmbedUrl = (url: string): string | null => {
   try {
@@ -230,9 +268,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const contentBlocks = parseContent(post.content);
   const topics = findBlogTopics(post.content);
   const linkedTopics = new Set<string>();
-  const otherPosts = (await getPublishedBlogPosts())
-    .filter((other) => other.slug !== post.slug)
-    .slice(0, 3);
   const isSameDay = (a?: string, b?: string) =>
     Boolean(a && b) && new Date(a!).toDateString() === new Date(b!).toDateString();
   // Legacy posts keep images as inline base64 — swap them for short proxy
@@ -525,24 +560,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 </Link>
               </div>
             </aside>
-            {otherPosts.length > 0 && (
-              <section className="blog-related" aria-labelledby="blog-related-title">
-                <h2 id="blog-related-title">Читайте також</h2>
-                <ul>
-                  {otherPosts.map((other) => (
-                    <li key={other.slug}>
-                      <Link href={`/blog/${other.slug}`}>
-                        <BookOpen size={18} aria-hidden="true" />
-                        <span>
-                          <strong>{other.title}</strong>
-                          <small>{blogReadingMinutes(other.content)} хв читання</small>
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+            {/* The optional list can spend eight seconds in Firestore on a
+                cold cache. Stream it after the complete article and its SEO
+                data, with room reserved for the usual three related rows. */}
+            <Suspense fallback={<RelatedBlogPostsFallback />}>
+              <RelatedBlogPosts currentSlug={post.slug} />
+            </Suspense>
             <div className="blog-article-next">
               <Link href="/blog">
                 <ArrowLeft size={18} aria-hidden="true" />

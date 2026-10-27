@@ -12,7 +12,7 @@ import path from "node:path";
 // by a Server Component is also serialized into the RSC payload, which
 // shipped the CSS twice and tripled the HTML. null when the file is missing —
 // the page then keeps the full render-blocking stylesheet like every other.
-export type CriticalCssTarget = "home" | "inform" | "product" | "blog";
+export type CriticalCssTarget = "home" | "catalog" | "inform" | "product" | "blog";
 
 export const resolveCriticalCssHref = (target: CriticalCssTarget): string | null => {
   const stylesDir = path.join(process.cwd(), "public", "styles");

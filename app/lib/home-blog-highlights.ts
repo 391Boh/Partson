@@ -8,7 +8,7 @@ export const buildHomeBlogHighlights = (posts: BlogPost[]): HomeHighlight[] =>
   posts.slice(0, 12).map((post) => {
     const version = post.updatedAt || post.publishedAt || post.createdAt;
     const image = post.imageDataUrl?.startsWith("data:image/")
-      ? `/api/blog/og-image/${encodeURIComponent(post.slug)}${version ? `?v=${encodeURIComponent(version)}` : ""}`
+      ? `/api/blog/og-image/${encodeURIComponent(post.slug)}?preview=1${version ? `&v=${encodeURIComponent(version)}` : ""}`
       : post.imageDataUrl || "/Car-parts-fullwidth.webp";
     return {
       id: `article-${post.slug}`, kind: "article", title: post.title,

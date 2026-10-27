@@ -55,3 +55,6 @@ Depth refinement: subtle top-left light, soft contact shadows under map and pano
 
 
 Location/tour design refresh: added a compact location heading, unified address/contact/review footer with restrained star accent, matching typography and soft viewport shadows. Tour now has a small editorial kicker, a 360° heading, underlined Google link and a pill launch control with compass medallion. Preserved Google controls/attribution, facade start, activation/finish behavior and lazy loading. Real Google desktop/mobile screenshots, map layout checks and tour keyboard/geometry tests at 320/390/1440px passed, as did ESLint, TypeScript and CSS compilation. No deployment.
+
+
+FAQ finalized: left editorial help heading with chat action; three numbered native disclosures on the right, single column on smaller screens. Focus ring, Enter activation, open-answer reveal and reduced-motion checked at 390/1440px. No extra cards. Homepage scroll test preserves promo geometry. Current route performance results and exact limits are in docs/loading-optimization-2026-10-26.md; no deployment.

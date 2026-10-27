@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-19T17:55:17.282Z",
         "reason": "Claude triage: L2408 is text-slate-600 on bg-slate-50 (neutral near-white chip, not a colored background); pre-existing review chip, not touched in this change"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "app/not-found.tsx"
+        ],
+        "createdAt": "2026-10-26T16:39:01.517Z",
+        "reason": "agent: L114 is slate-900 text on a solid white button (bg-white), ~17:1 contrast; detector read the dark ring-offset color as the background"
       }
     ]
   }

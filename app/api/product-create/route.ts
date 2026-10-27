@@ -6,6 +6,11 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
+import {
+  addFullCatalogSnapshotProduct,
+  fetchCatalogProductsByCodes,
+  invalidateFullCatalogSnapshot,
+} from "app/lib/catalog-server";
 
 export const runtime = "nodejs";
 
@@ -190,6 +195,17 @@ export async function POST(request: NextRequest) {
 
   clearAllOneCCache();
   clearCatalogPageRouteCache();
+  invalidateFullCatalogSnapshot();
+  // Put the new product into the in-memory catalog snapshot right away, so
+  // search and its product page find it without waiting for a full rescan.
+  if (newCode) {
+    await fetchCatalogProductsByCodes([newCode], { timeoutMs: 4000, cacheTtlMs: 0 })
+      .then((found) => {
+        const product = found?.get(newCode.toLowerCase());
+        if (product) addFullCatalogSnapshotProduct(product);
+      })
+      .catch(() => undefined);
+  }
   try {
     revalidateTag("product-page-data", "max");
     revalidatePath("/product/[code]", "page");

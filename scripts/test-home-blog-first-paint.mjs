@@ -8,6 +8,7 @@ try {
     let release;
     const gate = new Promise(resolve => { release = resolve; });
     await page.route('**/api/home-blog?view=all', async route => { await gate; await route.continue(); });
+    await page.route('**/api/blog/og-image/**', async route => { await gate; await route.continue(); });
     await page.route('**/_next/image?*', async route => {
       const image = new URL(route.request().url()).searchParams.get('url') ?? '';
       if (image.includes('/api/blog/og-image/') || image.includes('storage.googleapis.com')) await gate;
@@ -24,6 +25,10 @@ try {
       const height = await page.locator('.home-highlights[data-server-resolved]:visible').evaluate(e => e.offsetHeight);
       release();
       await article.locator('img').evaluate(img => img.decode());
+      assert(await article.locator('img').evaluate(img => {
+        delete img.dataset.loaded;
+        return Number(getComputedStyle(img).opacity) > 0;
+      }), 'A decoded cover stays visible without waiting for the hydration load handler');
       await page.waitForTimeout(300);
       assert.equal(await page.locator('.home-highlight-preload').count(), 0, 'Identical API refresh does not preload/reveal the same cover again');
       assert.equal(await page.locator('.home-highlights[data-server-resolved]:visible').evaluate(e => e.offsetHeight), height);

@@ -10,6 +10,8 @@ import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights"
 // teaser cut mid-phrase with an ellipsis read as broken. The first sentence
 // always stays, even when it is longer.
 const TEASER_MAX_CHARS = 120;
+// Homepage preview URLs already serve a resized, cached WebP.
+const isPreparedCover = (image: string) => image.startsWith("/api/blog/og-image/") && image.includes("preview=1");
 const teaserOf = (text: string) => {
   const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+[.!?…]+(?=\s|$)|[^.!?…]+$/g) ?? [];
   let teaser = "";
@@ -191,6 +193,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
             <Image
               key={`${pendingSlide.id}:${pendingSlide.image}`}
               src={pendingSlide.image} alt="" fill aria-hidden="true"
+              unoptimized={isPreparedCover(pendingSlide.image)}
               sizes="(max-width: 767px) 100vw, 57vw"
               loading="eager" className="home-highlight-preload"
               onLoad={commitPendingSlide}
@@ -222,6 +225,8 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                 <div className="home-highlight-image">
                   {serverResolved && <Image
                     src={item.image} alt={item.imageAlt} fill
+                    unoptimized={isPreparedCover(item.image)}
+                    fetchPriority={!outgoing && item.id === initialArticles[0]?.id ? "high" : "auto"}
                     sizes="(max-width: 767px) 100vw, 57vw"
                     preload={!outgoing && item.id === initialArticles[0]?.id}
                     loading={item.id === initialArticles[0]?.id && !outgoing ? undefined : outgoing ? "lazy" : "eager"}

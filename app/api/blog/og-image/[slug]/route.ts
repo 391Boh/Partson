@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { getPublishedBlogPostBySlug } from "app/lib/blog";
+import { getHomeBlogCover } from "app/lib/home-blog-cover";
 import {
   BLOG_IMAGE_ASPECT_RATIOS,
   LEGACY_IMAGE_DATA_URI_REGEX,
@@ -68,6 +69,16 @@ const cropToAspectRatio = async (buffer: Buffer, ratio: BlogImageAspectRatio) =>
 export async function GET(request: Request, context: OgImageRouteContext) {
   const { slug } = await context.params;
   const searchParams = new URL(request.url).searchParams;
+  if (searchParams.get("preview") === "1") {
+    const image = await getHomeBlogCover(decodeURIComponent(slug), searchParams.get("v") || "");
+    if (!image) return new NextResponse(null, { status: 404 });
+    return new NextResponse(new Uint8Array(Buffer.from(image, "base64")), {
+      headers: {
+        "content-type": "image/webp",
+        "cache-control": "public, max-age=600, s-maxage=600, stale-while-revalidate=86400",
+      },
+    });
+  }
   const post = await getPublishedBlogPostBySlug(decodeURIComponent(slug)).catch(() => null);
 
   const rawIndex = searchParams.get("i");

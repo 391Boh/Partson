@@ -31,7 +31,7 @@ const ALIASES: Record<string, string[]> = {
   'SKODA': ['SKODA', 'ŠKODA'], 'LAND ROVER': ['LAND ROVER', 'LANDROVER'],
 };
 const BRANDS = 'AUDI|BMW|CHERY|CHRYSLER|CITROEN|CADILLAC|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MB|LAND ROVER|ALFA ROMEO';
-const brandAtStart = new RegExp(`^(${BRANDS})(?=\\s|$)`, 'i');
+export const brandAtStart = new RegExp(`^(${BRANDS})(?=\\s|$)`, 'i');
 const ROMAN = /^(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)$/;
 export function vehicleModelQuery(vehicle: VehicleSelection): string {
   const tokens = normalize(cleanCarModelForSearch(vehicle.model)).replace(/[()[\]]/g, ' ').split(/\s+/).filter(Boolean);

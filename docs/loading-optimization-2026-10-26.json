@@ -1,0 +1,283 @@
+{
+  "environment": {
+    "origin": "http://localhost:3102",
+    "build": "Next.js webpack production compilation (compile mode, runtime SSR)",
+    "cpuSlowdown": 4,
+    "network": "unthrottled local",
+    "viewportHeight": 900,
+    "samplesPerRouteAndWidth": 1,
+    "note": "Fresh browser contexts; server and image caches may be warm. These are lab results, not field data or PageSpeed scores."
+  },
+  "blockingCssGzipBytes": {
+    "before": 175260,
+    "after": 57446
+  },
+  "before": [
+    {
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "ttfb": 471,
+      "dom": 1159,
+      "lcp": 912,
+      "cls": 0,
+      "bytes": 708682,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/katalog",
+      "width": 390,
+      "status": 200,
+      "ttfb": 545,
+      "dom": 1098,
+      "lcp": 856,
+      "cls": 0.0002583729028173473,
+      "bytes": 1072108,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/auto",
+      "width": 390,
+      "status": 200,
+      "ttfb": 47,
+      "dom": 358,
+      "lcp": 292,
+      "cls": 0,
+      "bytes": 577462,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog",
+      "width": 390,
+      "status": 200,
+      "ttfb": 56,
+      "dom": 117,
+      "lcp": 244,
+      "cls": 0,
+      "bytes": 953188,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+      "width": 390,
+      "status": 200,
+      "ttfb": 22,
+      "dom": 217,
+      "lcp": 228,
+      "cls": 0,
+      "bytes": 1418983,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 58,
+      "dom": 733,
+      "lcp": 396,
+      "cls": 0,
+      "bytes": 1084613,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/katalog",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 588,
+      "dom": 1792,
+      "lcp": 1124,
+      "cls": 0.0011421530557430984,
+      "bytes": 946121,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/auto",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 99,
+      "dom": 742,
+      "lcp": 544,
+      "cls": 0,
+      "bytes": 731400,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 144,
+      "dom": 763,
+      "lcp": 800,
+      "cls": 0,
+      "bytes": 975154,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 333,
+      "dom": 1501,
+      "lcp": 1052,
+      "cls": 0,
+      "bytes": 1429385,
+      "errors": [],
+      "overflow": false
+    }
+  ],
+  "after": [
+    {
+      "path": "/",
+      "width": 390,
+      "status": 200,
+      "ttfb": 147,
+      "dom": 454,
+      "lcp": 512,
+      "cls": 0,
+      "bytes": 708681,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/katalog",
+      "width": 390,
+      "status": 200,
+      "ttfb": 66,
+      "dom": 491,
+      "lcp": 304,
+      "cls": 0.0010775324469768914,
+      "bytes": 1131827,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/auto",
+      "width": 390,
+      "status": 200,
+      "ttfb": 12,
+      "dom": 385,
+      "lcp": 232,
+      "cls": 0,
+      "bytes": 661265,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog",
+      "width": 390,
+      "status": 200,
+      "ttfb": 109,
+      "dom": 173,
+      "lcp": 296,
+      "cls": 0,
+      "bytes": 953179,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+      "width": 390,
+      "status": 200,
+      "ttfb": 27,
+      "dom": 250,
+      "lcp": 224,
+      "cls": 0,
+      "bytes": 1418975,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+      "width": 390,
+      "status": 200,
+      "ttfb": 912,
+      "dom": 1421,
+      "lcp": 1248,
+      "cls": 0,
+      "bytes": 569543,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 33,
+      "dom": 357,
+      "lcp": 300,
+      "cls": 0,
+      "bytes": 1137076,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/katalog",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 51,
+      "dom": 455,
+      "lcp": 276,
+      "cls": 0.0010308894823281036,
+      "bytes": 1213377,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/auto",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 23,
+      "dom": 392,
+      "lcp": 280,
+      "cls": 0,
+      "bytes": 792846,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 22,
+      "dom": 81,
+      "lcp": 224,
+      "cls": 0,
+      "bytes": 975141,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/blog/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 57,
+      "dom": 305,
+      "lcp": 264,
+      "cls": 0,
+      "bytes": 1429382,
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+      "width": 1440,
+      "status": 200,
+      "ttfb": 77,
+      "dom": 410,
+      "lcp": 684,
+      "cls": 0,
+      "bytes": 598706,
+      "errors": [],
+      "overflow": false
+    }
+  ]
+}

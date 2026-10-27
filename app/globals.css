@@ -227,6 +227,72 @@ html[data-consent-preferences="complete"] .analytics-consent-banner {
   display: none;
 }
 
+/* Brushed silver: fine horizontal grain over broad metallic reflections.
+   Keep the texture quiet so consent controls and copy stay easy to read. */
+.analytics-consent-banner {
+  width: min(1040px, calc(100% - 24px));
+  margin-inline: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background-color: #e1e4e7;
+  background-image:
+    repeating-linear-gradient(0deg, #ffffff17 0px, #ffffff17 1px, #34445406 1px, #34445406 2px, transparent 2px, transparent 4px),
+    linear-gradient(118deg, #d3d9de 0%, #eceef0 23%, #dce1e5 46%, #eef0f2 68%, #d5dce2 100%);
+  border-color: #c4ccd3;
+  box-shadow:
+    inset 0 1px 0 #ffffffb3,
+    0 28px 56px -18px rgba(2, 6, 23, 0.5),
+    0 4px 12px -2px rgba(2, 6, 23, 0.14);
+  animation: consentBannerRise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.analytics-consent-banner .text-slate-500 {
+  color: #4b5b6c;
+}
+
+.analytics-consent-banner .divide-y {
+  background: #e9edf0cc;
+  border-color: #b9c3cc;
+}
+
+.analytics-consent-intro { gap: 10px; }
+.analytics-consent-intro > span { width: 34px; height: 34px; border-radius: 10px; }
+.analytics-consent-intro > span svg { width: 17px; height: 17px; }
+.analytics-consent-banner #analytics-consent-title { font-size: 14px; line-height: 18px; }
+.analytics-consent-intro p + p { margin-top: 3px; font-size: 12px; line-height: 17px; }
+.analytics-consent-actions { margin-top: 12px; gap: 7px; }
+.analytics-consent-actions > button { border-radius: 9px; font-size: 12px; }
+.analytics-consent-settings { margin-top: 4px; font-size: 12px; }
+.analytics-consent-details { margin-top: 12px; }
+
+@media (min-width: 1024px) {
+  .analytics-consent-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 14px;
+    padding: 12px 16px;
+  }
+
+  .analytics-consent-intro { grid-column: 1; grid-row: 1; align-items: center; }
+  .analytics-consent-actions { grid-column: 2; grid-row: 1; margin-top: 0; }
+  .analytics-consent-actions > button { min-height: 38px; white-space: nowrap; padding-inline: 13px; }
+  .analytics-consent-settings { grid-column: 3; grid-row: 1; margin: 0; white-space: nowrap; }
+  .analytics-consent-details { grid-column: 1 / -1; grid-row: 2; }
+}
+
+@keyframes consentBannerRise {
+  from {
+    transform: translateY(18px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-consent-banner {
+    animation: none;
+  }
+}
+
 @layer base {
   :root {
     --soft-radius-panel: 18px;
@@ -681,7 +747,7 @@ html.reduce-scroll-effects.is-scrolling
 .home-highlight-feature.is-previous { pointer-events: none; }
 .home-highlight-preload { opacity: 0; pointer-events: none; }
 .home-highlight-image { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
-.home-highlight-cover { object-fit: cover; object-position: center 45%; opacity: 0; }
+.home-highlight-cover { object-fit: cover; object-position: center 45%; opacity: .8; }
 .home-highlight-feature::after {
   position: absolute; inset: 0; z-index: -1; content: ""; pointer-events: none;
   background:
@@ -2532,85 +2598,80 @@ html.is-scrolling .card-metal::after {
   animation: catalogTransitionOverlayIn 180ms ease-out both;
 }
 
-/* 404 page — reuses the catalog loader's aurora-drift/glow-pulse keyframes
-   (already generic: color blobs and a soft pulsing ring) instead of
-   defining near-duplicates. */
-.notfound-aurora {
+/* 404 page — a dark panel in the homepage hero's palette, so it reads as
+   part of the same site; the "0" is a slowly turning brake disc. */
+.notfound-panel {
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(14, 165, 233, 0.28), transparent 55%),
+    radial-gradient(90% 80% at 100% 100%, rgba(45, 212, 191, 0.18), transparent 60%),
+    linear-gradient(160deg, #0d2236 0%, #0a1a2b 60%, #081521 100%);
+  box-shadow:
+    0 30px 60px -28px rgba(2, 6, 23, 0.55),
+    0 2px 6px rgba(2, 6, 23, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Faint blueprint grid, fading out towards the edges. */
+.notfound-panel::before {
+  content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
+  background-image:
+    linear-gradient(rgba(148, 210, 240, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 210, 240, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(70% 70% at 50% 40%, #000 20%, transparent 80%);
   pointer-events: none;
 }
 
-.notfound-aurora::before,
-.notfound-aurora::after {
-  content: "";
-  position: absolute;
-  width: 46%;
-  height: 70%;
-  border-radius: 50%;
-  filter: blur(60px);
-  animation: catalogLoaderAuroraDrift 9s ease-in-out infinite;
-}
-
-.notfound-aurora::before {
-  top: -10%;
-  left: -8%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.26), transparent 70%);
-}
-
-.notfound-aurora::after {
-  bottom: -14%;
-  right: -8%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.2), transparent 70%);
-  animation-name: catalogLoaderAuroraDriftReverse;
-  animation-delay: 2s;
-}
-
-/* Big soft "404" watermark behind the content — decorative background
-   numeral, not body text, so a gradient fill reads as intentional here
-   (unlike the loader's kicker label, which needed a normal solid color). */
-.notfound-digits {
-  position: absolute;
-  top: 48%;
-  left: 50%;
-  z-index: -1;
-  transform: translate(-50%, -54%);
-  font-size: clamp(7rem, 24vw, 13rem);
+.notfound-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.25rem, 1.5vw, 0.75rem);
+  font-family: var(--font-display-stack);
+  font-size: clamp(5.5rem, 22vw, 10rem);
   font-weight: 900;
-  line-height: 1;
+  line-height: 0.9;
   letter-spacing: -0.04em;
-  background: linear-gradient(160deg, rgba(14, 165, 233, 0.16), rgba(45, 212, 191, 0.1) 55%, rgba(167, 139, 250, 0.14));
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  color: #fff;
+  text-shadow: 0 12px 40px rgba(14, 165, 233, 0.35);
   user-select: none;
-  pointer-events: none;
-  white-space: nowrap;
 }
 
-.notfound-badge-glow {
-  position: absolute;
-  inset: -10px;
-  z-index: 0;
-  border-radius: 30px;
-  background: radial-gradient(circle, rgba(45, 212, 191, 0.35), transparent 70%);
-  filter: blur(10px);
-  animation: catalogLoaderGlowPulse 2.6s ease-in-out infinite;
+.notfound-disc {
+  width: 0.86em;
+  height: 0.86em;
+  flex: none;
+  filter: drop-shadow(0 14px 28px rgba(2, 6, 23, 0.55));
+  animation: notfoundDiscSpin 14s linear infinite;
 }
 
-/* A soft color glow behind the solid dark heading text — adds presence
-   without touching its actual (already max-contrast) fill color, unlike a
-   gradient-clip-text treatment would. */
-.notfound-heading {
-  text-shadow: 0 2px 28px rgba(14, 165, 233, 0.22);
+@keyframes notfoundDiscSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.notfound-search {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(186, 230, 253, 0.22);
+  transition: border-color 200ms ease-out, background-color 200ms ease-out;
+}
+
+.notfound-search:focus-within {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(125, 211, 252, 0.7);
+}
+
+.notfound-search input::-webkit-search-cancel-button {
+  filter: invert(1);
+  opacity: 0.6;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .notfound-aurora::before,
-  .notfound-aurora::after,
-  .notfound-badge-glow {
+  .notfound-disc {
     animation: none;
   }
 }
@@ -18773,15 +18834,8 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 .home-static .home-store-tour-heading > a { padding:10px 12px; border-radius:9px; background:#ffffff8c; transition:background-color 180ms ease-out,color 180ms ease-out; }
 .home-static .home-store-tour-heading > a svg { transition:transform 220ms cubic-bezier(.16,1,.3,1); }
 .home-static .home-store-tour-frame { isolation:isolate; }
-.home-static .home-store-tour-lens { position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; transition:opacity 300ms ease-out; }
-.home-static .home-store-tour-lens span { position:absolute; width:110px; height:90px; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); background:#b2d6de0a; mask-image:radial-gradient(ellipse at var(--lens-origin),#0009,transparent 72%); }
-/* Keep Google's labels, fullscreen button, navigation and attribution clear. */
-.home-static .home-store-tour-lens span:nth-child(1) { top:0; left:155px; --lens-origin:0% 0%; }
-.home-static .home-store-tour-lens span:nth-child(2) { top:0; right:62px; --lens-origin:100% 0%; }
-.home-static .home-store-tour-lens span:nth-child(3) { bottom:38px; left:0; --lens-origin:0% 100%; }
-.home-static .home-store-tour-lens span:nth-child(4) { bottom:42px; right:68px; --lens-origin:100% 100%; }
-.home-static .home-store-tour.is-tour-interactive .home-store-tour-lens { opacity:0; }
-.home-static .home-store-tour.is-tour-interactive .home-store-tour-lens span { backdrop-filter:none; -webkit-backdrop-filter:none; }
+.home-static .home-store-tour-lens { position:absolute; inset:0; z-index:1; pointer-events:none; backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); background:radial-gradient(ellipse at 50% 42%,#d7f2ef14 0%,#0c687947 65%,#102f526b 100%),linear-gradient(135deg,#143e5240,#218a9224 48%,#123e585c); transition:opacity 300ms ease-out; }
+.home-static .home-store-tour.is-tour-interactive .home-store-tour-lens { opacity:0; backdrop-filter:none; -webkit-backdrop-filter:none; }
 .home-static .home-store-tour-start { z-index:2; min-height:54px; gap:11px; padding:15px 25px; border:1px solid #e2faff70; border-radius:14px; overflow:hidden; background:linear-gradient(125deg,#123e58f5,#086f7df5 60%,#138895f2); box-shadow:0 12px 28px -10px #082c47b3,inset 0 1px 0 #ffffff45; animation:tourControlReveal 600ms cubic-bezier(.16,1,.3,1) both; transition:box-shadow 220ms ease-out,background-color 220ms ease-out; }
 .home-static .home-store-tour-start::before { content:""; position:absolute; inset:-70% -45%; pointer-events:none; background:linear-gradient(115deg,transparent 35%,#ffffff30 49%,transparent 63%); transform:translateX(-95%); }
 .home-static .home-store-tour-start svg { transition:transform 500ms cubic-bezier(.16,1,.3,1); }
@@ -18803,8 +18857,7 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
  .home-static .home-store-tour-symbol { flex-basis:38px; width:38px; height:38px; }
  .home-static .home-store-tour-symbol svg { width:23px; height:23px; }
  .home-static .home-store-tour-heading > a { margin-left:49px; padding:7px 0; background:transparent; }
- .home-static .home-store-tour-lens span { width:65px; height:60px; backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
- .home-static .home-store-tour-lens span:nth-child(1) { left:152px; }
+ .home-static .home-store-tour-lens { backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
  .home-static .home-store-tour-start { min-height:50px; padding:13px 18px; }
 }
 @media(prefers-reduced-motion:reduce) {

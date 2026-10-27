@@ -453,13 +453,13 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        {analyticsEnabled ? (
-          <Script
-            id="partson-analytics-consent-default"
-            strategy="beforeInteractive"
-            dangerouslySetInnerHTML={{ __html: analyticsConsentBootstrap }}
-          />
-        ) : null}
+        {/* Always rendered: it hides the consent banner before paint for
+            returning visitors, and the banner mounts even with analytics off. */}
+        <Script
+          id="partson-analytics-consent-default"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: analyticsConsentBootstrap }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(websiteJsonLd) }}

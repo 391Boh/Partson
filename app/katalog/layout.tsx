@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import CatalogCriticalStyles from "app/components/CatalogCriticalStyles";
 
 import { appendSeoContact } from "app/lib/seo-metadata";
 
@@ -60,5 +61,5 @@ export const metadata: Metadata = {
 };
 
 export default function KatalogLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <><CatalogCriticalStyles />{children}</>;
 }
