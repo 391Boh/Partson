@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 
 import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critical-css";
 import { buildPageMetadata } from "app/lib/seo-metadata";
+import { safeJsonLd } from "app/lib/safe-json-ld";
+import { getSiteUrl } from "app/lib/site-url";
+import { buildStorePhotosJsonLd } from "app/lib/store-photos-jsonld";
 import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
@@ -63,6 +66,10 @@ export default function HomePage() {
       {criticalCssHref ? (
         <link rel="stylesheet" href={criticalCssHref} precedence={CRITICAL_CSS_PRECEDENCE} />
       ) : null}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(buildStorePhotosJsonLd(getSiteUrl())) }}
+      />
       <HomeHighlightsSection />
       <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">

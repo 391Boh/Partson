@@ -73,11 +73,6 @@ const siteUrlObject = (() => {
 const organizationId = `${siteUrl}#organization`;
 const localBusinessId = `${siteUrl}#local-business`;
 const organizationLogoUrl = `${siteUrl}/google-logo-partson-v3.png`;
-// Real photos of the Lviv store (facade first): Google recommends actual
-// business photos rather than a logo for LocalBusiness `image`.
-const storePhotoUrls = [1, 4, 6, 2, 3, 5, 7].map(
-  (index) => `${siteUrl}/storefront/photos/partson-store-${index}.jpg`
-);
 
 const parseNumericEnv = (value: string | undefined) => {
   if (!value) return null;
@@ -394,7 +389,8 @@ const localBusinessJsonLd = {
   "@id": localBusinessId,
   name: "PartsON",
   url: siteUrl,
-  image: storePhotoUrls,
+  // Store photos only on the homepage (app/lib/store-photos-jsonld.ts):
+  // here they were attached to every product page.
   logo: `${organizationLogoUrl}`,
   description:
     "Магазин автозапчастин у Львові на вул. Перфецького, 8: підбір деталей за VIN та артикулом, оригінали й аналоги, самовивіз і доставка по Україні.",
