@@ -164,6 +164,16 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
     url: `${siteUrl}${brandPath}`,
     inLanguage: "uk-UA",
     isPartOf: { "@type": "WebSite", name: "PartsON", url: siteUrl },
+    // The segment's 1200×630 card with the make's logo — the picture this
+    // page should get in results (the logo itself is an SVG, which Google
+    // rarely uses as a thumbnail).
+    primaryImageOfPage: {
+      "@type": "ImageObject",
+      url: `${siteUrl}${brandPath}/opengraph-image/card`,
+      width: 1200,
+      height: 630,
+      caption: `Запчастини ${brand.name} — логотип марки`,
+    },
     mainEntity: {
       "@type": "ItemList",
       name: `Моделі ${brand.name} для підбору автозапчастин`,

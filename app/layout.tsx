@@ -333,7 +333,8 @@ const organizationJsonLd = {
     width: 600,
     height: 600,
   },
-  image: [`${organizationLogoUrl}`],
+  // No `image`: on every page it offered the PartsON logo as the picture of
+  // product and car pages. `logo` above is what Google uses for the brand.
   sameAs: sameAsLinks.length > 0 ? sameAsLinks : undefined,
   description:
     "Інтернет-магазин автозапчастин PartsON з каталогом, підбором деталей та доставкою по Україні.",
