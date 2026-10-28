@@ -37,6 +37,15 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "PerplexityBot",
         ...publicContentRules,
       },
+      // SEO-tool crawlers walk every product URL back to back, and each cold
+      // product render queries the single-threaded 1C — their bursts slowed
+      // Googlebot's responses to 5–15 s. They honour Crawl-delay (Google
+      // ignores it, so search crawling is unaffected).
+      {
+        userAgent: ["SemrushBot", "AhrefsBot", "DotBot", "MJ12bot", "Reflectionbot"],
+        ...publicContentRules,
+        crawlDelay: 10,
+      },
     ],
     sitemap: [`${siteUrl}/sitemap.xml`],
     host: siteHost,

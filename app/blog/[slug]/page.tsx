@@ -423,7 +423,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 alt={post.imageAlt || post.title}
                 width={1200}
                 height={675}
-                unoptimized
+                // Responsive WebP/AVIF through the image optimizer: the
+                // original cover is ~260 KB, three times what a phone needs.
+                sizes="(max-width: 1280px) calc(100vw - 32px), 1200px"
+                quality={75}
                 loading="eager"
                 fetchPriority="high"
                 className="blog-cover-image"
@@ -490,7 +493,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                             alt={`${post.title} — фото ${pIdx}`}
                             width={760}
                             height={520}
-                            unoptimized
+                            sizes="(max-width: 800px) calc(100vw - 32px), 740px"
+                            quality={75}
                             loading="lazy"
                           />
                         </figure>

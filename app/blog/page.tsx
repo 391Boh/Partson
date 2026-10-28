@@ -146,7 +146,7 @@ export default async function BlogPage() {
                     src={coverSrc(featured)!}
                     alt={featured.imageAlt || featured.title}
                     fill
-                    unoptimized
+                    quality={75}
                     loading="eager"
                     fetchPriority="high"
                     sizes="(max-width: 767px) 100vw, 60vw"
@@ -188,7 +188,7 @@ export default async function BlogPage() {
                             src={coverSrc(post)!}
                             alt={post.imageAlt || post.title}
                             fill
-                            unoptimized
+                            quality={75}
                             loading="lazy"
                             sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw"
                           />

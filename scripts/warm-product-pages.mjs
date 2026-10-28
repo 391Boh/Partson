@@ -8,6 +8,10 @@
 //
 //   node scripts/warm-product-pages.mjs [--base=https://partson.shop]
 //     [--concurrency=3] [--limit=0] [--no-images]
+//     [--sections=product,groups,manufacturers,auto]
+//
+// `--sections` adds the directory sitemaps after the products (default:
+// products only); their cold renders also wait on 1C.
 //
 // Concurrency stays low on purpose: each miss queries 1C, which is slower and
 // less stable under parallel load than the site itself.
@@ -23,6 +27,13 @@ const base = (args.base || process.env.SITE_URL || "https://partson.shop").repla
 const concurrency = Math.max(1, Number(args.concurrency) || 3);
 const limit = Math.max(0, Number(args.limit) || 0);
 const warmImages = args["no-images"] !== "true";
+const sections = new Set(String(args.sections || "product").split(",").map((value) => value.trim()));
+const SECTION_SITEMAPS = {
+  product: /\/product\/sitemap\/\d+\.xml$/,
+  groups: /\/groups-sitemap\.xml$/,
+  manufacturers: /\/manufacturers-sitemap\.xml$/,
+  auto: /\/auto-sitemap\.xml$/,
+};
 const REQUEST_TIMEOUT_MS = 20000;
 const headers = { "user-agent": "PartsON-cache-warmer/1.0", accept: "text/html,*/*" };
 
@@ -41,14 +52,17 @@ const readProductEntries = async () => {
   const index = await fetchText(`${base}/sitemap.xml`);
   const sitemapUrls = [...index.matchAll(/<loc>([^<]+)<\/loc>/g)]
     .map((match) => decodeXml(match[1]))
-    .filter((url) => /\/product\/sitemap\/\d+\.xml$/.test(url));
+    .filter((url) => [...sections].some((section) => SECTION_SITEMAPS[section]?.test(url)))
+    // Products first: they are most of Googlebot's visits.
+    .sort((a, b) => Number(!SECTION_SITEMAPS.product.test(a)) - Number(!SECTION_SITEMAPS.product.test(b)));
 
   const entries = [];
   for (const sitemapUrl of sitemapUrls) {
     const xml = await fetchText(sitemapUrl);
     for (const block of xml.split("<url>").slice(1)) {
       const page = block.match(/<loc>([^<]+)<\/loc>/);
-      const image = block.match(/<image:loc>([^<]+)<\/image:loc>/);
+      // Only product photos come from 1C; directory images are static.
+      const image = SECTION_SITEMAPS.product.test(sitemapUrl) && block.match(/<image:loc>([^<]+)<\/image:loc>/);
       if (page) entries.push({ page: decodeXml(page[1]), image: image ? decodeXml(image[1]) : "" });
     }
   }
@@ -86,7 +100,7 @@ const percentile = (values, p) => {
 
 const main = async () => {
   const entries = await readProductEntries();
-  console.log(`Warming ${entries.length} product pages on ${base} (concurrency ${concurrency}${warmImages ? ", with images" : ""})`);
+  console.log(`Warming ${entries.length} pages (${[...sections].join(", ")}) on ${base} (concurrency ${concurrency}${warmImages ? ", with images" : ""})`);
 
   const pageResults = [];
   const imageResults = [];
