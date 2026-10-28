@@ -200,7 +200,7 @@ export default function AutoPage() {
         links={[
           { href: "/katalog", label: "Відкрити каталог" },
           { href: "/groups", label: "Групи запчастин" },
-          { href: "/inform", label: "Магазин у Львові" },
+          { href: "/inform/about", label: "Магазин у Львові" },
         ]}
       />
 

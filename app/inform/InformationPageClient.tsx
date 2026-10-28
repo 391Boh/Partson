@@ -84,7 +84,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
           <ol className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-500">
             <li><Link href="/" className="transition hover:text-slate-900">Головна</Link></li>
             <li aria-hidden="true"><ChevronRight size={12} /></li>
-            <li><Link href="/inform" className="transition hover:text-slate-900">Інформація</Link></li>
+            <li><Link href="/inform/delivery" className="transition hover:text-slate-900">Інформація</Link></li>
             <li aria-hidden="true"><ChevronRight size={12} /></li>
             <li aria-current="page" className="font-semibold text-slate-800">{section.title}</li>
           </ol>

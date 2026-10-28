@@ -130,6 +130,13 @@ const nameVehicle = (name: string, kind: string) => {
   return period ? `${vehicle} (${period})` : vehicle;
 };
 
+/** Readable vehicle list from a 1C fitment line, within `budget` chars, or "". */
+export const buildFitmentSummary = (fitmentLine: string | undefined, budget: number) => {
+  const line = clean((fitmentLine || "").split(/\r?\n/)[0]);
+  const fitment = line ? splitProductFitmentLine(line) : null;
+  return fitment ? fitmentList(fitment.groups, budget) : "";
+};
+
 // "Комплекти та ремені ГРМ" → "комплекти та ремені ГРМ": abbreviations keep their case.
 const lowerFirst = (value: string) =>
   /^\p{Lu}\p{Ll}/u.test(value) ? value[0].toLocaleLowerCase("uk-UA") + value.slice(1) : value;

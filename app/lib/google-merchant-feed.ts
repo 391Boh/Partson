@@ -10,6 +10,8 @@ import {
   getAllProductSitemapEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
+import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-format";
+import { buildFitmentSummary } from "app/lib/product-seo-copy";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
@@ -132,12 +134,16 @@ const buildProductType = (entry: ProductSitemapEntry) => {
 };
 
 const buildProductDescription = (entry: ProductSitemapEntry) => {
-  const visibleName = buildVisibleProductName(entry.name || entry.code);
-  const categoryLabel =
+  // Spelling as on the site (catalog-label-format.ts); product_type below
+  // keeps the raw 1C labels, which Ads campaign filters may rely on.
+  const visibleName = fixCatalogSpelling(buildVisibleProductName(entry.name || entry.code));
+  const categoryLabel = formatCatalogLabel(
     (entry.subGroup || "").trim() ||
     (entry.group || "").trim() ||
     (entry.category || "").trim() ||
-    "автозапчастини";
+    "автозапчастини"
+  );
+  const vehicles = buildFitmentSummary(entry.fitment, 400);
   const availabilityLabel =
     entry.quantity > 0
       ? `В наявності ${entry.quantity} шт.`
@@ -146,6 +152,7 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
   return [
     `${visibleName}${entry.producer ? ` від виробника ${entry.producer}` : ""}.`,
     `Категорія: ${categoryLabel}.`,
+    vehicles ? `Підходить для: ${vehicles}.` : null,
     entry.article ? `Артикул: ${entry.article}.` : null,
     availabilityLabel,
     "Купити автозапчастини на PartsON з доставкою по Україні.",
@@ -372,7 +379,7 @@ const toGoogleMerchantFeedItem = (
   // ("bosch 0986424815"), and Google's own matching against its GTIN/MPN
   // catalog weighs the front of the title more heavily than the tail.
   const producer = (entry.producer || "").trim();
-  const visibleName = buildVisibleProductName(entry.name || code);
+  const visibleName = fixCatalogSpelling(buildVisibleProductName(entry.name || code));
   const title = [producer, article, visibleName].filter(Boolean).join(" ").trim() || visibleName;
 
   return {
