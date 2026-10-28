@@ -58,7 +58,7 @@ const buildStylesheetLoaderScript = (href: string) => {
   const criticalSelector = JSON.stringify(
     `link[rel="stylesheet"][data-precedence="${CRITICAL_CSS_PRECEDENCE}"]`
   );
-  return `(function(){var h=${hrefJson},d=document,w=window;if(d.querySelector(${criticalSelector})){w.__partsonCssReady=new Promise(function(r){function load(){var l=d.createElement("link");l.rel="stylesheet";l.href=h;l.media="print";l.fetchPriority="low";l.onload=l.onerror=function(){l.media="all";r()};d.head.appendChild(l)}if(d.readyState==="loading"&&w.location.pathname==="/")d.addEventListener("DOMContentLoaded",load,{once:true});else load()})}else{d.write('<link rel="stylesheet" href="'+h+'">')}})();`;
+  return `(function(){var h=${hrefJson},d=document,w=window;if(d.querySelector(${criticalSelector})){w.__partsonCssReady=new Promise(function(r){function load(){var l=d.createElement("link");l.rel="stylesheet";l.href=h;l.media="print";l.fetchPriority="low";l.onload=l.onerror=function(){l.media="all";r()};d.head.appendChild(l)}if(d.readyState==="loading"&&(w.location.pathname==="/"||w.location.pathname.indexOf("/product/")===0))d.addEventListener("DOMContentLoaded",load,{once:true});else load()})}else{d.write('<link rel="stylesheet" href="'+h+'">')}})();`;
 };
 
 const siteUrl = getSiteUrl();

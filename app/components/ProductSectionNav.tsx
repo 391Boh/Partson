@@ -107,6 +107,9 @@ export default function ProductSectionNav({
     const rail = railRef.current;
     const activeLink = rail?.querySelector<HTMLAnchorElement>(`a[href="${activeHref}"]`);
     if (!rail || !activeLink) return;
+    // The mobile grid fits all four tabs. Do not start a horizontal smooth
+    // scroll (or force layout reads) during native vertical momentum scroll.
+    if (rail.scrollWidth <= rail.clientWidth + 1) return;
 
     // `scrollIntoView` scrolls *every* scrollable ancestor the target isn't
     // fully visible in, not just this horizontal pill rail — including the
@@ -117,7 +120,7 @@ export default function ProductSectionNav({
     // never touches vertical/page scroll at all.
     const railRect = rail.getBoundingClientRect();
     const linkRect = activeLink.getBoundingClientRect();
-    if (linkRect.left < railRect.left || linkRect.right > railRect.right) {
+    if (linkRect.left < railRect.left - 1 || linkRect.right > railRect.right + 1) {
       const delta =
         linkRect.left < railRect.left
           ? linkRect.left - railRect.left

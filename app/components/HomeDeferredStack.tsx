@@ -126,7 +126,10 @@ function DeferredHomeSection({
       // the spacing between setShouldMount calls entirely.
       // Also wait for the full stylesheet: this content is outside the
       // homepage's inlined critical CSS (app/lib/full-stylesheet.ts).
-      void Promise.all([preload().catch(() => undefined), prepareHomeBackdrop(tone), whenFullStylesheetReady()]).then(() => {
+      // Decoration downloads run alongside the code, but never gate a usable
+      // catalogue (a slow backdrop used to hold mounting for up to 1800ms).
+      void prepareHomeBackdrop(tone);
+      void Promise.all([preload().catch(() => undefined), whenFullStylesheetReady()]).then(() => {
         if (cancelled) return;
         mountRequestedAt = performance.now();
         mountWhenScrollSettles();

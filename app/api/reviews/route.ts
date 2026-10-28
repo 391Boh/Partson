@@ -1,4 +1,6 @@
 import { markProductFirestorePresence } from "app/lib/product-firestore-presence";
+import { revalidateTag } from "next/cache";
+import { productPageExtrasTag } from "app/lib/product-page-extras";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { getProductReviews } from "app/lib/reviews-server";
 import { NextRequest, NextResponse } from "next/server";
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
     });
 
     markProductFirestorePresence("reviews", productCode);
+    revalidateTag(productPageExtrasTag(productCode), { expire: 0 });
 
     return NextResponse.json(
       { ok: true },

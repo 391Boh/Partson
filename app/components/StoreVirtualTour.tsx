@@ -2,6 +2,7 @@
 
 import { ArrowUpRight, Compass } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { preconnect } from "react-dom";
 
 type Props = { embedUrl: string; tourUrl: string };
 
@@ -26,14 +27,27 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame || active || typeof IntersectionObserver === "undefined") return;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const conserveData = connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType ?? "");
+    // Establish the TLS connection while approaching, without fetching the
+    // panorama or competing with the first-screen assets.
+    const warmObserver = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      warmObserver.disconnect();
+      if (!conserveData) {
+        preconnect(new URL(embedUrl).origin);
+        preconnect("https://maps.gstatic.com", { crossOrigin: "anonymous" });
+      }
+    }, { rootMargin: "1800px 0px" });
+    warmObserver.observe(frame);
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       observer.disconnect();
       setActive(true);
-    }, { rootMargin: "900px 0px" });
+    }, { rootMargin: conserveData ? "0px" : "1200px 0px" });
     observer.observe(frame);
-    return () => observer.disconnect();
-  }, [active]);
+    return () => { observer.disconnect(); warmObserver.disconnect(); };
+  }, [active, embedUrl]);
 
   return (
     <section className={`home-store-tour${loaded ? " is-tour-loaded" : ""}${interactive ? " is-tour-interactive" : ""}`} aria-labelledby="store-tour-title">
@@ -51,8 +65,8 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
       <div ref={frameRef} className="home-store-tour-frame" aria-busy={active && !loaded}>
         {/* eslint-disable-next-line @next/next/no-img-element -- 20KB local facade poster, independent of Google */}
         <img className="home-store-tour-poster" src="/storefront/photos/bg/store-1.webp" width="600" height="400" alt="Фасад магазину PartsON у Львові" loading="lazy" decoding="async" />
-        {!loaded && <div className="home-store-tour-placeholder">
-          {active ? <p role="status">Завантажуємо тур 360°…</p> : <button type="button" onClick={startTour}>Переглянути тур 360°</button>}
+        {interactive && !loaded && <div className="home-store-tour-placeholder">
+          <p role="status">Завантажуємо тур 360°…</p>
         </div>}
         {active && <iframe
           ref={iframeRef}
@@ -67,7 +81,7 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
           className={loaded ? "is-loaded" : undefined}
         />}
         <div className="home-store-tour-lens" aria-hidden="true" />
-        {loaded && !interactive && <button ref={startButtonRef} type="button" className="home-store-tour-start" onClick={startTour}><Compass size={19} aria-hidden="true" />Розпочати тур 360°</button>}
+        {!interactive && <button ref={startButtonRef} type="button" className="home-store-tour-start" onPointerEnter={() => setActive(true)} onFocus={() => setActive(true)} onClick={startTour}><Compass size={19} aria-hidden="true" />Розпочати тур 360°</button>}
       </div>
       <div className="home-store-tour-footer">
         <p className="home-store-tour-hint">Обертайте панораму мишею або дотиком.</p>

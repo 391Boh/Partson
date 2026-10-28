@@ -7,6 +7,8 @@ import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { getFirebaseAdminBucket, getFirebaseAdminDb } from "app/lib/firebase-admin";
 import { markProductFirestorePresence } from "app/lib/product-firestore-presence";
+import { revalidateTag } from "next/cache";
+import { productPageExtrasTag } from "app/lib/product-page-extras";
 
 export const runtime = "nodejs";
 
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest) {
     });
 
     markProductFirestorePresence("gallery", code);
+    revalidateTag(productPageExtrasTag(code), { expire: 0 });
     return json({ ok: true, id: docRef.id, url: publicUrl });
   } catch (error) {
     console.error("Product gallery upload failed:", error);
@@ -209,6 +212,7 @@ export async function DELETE(request: NextRequest) {
       await getFirebaseAdminBucket().file(path).delete({ ignoreNotFound: true });
     }
     await imageRef.delete();
+    revalidateTag(productPageExtrasTag(code), { expire: 0 });
 
     return json({ ok: true });
   } catch (error) {

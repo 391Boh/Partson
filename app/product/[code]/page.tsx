@@ -78,7 +78,7 @@ import { buildProductMetaDescription, buildProductSeoTitle, buildProductImageAlt
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProductEditOverride } from "app/lib/product-edit-overrides";
 import { getProductFirestorePresence } from "app/lib/product-firestore-presence";
-import { getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { getProductPageGallery, getProductPageReviews } from "app/lib/product-page-extras";
 import {
   getAllPricedProductSitemapEntries,
   getAllProductSitemapEntries,
@@ -87,8 +87,7 @@ import {
 } from "app/lib/product-sitemap";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import {
-  getProductReviews,
-  getProductReviewStats,
+  type getProductReviewStats,
   type ProductReview,
 } from "app/lib/reviews-server";
 import { buildOfferShippingDetails } from "app/lib/shipping-policy";
@@ -128,25 +127,6 @@ const PRODUCT_PAGE_METADATA_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_REVIEWS_TIMEOUT_MS = 900;
 const PRODUCT_PAGE_GALLERY_TIMEOUT_MS = 900;
 
-// Extra photos live in Firestore (see app/components/ProductGallery.tsx,
-// which reads the same collection client-side for the live-updating strip
-// under the hero photo) — separate from the single 1C-sourced photo. Pulled
-// in here too so the Product JSON-LD's image array isn't limited to one
-// photo when a product actually has more.
-const fetchProductGalleryImageUrls = async (code: string): Promise<string[]> => {
-  if (!code) return [];
-  const snap = await getFirebaseAdminDb()
-    .collection("productGallery")
-    .doc(code)
-    .collection("images")
-    .orderBy("uploadedAt", "asc")
-    .limit(12)
-    .get();
-  return snap.docs
-    .map((doc) => doc.data().url as string)
-    .filter((url): url is string => typeof url === "string" && url.length > 0);
-};
-
 type ProductPageReviews = readonly [
   Awaited<ReturnType<typeof getProductReviewStats>>,
   ProductReview[] | null,
@@ -154,14 +134,14 @@ type ProductPageReviews = readonly [
 
 const loadProductPageReviews = (code: string) =>
   resolveWithTimeout<ProductPageReviews>(
-    () => Promise.all([getProductReviewStats(code), getProductReviews(code)]),
+    () => getProductPageReviews(code),
     [null, null],
     PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
   );
 
 const loadProductPageGallery = (code: string) =>
   resolveWithTimeout<string[] | null>(
-    () => fetchProductGalleryImageUrls(code),
+    () => getProductPageGallery(code),
     null,
     PRODUCT_PAGE_GALLERY_TIMEOUT_MS
   );

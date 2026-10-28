@@ -1,10 +1,14 @@
-import { ArrowRight, MapPin, MessageCircle, Star, ChevronDown } from "lucide-react";
+import { ArrowRight, MapPin, MessageCircle, Star } from "lucide-react";
 import StoreVirtualTour from "./StoreVirtualTour";
+import StoreLocationMap from "./StoreLocationMap";
 import { STORE_TOUR_EMBED_URL, STORE_TOUR_URL } from "app/lib/store-virtual-tour";
 import OpenChatButton from "./OpenChatButton";
 import SectionRevealAdvantages from "./SectionRevealAdvantages";
 import StoreOpenStatus from "./StoreOpenStatus";
 import Link from "next/link";
+import HomeStoreFaq from "./HomeStoreFaq";
+import { HOME_FAQ_JSON_LD } from "app/lib/home-faq";
+import { safeJsonLd } from "app/lib/safe-json-ld";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
 const STORE_MAP_EMBED_URL = "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk";
@@ -56,9 +60,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               <div><span>Магазин у Львові</span><h3>Завітайте в PartsON</h3></div>
               <MapPin size={23} strokeWidth={1.6} aria-hidden="true" />
             </header>
-            <div className="home-store-map-frame">
-              <iframe src={STORE_MAP_EMBED_URL} title="Google Maps — магазин PartsON, Львів, Перфецького, 8" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
-            </div>
+            <StoreLocationMap src={STORE_MAP_EMBED_URL} />
             <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="home-store-route">
               <MapPin aria-hidden="true" size={20} />
               <span><strong>Львів, вул. Перфецького, 8</strong><small>Прокласти маршрут у Google Maps</small></span>
@@ -75,20 +77,17 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
         <StoreVirtualTour embedUrl={STORE_TOUR_EMBED_URL} tourUrl={STORE_TOUR_URL} />
 
         <div className="reveal-adv-cta home-store-help" aria-labelledby="parts-help-title">
+          <div className="home-store-help-photo" aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative, lazy-loaded background exclusive to the homepage FAQ */}
+            <img src="/images/home/faq-parts-still-life-v1.webp" width="2160" height="720" alt="" loading="lazy" decoding="async" />
+          </div>
           <div className="home-store-help-copy">
-            <MessageCircle className="home-store-help-icon" size={25} aria-hidden="true" />
-            <span className="home-store-help-kicker">Запитання та відповіді</span>
             <h3 id="parts-help-title">Допоможемо обрати{" "}<br />й замовити</h3>
             <p>Не впевнені, яка деталь підійде? Напишіть менеджеру марку й модель авто або артикул. VIN-код допоможе перевірити сумісність.</p>
             <OpenChatButton message="Допоможіть підібрати деталь для мого авто." label="Запитати менеджера" title="Написати менеджеру для підбору запчастини" className="parts-help-button" />
           </div>
-          <div className="home-store-questions">
-            {[
-              ["Як підібрати запчастини до мого авто?", "Оберіть марку, модель і модифікацію автомобіля або знайдіть деталь за артикулом. Для перевірки сумісності надішліть менеджеру VIN-код."],
-              ["Де забрати замовлення у Львові?", "Завітайте до магазину PartsON на вул. Перфецького, 8. Розташування магазину та маршрут можна переглянути на карті Google."],
-              ["Чи є доставка по Україні?", "Так, замовлення можна отримати доставкою по Україні. Спосіб отримання уточніть у менеджера або в розділі доставки й самовивозу."],
-            ].map(([question, answer], index) => <details key={question}><summary><span className="home-store-question-number" aria-hidden="true">0{index + 1}</span><span className="home-store-question-text">{question}</span><ChevronDown size={17} aria-hidden="true" /></summary><p>{answer}</p></details>)}
-          </div>
+          <HomeStoreFaq />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(HOME_FAQ_JSON_LD) }} />
         </div>
       </SectionRevealAdvantages>
     </section>

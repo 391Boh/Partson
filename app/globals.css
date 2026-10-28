@@ -16838,7 +16838,7 @@ html[data-admin-hint] .product-admin-slot:empty { display: block; flex: 0 0 100%
     top: var(--header-height, 4rem); z-index: 41;
     margin: 0 calc(50% - 50vw) 14px;
     background: #f4f8fa; isolation: isolate;
-    transform: translateZ(0); backface-visibility: hidden;
+    transform: none; backface-visibility: visible;
   }
   .product-page .product-pinned-controls .product-admin-bar {
     position: relative; top: auto; margin: 0;
@@ -16847,6 +16847,13 @@ html[data-admin-hint] .product-admin-slot:empty { display: block; flex: 0 0 100%
   .product-page .product-pinned-controls .product-details-nav {
     position: relative; top: auto; margin: 0; width: 100%;
     transform: none; will-change: auto; flex: none;
+  }
+  .product-page .product-pinned-controls .product-details-nav-rail {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible; overscroll-behavior: auto;
+  }
+  .product-page .product-pinned-controls .product-details-nav-link {
+    min-width: 0; padding-inline: 4px; white-space: nowrap;
   }
   html[data-admin-hint] .product-page .product-pinned-controls .product-admin-slot:empty {
     flex: none; order: 0; margin: 0; height: 42px;
@@ -19039,45 +19046,87 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 }
 .home-static .home-store-editorial .home-store-tour-start > svg { flex-shrink:0; }
 
-/* Clear, open FAQ: editorial lead and numbered native disclosure rows. */
-.home-static .home-bottom-editorial.home-store-editorial .home-store-help { grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr); align-items:start; gap:54px; padding-top:34px; border-color:#a9cad380; }
-.home-static .home-store-editorial .home-store-help-icon { box-sizing:content-box; width:24px; height:24px; padding:10px; margin-bottom:18px; border-radius:14px 14px 14px 3px; background:linear-gradient(145deg,#ffffff,#d5ecef); box-shadow:0 7px 16px -12px #1f657a80,inset 0 1px 0 #fff; }
-.home-static .home-store-help-kicker { display:block; margin:0 0 10px; color:#36717e; font-size:10px; font-weight:700; letter-spacing:.09em; line-height:1.4; text-transform:uppercase; }
-.home-static .home-bottom-editorial.home-store-editorial .home-store-help h3 { font-size:clamp(25px,2.4vw,32px); line-height:1.18; letter-spacing:-.025em; color:#153f51; }
-.home-static .home-bottom-editorial.home-store-editorial .home-store-help-copy > p { margin:16px 0 20px; max-width:40ch; color:#416472; font-size:13px; font-weight:450; line-height:1.8; }
-.home-static .home-store-editorial .home-store-help .parts-help-button { min-height:45px; border-radius:9px; font-size:12px; box-shadow:0 8px 16px -11px #075e6980,inset 0 1px 0 #ffffff33; }
-.home-static .home-store-editorial .home-store-questions { border-top:1px solid #a9cad380; }
-.home-static .home-store-editorial .home-store-questions details { border-bottom:1px solid #a9cad380; transition:background-color 200ms ease-out; }
-.home-static .home-store-editorial .home-store-questions details:last-child { border-bottom:1px solid #a9cad380; }
-.home-static .home-store-editorial .home-store-questions summary { gap:16px; min-height:78px; padding:20px 8px; font-size:15px; line-height:1.5; color:#204b5c; }
-.home-static .home-store-question-number { flex:0 0 22px; color:#4c8995; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
-.home-static .home-store-question-text { flex:1; }
-.home-static .home-store-editorial .home-store-questions summary > svg { box-sizing:content-box; width:17px; height:17px; padding:7px; border-radius:50%; color:#147783; background:#dceef1; transition:transform 220ms ease-out,background-color 220ms ease-out; }
-.home-static .home-store-editorial .home-store-questions details[open] { background:#ffffff52; }
-.home-static .home-store-editorial .home-store-questions details[open] summary { color:#075f6d; }
-.home-static .home-store-editorial .home-store-questions details[open] summary > svg { background:#c9e5e9; }
-.home-static .home-bottom-editorial.home-store-editorial .home-store-questions p { margin:0 48px 0 46px; padding:0 0 23px; max-width:60ch; color:#3c6170; font-size:13px; font-weight:450; line-height:1.85; }
-.home-static .home-store-editorial .home-store-questions details[open] p { animation:storeAnswerReveal 220ms ease-out both; }
-@keyframes storeAnswerReveal { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
-@media(hover:hover) and (pointer:fine) {
- .home-static .home-store-editorial .home-store-questions details:hover { background:#ffffff40; }
- .home-static .home-store-editorial .home-store-questions summary:hover > svg { background:#c9e5e9; }
+/* Homepage FAQ: inline answers with reserved space for the tallest answer. */
+/* The photo meets the next page section: no trailing homepage/section band. */
+.home-static:has(> .home-section-stage-static:last-child) { padding-bottom:0; }
+.home-static .home-section-stage-static > .home-bottom-editorial.home-store-editorial { padding-bottom:0; }
+
+.home-static .home-store-help { position:relative; isolation:isolate; overflow:visible; }
+.home-static .home-store-help-photo {
+ position:absolute; inset:0 auto 0 50%; width:100vw; margin-left:-50vw; z-index:-1; pointer-events:none;
+}
+.home-static .home-store-help-photo img {
+ display:block; width:100%; height:100%; object-fit:cover; object-position:center bottom; opacity:.26;
+ -webkit-mask-image:linear-gradient(to top,#000 0%,#0009 38%,transparent 95%);
+ mask-image:linear-gradient(to top,#000 0%,#0009 38%,transparent 95%);
 }
 @media(max-width:1023px) {
- .home-static .home-bottom-editorial.home-store-editorial .home-store-help { grid-template-columns:minmax(0,1fr); gap:28px; }
- .home-static .home-store-editorial .home-store-help-icon { margin-bottom:14px; }
- .home-static .home-bottom-editorial.home-store-editorial .home-store-help-copy > p { max-width:58ch; }
+ .home-static .home-store-help-photo { top:auto; height:300px; }
+ .home-static .home-store-help-photo img { object-position:62% bottom; opacity:.24; }
+}
+
+.home-static .home-bottom-editorial.home-store-editorial .home-store-help {
+ grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); align-items:center;
+ gap:clamp(28px,4vw,64px); padding:32px 0; margin-top:24px;
+ border:0; border-radius:0; box-shadow:none; background:none;
+}
+.home-static .home-bottom-editorial.home-store-editorial .home-store-help h3 {
+ margin:0; color:#153f46; font-size:clamp(25px,2.4vw,34px);
+ line-height:1.2; letter-spacing:-.025em; text-wrap:balance; text-shadow:none;
+}
+.home-static .home-bottom-editorial.home-store-editorial .home-store-help-copy > p {
+ margin:16px 0 22px; max-width:43ch; color:#3a5e62; font-size:14px; line-height:1.8;
+}
+.home-static .home-store-editorial .home-store-help .parts-help-button {
+ min-height:46px; border-radius:10px; font-size:13px; transform:none;
+ background:linear-gradient(115deg,#0b8179,#145951); box-shadow:0 8px 18px -12px #14595180;
+ transition:background-color 180ms ease-out,box-shadow 180ms ease-out;
+}
+.home-static .home-store-help .parts-help-button:hover { transform:none; background:linear-gradient(115deg,#096e67,#104c45); box-shadow:0 10px 20px -12px #14595190; }
+.home-static .home-store-faq { min-width:0; }
+.home-static .home-store-faq-heading { margin:0; }
+.home-static .home-store-faq-item { position:relative; }
+.home-static .home-store-faq-item + .home-store-faq-item { border-top:1px solid #b3cec9; }
+.home-static .home-store-faq-item[data-open="true"] { background:linear-gradient(110deg,#f8fcf8ed,#e5f2eddb); border-radius:10px; }
+.home-static .home-store-faq-heading button {
+ display:flex; align-items:center; justify-content:space-between; gap:18px;
+ width:100%; min-height:68px; margin:0; padding:16px 12px;
+ border:0; border-radius:8px; background:transparent; color:#244b50;
+ text-align:left; font:inherit; font-size:16px; font-weight:650; line-height:1.5;
+ cursor:pointer; transition:background-color 180ms ease-out,color 180ms ease-out;
+}
+.home-static .home-store-faq-heading button > svg {
+ box-sizing:content-box; flex-shrink:0; padding:6px; border-radius:50%;
+ color:#246c64; background:#d4e8e1; transition:transform 180ms ease-out,background-color 180ms ease-out;
+}
+.home-static .home-store-faq-heading button[aria-expanded="true"] { color:#15584f; background:transparent; }
+.home-static .home-store-faq-heading button[aria-expanded="true"] > svg { transform:rotate(180deg); background:#c3dfd4; }
+.home-static .home-store-faq-heading button:focus-visible { outline:2px solid #176e61; outline-offset:3px; }
+.home-static .home-store-faq-answer {
+ position:relative; padding:0 54px 22px 12px; visibility:visible; opacity:1;
+ transition:opacity 180ms ease-out;
+}
+.home-static .home-store-faq-answer[aria-hidden="true"] { position:absolute; inset:0 0 auto; visibility:hidden; opacity:0; pointer-events:none; }
+.home-static .home-store-faq-answer p { margin:0; max-width:62ch; color:#345c5a; font-size:14px; font-weight:450; line-height:1.8; }
+.home-static .home-store-faq ::selection { color:#fff; background:#176e61; }
+@media(hover:hover) and (pointer:fine) {
+ .home-static .home-store-faq-heading button:hover { background:#ffffffa6; color:#15584f; }
+ .home-static .home-store-faq-heading button:hover > svg { background:#c3dfd4; }
+}
+@media(max-width:1023px) {
+ .home-static .home-bottom-editorial.home-store-editorial .home-store-help { grid-template-columns:minmax(0,1fr); gap:24px; padding:26px 0; }
+ .home-static .home-bottom-editorial.home-store-editorial .home-store-help-copy > p { max-width:62ch; }
 }
 @media(max-width:479px) {
- .home-static .home-bottom-editorial.home-store-editorial .home-store-help { padding-top:26px; }
- .home-static .home-store-editorial .home-store-questions summary { min-height:76px; padding:18px 0; gap:11px; font-size:14px; }
- .home-static .home-store-question-number { flex-basis:19px; }
- .home-static .home-bottom-editorial.home-store-editorial .home-store-questions p { margin-inline:30px 12px; font-size:12px; }
+ .home-static .home-bottom-editorial.home-store-editorial .home-store-help { padding:24px 0; gap:24px; }
+ .home-static .home-store-faq-heading button { min-height:72px; padding:14px 8px; gap:12px; font-size:14px; }
+ .home-static .home-store-faq-answer { padding:0 16px 20px 8px; }
 }
 @media(prefers-reduced-motion:reduce) {
- .home-static .home-store-editorial .home-store-questions details,
- .home-static .home-store-editorial .home-store-questions summary > svg { transition:none; }
- .home-static .home-store-editorial .home-store-questions details[open] p { animation:none; }
+ .home-static .home-store-faq-heading button,
+ .home-static .home-store-faq-heading button > svg,
+ .home-static .home-store-faq-answer,
+ .home-static .home-store-help .parts-help-button { transition:none; }
 }
 
 /* Vehicle selection: a clear route through make, model and modification. */
