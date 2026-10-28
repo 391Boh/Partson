@@ -49,7 +49,7 @@ import { getCategoryIconPath } from "app/lib/category-icons";
 import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
-import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { getAllProductSitemapEntries, getAllProductSitemapSnapshotEntries } from "app/lib/product-sitemap";
 import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -393,6 +393,26 @@ const fetchCategoryTopProductsUncached = async (
   // storing it for 30 minutes; the page falls back to [] and retries soon.
   if (items.length === 0) throw new Error("Category top products unavailable");
   return items;
+};
+
+// Every public product of the group from the snapshot written at build
+// (generate-seo-counts): plain links so Google can reach all of them — the
+// product block above shows only the top few, live from 1C. No 1C request.
+const GROUP_ALL_PRODUCTS_LINK_LIMIT = 300;
+const getGroupProductLinks = async (groupLabel: string, itemLabel: string, skipCodes: Set<string>) => {
+  const item = normalizeValue(itemLabel).toLowerCase();
+  const group = normalizeValue(groupLabel).toLowerCase();
+  if (!item) return [];
+  const entries = await getAllProductSitemapSnapshotEntries().catch(() => []);
+  return entries
+    .filter((entry) => {
+      if (skipCodes.has(entry.code)) return false;
+      const labels = [entry.group, entry.subGroup].map((value) => normalizeValue(value).toLowerCase());
+      if (!labels.includes(item)) return false;
+      const parents = [entry.category, entry.group].map((value) => normalizeValue(value).toLowerCase());
+      return !group || group === item || parents.includes(group);
+    })
+    .slice(0, GROUP_ALL_PRODUCTS_LINK_LIMIT);
 };
 
 const getCategoryTopProductsCached = unstable_cache(
@@ -864,6 +884,11 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         CATEGORY_TOP_PRODUCTS_TIMEOUT_MS
       );
   const visibleProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
+  const groupProductLinks = await getGroupProductLinks(
+    catalogGroupLabel,
+    item.label,
+    new Set(visibleProducts.map((product) => product.code))
+  );
   // No productCount guard: during `next build` and on 1C timeouts the count
   // can be missing too, so it can't tell a slow render from an empty category.
   if (visibleProducts.length === 0) {
@@ -1250,6 +1275,44 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               euroRate={euroRate ?? undefined}
             />
           </div>
+        </section>
+      )}
+
+      {groupProductLinks.length > 0 && (
+        <section className={`${directoryPanelClass} mt-6`}>
+          <details className="group-all-products">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-base font-bold text-slate-900 sm:p-5 sm:text-lg">
+              <span>
+                {visibleProducts.length > 0 ? "Інші товари" : "Усі товари"}: {visibleLabel}{" "}
+                <span className="font-semibold text-slate-500">({groupProductLinks.length})</span>
+              </span>
+              <span aria-hidden="true" className="text-sm font-semibold text-teal-700">Показати</span>
+            </summary>
+            <ul className="grid gap-x-6 gap-y-1.5 px-4 pb-5 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
+              {groupProductLinks.map((entry) => (
+                <li key={entry.code} className="min-w-0">
+                  <Link
+                    href={buildProductPath({
+                      code: entry.code,
+                      article: entry.article,
+                      name: entry.name,
+                      producer: entry.producer,
+                      group: entry.group,
+                      subGroup: entry.subGroup,
+                      category: entry.category,
+                    })}
+                    prefetch={false}
+                    className="text-slate-700 underline-offset-2 hover:text-teal-800 hover:underline"
+                  >
+                    {fixCatalogSpelling(buildVisibleProductName(entry.name || entry.code))}
+                  </Link>
+                  {entry.producer || entry.article ? (
+                    <span className="text-slate-500"> — {[entry.producer, entry.article].filter(Boolean).join(" ")}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </details>
         </section>
       )}
 
