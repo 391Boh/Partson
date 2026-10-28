@@ -13,7 +13,9 @@ const LASTMOD_PATH = path.join(process.cwd(), ".cache/product-sitemap-lastmod.js
 
 // Bump when the product page's markup changes for every product at once
 // (e.g. new structured data): no product's lastmod is older than this.
-const PRODUCT_PAGE_REVISED_AT = "2026-10-15T00:00:00.000Z";
+// 2026-10-27: descriptions with fitment, 4:3/16:9 images, corrected labels,
+// store photos no longer on product pages.
+const PRODUCT_PAGE_REVISED_AT = "2026-10-27T00:00:00.000Z";
 
 type LastmodRecord = { f: string; d: string };
 
@@ -44,6 +46,8 @@ const fingerprint = (entry: ProductSitemapEntry) =>
     entry.hasPhoto ? 1 : 0,
     entry.priceEuro ?? "",
     entry.quantity > 0 ? 1 : 0,
+    // The fitment line feeds the meta description and the vehicle picker.
+    entry.fitment ?? "",
   ].join("|");
 
 /** Per-product lastmod (ISO), keyed by product code. */
