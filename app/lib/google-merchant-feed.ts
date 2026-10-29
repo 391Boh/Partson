@@ -12,6 +12,7 @@ import {
 } from "app/lib/product-sitemap";
 import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-format";
 import { buildFitmentSummary } from "app/lib/product-seo-copy";
+import { splitProductFitmentLine } from "app/lib/product-fitment-format";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
 import {
@@ -349,6 +350,38 @@ const enrichMerchantFeedPrices = async (
   });
 };
 
+// 1C names usually carry only the model ("Трос зчеплення Vectra A"), while
+// buyers search make + model ("трос зчеплення opel vectra"): append the make
+// of each fitment group whose model the name already mentions. Makes that
+// only share the part (a VAG gasket listed for Porsche) stay out.
+const MAX_TITLE_MAKES = 2;
+const MAKE_SPELLINGS: Record<string, string[]> = {
+  vw: ["vw", "volkswagen", "фольксваген"],
+  volkswagen: ["vw", "volkswagen", "фольксваген"],
+};
+const titleWords = (value: string) =>
+  new Set(value.toLocaleLowerCase("uk-UA").split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+const buildFitmentMakes = (fitmentLine: string | undefined, title: string) => {
+  const fitment = fitmentLine ? splitProductFitmentLine(fitmentLine) : null;
+  if (!fitment) return [];
+  const words = titleWords(title);
+  const makes: string[] = [];
+  for (const group of fitment.groups) {
+    const make = group.brand.trim();
+    const key = make.toLocaleLowerCase("uk-UA");
+    if (!make || makes.some((known) => known.toLocaleLowerCase("uk-UA") === key)) continue;
+    if ((MAKE_SPELLINGS[key] ?? [key]).some((spelling) => words.has(spelling))) continue;
+    const namesModel = group.models.some((model) => {
+      const family = model.trim().split(/[\s/]+/)[0]?.toLocaleLowerCase("uk-UA") || "";
+      return family.length >= 3 && !/^\d+$/.test(family) && words.has(family);
+    });
+    if (!namesModel) continue;
+    makes.push(make);
+    if (makes.length >= MAX_TITLE_MAKES) break;
+  }
+  return makes;
+};
+
 // Price bands for Shopping/Performance Max listing groups: cheap consumables
 // and expensive assemblies convert at very different costs per click.
 const buildPriceBandLabel = (priceUah: number) =>
@@ -393,7 +426,9 @@ const toGoogleMerchantFeedItem = (
   // catalog weighs the front of the title more heavily than the tail.
   const producer = (entry.producer || "").trim();
   const visibleName = fixCatalogSpelling(buildVisibleProductName(entry.name || code));
-  const title = [producer, article, visibleName].filter(Boolean).join(" ").trim() || visibleName;
+  const baseTitle = [producer, article, visibleName].filter(Boolean).join(" ").trim() || visibleName;
+  const titleMakes = buildFitmentMakes(entry.fitment, baseTitle);
+  const title = (titleMakes.length ? `${baseTitle} — ${titleMakes.join(", ")}` : baseTitle).slice(0, 150);
 
   return {
     id: code,
