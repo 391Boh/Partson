@@ -417,6 +417,35 @@ const clearPersistentRouteImageCacheForProduct = async (
         return removePersistentRouteCacheFiles(bufferPath, metaPath);
       })
     );
+
+    // The keys above are only the catalog thumbnail. The full-size photo
+    // (product page, Merchant feed, image sitemap) and the other variants are
+    // keyed by mode/format too, and kept serving the replaced photo for up to
+    // a day after an admin upload. Find them by the code/article segments in
+    // each entry's stored key (at most PERSISTENT_ROUTE_CACHE_MAX_ENTRIES).
+    const matchesTarget = buildProductCacheMatcher(code, article);
+    const entries = await readdir(/* turbopackIgnore: true */ PERSISTENT_ROUTE_CACHE_DIR).catch(() => []);
+    const metadataFiles = entries.filter((entry) => entry.endsWith(".json"));
+    for (let index = 0; index < metadataFiles.length; index += 64) {
+      await Promise.all(
+        metadataFiles.slice(index, index + 64).map(async (entry) => {
+          const metaPath = path.join(PERSISTENT_ROUTE_CACHE_DIR, entry);
+          const metaRaw = await readFile(/* turbopackIgnore: true */ metaPath, "utf8").catch(() => null);
+          if (!metaRaw) return;
+          try {
+            const meta = JSON.parse(metaRaw) as PersistentRouteCacheMeta;
+            if (!meta.cacheKey || !matchesTarget(meta.cacheKey)) return;
+            await persistentRouteWrites.get(meta.cacheKey)?.catch(() => undefined);
+          } catch {
+            return;
+          }
+          await removePersistentRouteCacheFiles(
+            path.join(PERSISTENT_ROUTE_CACHE_DIR, `${entry.slice(0, -".json".length)}.bin`),
+            metaPath
+          );
+        })
+      );
+    }
   } catch {
     // Cache invalidation is best-effort; in-memory caches are still cleared.
   }

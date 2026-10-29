@@ -116,7 +116,12 @@ const STRICT_IMAGE_LOOKUP_OPTIONS = {
   missCacheTtlMs: 1000 * 60 * 5,
   allowUrlDownload: true,
 };
+// exactOnly: when 1C's search ignores the key it answers with the first
+// catalog page, and a non-exact lookup took that page's first product — the
+// Adriauto AD030213 handbrake cable — so its photo was cached for unrelated
+// products (a brake drum showed the cable for a day).
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
+  exactOnly: true,
   lookupLimit: 16,
   fallbackPages: 1,
   pageSize: 24,

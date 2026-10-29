@@ -47,7 +47,11 @@ const DEEP_RECOVERY_LOOKUP_OPTIONS = {
   batchOnly: true,
   maxKeys: MAX_BATCH_ITEMS * 4,
 };
+// exactOnly: a non-exact lookup falls back to the first product of 1C's
+// answer, whose photo then shows on an unrelated product (see the
+// product-image route's lookup options).
 const IMAGE_ARTICLE_FALLBACK_LOOKUP_OPTIONS = {
+  exactOnly: true,
   lookupLimit: 10,
   fallbackPages: 1,
   pageSize: 16,
