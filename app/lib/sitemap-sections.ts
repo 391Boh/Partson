@@ -481,6 +481,29 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
 
   const verifiedModelKeys = await getVerifiedAutoModelKeys();
 
+  if (!seoData?.brandGroups?.length && verifiedModelKeys) {
+    // 1C missed the timeout (it often does right after a deploy, under the
+    // cache warm-up): list the verified models from the build snapshot rather
+    // than a sitemap of brand pages only, which then stayed cached for hours.
+    for (const key of verifiedModelKeys) {
+      const [brand, model] = key.split("::");
+      if (!brand || !model) continue;
+      const logo = getBrandLogo(brand);
+      pushUniqueEntry(
+        buildAutoModelPath(brand, model),
+        0.7,
+        "monthly",
+        logo
+          ? {
+              loc: logo,
+              title: `${brand} ${model} — запчастини`,
+              caption: `Групи запчастин для ${brand} ${model} у каталозі PartsON`,
+            }
+          : null
+      );
+    }
+  }
+
   if (seoData?.brandGroups?.length) {
     for (const group of seoData.brandGroups) {
       const logo = getBrandLogo(group.brand);
