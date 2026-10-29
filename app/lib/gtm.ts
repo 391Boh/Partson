@@ -109,26 +109,10 @@ const isAnalyticsSuppressedForStaff = () => {
   }
 };
 
-const hasConsentCookie = (cookieName: string) => {
-  if (typeof document === "undefined") return false;
-
-  try {
-    const match = document.cookie.match(
-      new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`)
-    );
-    return match ? decodeURIComponent(match[1]) === "granted" : false;
-  } catch {
-    return false;
-  }
-};
-
-const hasAnalyticsConsent = () =>
-  hasConsentCookie(ANALYTICS_CONSENT_COOKIE);
-
+// Events go to the dataLayer whatever the visitor chose: the Google tag
+// applies the consent state itself (cookieless pings while denied).
 const canDispatchAnalytics = () =>
-  getAnalyticsMode() !== "disabled" &&
-  hasAnalyticsConsent() &&
-  !isAnalyticsSuppressedForStaff();
+  getAnalyticsMode() !== "disabled" && !isAnalyticsSuppressedForStaff();
 
 const withDebugMode = <T extends object>(parameters: T) =>
   analyticsDebugEnabled

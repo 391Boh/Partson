@@ -455,7 +455,7 @@ export default function AnalyticsRuntime({
   const [advertisingGranted, setAdvertisingGranted] = useState(false);
   const handleConsentChange = useCallback(
     (selection: GoogleConsentSelection) => {
-      if (enabled && (selection.analyticsGranted || selection.advertisingGranted)) {
+      if (enabled) {
         // Configure the queue before enabling page views. GA events queued
         // ahead of config would otherwise have no destination on slow loads.
         prepareAnalyticsQueue(mode, googleTagManagerId, googleAnalyticsId);
@@ -467,15 +467,16 @@ export default function AnalyticsRuntime({
   );
 
   useEffect(() => {
-    if (!enabled || (!analyticsGranted && !advertisingGranted)) return;
+    if (!enabled) return;
 
-    // Returning visitors can already have consent at hydration. Keep third
-    // party downloads behind the page's own resources; page views/events
-    // remain queued in dataLayer until the Google loader is ready.
+    // Consent mode "advanced": the Google tag loads for every visitor and the
+    // consent defaults from the <head> bootstrap decide what it may store.
+    // Without consent it sends cookieless pings only, which let GA4 and
+    // Google Ads model the conversions of visitors who ignored the banner.
+    // Keep third party downloads behind the page's own resources; page
+    // views/events remain queued in dataLayer until the loader is ready.
     return scheduleBackgroundTask(() => {
-      if (analyticsGranted || advertisingGranted) {
-        loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
-      }
+      loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
       if (analyticsGranted) {
         loadPlerdyScript(plerdySiteHash, plerdySuid);
       }
@@ -498,7 +499,7 @@ export default function AnalyticsRuntime({
     <>
       {enabled ? (
         <Suspense fallback={null}>
-          <AnalyticsPageViewTracker enabled={analyticsGranted} />
+          <AnalyticsPageViewTracker enabled />
         </Suspense>
       ) : null}
       <AnalyticsConsentBanner onConsentChange={handleConsentChange} />
