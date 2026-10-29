@@ -44,6 +44,8 @@ type GoogleMerchantFeedItem = {
   googleProductCategory: string;
   customLabel0?: string;
   customLabel1?: string;
+  customLabel2?: string;
+  customLabel3?: string;
 };
 
 type GoogleMerchantFeedSnapshot = {
@@ -347,6 +349,17 @@ const enrichMerchantFeedPrices = async (
   });
 };
 
+// Price bands for Shopping/Performance Max listing groups: cheap consumables
+// and expensive assemblies convert at very different costs per click.
+const buildPriceBandLabel = (priceUah: number) =>
+  priceUah < 300
+    ? "price_0_300"
+    : priceUah < 1000
+      ? "price_300_1000"
+      : priceUah < 3000
+        ? "price_1000_3000"
+        : "price_3000_plus";
+
 const toGoogleMerchantFeedItem = (
   entry: ProductSitemapEntry,
   siteUrl: string,
@@ -417,6 +430,9 @@ const toGoogleMerchantFeedItem = (
     googleProductCategory: GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY,
     customLabel0: producer || undefined,
     customLabel1: entry.quantity > 0 ? "in_stock" : "backorder",
+    customLabel2: buildPriceBandLabel(priceUah),
+    // Top-level catalog section ("Гальмівна система", "Деталі для ТО"...).
+    customLabel3: (entry.category || "").trim() || undefined,
   };
 };
 
@@ -464,6 +480,12 @@ const buildGoogleMerchantFeedXml = (
           : null,
         item.customLabel1
           ? `      <g:custom_label_1>${escapeXml(item.customLabel1)}</g:custom_label_1>`
+          : null,
+        item.customLabel2
+          ? `      <g:custom_label_2>${escapeXml(item.customLabel2)}</g:custom_label_2>`
+          : null,
+        item.customLabel3
+          ? `      <g:custom_label_3>${escapeXml(item.customLabel3)}</g:custom_label_3>`
           : null,
         "    </item>",
       ]
