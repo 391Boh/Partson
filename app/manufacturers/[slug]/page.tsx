@@ -51,8 +51,10 @@ import {
 } from "app/lib/catalog-count-fallback";
 import {
   getAllProductSitemapEntries,
+  getAllProductSitemapSnapshotEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { shortenRevalidateForIncompleteRender } from "app/lib/isr-retry";
@@ -797,6 +799,23 @@ const getManufacturerTopProductsCached = unstable_cache(
 
 const getManufacturerTopProducts = cache(getManufacturerTopProductsCached);
 
+// Every public product of the brand from the snapshot written at build:
+// plain links so Google can reach all of them — the product block shows only
+// a few. No 1C request.
+const MANUFACTURER_ALL_PRODUCTS_LINK_LIMIT = 300;
+const getManufacturerProductLinks = async (producerLabel: string, skipCodes: Set<string>) => {
+  const producer = normalizeValue(producerLabel).toLocaleLowerCase("uk-UA");
+  if (!producer) return [];
+  const entries = await getAllProductSitemapSnapshotEntries().catch(() => [] as ProductSitemapEntry[]);
+  return entries
+    .filter(
+      (entry) =>
+        !skipCodes.has(entry.code) &&
+        normalizeValue(entry.producer).toLocaleLowerCase("uk-UA") === producer
+    )
+    .slice(0, MANUFACTURER_ALL_PRODUCTS_LINK_LIMIT);
+};
+
 const getManufacturerTopProductsFromSnapshot = cache(
   async (
     producerLabel: string,
@@ -807,9 +826,12 @@ const getManufacturerTopProductsFromSnapshot = cache(
 
     const products: CatalogProduct[] = [];
     const seen = new Set<string>();
-    const entries = await getAllProductSitemapEntries().catch(
-      () => [] as ProductSitemapEntry[]
-    );
+    // At runtime only the snapshot file written at build: this is the
+    // fallback for a 1C lookup that already timed out.
+    const entries = await (isProductionBuildPhase
+      ? getAllProductSitemapEntries()
+      : getAllProductSitemapSnapshotEntries()
+    ).catch(() => [] as ProductSitemapEntry[]);
 
     for (const entry of entries) {
       const product = sitemapEntryToCatalogProduct(entry);
@@ -1301,20 +1323,30 @@ export default async function ManufacturerDetailPage({
     permanentRedirect(buildManufacturerPath(producer.slug));
   }
 
-  const topProducts = isProductionBuildPhase
-    ? await getManufacturerTopProductsFromSnapshot(producer.label)
+  const liveTopProducts = isProductionBuildPhase
+    ? []
     : await resolveWithTimeout(
         () => getManufacturerTopProducts(producer.label),
         [] as CatalogProduct[],
         MANUFACTURER_TOP_PRODUCTS_TIMEOUT_MS
       );
+  // A slow 1C used to leave brand pages without a single product (ISR then
+  // kept that empty render); the build-time snapshot fills them instead.
+  const topProducts = liveTopProducts.length > 0
+    ? liveTopProducts
+    : await getManufacturerTopProductsFromSnapshot(producer.label);
   const manufacturerProducts = topProducts.filter((p) => Boolean(p.code) && Boolean(p.name));
   // No productCount guard: during `next build` and on 1C timeouts the count
   // can be missing too, so it can't tell a slow render from an empty brand.
-  if (manufacturerProducts.length === 0) {
+  // A snapshot-filled render still retries 1C soon for live prices.
+  if (manufacturerProducts.length === 0 || (!isProductionBuildPhase && liveTopProducts.length === 0)) {
     await shortenRevalidateForIncompleteRender();
   }
   const visibleProducts = manufacturerProducts.slice(0, MANUFACTURER_VISIBLE_PRODUCTS_LIMIT);
+  const manufacturerProductLinks = await getManufacturerProductLinks(
+    producer.label,
+    new Set(visibleProducts.map((product) => product.code))
+  );
   // These two only depend on topProducts/visibleProducts above, not on each
   // other — group sampling and image resolution used to run back-to-back,
   // each paying its own full timeout on the tail case.
@@ -1931,6 +1963,41 @@ export default async function ManufacturerDetailPage({
               products={visibleProducts.map(withoutCostPrice)}
               images={visibleProductImagePayload}
             />
+          </section>
+        )}
+        {manufacturerProductLinks.length > 0 && (
+          <section className={directoryPanelClass}>
+            <details className="group-all-products">
+              <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-base font-bold text-slate-900 sm:p-5 sm:text-lg">
+                <span>
+                  {visibleProducts.length > 0 ? "Інші товари" : "Усі товари"} {producer.label}{" "}
+                  <span className="font-semibold text-slate-500">({manufacturerProductLinks.length})</span>
+                </span>
+                <span aria-hidden="true" className="text-sm font-semibold text-teal-700">Показати</span>
+              </summary>
+              <ul className="grid gap-x-6 gap-y-1.5 px-4 pb-5 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
+                {manufacturerProductLinks.map((entry) => (
+                  <li key={entry.code} className="min-w-0">
+                    <Link
+                      href={buildProductPath({
+                        code: entry.code,
+                        article: entry.article,
+                        name: entry.name,
+                        producer: entry.producer,
+                        group: entry.group,
+                        subGroup: entry.subGroup,
+                        category: entry.category,
+                      })}
+                      prefetch={false}
+                      className="text-slate-700 underline-offset-2 hover:text-teal-800 hover:underline"
+                    >
+                      {fixCatalogSpelling(buildVisibleProductName(entry.name || entry.code))}
+                    </Link>
+                    {entry.article ? <span className="text-slate-500"> — {entry.article}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </section>
         )}
         <div id="manufacturer-about" className="scroll-mt-24">
