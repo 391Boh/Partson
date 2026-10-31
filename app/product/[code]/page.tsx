@@ -23,6 +23,7 @@ import {
   fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
   findFullCatalogSnapshotProduct,
+  confirmCatalogProductsMissing,
   isFullCatalogSnapshotWarm,
   toPriceUah,
   peekSnapshotProductDescription,
@@ -1372,6 +1373,25 @@ const acceptSeoSlugMatch = (
   return { code, product };
 };
 
+// Before the catalog snapshot has loaded (right after a restart), a slow
+// token search is no answer: ask 1C directly, by every reading of the URL's
+// article ("lx511-1" also as LX511/1), whether such a product exists.
+const confirmRouteProductMissing = async (rawCode: string) => {
+  const routeSlugs = extractProductRouteSlugsFromParam(rawCode);
+  const directCode = canUseDirectProductCodeFallback(rawCode) && !routeSlugs
+    ? extractProductCodeFromParam(rawCode)
+    : "";
+  const tailTokens = directCode
+    ? [directCode]
+    : extractArticleTailTokensFromSeoNameSlug(routeSlugs?.nameSlug || rawCode);
+  // No article reading at all ("/product/nonexistent-xyz"): not a product URL.
+  if (tailTokens.length === 0) return true;
+  const tokens = tailTokens.flatMap((token) =>
+    token.includes("-") ? ["-", "/", ".", " ", ""].map((separator) => token.split("-").join(separator)) : [token]
+  );
+  return confirmCatalogProductsMissing(tokens.slice(0, 16));
+};
+
 const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
   const tailTokens = extractArticleTailTokensFromSeoNameSlug(rawNameSlug);
   const tailTokenCompacts = new Set(tailTokens.map(compactProductLookupToken).filter(Boolean));
@@ -2070,7 +2090,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
     // Not found only when every lookup answered. A timeout or 1C failure
     // throws instead: the error page is not cached, so the next visit tries
     // again rather than getting a 404 frozen for an hour.
-    if (getProductLookupState().inconclusive && !isFullCatalogSnapshotWarm()) {
+    if (
+      getProductLookupState().inconclusive &&
+      !isFullCatalogSnapshotWarm() &&
+      !(await confirmRouteProductMissing(rawCode || ""))
+    ) {
       throw new Error(`Product lookup did not finish for "${rawCode}"`);
     }
     notFound();

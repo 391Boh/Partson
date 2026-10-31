@@ -511,6 +511,37 @@ const fetchAllgoodsResponsesByExactLookup = async (
   });
 };
 
+/**
+ * True only when 1C answered every exact code/article lookup for every token
+ * and none of them names a product — "no such product", as opposed to "1C was
+ * too slow to say". Each token is looked up by code and both article fields.
+ */
+export const confirmCatalogProductsMissing = async (
+  tokens: string[],
+  options?: { timeoutMs?: number }
+) => {
+  const unique = Array.from(new Set(tokens.map((token) => token.trim()).filter(Boolean)));
+  if (unique.length === 0) return false;
+  const expectedAnswers = new Set([ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD]).size;
+
+  const missing = await Promise.all(
+    unique.map(async (token) => {
+      const responses = await fetchAllgoodsResponsesByExactLookup(token, {
+        timeoutMs: options?.timeoutMs ?? 3000,
+        cacheTtlMs: 1000 * 30,
+      }).catch(() => []);
+      if (responses.length < expectedAnswers) return false;
+      const target = normalizeFacetValue(token);
+      return !responses.some((response) =>
+        parseAllgoodsPayload(response.text).items.some(
+          (item) => normalizeFacetValue(item.code) === target || normalizeFacetValue(item.article) === target
+        )
+      );
+    })
+  );
+  return missing.every(Boolean);
+};
+
 const fetchAllgoodsProductsByExactLookup = async (
   lookupValue: string,
   options?: {
