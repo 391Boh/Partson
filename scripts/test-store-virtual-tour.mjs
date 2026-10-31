@@ -5,9 +5,20 @@ const browser = await (process.env.TEST_BROWSER === 'webkit' ? webkit.launch() :
 // WebKit upgrades localhost HTTP assets to HTTPS under production CSP.
 // The fixture server has no TLS; bypass only that local-test policy, never live CSP.
 const localWebKit = process.env.TEST_BROWSER === 'webkit' && ['localhost', '127.0.0.1'].includes(new URL(origin).hostname);
+async function prepareLocalFixture(page) {
+  if (!localWebKit) return;
+  await page.route(`${origin}/`, async route => {
+    const response = await route.fetch();
+    const headers = { ...response.headers() };
+    delete headers['content-security-policy'];
+    delete headers['strict-transport-security'];
+    await route.fulfill({ response, headers });
+  });
+}
 try {
   for (const width of [1440, 390, 320]) {
     const page = await browser.newPage({ bypassCSP: localWebKit, viewport: { width, height: 900 } });
+    await prepareLocalFixture(page);
     const errors = [];
     let tourRequests = 0;
     page.on('pageerror', e => errors.push(e.message));
@@ -52,6 +63,7 @@ try {
   // A stalled Google response must not hide the start button or force visitors
   // to wait for the preview before they can choose to enter the panorama.
   const page = await browser.newPage({ bypassCSP: localWebKit, viewport: { width: 390, height: 900 } });
+  await prepareLocalFixture(page);
   let releaseTour;
   const gate = new Promise(resolve => { releaseTour = resolve; });
   await page.route('**/maps/embed?**', async route => {

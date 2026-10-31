@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
 
@@ -15,6 +16,7 @@ const MAX_SCROLL_LOAD_DELAY_MS = 320;
 const SCROLL_SETTLE_RETRY_MS = 80;
 
 export default function DeferredFooter() {
+  const isHome = usePathname() === "/";
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [FooterComponent, setFooterComponent] =
     useState<ComponentType | null>(null);
@@ -69,7 +71,12 @@ export default function DeferredFooter() {
 
     // Warm after the initial DOM/paint, independent of slow images/iframes.
     // A long page's footer should already be available before it is reached.
-    const cancelPreparation = scheduleBackgroundTask(loadFooter, { delayMs: 500, idleTimeoutMs: 250, waitForLoad: false });
+    // The long homepage has no footer in its initial viewport. Proximity
+    // already warms it 1600px ahead; an unconditional timer only competes
+    // with the first account interaction and catalogue preparation.
+    const cancelPreparation = isHome
+      ? () => {}
+      : scheduleBackgroundTask(loadFooter, { delayMs: 500, idleTimeoutMs: 250, waitForLoad: false });
     const requestVisibleFooter = () => {
       if (cancelled || nearViewport) return;
       nearViewport = true;
@@ -97,7 +104,7 @@ export default function DeferredFooter() {
       observer?.disconnect();
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
-  }, [FooterComponent]);
+  }, [FooterComponent, isHome]);
 
   if (FooterComponent) {
     return (

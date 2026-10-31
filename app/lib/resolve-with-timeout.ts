@@ -1,9 +1,13 @@
 import "server-only";
 
+// `onFallback` runs when the fallback is returned (timeout or a thrown
+// error), so a caller can tell "the loader said no" from "we never heard
+// back" — the product page must not cache a 404 for the latter.
 export async function resolveWithTimeout<T>(
   loader: () => Promise<T>,
   fallback: T,
-  timeoutMs = 2500
+  timeoutMs = 2500,
+  onFallback?: () => void
 ): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -17,11 +21,13 @@ export async function resolveWithTimeout<T>(
     ]);
 
     if (result === timeoutResult) {
+      onFallback?.();
       return fallback;
     }
 
     return result as T;
   } catch {
+    onFallback?.();
     return fallback;
   } finally {
     if (timeoutId !== null) {

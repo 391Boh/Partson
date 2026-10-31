@@ -3,14 +3,20 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
+import { whenFullStylesheetReady } from "app/lib/full-stylesheet";
 import { useAvatarMotion } from "app/lib/use-avatar-motion";
 
 import { getProfileAvatarTier } from "app/lib/profile-appearance";
 
 // The avatar art (icons, partner/admin artwork) loads after the greeting;
-// the initial underneath holds the same 40px box, so nothing moves.
+// the initial underneath holds the same 40px box, so nothing moves. Its frame
+// styles are not in the homepage's critical CSS, so it waits for the full
+// stylesheet rather than flashing an unstyled frame.
 const ProfileAvatar = dynamic(
-  () => import("./ProfileAvatar").then((module) => module.ProfileAvatar),
+  () =>
+    whenFullStylesheetReady()
+      .then(() => import("./ProfileAvatar"))
+      .then((module) => module.ProfileAvatar),
   { ssr: false, loading: () => null }
 );
 

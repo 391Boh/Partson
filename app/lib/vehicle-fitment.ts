@@ -1,3 +1,4 @@
+import { normalizeEngineVolume } from './vehicle-values';
 import { cleanCarModelForSearch } from './car-model-search';
 
 export type VehicleSelection = {
@@ -13,7 +14,7 @@ export function readVehicleSelection(value: unknown): VehicleSelection | null {
   if (!brand || !model) return null;
   const year = Number(v.year);
   return { brand, model, year: Number.isInteger(year) && year >= 1900 && year <= 2100 ? year : null,
-    volume: text(v.volume) || null, power: text(v.power) || null,
+    volume: normalizeEngineVolume(v.volume), power: text(v.power) || null,
     gearbox: text(v.gearbox) || null, drive: text(v.drive) || null };
 }
 export const encodeVehicleSelection = (value: unknown) => {
@@ -30,9 +31,8 @@ const ALIASES: Record<string, string[]> = {
   MERCEDES: ['MERCEDES-BENZ', 'MERCEDES BENZ', 'MERCEDES', 'MB'],
   'SKODA': ['SKODA', 'ŠKODA'], 'LAND ROVER': ['LAND ROVER', 'LANDROVER'],
 };
-// The site's makes (components/carBrands.tsx) except MAN and RAM, which
-// descriptions also use as plain words; 1C reads its own make directory.
-const BRANDS = 'AUDI|BMW|CHERY|CHEVROLET|CHRYSLER|CITROEN|CADILLAC|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MB|LAND ROVER|ALFA ROMEO|ACURA|ASTON MARTIN|BENTLEY|FERRARI|GEELY|HUMMER|ISUZU|LADA|LAMBORGHINI|LINCOLN|LOTUS|MASERATI|MAYBACH|PONTIAC|ROLLS-ROYCE';
+// All makes exposed by the car picker, including commercial vehicles.
+const BRANDS = 'AUDI|BMW|CHERY|CHEVROLET|CHRYSLER|CITROEN|CADILLAC|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MB|LAND ROVER|ALFA ROMEO|ACURA|ASTON MARTIN|BENTLEY|FERRARI|GEELY|HUMMER|ISUZU|LADA|LAMBORGHINI|LINCOLN|LOTUS|MASERATI|MAYBACH|PONTIAC|ROLLS-ROYCE|MAN|RAM';
 export const brandAtStart = new RegExp(`^(${BRANDS})(?=\\s|$)`, 'i');
 const ROMAN = /^(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)$/;
 export function vehicleModelQuery(vehicle: VehicleSelection): string {
@@ -43,16 +43,27 @@ export function vehicleModelQuery(vehicle: VehicleSelection): string {
 const yearValue = (value: string) => value.length === 4 ? Number(value) : Number(value) >= 40 ? 1900 + Number(value) : 2000 + Number(value);
 function matchesConstraints(value: string, vehicle: VehicleSelection): boolean {
   if (vehicle.year) {
+    const until = value.match(/(?:^|\s)-(?:(?:0?[1-9]|1[0-2])\.)?(\d{4}|\d{2})(?=\s|$)/);
+    if (until && vehicle.year > yearValue(until[1])) return false;
     const ranges = [...value.matchAll(/(?:(?:0?[1-9]|1[0-2])\.)?(\d{4}|\d{2})\s*-\s*(?:(?:0?[1-9]|1[0-2])\.)?(\d{4}|\d{2})?(?![\d.])/g)]
       .filter(m => !/[\d.]/.test(value[m.index! - 1] || '') && (m[1].length === 4 || m[0].includes('.') || Number(m[1]) >= 40 || m[2]?.length === 2));
     if (ranges.length && !ranges.some(m => vehicle.year! >= yearValue(m[1]) && (!m[2] || vehicle.year! <= yearValue(m[2])))) return false;
   }
-  const selectedVolume = Number(vehicle.volume?.replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0]);
+  const selectedVolume = Number(normalizeEngineVolume(vehicle.volume));
   if (selectedVolume) {
-    const volumes = [...value.matchAll(/(?<![\d.])(\d[.,]\d)(?:\s*-\s*(\d[.,]\d))?(?!\d)/g)]
-      .filter(m => !/^\d{2}\./.test(value.slice(m.index! + m[0].length)) && !/^\.\d{2}/.test(value.slice(m.index! + m[0].length)));
-    if (volumes.length && !volumes.some(m => selectedVolume >= Number(m[1].replace(',', '.')) && selectedVolume <= Number((m[2] || m[1]).replace(',', '.')))) return false;
+    const withoutDates = value.replace(/(?:\d{2}\.)?(?:\d{4}|\d{2})\s*-\s*(?:(?:\d{2}\.)?(?:\d{4}|\d{2}))?(?![\d.])/g, match => /[.]|\d{4}/.test(match) ? ' ' : match);
+    const volumes = [...withoutDates.matchAll(/(?<![\d.])(\d{1,2}[.,]\d{1,3})(?:\s*-\s*(\d{1,2}[.,]\d{1,3}))?(?!\d)/g)];
+    if (volumes.length && !volumes.some(m => {
+      const lower = Number(normalizeEngineVolume(m[1]));
+      const upper = Number(normalizeEngineVolume(m[2] || m[1]));
+      const before = withoutDates.slice(0, m.index);
+      const after = withoutDates.slice(m.index! + m[0].length);
+      if (!m[2] && /(?:^|\s)-$/.test(before)) return selectedVolume <= upper;
+      if (!m[2] && /^-(?:\s|$)/.test(after)) return selectedVolume >= lower;
+      return selectedVolume >= lower && selectedVolume <= upper;
+    })) return false;
   }
+
   const power = Number(vehicle.power?.match(/\d+/)?.[0]);
   const powers = [...value.matchAll(/(\d{2,3})(?:\s*-\s*(\d{2,3}))?\s*(?:HP|PS|КС|К\.С\.|Л\.С\.)/g)];
   if (power && powers.length && !powers.some(m => power >= Number(m[1]) && power <= Number(m[2] || m[1]))) return false;
@@ -85,7 +96,10 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
   });
   for (const line of applicationLines) {
     let currentBrand = '';
-    for (const raw of normalize(line).split(';')) {
+    const normalizedLine = normalize(line);
+    const firstBrand = normalizedLine.match(new RegExp(`(?:^|\\s)(${BRANDS})(?=\\s|$)`, 'i'));
+    const application = firstBrand ? normalizedLine.slice(firstBrand.index! + firstBrand[0].length - firstBrand[1].length) : normalizedLine;
+    for (const raw of application.split(';')) {
       const group = raw.trim();
       const named = group.match(brandAtStart);
       if (named) currentBrand = named[1];
@@ -106,7 +120,7 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
         // A letter generation is part of the model itself ("VIVARO A",
         // "ASTRA G"): naming it already pins the generation's years.
         const namesLetterGeneration = /\s[A-Z]$/.test(model);
-        if ((generation.length || vehicle.year) && !listedGenerations && !namesLetterGeneration && !/(?<![\d.])(?:\d{2}\.)?\d{2,4}\s*-/.test(scoped)) continue;
+        if ((generation.length || vehicle.year) && !listedGenerations && !namesLetterGeneration && !/(?<![\d.])(?:(?:\d{2}\.)?\d{2,4}\s*-|-\d{2}\.\d{2,4})/.test(scoped)) continue;
         if (matchesConstraints(scoped, vehicle)) return true;
       }
     }

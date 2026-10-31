@@ -17,10 +17,11 @@ export type ProductFitmentGroup = {
   period: string;
 };
 
-const PERIOD = /^(\d{2})\.(\d{2})-(?:(\d{2})\.(\d{2}))?$/;
+const PERIOD = /^(?:(\d{2})\.(\d{4}|\d{2}))?-(?:(\d{2})\.(\d{4}|\d{2}))?$/;
 // "1.6", "1.6-6.0", "1.9D-2.5D", "2.0TDI" (fuel/engine suffix), "1.0-"
 // (no upper bound), "2.0D-Electric".
-const VOLUME = /^\d[.,]\d[A-Z]{0,3}(?:-(?:\d[.,]\d[A-Z]{0,3}|Electric)?)?$/i;
+const VOLUME = /^(?:\d{1,2}[.,]\d[A-Z]{0,3}(?:(?:-|\/)(?:\d{1,2}[.,]\d[A-Z]{0,3}|Electric)?)*|-\d{1,2}[.,]\d)$/i;
+const YEAR_PERIOD = /^(\d{4})?-(\d{4})?$/;
 
 const splitEntries = (line: string) => {
   const entries: string[] = [];
@@ -76,7 +77,7 @@ export const parseProductFitment = (line: string): ProductFitmentGroup[] | null 
     const words = entry.split(" ").filter(Boolean);
     let period = "";
     let volume = "";
-    if (words.length > 0 && PERIOD.test(words[words.length - 1])) period = words.pop()!;
+    if (words.length > 0 && (PERIOD.test(words[words.length - 1]) || YEAR_PERIOD.test(words[words.length - 1]))) period = words.pop()!;
     if (words.length > 0 && VOLUME.test(words[words.length - 1])) volume = words.pop()!;
 
     let model = words.join(" ");
@@ -100,16 +101,20 @@ export const parseProductFitment = (line: string): ProductFitmentGroup[] | null 
 };
 
 const fullYear = (value: string) => {
+  if (value.length === 4) return value;
   const year = Number(value);
   return String(year >= 40 ? 1900 + year : 2000 + year);
 };
 
 // "05.86-06.11" → "05.1986 – 06.2011", "05.86-" → "з 05.1986".
 export const formatFitmentPeriod = (period: string) => {
+  const years = period.match(YEAR_PERIOD);
+  if (years) return years[1] && years[2] ? `${years[1]} – ${years[2]}` : years[1] ? `з ${years[1]}` : `до ${years[2]}`;
   const match = period.match(PERIOD);
   if (!match) return period;
-  const from = `${match[1]}.${fullYear(match[2])}`;
-  return match[3] ? `${from} – ${match[3]}.${fullYear(match[4])}` : `з ${from}`;
+  const from = match[1] ? `${match[1]}.${fullYear(match[2])}` : "";
+  const to = match[3] ? `${match[3]}.${fullYear(match[4])}` : "";
+  return from && to ? `${from} – ${to}` : from ? `з ${from}` : to ? `до ${to}` : period;
 };
 
 // "1.6-6.0" → "1.6–6.0 л", "1.0-" → "від 1.0 л"; "1.9D-2.5D" keeps its
@@ -119,6 +124,6 @@ export const formatFitmentVolume = (volume: string) => {
   const normalized = volume.replace(/,/g, ".");
   const range = normalized.endsWith("-")
     ? `від ${normalized.slice(0, -1)}`
-    : normalized.replace("-", "–");
+    : normalized.startsWith("-") ? `до ${normalized.slice(1)}` : normalized.replace("-", "–");
   return /[A-Z]/i.test(range) ? range : `${range} л`;
 };

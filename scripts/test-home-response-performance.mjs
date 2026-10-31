@@ -23,6 +23,7 @@ try {
             inputDelay: entry.processingStart - entry.startTime,
             processing: entry.processingEnd - entry.processingStart,
             target: entry.target?.tagName,
+            label: (entry.target?.closest('button')?.textContent || entry.target?.getAttribute('placeholder') || '').trim().slice(0, 80),
           });
         }
       }).observe({ type: 'event', buffered: true, durationThreshold: 16 });

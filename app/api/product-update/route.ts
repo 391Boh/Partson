@@ -372,6 +372,13 @@ export async function POST(request: NextRequest) {
     if (article) clearProductImageCacheForProduct(article);
     if (productCode) clearProductImageCacheForProduct(productCode);
   }
+  // A new catalog number re-keys the image lookups (the thumbnail and route
+  // caches are keyed by code and article), so it evicts them like a photo.
+  if (catalogNumber && !image.imageBase64) {
+    clearProductImageCacheForProduct(catalogNumber);
+    clearCatalogImageResultCacheForProduct(code, catalogNumber);
+    await clearRouteImageCacheForProduct(code, catalogNumber);
+  }
   if (image.imageBase64) {
     clearCatalogImageResultCacheForProduct(code, article || undefined);
     // /product-image/[code]/route.ts caches its final served response

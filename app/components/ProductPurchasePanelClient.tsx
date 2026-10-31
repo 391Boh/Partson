@@ -636,15 +636,19 @@ export default function ProductPurchasePanelClient(
           {isLoading && !showCostPrice ? (
             <div className="product-purchase-price-skeleton h-[30px] w-36 rounded-lg bg-slate-200/70" role="status" aria-label="Завантажуємо ціну" />
           ) : hasPromoPrice && !showCostPrice ? (
+            // As on the catalog card: the regular price struck through first,
+            // then the partner's discounted price.
             <div className="product-purchase-price-row flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              {typeof priceUah === "number" && (
+                <s className="product-purchase-price-old font-bold text-slate-400 decoration-rose-400 decoration-2">
+                  <span className="sr-only">Звичайна ціна: </span>
+                  {formatPriceUah(priceUah)}
+                </s>
+              )}
               <span className="product-purchase-price break-words text-rose-600">
+                <span className="sr-only">Ціна зі знижкою: </span>
                 {formatPriceUah(promoPriceUah)}
               </span>
-              {typeof priceUah === "number" && (
-                <span className="product-purchase-price-old font-bold text-slate-400 line-through decoration-rose-400 decoration-2">
-                  {formatPriceUah(priceUah)}
-                </span>
-              )}
             </div>
           ) : (
             <p className={`product-purchase-price break-words ${showCostPrice && hasCostPrice ? "text-amber-700" : hasPrice ? "text-slate-950" : "text-slate-800"}`}>

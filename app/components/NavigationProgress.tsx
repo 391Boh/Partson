@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { getInternalNavigationHref, getNavigationAnchor, installNavigationIntent } from 'app/lib/route-prefetch';
 
 function RouteWatcher({ onComplete }: { onComplete: () => void }) {
   const pathname = usePathname();
@@ -32,7 +33,7 @@ export default function NavigationProgress() {
   const timer1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRunningRef = useRef(false);
-  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
+  const animationRef = useRef<Animation | null>(null);
 
   const clearPending = useCallback(() => {
     if (startTimerRef.current !== null) { clearTimeout(startTimerRef.current); startTimerRef.current = null; }
@@ -41,12 +42,15 @@ export default function NavigationProgress() {
   }, []);
 
   const resetBar = useCallback(() => {
+    animationRef.current?.cancel();
+    animationRef.current = null;
     const bar = barRef.current;
     if (!bar) return;
     bar.style.transition = 'none';
     bar.style.transform = 'scaleX(0)';
     bar.style.opacity = '1';
     bar.style.visibility = 'hidden';
+    bar.style.willChange = 'auto';
     isRunningRef.current = false;
   }, []);
 
@@ -60,9 +64,18 @@ export default function NavigationProgress() {
     const bar = barRef.current;
     if (!bar) return;
 
+    isRunningRef.current = false;
+    // Read only the compositor value, without forcing a layout calculation.
+    const transform = getComputedStyle(bar).transform;
+    animationRef.current?.cancel();
     bar.style.visibility = 'visible';
-    bar.style.transition = 'transform 0.12s ease-out';
     bar.style.transform = 'scaleX(1)';
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      animationRef.current = bar.animate([{ transform }, { transform: 'scaleX(1)' }], {
+        duration: 120,
+        easing: 'ease-out',
+      });
+    }
 
     timer1Ref.current = setTimeout(() => {
       if (!barRef.current) return;
@@ -77,79 +90,46 @@ export default function NavigationProgress() {
     const bar = barRef.current;
     if (!bar) return;
 
+    animationRef.current?.cancel();
     isRunningRef.current = true;
     bar.style.visibility = 'visible';
     bar.style.opacity = '1';
     bar.style.transition = 'none';
-    bar.style.transform = 'scaleX(0)';
-    // Let the compositor animate the bar. The previous requestAnimationFrame
-    // loop ran JavaScript (including toFixed/string allocation) on every frame
-    // while React was also rendering the destination route.
-    void bar.offsetWidth;
-    bar.style.transition = 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)';
+    bar.style.willChange = 'transform';
     bar.style.transform = 'scaleX(0.88)';
-  }, [clearPending]);
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      animationRef.current = bar.animate([{ transform: 'scaleX(0.04)' }, { transform: 'scaleX(0.88)' }], {
+        duration: 1400,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      });
+    }
+    // An interrupted or failed navigation must never leave a permanent bar.
+    timer2Ref.current = setTimeout(resetBar, 15_000);
+  }, [clearPending, resetBar]);
 
   const start = useCallback(() => {
     if (startTimerRef.current !== null || isRunningRef.current) return;
     startTimerRef.current = setTimeout(() => {
       startTimerRef.current = null;
       runStart();
-    }, 8);
+    }, 120);
   }, [runStart]);
 
   useEffect(() => {
-    const getInternalNavigationHref = (event: Event) => {
-      const anchor = (event.target as Element | null)?.closest?.(
-        'a[href]'
-      ) as HTMLAnchorElement | null;
-      if (!anchor || anchor.target === '_blank') return null;
-      const href = anchor.getAttribute('href') || '';
-      if (!href || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        return null;
-      }
-
-      try {
-        const url = new URL(anchor.href);
-        if (url.origin !== window.location.origin) return null;
-        if (url.pathname === window.location.pathname && url.search === window.location.search) {
-          return null;
-        }
-        return `${url.pathname}${url.search}`;
-      } catch {
-        return null;
-      }
-    };
-
-    const warmRoute = (event: Event) => {
-      const route = getInternalNavigationHref(event);
-      if (!route || prefetchedRoutesRef.current.has(route)) return;
-      prefetchedRoutesRef.current.add(route);
-      router.prefetch(route);
-    };
-
-    const warmRouteOnHover = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
-      warmRoute(event);
-    };
-
-    const warmRouteOnPointerDown = (event: PointerEvent) => {
-      // On touch screens there is no hover window. Starting the RSC request
-      // on pointerdown gives it the whole press/release interval before Link's
-      // click navigation; the Set keeps mouse pointerdown from duplicating a
-      // route already warmed on hover.
-      warmRoute(event);
-    };
+    const uninstallIntent = installNavigationIntent(router);
+    const routeKey = () => `${window.location.pathname}${window.location.search}`;
+    let previousRoute = routeKey();
 
     const handleClick = (e: MouseEvent) => {
-      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      if (!getInternalNavigationHref(e)) return;
-      warmRoute(e);
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      if (!getNavigationAnchor(e.target)) return;
       start();
     };
 
     const handlePopState = () => {
-      if (isRunningRef.current) return;
+      const nextRoute = routeKey();
+      if (nextRoute === previousRoute) return;
+      previousRoute = nextRoute;
       start();
     };
 
@@ -158,13 +138,7 @@ export default function NavigationProgress() {
     const startForHistoryUrl = (url?: string | URL | null) => {
       if (!url) return;
       try {
-        const currentPath = window.location.pathname;
-        const currentSearch = window.location.search;
-        const next = new URL(String(url), window.location.href);
-        const isSamePage =
-          next.pathname === currentPath &&
-          next.search === currentSearch;
-        if (!isSamePage) start();
+        if (getInternalNavigationHref(String(url), window.location.href)) start();
       } catch {
         // ignore
       }
@@ -173,31 +147,28 @@ export default function NavigationProgress() {
     window.history.pushState = (state: unknown, unused: string, url?: string | URL | null) => {
       startForHistoryUrl(url);
       origPushState(state, unused, url);
+      previousRoute = routeKey();
     };
 
     window.history.replaceState = (state: unknown, unused: string, url?: string | URL | null) => {
       startForHistoryUrl(url);
       origReplaceState(state, unused, url);
+      previousRoute = routeKey();
     };
 
-    document.addEventListener('pointerover', warmRouteOnHover, { capture: true, passive: true });
-    document.addEventListener('pointerdown', warmRouteOnPointerDown, { capture: true, passive: true });
-    document.addEventListener('focusin', warmRoute, { capture: true, passive: true });
     document.addEventListener('click', handleClick, { capture: true, passive: true });
     window.addEventListener('popstate', handlePopState);
 
     return () => {
+      uninstallIntent();
       window.history.pushState = origPushState;
       window.history.replaceState = origReplaceState;
-      document.removeEventListener('pointerover', warmRouteOnHover, { capture: true });
-      document.removeEventListener('pointerdown', warmRouteOnPointerDown, { capture: true });
-      document.removeEventListener('focusin', warmRoute, { capture: true });
       document.removeEventListener('click', handleClick, { capture: true });
       window.removeEventListener('popstate', handlePopState);
     };
   }, [router, start]);
 
-  useEffect(() => () => clearPending(), [clearPending]);
+  useEffect(() => () => { clearPending(); animationRef.current?.cancel(); }, [clearPending]);
 
   return (
     <>
@@ -219,7 +190,6 @@ export default function NavigationProgress() {
           transformOrigin: 'left',
           visibility: 'hidden',
           pointerEvents: 'none',
-          willChange: 'transform',
         }}
       />
     </>

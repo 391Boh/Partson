@@ -45,6 +45,7 @@ import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
   fetchCatalogProductsByQuery,
   fetchPromoCatalogProducts,
+  listCatalogFromSnapshot,
 } from "app/lib/catalog-server";
 import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { buildProductImagePath } from "app/lib/product-image-path";
@@ -255,7 +256,52 @@ const fetchCatalogSeoSnapshotPayload = async (
 // catalog-page API answers promoOnly requests from, sliced the same way, so
 // the client can use this first page as-is instead of discarding the regular
 // first page (wrong signature) and refetching after hydration.
-const fetchPromoCatalogPayload = async (): Promise<InitialCatalogPagePayload | null> => {
+const fetchPromoCatalogPayload = async (
+  state: Pick<CatalogSeoState, "searchQuery" | "searchFilter" | "group" | "subcategory" | "producer" | "expandHierarchy">
+): Promise<InitialCatalogPagePayload | null> => {
+  // With the URL's other filters applied, like the API: this page shares the
+  // client's query signature (search, group, producer), so the full promo
+  // list here was shown — and counted — for "?promo=1&search=…" as is.
+  const searchFilter = state.searchFilter;
+  const listing = await listCatalogFromSnapshot({
+    searchQuery: state.searchQuery,
+    searchFilter:
+      searchFilter === "article" || searchFilter === "name" || searchFilter === "code" ||
+      searchFilter === "producer" || searchFilter === "description"
+        ? searchFilter
+        : "all",
+    group: state.group,
+    subcategory: state.subcategory,
+    producer: state.producer,
+    selectedCategories: [],
+    expandHierarchy: state.expandHierarchy,
+    vehicle: null,
+    sortOrder: "none",
+    nameSort: "none",
+    pricedOnly: false,
+    withPhoto: false,
+    inStock: false,
+    priceFrom: null,
+    priceTo: null,
+    promoOnly: true,
+    offset: 0,
+    limit: INITIAL_CATALOG_PAGE_LIMIT,
+  }).catch(() => null);
+  if (listing) {
+    return {
+      items: listing.items,
+      prices: buildInlinePrices(listing.items),
+      images: {},
+      hasMore: listing.hasMore,
+      nextCursor: "",
+      cursorField: "",
+      totalCount: listing.totalCount,
+    };
+  }
+
+  // No snapshot yet: without other filters the precomputed list is right;
+  // with them, let the client fetch the filtered page.
+  if (state.searchQuery || state.group || state.subcategory || state.producer) return null;
   const { products } = await fetchPromoCatalogProducts();
   if (products.length === 0) return null;
   const items = products.slice(0, INITIAL_CATALOG_PAGE_LIMIT);
@@ -1368,7 +1414,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       () => (hasParamFilters || Boolean(normalizeValue(resolvedSearchParams.vehicle)))
         ? Promise.resolve(null)
         : promoOnly
-        ? fetchPromoCatalogPayload()
+        ? fetchPromoCatalogPayload(state)
         : state.searchQuery
         ? fetchCatalogSeoSnapshotPayload(snapshotCacheKey)
         : getCatalogSeoSnapshotPayloadCached(snapshotCacheKey),

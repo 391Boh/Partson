@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { usePathname } from "next/navigation";
-import { installPageScrollMotion } from "app/lib/page-scroll-motion";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 
 export default function PageScrollMotion({ rootRef }: { rootRef: RefObject<HTMLElement | null> }) {
@@ -14,9 +13,15 @@ export default function PageScrollMotion({ rootRef }: { rootRef: RefObject<HTMLE
     if (!root || pathname === "/") return;
 
     let uninstall: (() => void) | undefined;
+    let cancelled = false;
     const install = () => {
-      hasInstalledRef.current = true;
-      uninstall = installPageScrollMotion(root);
+      // Homepage scroll decoration is disabled; keep its implementation out
+      // of the shared startup bundle and load it only on routes that use it.
+      void import("app/lib/page-scroll-motion").then(({ installPageScrollMotion }) => {
+        if (cancelled) return;
+        hasInstalledRef.current = true;
+        uninstall = installPageScrollMotion(root);
+      }).catch(() => { /* Decorative motion must not interrupt navigation. */ });
     };
 
     // On the first page load the page content below this layout can hydrate
@@ -27,10 +32,11 @@ export default function PageScrollMotion({ rootRef }: { rootRef: RefObject<HTMLE
     // client navigations have nothing to hydrate and install immediately.
     if (hasInstalledRef.current) {
       install();
-      return () => uninstall?.();
+      return () => { cancelled = true; uninstall?.(); };
     }
     const cancel = scheduleBackgroundTask(install);
     return () => {
+      cancelled = true;
       cancel();
       uninstall?.();
     };

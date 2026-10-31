@@ -10,7 +10,7 @@ type FirebaseAuthSnapshot = {
 };
 
 type FirebaseAuthDeps = {
-  auth: typeof import("../../firebase").auth;
+  auth: typeof import("./firebase-auth").auth;
   getRedirectResult: typeof import("firebase/auth").getRedirectResult;
   onAuthStateChanged: typeof import("firebase/auth").onAuthStateChanged;
 };
@@ -18,7 +18,9 @@ type FirebaseAuthDeps = {
 let authDepsPromise: Promise<FirebaseAuthDeps> | null = null;
 let unsubscribeAuth: (() => void) | null = null;
 let authInitialization: Promise<void> | null = null;
-let authSubscriptionScheduled = false;
+// `ready: true, user: null` can be a cheap guest hint. Protected actions
+// must still wait for Firebase itself to confirm or restore that session.
+let hasConfirmedAuthState = false;
 
 const getInitialClientSnapshot = (): FirebaseAuthSnapshot => {
   if (typeof window === "undefined") return { ready: false, user: null };
@@ -39,20 +41,28 @@ const serverSnapshot: FirebaseAuthSnapshot = {
 
 const listeners = new Set<(nextSnapshot: FirebaseAuthSnapshot) => void>();
 
-const emitSnapshot = (nextSnapshot: FirebaseAuthSnapshot) => {
+const emitSnapshot = (nextSnapshot: FirebaseAuthSnapshot, force = false) => {
+  if (!force && snapshot.ready === nextSnapshot.ready && snapshot.user === nextSnapshot.user) return;
   snapshot = nextSnapshot;
   listeners.forEach((listener) => listener(snapshot));
 };
 
+const confirmAuthUser = (user: User | null) => {
+  const firstConfirmation = !hasConfirmedAuthState;
+  hasConfirmedAuthState = true;
+  try {
+    // Record the returning-user hint as soon as Auth resolves. Waiting for
+    // role/chat reads left fast reloads looking like guest visits.
+    if (user) localStorage.setItem("user_id", user.uid);
+    else localStorage.removeItem("user_id");
+  } catch {}
+  emitSnapshot({ ready: true, user }, firstConfirmation);
+};
+
 const loadFirebaseAuthDeps = () => {
-  authDepsPromise ??= Promise.all([
-    import("../../firebase"),
-    import("firebase/auth"),
-  ]).then(([firebaseModule, authModule]) => ({
-    auth: firebaseModule.auth,
-    getRedirectResult: authModule.getRedirectResult,
-    onAuthStateChanged: authModule.onAuthStateChanged,
-  }));
+  authDepsPromise ??= import("./firebase-auth").then(
+    ({ auth, getRedirectResult, onAuthStateChanged }) => ({ auth, getRedirectResult, onAuthStateChanged })
+  );
 
   return authDepsPromise;
 };
@@ -84,75 +94,19 @@ const ensureFirebaseAuthSubscription = () => {
       // currentUser is null until IndexedDB restoration finishes. Publishing
       // it earlier briefly displayed guest buttons for signed-in visitors.
       await auth.authStateReady();
-      emitSnapshot({
-        ready: true,
-        user: redirectUser ?? auth.currentUser ?? null,
-      });
+      confirmAuthUser(redirectUser ?? auth.currentUser ?? null);
 
       unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-        emitSnapshot({
-          ready: true,
-          user: user ?? null,
-        });
+        confirmAuthUser(user ?? null);
       });
     })
     .catch((error) => {
       console.error("Failed to initialize Firebase auth state:", error);
       authDepsPromise = null;
-      authSubscriptionScheduled = false;
-      emitSnapshot({
-        ready: true,
-        user: null,
-      });
+      if (!hasConfirmedAuthState) emitSnapshot({ ready: true, user: null }, true);
     }).finally(() => {
       authInitialization = null;
     });
-};
-
-const scheduleFirebaseAuthSubscription = () => {
-  if (unsubscribeAuth || authSubscriptionScheduled) return;
-  authSubscriptionScheduled = true;
-
-  if (typeof window === "undefined") {
-    ensureFirebaseAuthSubscription();
-    return;
-  }
-
-  const win = window as Window & {
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-    cancelIdleCallback?: (id: number) => void;
-  };
-
-  let timeoutId: number | null = null;
-  let idleId: number | null = null;
-
-  const start = () => {
-    // Firebase module evaluation and IndexedDB restoration can occupy the
-    // main thread for several frames. Never begin that work in the middle of
-    // a wheel/touch scroll; LayoutHost owns this short-lived compositor hint.
-    if (document.documentElement.classList.contains("is-scrolling")) {
-      timeoutId = window.setTimeout(start, 240);
-      return;
-    }
-    if (timeoutId != null) {
-      window.clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    if (idleId != null) {
-      win.cancelIdleCallback?.(idleId);
-      idleId = null;
-    }
-    ensureFirebaseAuthSubscription();
-  };
-
-  // Returning users get their cached shell instantly; the authoritative
-  // Firebase session is restored in idle time. Explicit protected actions
-  // call waitForFirebaseAuthReady(), which still starts this immediately.
-  if (typeof win.requestIdleCallback === "function") {
-    idleId = win.requestIdleCallback(start, { timeout: 2_600 });
-  } else {
-    timeoutId = window.setTimeout(start, 1_200);
-  }
 };
 
 const hasPersistedAuthIntent = () => {
@@ -171,9 +125,8 @@ export const getFirebaseAuthSnapshot = () => snapshot;
 
 // Admin-action call sites (getAdminToken in Data.tsx and friends) used to
 // read getFirebaseAuthSnapshot() synchronously. The real Firebase Auth
-// subscription is deliberately deferred to browser idle time (see
-// scheduleFirebaseAuthSubscription) to keep it off the critical rendering
-// path. A protected action can therefore happen before the async Firebase
+// subscription may still be initializing when a protected action happens.
+// A protected action can therefore happen before the async Firebase
 // restore has resolved and would otherwise read a still-stale snapshot
 // before the async Firebase load has resolved. A genuinely logged-in admin
 // clicking edit as their first interaction on the page would see "Не
@@ -183,7 +136,7 @@ export const getFirebaseAuthSnapshot = () => snapshot;
 // deferred) instead of trusting whatever snapshot happens to exist yet.
 export const waitForFirebaseAuthReady = (): Promise<FirebaseAuthSnapshot> => {
   ensureFirebaseAuthSubscription();
-  if (snapshot.ready) return Promise.resolve(snapshot);
+  if (hasConfirmedAuthState) return Promise.resolve(snapshot);
   return new Promise((resolve) => {
     const listener = (next: FirebaseAuthSnapshot) => {
       if (!next.ready) return;
@@ -198,7 +151,7 @@ export const publishFirebaseAuthUser = (user: User | null) => {
   try {
     sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
   } catch {}
-  emitSnapshot({ ready: true, user });
+  confirmAuthUser(user);
   ensureFirebaseAuthSubscription();
 };
 
@@ -208,17 +161,12 @@ export const subscribeToFirebaseAuthState = (
   listeners.add(listener);
   listener(snapshot);
 
-  // Don't pre-load Firebase for guests (no user_id in localStorage → snapshot is ready+null).
-  // A returning user, however, has auth-dependent content above the fold in
-  // the hero and header. Start restoring that persisted session immediately:
-  // delaying it until requestIdleCallback's 2.6s timeout made the account
-  // panel look stuck even though the browser already knew a session existed.
-  if (!snapshot.ready && !hasPersistedAuthIntent()) {
-    emitSnapshot({ ready: true, user: null });
-  } else if (!snapshot.ready && hasPersistedAuthIntent()) {
+  // Guest rendering needs no SDK. Returning sessions and successful sign-ins
+  // share immediate restoration; no idle timeout can hold the hero skeleton.
+  if ((!hasConfirmedAuthState && hasPersistedAuthIntent()) || snapshot.user) {
     ensureFirebaseAuthSubscription();
-  } else if (!snapshot.ready || snapshot.user !== null) {
-    scheduleFirebaseAuthSubscription();
+  } else if (!snapshot.ready) {
+    emitSnapshot({ ready: true, user: null });
   }
 
   return () => {

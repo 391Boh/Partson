@@ -6,6 +6,9 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
+import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
+import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
+import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import {
   addFullCatalogSnapshotProduct,
   fetchCatalogProductsByCodes,
@@ -196,6 +199,19 @@ export async function POST(request: NextRequest) {
   clearAllOneCCache();
   clearCatalogPageRouteCache();
   invalidateFullCatalogSnapshot();
+  // Image caches are keyed by code and by article. A new product can reuse an
+  // article seen before (a removed product, a cached "no photo", or a photo
+  // cached under the wrong product), so start its image lookups clean — the
+  // same eviction product-update does after a photo upload — and serve the
+  // uploaded photo at once instead of waiting on 1C.
+  if (newCode) {
+    for (const key of [newCode, newArticle]) {
+      if (key) clearProductImageCacheForProduct(key);
+    }
+    clearCatalogImageResultCacheForProduct(newCode, newArticle || undefined);
+    await clearRouteImageCacheForProduct(newCode, newArticle || undefined);
+    if (base64Data) seedProductImageBase64Cache([newCode, newArticle], base64Data);
+  }
   // Put the new product into the in-memory catalog snapshot right away, so
   // search and its product page find it without waiting for a full rescan.
   if (newCode) {

@@ -1,5 +1,6 @@
 "use client";
 
+import ProductFitmentEditor from "./ProductFitmentEditor";
 import { Check, PenSquare, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ProductEditorTabs, ProductEditorField as Field, productEditorFieldClass as fieldClass, useProductEditorPanel } from "./ProductEditorUI";
@@ -90,6 +91,7 @@ export default function ProductFullEditModal({
   const promoTouched = useRef(false);
   const [quantity, setQuantity] = useState(String(initialQuantity));
   const [description, setDescription] = useState(initialDescription);
+  const [fitmentValid, setFitmentValid] = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +154,7 @@ export default function ProductFullEditModal({
     promoTouched.current = false;
     setQuantity(String(initialQuantity));
     setDescription(initialDescription);
+    setFitmentValid(true);
     setError(null);
     setSaved(false);
     setProducerSugg([]);
@@ -349,6 +352,7 @@ export default function ProductFullEditModal({
   };
 
   const handleSubmit = async () => {
+    if (!fitmentValid) { setTab("description"); setError("Перевірте поля сумісності автомобіля."); return; }
     if (submitLock.current || imageProcessing || galleryProcessing || imageUploading || galleryUploading) return;
     submitLock.current = true;
     setSaving(true);
@@ -720,6 +724,7 @@ export default function ProductFullEditModal({
 
             </div>
             <div role="tabpanel" id="product-edit-panel-description" aria-labelledby="product-edit-tab-description" hidden={tab !== "description"} className="space-y-2">
+            <ProductFitmentEditor value={description} onChange={setDescription} onValidityChange={setFitmentValid} disabled={saving} />
             <Field label="Опис товару">
               <textarea
                 value={description}
@@ -789,7 +794,7 @@ export default function ProductFullEditModal({
             className="inline-flex items-center gap-1.5 rounded-[9px] border border-slate-200 bg-white px-3 py-1.5 text-[11.5px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
             Готово
           </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={saving || imageProcessing || galleryProcessing || imageUploading || galleryUploading || !name.trim()}
+          <button type="button" onClick={() => void handleSubmit()} disabled={saving || !fitmentValid || imageProcessing || galleryProcessing || imageUploading || galleryUploading || !name.trim()}
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-[linear-gradient(135deg,#7c3aed,#a855f7)] px-3.5 py-1.5 text-[11.5px] font-black text-white shadow-[0_4px_14px_rgba(124,58,237,0.35)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60">
             {saving ? (
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-300 border-t-white" />

@@ -95,6 +95,41 @@ type PersistentRouteCacheMeta = {
   bufferHash?: string;
 };
 
+// When 1C ignores the requested code it lists the first products that have a
+// photo, led by this one (the Adriauto AD030213 handbrake cable); a lookup
+// that took an image from such a list cached the cable's photo for an
+// unrelated product. The same image under several products is that
+// signature in general. Evicting only drops the cache — a genuine shared
+// photo is simply fetched again from 1C.
+const POISON_SOURCE_PRODUCT_CODES = new Set(["00-00000056"]);
+const POISON_SHARED_PRODUCT_THRESHOLD = 3;
+// Key shape: mode::variant::fallback::retry::code::article::format.
+const routeCacheKeyProductCode = (cacheKey: string) => (cacheKey.split("::")[4] || "").trim().toLowerCase();
+
+const findPoisonedRouteCacheEntries = <T extends { cacheKey: string; bufferHash: string }>(entries: T[]) => {
+  const byHash = new Map<string, T[]>();
+  for (const entry of entries) {
+    if (!entry.bufferHash || !routeCacheKeyProductCode(entry.cacheKey)) continue;
+    const group = byHash.get(entry.bufferHash);
+    if (group) group.push(entry);
+    else byHash.set(entry.bufferHash, [entry]);
+  }
+
+  const poisoned: T[] = [];
+  for (const group of byHash.values()) {
+    const codes = new Set(group.map((entry) => routeCacheKeyProductCode(entry.cacheKey)));
+    if (codes.size < 2) continue;
+    const sourceCodes = [...codes].filter((code) => POISON_SOURCE_PRODUCT_CODES.has(code));
+    if (sourceCodes.length > 0) {
+      // The source keeps its own photo; every other product loses it.
+      poisoned.push(...group.filter((entry) => !POISON_SOURCE_PRODUCT_CODES.has(routeCacheKeyProductCode(entry.cacheKey))));
+    } else if (codes.size >= POISON_SHARED_PRODUCT_THRESHOLD) {
+      poisoned.push(...group);
+    }
+  }
+  return poisoned;
+};
+
 const schedulePersistentRouteCachePrune = () => {
   const now = Date.now();
   if (persistentRouteCachePruneInFlight) return;
@@ -110,6 +145,8 @@ const schedulePersistentRouteCachePrune = () => {
       expiresAt: number;
       bufferPath: string;
       metaPath: string;
+      cacheKey: string;
+      bufferHash: string;
     }> = [];
 
     for (let index = 0; index < metadataFiles.length; index += 32) {
@@ -138,7 +175,13 @@ const schedulePersistentRouteCachePrune = () => {
               await removePersistentRouteCacheFiles(bufferPath, metaPath);
               return null;
             }
-            return { expiresAt: meta.expiresAt, bufferPath, metaPath };
+            return {
+              expiresAt: meta.expiresAt,
+              bufferPath,
+              metaPath,
+              cacheKey: meta.cacheKey || "",
+              bufferHash: meta.bufferHash || "",
+            };
           } catch {
             await removePersistentRouteCacheFiles(bufferPath, metaPath);
             return null;
@@ -149,6 +192,20 @@ const schedulePersistentRouteCachePrune = () => {
       for (const entry of resolvedChunk) {
         if (entry) validEntries.push(entry);
       }
+    }
+
+    const poisoned = findPoisonedRouteCacheEntries(validEntries);
+    for (let index = 0; index < poisoned.length; index += 32) {
+      await Promise.all(
+        poisoned
+          .slice(index, index + 32)
+          .map((entry) => removePersistentRouteCacheFiles(entry.bufferPath, entry.metaPath))
+      );
+    }
+    if (poisoned.length > 0) {
+      console.warn(`[product-image] evicted ${poisoned.length} cached photo(s) shown under the wrong product`);
+      const removed = new Set(poisoned);
+      validEntries.splice(0, validEntries.length, ...validEntries.filter((entry) => !removed.has(entry)));
     }
 
     if (validEntries.length > PERSISTENT_ROUTE_CACHE_MAX_ENTRIES) {

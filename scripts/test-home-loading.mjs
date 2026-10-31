@@ -24,14 +24,22 @@ try {
         load: nav.loadEventEnd, fcp: performance.getEntriesByName('first-contentful-paint')[0]?.startTime,
         mountedSections: document.querySelectorAll('.home-deferred-content').length };
     }) }));
+    if (width === 390) assert.equal(await page.locator('.home-slot-auto .home-deferred-content').count(), 0,
+      'Phone catalogue stays unmounted until it is actually needed');
     assert.equal(await page.locator('.home-slot-brands .home-deferred-content').count(), 0,
       'Offscreen manufacturers must wait for scroll intent');
+    const footer = page.locator('[data-deferred-footer]');
+    assert.equal(await footer.locator('footer').count(), 0, 'Homepage footer waits for proximity instead of a startup timer');
+    const reservedHeight = await footer.evaluate(el => el.getBoundingClientRect().height);
+    await footer.scrollIntoViewIfNeeded();
+    await footer.locator('footer').waitFor({ timeout: 15000 });
+    assert.equal(await footer.evaluate(el => el.getBoundingClientRect().height), reservedHeight, 'Footer keeps its reserved geometry');
     await page.close();
   }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   let releaseImage;
   const imageGate = new Promise(resolve => { releaseImage = resolve; });
-  await page.route('**/storefront/photos/partson-store-1*.webp', async route => {
+  await page.route(/\/storefront\/photos\/partson-store-1[^/?]*\.(?:avif|webp)(?:\?|$)/, async route => {
     if (route.request().url().includes('partson-store-1')) await imageGate;
     await route.continue();
   });

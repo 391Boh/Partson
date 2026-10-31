@@ -1,3 +1,4 @@
+import { readAutoYearRange } from "./vehicle-values";
 import "server-only";
 
 import { cache } from "react";
@@ -53,43 +54,8 @@ const readModelLabel = (value: unknown) => {
   return typeof raw === "string" ? normalizeValue(raw) : "";
 };
 
-const isPlausibleYear = (value: number | null) =>
-  value != null && Number.isFinite(value) && value >= 1900 && value <= 2100;
-
-const toNumber = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value !== "string" || !value.trim()) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-// Same field-name fallbacks as CarModels.tsx's extractYearRange, trimmed down
-// since here we only need the two boundary fields (no free-form key scanning).
-const readYearField = (record: Record<string, unknown>, keys: readonly string[]) => {
-  for (const key of keys) {
-    if (key in record) {
-      const parsed = toNumber(record[key]);
-      if (isPlausibleYear(parsed)) return parsed;
-    }
-  }
-  return null;
-};
-
-const YEAR_START_KEYS = [AUTO_FIELDS.yearStart, "yearStart", "YearStart"] as const;
-const YEAR_END_KEYS = [AUTO_FIELDS.yearEnd, "yearEnd", "YearEnd"] as const;
-const YEAR_SINGLE_KEYS = [AUTO_FIELDS.year, "year", "Year"] as const;
-
-const extractRowYearRange = (row: unknown): { start: number | null; end: number | null } => {
-  if (!row || typeof row !== "object") return { start: null, end: null };
-  const record = row as Record<string, unknown>;
-
-  const start = readYearField(record, YEAR_START_KEYS);
-  const end = readYearField(record, YEAR_END_KEYS);
-  if (start != null || end != null) return { start, end: end ?? start };
-
-  const single = readYearField(record, YEAR_SINGLE_KEYS);
-  return { start: single, end: single };
-};
+const extractRowYearRange = (row: unknown): { start: number | null; end: number | null } =>
+  row && typeof row === "object" ? readAutoYearRange(row as Record<string, unknown>) : { start: null, end: null };
 
 const tryFix1CJson = (raw: string) => {
   let candidate = raw;
@@ -177,11 +143,13 @@ const fetchBrandModelsUncached = async (brand: string): Promise<AutoSeoBrandGrou
   if (rows.length === 0) return null;
 
   const modelYears = new Map<string, { yearFrom: number | null; yearTo: number | null }>();
+  const ongoingModels = new Set<string>();
   for (const row of rows) {
     const model = readModelLabel(row);
     if (!model) continue;
 
     const { start, end } = extractRowYearRange(row);
+    if (start != null && end == null) ongoingModels.add(model);
     const existing = modelYears.get(model);
     if (!existing) {
       modelYears.set(model, { yearFrom: start, yearTo: end });
@@ -196,7 +164,7 @@ const fetchBrandModelsUncached = async (brand: string): Promise<AutoSeoBrandGrou
   }
 
   const models = Array.from(modelYears.entries())
-    .map(([name, range]) => ({ name, yearFrom: range.yearFrom, yearTo: range.yearTo }))
+    .map(([name, range]) => ({ name, yearFrom: range.yearFrom, yearTo: ongoingModels.has(name) ? null : range.yearTo }))
     .sort((a, b) => a.name.localeCompare(b.name, "uk", { numeric: true, sensitivity: "base" }));
 
   if (models.length === 0) return null;
@@ -247,14 +215,16 @@ export const fetchModelYearRange = async (
   const rows = parseAutoResponse(response.text);
   let yearFrom: number | null = null;
   let yearTo: number | null = null;
+  let ongoing = false;
 
   for (const row of rows) {
     const { start, end } = extractRowYearRange(row);
+    if (start != null && end == null) ongoing = true;
     if (start != null && (yearFrom == null || start < yearFrom)) yearFrom = start;
     if (end != null && (yearTo == null || end > yearTo)) yearTo = end;
   }
 
-  return { yearFrom, yearTo };
+  return { yearFrom, yearTo: ongoing ? null : yearTo };
 };
 
 const mapWithConcurrency = async <T, R>(

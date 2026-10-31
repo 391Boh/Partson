@@ -20,6 +20,8 @@ vm.runInNewContext(compile('app/api/catalog-search-count/route.ts'), {
   exports: route, URL, URLSearchParams,
   require: name => name === 'next/server' ? { NextResponse: Response } : {
     fetchCatalogProductsByQuery: async options => { sent = options; return { items: [], hasMore: false, totalCount: 0 }; },
+    // app/lib/vehicle-fitment (the route reads ?vehicle= since 25.10).
+    readVehicleSelection: () => null,
   },
 });
 const response = await route.GET(new Request('http://localhost/api/catalog-search-count?priceTo=0'));

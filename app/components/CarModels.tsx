@@ -1,5 +1,6 @@
 "use client";
 
+import { readAutoYearRange, normalizeVehicleYear } from "app/lib/vehicle-values";
 import VehicleYearSelect from "./VehicleYearSelect";
 import VehicleYearRail from "./VehicleYearRail";
 import Link from "next/link";
@@ -193,18 +194,14 @@ const normalizeModel = (item: unknown, selectedBrand?: string) => {
   return candidate || null;
 };
 
-const toNumber = (value: unknown) => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
+
 
 const extractYearRange = (record: AnyRecord) => {
-  const startDirect = toNumber(
+  const startDirect = normalizeVehicleYear(
     readFirstValueByKeys(record, YEAR_START_FIELD_KEYS) ??
       findValueByKeyPattern(record, ["yearstart", "startyear", "почат", "начал"])
   );
-  const endDirect = toNumber(
+  const endDirect = normalizeVehicleYear(
     readFirstValueByKeys(record, YEAR_END_FIELD_KEYS) ??
       findValueByKeyPattern(record, ["yearend", "endyear", "кінец", "конец"])
   );
@@ -214,15 +211,7 @@ const extractYearRange = (record: AnyRecord) => {
     return { start: startDirect, end: safeEnd };
   }
 
-  const yearCandidates = Object.values(record)
-    .map((value) => toNumber(value))
-    .filter((value): value is number => isPlausibleYear(value));
-
-  if (yearCandidates.length === 0) return { start: null, end: null };
-  if (yearCandidates.length === 1) return { start: yearCandidates[0], end: null };
-
-  const sorted = [...yearCandidates].sort((a, b) => a - b);
-  return { start: sorted[0], end: sorted[sorted.length - 1] };
+  return readAutoYearRange(record);
 };
 
 const normalizeAutoRows = (payload: unknown): unknown[] => {
@@ -661,7 +650,7 @@ const extractErrorMessage = (text: string) => {
     const isBusy = loading || (yearLoading && selectedYear != null);
 
     return (
-      <div className="vehicle-models w-full flex flex-col gap-3">
+      <div data-compact={isCompact} className="vehicle-models w-full flex flex-col gap-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 w-full">
             <div className="flex flex-col min-w-0">
@@ -734,7 +723,7 @@ const extractErrorMessage = (text: string) => {
                       {LABEL_NO_MODELS}
                     </div>
                   ) : (
-                    <div ref={compactModelListRef} className="grid grid-cols-2 gap-1 sm:grid-cols-4 sm:gap-1">
+                    <div ref={compactModelListRef} className="vehicle-model-grid grid grid-cols-2 gap-1 sm:grid-cols-4 sm:gap-1">
                       {page.map((model) => {
                         const isActive = selectedModel === model;
                         return (
@@ -767,7 +756,7 @@ const extractErrorMessage = (text: string) => {
 
   return (
     <div
-      className="vehicle-models w-full mx-auto flex flex-col gap-2 sm:gap-2.5"
+      data-compact={isCompact} className="vehicle-models w-full mx-auto flex flex-col gap-2 sm:gap-2.5"
     >
       <div className="flex flex-col gap-2 sm:gap-2.5">
         {searchTermProp === undefined && (
@@ -882,7 +871,7 @@ const extractErrorMessage = (text: string) => {
               <div className="flex">
               {modelPages.map((page, pageIndex) => (
                 <div key={pageIndex} data-model-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                <div className="grid grid-cols-2 gap-1.5 place-items-stretch sm:grid-cols-4 sm:gap-2.5">
+                <div className="vehicle-model-grid grid grid-cols-2 gap-1.5 place-items-stretch sm:grid-cols-4 sm:gap-2.5">
               {page.map((model) => {
                 const isActive = selectedModel === model;
                 const yr = modelYearRanges[model];
@@ -905,9 +894,9 @@ const extractErrorMessage = (text: string) => {
                     }`}
                   >
                     <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
-                    <span className={`relative line-clamp-2 w-full text-[14px] font-semibold leading-tight tracking-[0.02em] transition-colors duration-300 ease-out sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover/category:text-sky-900"}`}>{model}</span>
+                    <span className={`vehicle-model-name relative line-clamp-2 w-full text-[14px] font-semibold leading-tight tracking-[0.02em] transition-colors duration-300 ease-out sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover/category:text-sky-900"}`}>{model}</span>
                     {yearLabel && (
-                      <span className={`relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] transition-colors duration-300 ease-out ${isActive ? "text-sky-100" : "text-slate-400 group-hover/category:text-sky-600/80"}`}>
+                      <span className={`vehicle-model-period relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] transition-colors duration-300 ease-out ${isActive ? "text-sky-100" : "text-slate-400 group-hover/category:text-sky-600/80"}`}>
                         {yearLabel}
                       </span>
                     )}

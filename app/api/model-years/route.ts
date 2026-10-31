@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { readAutoYearRange, normalizeVehicleYear } from "app/lib/vehicle-values";
 import { oneCRequest } from "app/api/_lib/oneC";
 import { AUTO_FIELDS } from "app/components/autoFields";
 
@@ -123,11 +124,7 @@ const normalizeAutoRows = (payload: unknown): unknown[] => {
   return [];
 };
 
-const toNumber = (value: unknown) => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
+
 
 const isPlausibleYear = (value: number | null): value is number =>
   value != null && value >= 1900 && value <= 2100;
@@ -182,11 +179,11 @@ const normalizeModel = (item: unknown, selectedBrand?: string) => {
 };
 
 const extractYearRange = (record: Record<string, unknown>) => {
-  const startDirect = toNumber(
+  const startDirect = normalizeVehicleYear(
     readFirstValueByKeys(record, YEAR_START_FIELD_KEYS) ??
       findValueByKeyPattern(record, ["yearstart", "startyear", "почат", "начал"])
   );
-  const endDirect = toNumber(
+  const endDirect = normalizeVehicleYear(
     readFirstValueByKeys(record, YEAR_END_FIELD_KEYS) ??
       findValueByKeyPattern(record, ["yearend", "endyear", "кінец", "конец"])
   );
@@ -196,17 +193,7 @@ const extractYearRange = (record: Record<string, unknown>) => {
     return { start: startDirect, end: safeEnd };
   }
 
-  const yearCandidates = Object.values(record)
-    .map((value) => toNumber(value))
-    .filter((value): value is number => isPlausibleYear(value));
-
-  if (yearCandidates.length === 0) return { start: null, end: null };
-  if (yearCandidates.length === 1) {
-    return { start: yearCandidates[0], end: null };
-  }
-
-  const sorted = [...yearCandidates].sort((left, right) => left - right);
-  return { start: sorted[0], end: sorted[sorted.length - 1] };
+  return readAutoYearRange(record);
 };
 
 const normalizeModels = (value: unknown) =>

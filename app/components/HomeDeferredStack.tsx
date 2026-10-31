@@ -214,7 +214,13 @@ function DeferredHomeSection({
     // every offscreen section or racing the hero image on a cold connection.
     if (!conserveData) {
       cancelPreparation = scheduleBackgroundTask(() => {
-        if (nearViewport) requestMount();
+        if (!nearViewport) return;
+        // Warm nearby code without constructing an offscreen catalogue tree.
+        // On phones the hero and blog push Auto below the first viewport;
+        // committing it during a first login tap creates a needless long task.
+        // Actual scroll/anchor intent above still mounts promptly.
+        if (section.getBoundingClientRect().top < window.innerHeight) requestMount();
+        else void preload().catch(() => undefined);
       }, { delayMs: 900 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500), waitForLoad: false });
     }
     return cleanup;

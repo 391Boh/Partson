@@ -1,5 +1,7 @@
 "use client";
 
+import ProductFitmentEditor from "./ProductFitmentEditor";
+
 import { Check, ChevronDown, Package, PenSquare, Pencil, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -224,6 +226,7 @@ export default function ProductPageAdminEditPanel({
   const [stockEditing, setStockEditing] = useState(false);
 
   const [descVal, setDescVal] = useState(initialDescription);
+  const [fitmentValid, setFitmentValid] = useState(true);
   const [descEditing, setDescEditing] = useState(false);
   const [descSaving, setDescSaving] = useState(false);
   const [descError, setDescError] = useState<string | null>(null);
@@ -683,6 +686,7 @@ export default function ProductPageAdminEditPanel({
   };
 
   const saveDescription = async () => {
+    if (!fitmentValid) { setDescError("Перевірте поля сумісності автомобіля."); return; }
     const token = await getToken();
     if (!token) { setDescError("Не авторизовано"); return; }
     setDescSaving(true);
@@ -1094,6 +1098,7 @@ export default function ProductPageAdminEditPanel({
             </div>
             {descEditing ? (
               <div className="space-y-2">
+                <ProductFitmentEditor value={descVal} onChange={setDescVal} onValidityChange={setFitmentValid} disabled={descSaving} />
                 <textarea
                   value={descVal}
                   onChange={(e) => setDescVal(e.target.value)}
@@ -1106,7 +1111,7 @@ export default function ProductPageAdminEditPanel({
                   <button
                     type="button"
                     onClick={() => void saveDescription()}
-                    disabled={descSaving}
+                    disabled={descSaving || !fitmentValid}
                     className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                   >
                     {descSaving
@@ -1116,7 +1121,7 @@ export default function ProductPageAdminEditPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setDescEditing(false); setDescVal(initialDescription); setDescError(null); }}
+                    onClick={() => { setDescEditing(false); setDescVal(initialDescription); setDescError(null); setFitmentValid(true); }}
                     disabled={descSaving}
                     className="inline-flex items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
                   >

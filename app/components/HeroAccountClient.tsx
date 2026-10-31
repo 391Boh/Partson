@@ -10,6 +10,8 @@ import { scheduleIdle } from "app/lib/schedule-idle";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { FIRST_ORDER_DISCOUNT_PERCENT } from "app/lib/first-order-discount";
 import { PARTNER_DISCOUNT_PERCENT } from "app/lib/partnership-discount";
+import { findAvatarFrame, findProfileBackground, getProfileTheme } from "app/lib/profile-appearance";
+import { readCachedAvatarFrame, readCachedProfileBackground, writeCachedAvatarFrame, writeCachedProfileBackground } from "app/lib/profile-appearance-cache";
 import HeroGreetingAvatar from "./HeroGreetingAvatar";
 
 const HeroSavedProfile = dynamic(() => import("./HeroSavedProfile"), {
@@ -167,9 +169,11 @@ type ProfileData = {
   delivery: DeliveryInfo | null;
   avatar: string | null;
   avatarFrame: string | null;
+  profileBackground: string | null;
+  profileTheme: string;
   isAdmin: boolean;
 };
-type OrdersSummary = { hasOrders: boolean; totalSpent: number };
+type OrdersSummary = { hasOrders: boolean };
 
 const parseProfileData = (data: Record<string, unknown>): ProfileData => {
   const rawVins = data.vins ?? data.VIN ?? data.vin;
@@ -186,8 +190,12 @@ const parseProfileData = (data: Record<string, unknown>): ProfileData => {
     readSelectionLabel(data.selectedCarSelection);
   const delivery = readDeliveryInfo(data);
   const avatar = typeof data.avatar === "string" && data.avatar ? data.avatar : null;
-  const avatarFrame = typeof data.avatarFrame === "string" && data.avatarFrame ? data.avatarFrame : null;
-  return { name, vins, cars, selectionLabel, delivery, avatar, avatarFrame, isAdmin: data.role === "admin" };
+  const avatarFrame = findAvatarFrame(data.avatarFrame)?.id ?? null;
+  const profileBackground = findProfileBackground(data.profileBackground)?.id ?? null;
+  return {
+    name, vins, cars, selectionLabel, delivery, avatar, avatarFrame, profileBackground,
+    profileTheme: getProfileTheme(profileBackground), isAdmin: data.role === "admin",
+  };
 };
 
 // Hero mounts this component twice at once (variant="benefits" and
@@ -228,7 +236,7 @@ const subscribeUserProfile = (
     });
     void (async () => {
       const [{ db }, { doc, onSnapshot }] = await Promise.all([
-        import("../../firebase"),
+        import("app/lib/firebase-firestore"),
         import("firebase/firestore"),
       ]);
       if (cancelled) return;
@@ -238,12 +246,15 @@ const subscribeUserProfile = (
           const data = (snap.exists() ? snap.data() : {}) as Record<string, unknown>;
           const result = parseProfileData(data);
           profileCache = { uid, data: result };
+          // Next visit paints the theme and frame before this snapshot.
+          writeCachedProfileBackground(uid, result.profileBackground);
+          writeCachedAvatarFrame(uid, result.avatarFrame);
           profileListeners.get(uid)?.forEach((cb) => cb(result));
         },
         () => {
           const empty: ProfileData = {
             name: null, vins: [], cars: [], selectionLabel: null, delivery: null,
-            avatar: null, avatarFrame: null, isAdmin: false,
+            avatar: null, avatarFrame: null, profileBackground: null, profileTheme: getProfileTheme(null), isAdmin: false,
           };
           profileCache = { uid, data: empty };
           profileListeners.get(uid)?.forEach((cb) => cb(empty));
@@ -280,17 +291,14 @@ const fetchOrdersSummary = (uid: string): Promise<OrdersSummary> => {
   if (ordersInFlight?.uid === uid) return ordersInFlight.promise;
 
   const promise = (async () => {
-    const [{ db }, { collection, getDocs, query, where }] = await Promise.all([
-      import("../../firebase"),
+    const [{ db }, { collection, getDocs, limit, query, where }] = await Promise.all([
+      import("app/lib/firebase-firestore"),
       import("firebase/firestore"),
     ]);
-    const snap = await getDocs(query(collection(db, "orders"), where("uid", "==", uid)));
-    const totalSpent = snap.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() as Record<string, unknown>;
-      if (data.cancelled === true) return sum;
-      return sum + Number(data.totalAmount || data.total || 0);
-    }, 0);
-    const result: OrdersSummary = { hasOrders: !snap.empty, totalSpent };
+    // Only existence controls the first-order card; the partner-status API
+    // already computes the authoritative spend. Do not download every order.
+    const snap = await getDocs(query(collection(db, "orders"), where("uid", "==", uid), limit(1)));
+    const result: OrdersSummary = { hasOrders: !snap.empty };
     ordersCache = { uid, data: result };
     return result;
   })().finally(() => {
@@ -308,6 +316,16 @@ export default function HeroAccountClient({
   const [isPartner, setIsPartner] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const { ready: isAuthReady, user } = useFirebaseAuthState();
+  const uid = user?.uid ?? null;
+  // Theme and frame from the last visit, shown until users/{uid} arrives so
+  // the greeting doesn't switch from the stock look to the chosen one.
+  const cachedAppearance = useMemo(
+    () => (uid ? {
+      theme: getProfileTheme(readCachedProfileBackground(uid)),
+      frame: findAvatarFrame(readCachedAvatarFrame(uid))?.id ?? null,
+    } : null),
+    [uid]
+  );
   const router = useRouter();
 
   useEffect(() => {
@@ -337,9 +355,7 @@ export default function HeroAccountClient({
     }
 
     let cancelled = false;
-    // Needs every order (not just limit(1) like before) to also sum
-    // totalAmount — that sum is what decides isPartner below, the same
-    // threshold check PartnershipStatusCard.tsx already uses.
+    // Both checks share their in-flight work with other mounted consumers.
     Promise.all([fetchOrdersSummary(user.uid), fetchPartnerStatus(user)])
       .then(([{ hasOrders: hasAny }, status]) => {
         if (cancelled) return;
@@ -385,7 +401,7 @@ export default function HeroAccountClient({
     setUserProfileCache(user.uid, { ...profile, vins: updatedVins });
     try {
       const [{ db }, { doc, setDoc }] = await Promise.all([
-        import("../../firebase"),
+        import("app/lib/firebase-firestore"),
         import("firebase/firestore"),
       ]);
       await setDoc(doc(db, "users", user.uid), { vins: updatedVins }, { merge: true });
@@ -424,7 +440,7 @@ export default function HeroAccountClient({
         }
       }
       const [{ db }, { doc, setDoc }] = await Promise.all([
-        import("../../firebase"),
+        import("app/lib/firebase-firestore"),
         import("firebase/firestore"),
       ]);
       await setDoc(
@@ -603,7 +619,10 @@ export default function HeroAccountClient({
   // tagline/buttons block down below it, no matter how the block below was
   // told to align itself — the real fix was here, not there.
   const benefits = (
-    <div className="hero-benefits flex w-full min-w-0 flex-col space-y-2.5">
+    // The greeting card wears the cover chosen in the profile (globals.css,
+    // `.hero-account-surface:has(.hero-benefits[data-profile-theme])`).
+    <div className="hero-benefits flex w-full min-w-0 flex-col space-y-2.5"
+      data-profile-theme={user ? profile?.profileTheme ?? cachedAppearance?.theme : undefined}>
       <div className="flex items-center justify-start gap-3">
         {/* A fixed avatar box keeps the greeting stable while artwork loads. */}
         {user ? (
@@ -612,7 +631,7 @@ export default function HeroAccountClient({
             uid={user.uid}
             name={displayName || user.email || ""}
             avatarId={profile ? profile.avatar : undefined}
-            frameId={profile?.avatarFrame ?? null}
+            frameId={profile ? profile.avatarFrame : cachedAppearance?.frame ?? null}
             isPartner={isPartner}
             isAdmin={profile?.isAdmin ?? false}
           />

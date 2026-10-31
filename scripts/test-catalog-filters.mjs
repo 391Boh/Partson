@@ -13,7 +13,7 @@ try {
     await route.fulfill({ json: { items: [{ code: body.inStock ? 'OLD' : 'NEW', article: 'TEST', name, producer: 'TEST', priceEuro: 10, quantity: 2, hasPhoto: false }], totalCount: 1, hasMore: false, nextCursor: '' } }).catch(() => {});
   });
   console.log('Opening filter test');
-  await page.goto('http://localhost:3000/katalog?search=filters-regression', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${process.argv[3] || 'http://localhost:3000'}/katalog?search=filters-regression`, { waitUntil: 'domcontentloaded' });
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   await page.getByRole('button', { name: 'Ціна та сортування', exact: true }).click();
   const stock = page.getByRole('button', { name: 'В наявності', exact: true });
@@ -29,14 +29,14 @@ try {
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   console.log('Testing price range');
   if (await priceTab.getAttribute('aria-expanded') !== 'true') await priceTab.click();
-  const from = page.getByLabel('Ціна від (грн)');
+  const from = page.getByLabel('Ціна від, грн', { exact: true });
   const before = requests.length;
   await from.fill('1');
   await from.fill('10');
   await from.fill('100');
   await page.waitForTimeout(600);
   assert.equal(requests.slice(before).filter(request => request.priceFrom != null).length, 1, 'Price typing should commit only the final value');
-  await page.getByRole('button', { name: 'Очистити цінові фільтри', exact: true }).click();
+  await page.getByRole('button', { name: 'Скинути', exact: true }).click();
   await page.waitForTimeout(500);
   assert.equal(await from.inputValue(), '');
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();

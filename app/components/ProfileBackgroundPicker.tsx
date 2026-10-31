@@ -2,6 +2,7 @@
 
 import { Check, Lock } from "lucide-react";
 import { PROFILE_BACKGROUNDS } from "app/lib/profile-appearance";
+import { ProfileRarityBadge } from "app/components/ProfileRarityBadge";
 
 export function ProfileBackgroundPicker({ selectedId, totalSpent, saving, onSelect }: {
   selectedId: string | null; totalSpent: number | null; saving: boolean;
@@ -14,14 +15,16 @@ export function ProfileBackgroundPicker({ selectedId, totalSpent, saving, onSele
         const selected = (selectedId ?? "default") === background.id;
         const unlocked = background.threshold === 0 || (totalSpent !== null && totalSpent >= background.threshold);
         return <button key={background.id} type="button" className="profile-background-option"
-          aria-pressed={selected} disabled={saving || !unlocked}
+          data-rarity={background.rarity} aria-pressed={selected} disabled={saving || !unlocked}
           aria-label={`${background.label}${!unlocked ? ` — від ${background.threshold.toLocaleString("uk-UA")} грн` : ""}`}
           onClick={() => onSelect(background.id === "default" ? null : background.id)}>
           <span className="profile-background-swatch" style={{ backgroundImage: `url("${background.image}")` }} aria-hidden="true">
             <span className="profile-background-sample" />
             {(selected || !unlocked) && <span className="profile-background-marker">{selected ? <Check size={14} /> : <Lock size={13} />}</span>}
           </span>
-          <span className="profile-background-label"><strong>{background.label}</strong><span>{background.threshold ? `${background.rewardLabel} · ${background.threshold.toLocaleString("uk-UA")} грн` : background.rewardLabel}</span></span>
+          <span className="profile-background-label"><strong>{background.label}</strong>
+            <ProfileRarityBadge rarity={background.rarity} />
+            <em>{background.feature}</em><span>{background.threshold ? `${background.rewardLabel} · ${background.threshold.toLocaleString("uk-UA")} грн` : background.rewardLabel}</span></span>
         </button>;
       })}
     </div>

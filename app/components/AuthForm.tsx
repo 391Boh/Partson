@@ -8,6 +8,7 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
+  browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   linkWithPopup,
@@ -189,8 +190,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
   useCustomerDialog(modalRef, closeModal);
 
   useEffect(() => {
+    // Opening a password form is not an OAuth redirect. Avoid creating an
+    // external auth iframe (and disabling Google) when there is no result.
+    try {
+      if (sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY) !== "1") return;
+    } catch {
+      return;
+    }
     setIsGoogleRedirectPending(true);
-    getRedirectResult(auth)
+    getRedirectResult(auth, browserPopupRedirectResolver)
       .then(async (credential) => {
         if (!credential) return;
         try {
@@ -261,7 +269,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               );
 
               try {
-                return await linkWithPopup(passwordCredential.user, provider);
+                return await linkWithPopup(passwordCredential.user, provider, browserPopupRedirectResolver);
               } catch (linkError: unknown) {
                 const linkCode = getFirebaseErrorCode(linkError);
                 if (linkCode === "auth/provider-already-linked") {
@@ -280,7 +288,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 throw passwordError;
               }
 
-              const googleCredential = await signInWithPopup(auth, provider);
+              const googleCredential = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
               const googleEmail = googleCredential.user.email || "";
               const hasPasswordProvider = googleCredential.user.providerData.some(
                 (userProvider) => userProvider.providerId === "password"
@@ -296,7 +304,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               return googleCredential;
             }
           })()
-        : await signInWithPopup(auth, provider);
+        : await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       const user = credential.user;
       await setPersistence(auth, browserLocalPersistence).catch(() => undefined);
 
@@ -326,7 +334,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           const provider = new GoogleAuthProvider();
           provider.setCustomParameters({ prompt: "select_account" });
           sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
-          await signInWithRedirect(auth, provider);
+          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
           return;
         } catch {
           sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);

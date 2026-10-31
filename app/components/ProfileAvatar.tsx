@@ -17,7 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { findAvatarFrame, PROFILE_AVATAR_FRAMES, type AvatarTier } from "app/lib/profile-appearance";
+import { DEFAULT_FRAME_STYLE, findAvatarFrame, PROFILE_AVATAR_FRAMES, type AvatarTier } from "app/lib/profile-appearance";
+import { ProfileRarityBadge } from "app/components/ProfileRarityBadge";
 import { useAvatarMotion } from "app/lib/use-avatar-motion";
 export type { AvatarTier } from "app/lib/profile-appearance";
 
@@ -352,12 +353,13 @@ export function ProfileAvatar({ avatarId, initial, className = "", frameId = nul
   const Icon = avatar?.tier === "basic" ? avatar.icon : null;
   return (
     <span ref={ref} className={`profile-avatar profile-avatar--${avatar?.tier ?? "initial"} ${className}`}
-      data-motion-tier={tier} data-frame={frame?.tone ?? "default"} data-animated={animated}>
+      data-motion-tier={tier} data-frame={frame?.tone ?? "default"} data-rarity={frame?.rarity ?? DEFAULT_FRAME_STYLE.rarity} data-animated={animated}>
       <span className={`profile-avatar-face ${avatar?.tier === "basic" ? `bg-gradient-to-br ${avatar.tone}` : !avatar ? "bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600" : ""}`}>
         <span className="profile-avatar-glyph">
           {Icon ? <Icon strokeWidth={2.1} aria-hidden="true" /> : avatar && avatar.tier !== "basic" ? avatar.art(uid) : initial}
         </span>
       </span>
+      {frame?.rarity === "legendary" && <span className="profile-avatar-sparks" aria-hidden="true" />}
     </span>
   );
 }
@@ -372,14 +374,17 @@ export function ProfileAvatarFramesPicker({ selectedId, avatarId, initial, total
       {[null, ...PROFILE_AVATAR_FRAMES].map(frame => {
         const unlocked = !frame || (totalSpent !== null && totalSpent >= frame.threshold);
         const selected = selectedId === (frame?.id ?? null);
-        const label = frame?.finish ?? "Класична";
+        const label = frame?.finish ?? DEFAULT_FRAME_STYLE.finish;
+        const rarity = frame?.rarity ?? DEFAULT_FRAME_STYLE.rarity;
         return <button key={frame?.id ?? "default"} type="button" className="profile-frame-option"
-          aria-pressed={selected} disabled={saving || !unlocked}
+          data-rarity={rarity} aria-pressed={selected} disabled={saving || !unlocked}
           aria-label={`${label}${!unlocked && frame ? ` — від ${frame.threshold.toLocaleString("uk-UA")} грн` : ""}`}
           onClick={() => onSelect(frame?.id ?? null)}>
           <ProfileAvatar avatarId={avatarId} initial={initial} frameId={frame?.id} motionTier={motionTier} animated={false} />
-          <span className="profile-frame-copy"><strong>{label}</strong><span>{frame ? frame.label : "Ваш базовий стиль"}</span>
-            {frame && <small>{frame.threshold.toLocaleString("uk-UA")} грн</small>}</span>
+          <span className="profile-frame-copy"><strong>{label}</strong>
+            <ProfileRarityBadge rarity={rarity} />
+            <span>{frame?.feature ?? DEFAULT_FRAME_STYLE.feature}</span>
+            <small>{frame ? `${frame.label} · ${frame.threshold.toLocaleString("uk-UA")} грн` : "Доступна всім"}</small></span>
           {selected ? <Check size={15} aria-hidden="true" /> : !unlocked ? <Lock size={14} aria-hidden="true" /> : null}
         </button>;
       })}
@@ -464,7 +469,8 @@ export function ProfileAvatarPicker({
   return (
     <div className="profile-avatar-picker" aria-busy={saving}>
       <section className="profile-avatar-group">
-        <h3 className="profile-avatar-group-title">Базові</h3>
+        <h3 className="profile-avatar-group-title">Базові <ProfileRarityBadge rarity="common" /></h3>
+        <p className="profile-avatar-group-feature">Іконка на градієнті, спокійне «дихання»</p>
         <div className="profile-avatar-grid">
           <PickerOption
             id={null}
@@ -482,8 +488,9 @@ export function ProfileAvatarPicker({
       <section className="profile-avatar-group profile-avatar-group--partner">
         <h3 className="profile-avatar-group-title">
           <Handshake size={13} aria-hidden="true" />
-          Партнерські
+          Партнерські <ProfileRarityBadge rarity="rare" />
         </h3>
+        <p className="profile-avatar-group-feature">Ілюстрація деталі, бірюзове кільце та відблиск</p>
         <div className="profile-avatar-grid">
           {PARTNER_AVATARS.map((avatar) => option(avatar, !partnerUnlocked))}
         </div>
@@ -498,8 +505,9 @@ export function ProfileAvatarPicker({
         <section className="profile-avatar-group profile-avatar-group--admin">
           <h3 className="profile-avatar-group-title">
             <Crown size={13} aria-hidden="true" />
-            Адміністраторські
+            Адміністраторські <ProfileRarityBadge rarity="exclusive" />
           </h3>
+          <p className="profile-avatar-group-feature">Карбон і золото, найшвидше кільце</p>
           <div className="profile-avatar-grid">
             {ADMIN_AVATARS.map((avatar) => option(avatar))}
           </div>

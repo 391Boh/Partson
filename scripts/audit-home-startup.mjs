@@ -16,7 +16,7 @@ try {
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 80, downloadThroughput: 200_000, uploadThroughput: 100_000 });
     await page.addInitScript(() => {
       window.startupMetrics = { lcp: 0, cls: 0, longTasks: [] };
-      new PerformanceObserver(list => { window.startupMetrics.lcp = list.getEntries().at(-1).startTime; }).observe({ type: 'largest-contentful-paint', buffered: true });
+      new PerformanceObserver(list => { const entry = list.getEntries().at(-1); window.startupMetrics.lcp = entry.startTime; window.startupMetrics.lcpElement = entry.element?.className || entry.element?.tagName; window.startupMetrics.lcpUrl = entry.url; }).observe({ type: 'largest-contentful-paint', buffered: true });
       new PerformanceObserver(list => { for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.startupMetrics.cls += entry.value; }).observe({ type: 'layout-shift', buffered: true });
       new PerformanceObserver(list => { for (const entry of list.getEntries()) window.startupMetrics.longTasks.push({ start: entry.startTime, duration: entry.duration }); }).observe({ type: 'longtask', buffered: true });
     });

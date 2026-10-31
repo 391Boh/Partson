@@ -265,6 +265,58 @@ export async function POST(request: Request) {
     // the live endpoint), so this reads a precomputed, periodically refreshed
     // snapshot instead of running the normal 1C query below at all.
     if (body.promoOnly === true) {
+      // The promo list with every other active filter (search, group,
+      // producer, stock, price range, sort) and its exact total. It used to
+      // apply only the car and photo filters, so "Акційні" + a search or a
+      // category listed — and counted — every promo product.
+      const promoOffset =
+        body.directPage === true
+          ? Math.floor(toNonNegativeNumber(body.offset) ?? 0)
+          : (toPositiveInt(body.page, 1) - 1) * toPositiveInt(body.limit, 10);
+      const promoListing = await listCatalogFromSnapshot({
+        searchQuery: normalizeSearchQuery(toTrimmedString(body.searchQuery)),
+        searchFilter:
+          body.searchFilter === "article" ||
+          body.searchFilter === "name" ||
+          body.searchFilter === "code" ||
+          body.searchFilter === "producer" ||
+          body.searchFilter === "description"
+            ? body.searchFilter
+            : "all",
+        group: toTrimmedString(body.group),
+        subcategory: toTrimmedString(body.subcategory),
+        producer: toTrimmedString(body.producer),
+        selectedCategories: toStringArray(body.selectedCategories),
+        expandHierarchy: body.expandHierarchy === true,
+        vehicle: readVehicleSelection(body.vehicle),
+        sortOrder: readPriceSortOrder(body),
+        nameSort: readNameSortOrder(body),
+        pricedOnly: body.pricedOnly === true,
+        withPhoto: body.withPhoto === true,
+        inStock: body.inStock === true,
+        priceFrom: toNonNegativeNumber(body.priceFrom),
+        priceTo: toNonNegativeNumber(body.priceTo),
+        promoOnly: true,
+        offset: promoOffset,
+        limit: toPositiveInt(body.limit, 10),
+      }).catch(() => null);
+      if (promoListing) {
+        return NextResponse.json(
+          withoutCostPrices({
+            items: promoListing.items,
+            prices: buildInlinePrices(promoListing.items),
+            images: {},
+            hasMore: promoListing.hasMore,
+            nextCursor: "",
+            cursorField: "",
+            totalCount: promoListing.totalCount,
+            ...(body.directPage === true ? { directOffset: promoOffset } : {}),
+          }),
+          { headers: { "cache-control": "no-store" } }
+        );
+      }
+
+      // No snapshot yet (cold start): the precomputed promo list as before.
       const { products: promoProducts, stale } = await fetchPromoCatalogProducts();
       const vehicle = readVehicleSelection(body.vehicle);
       const products = promoProducts.filter(item => (!vehicle || matchesVehicleFitment(item.description, vehicle)) && (body.withPhoto !== true || item.hasPhoto === true));

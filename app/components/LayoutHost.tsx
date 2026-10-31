@@ -10,6 +10,7 @@ import PageScrollMotion from "./PageScrollMotion";
 import PullToRefresh from "./PullToRefresh";
 import ScrollPerformanceGuard from "./ScrollPerformanceGuard";
 import NavigationProgress from "./NavigationProgress";
+import PageTransition from "./PageTransition";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronUp, FolderTree, MessageCircle, Plus, Shield } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import { prefetchRoute } from "app/lib/route-prefetch";
 import type { ProductFullEditTarget } from "./ProductFullEditModal";
 
 // Quiet time after the last scroll before html.is-scrolling is removed.
@@ -717,7 +719,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
         PRIMARY_WARMUP_ROUTES
           .filter((route) => route !== pathname)
           .slice(0, 3)
-          .forEach((route) => router.prefetch(route));
+          .forEach((route) => prefetchRoute(router, route, "auto"));
       },
       { delayMs: pathname === "/" ? 3200 : 700, idleTimeoutMs: 4000 }
     );
@@ -1084,9 +1086,9 @@ export default function LayoutHost({ children }: LayoutHostProps) {
             : "min-h-screen pt-header-offset"
         }
       >
-        <div className={pathname === "/" ? undefined : "route-transition-shell"}>
+        <PageTransition>
           {children}
-        </div>
+        </PageTransition>
       </main>
 
       {!isEmbeddedProductView && (

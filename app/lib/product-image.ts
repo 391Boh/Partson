@@ -442,6 +442,21 @@ const isSuccessfulImageBatchEnvelope = (payload: unknown) => {
   return !errorMessage || success === true;
 };
 
+// True for a list of several products, or one that names a different code.
+const describesOtherProducts = (payload: unknown, lookupKey: string) => {
+  const records = getImageBatchResultRecords(payload);
+  if (records.length > 1) return true;
+  const wanted = lookupKey.trim().toLowerCase();
+  return records.some((record) => {
+    const named = [
+      readFirstStringField(record, IMAGE_BATCH_KEY_FIELDS),
+      readFirstStringField(record, IMAGE_BATCH_CODE_FIELDS),
+      readFirstStringField(record, IMAGE_BATCH_ARTICLE_FIELDS),
+    ].map((value) => value.trim().toLowerCase()).filter(Boolean);
+    return named.length > 0 && !named.includes(wanted);
+  });
+};
+
 const getImageBatchResultRecords = (payload: unknown) => {
   if (Array.isArray(payload)) {
     return payload
@@ -842,7 +857,14 @@ export const fetchProductImageBase64 = async (
       return IMAGE_LOOKUP_FINAL_MISS;
     }
 
-    // Legacy fallback: single-image response with image_base64 at top level
+    // Legacy fallback: single-image response with image_base64 at top level.
+    // Only for an answer about this product: without `codes`, 1C's getimages
+    // ignores the code and lists the first products that have a photo, and
+    // reading the first image out of that list put the Adriauto AD030213
+    // cable's photo on whatever product was being looked up (after the
+    // `codes` request timed out under load, typically right after an edit
+    // or a new product had cleared its cache).
+    if (describesOtherProducts(payload, normalized)) return null;
     const record = asRecord(payload);
     if (record?.success === false) return null;
 

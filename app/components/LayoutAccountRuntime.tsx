@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
-import { db } from "../../firebase";
+import { db } from "app/lib/firebase-firestore";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 

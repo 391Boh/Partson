@@ -2,7 +2,7 @@
 
 import { usePanelTransition } from "app/lib/use-panel-transition";
 import { pluralizeProducts } from 'app/lib/pluralize-uk';
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { FC, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type TransitionEvent } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -589,16 +589,40 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const emitLayoutHeight = useCallback(() => {
     if (!onLayoutChange) return;
 
-    const headerHeight = Math.ceil(headerRef.current?.getBoundingClientRect().height ?? 0);
-    const panelHeight = collapsed
-      ? 0
-      : Math.ceil(panelContentRef.current?.scrollHeight ?? 0);
+    // The open tab panel overlays the results like a dropdown (it closes on
+    // scroll and on an outside tap) and is left out of the reserved height.
+    // Counting it pushed every product down each time a tab opened — or
+    // opened from ?tab= after load, first as a loader, then at its real
+    // height — and back up when scrolling closed it: CLS 0.3–0.8 on
+    // /katalog?tab=auto and ?tab=category.
+    // Same for the open tab's search field: on phones it wraps onto its own
+    // row under the tabs, so only the rows above it are reserved.
+    const header = headerRef.current;
+    let headerHeight = 0;
+    if (header) {
+      const rect = header.getBoundingClientRect();
+      headerHeight = rect.height;
+      const searchRow = Array.from(header.children).find((child) =>
+        child.classList.contains('catalog-filter-header-search')
+      );
+      if (searchRow) {
+        const searchRect = searchRow.getBoundingClientRect();
+        const rowsBottom = Math.max(
+          rect.top,
+          ...Array.from(header.children)
+            .filter((child) => child !== searchRow)
+            .map((child) => child.getBoundingClientRect().bottom)
+        );
+        if (searchRect.top >= rowsBottom) headerHeight -= searchRect.bottom - rowsBottom;
+      }
+      headerHeight = Math.ceil(headerHeight);
+    }
     const requestHeight = Math.ceil(
       requestBannerRef.current?.getBoundingClientRect().height ?? 0
     );
 
-    onLayoutChange(headerHeight + panelHeight + requestHeight);
-  }, [collapsed, onLayoutChange]);
+    onLayoutChange(headerHeight + requestHeight);
+  }, [onLayoutChange]);
 
   // Collapse/expand height is intentionally NOT tracked here: the panel's
   // height changes over a 200ms CSS transition (grid-template-rows), and
@@ -922,6 +946,24 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     `${filterChipBase} border border-violet-400/90 bg-white text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.12),0_8px_18px_rgba(139,92,246,0.10)] hover:border-violet-500 hover:bg-violet-50/60`;
 
   const isAutoTabOpen = isAutoTabActive && !collapsed;
+  // The open tab's search row stays until the panel has finished closing: on
+  // phones it sits above the panel, and dropping it at the start of the
+  // collapse made the fading panel jump up by its height.
+  const [searchRowShown, setSearchRowShown] = useState(!collapsed);
+  useEffect(() => {
+    if (!collapsed) {
+      setSearchRowShown(true);
+      return;
+    }
+    // Fallback for when the transition doesn't run (reduced motion).
+    const timer = window.setTimeout(() => setSearchRowShown(false), 260);
+    return () => window.clearTimeout(timer);
+  }, [collapsed]);
+  const handlePanelTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (collapsed) setSearchRowShown(false);
+    emitLayoutHeight();
+  };
   const isCategoryTabOpen = isCategoryTabActive && !collapsed;
   const isProducerTabOpen = isProducerTabActive && !collapsed;
   const isPriceTabOpen = isPriceTabActive && !collapsed;
@@ -988,13 +1030,13 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
     else setLocalSortOrder('none');
   };
 
-  const headerSearch = isAutoTabOpen
+  const headerSearch = isAutoTabActive && searchRowShown
     ? autoSearchPlaceholder
       ? { value: autoSearchTerm, onChange: setAutoSearchTerm, placeholder: autoSearchPlaceholder, tone: 'auto' }
       : null
-    : isCategoryTabOpen
+    : isCategoryTabActive && searchRowShown
       ? { value: categorySearchTerm, onChange: setCategorySearchTerm, placeholder: categorySearchPlaceholder, tone: 'category' }
-      : isProducerTabOpen
+      : isProducerTabActive && searchRowShown
         ? { value: producerSearchTerm, onChange: setProducerSearchTerm, placeholder: 'Знайти виробника', tone: 'producer' }
         : null;
 
@@ -1556,7 +1598,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             ? 'grid-rows-[0fr] opacity-0 -translate-y-2'
             : 'grid-rows-[1fr] opacity-100 translate-y-0'
         }`}
-        onTransitionEnd={emitLayoutHeight}
+        onTransitionEnd={handlePanelTransitionEnd}
       >
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="catalog-filter-body page-shell-inline">

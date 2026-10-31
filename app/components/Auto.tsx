@@ -761,6 +761,7 @@ const AutoSection: React.FC<AutoProps> = ({
     (model: string) => {
       if (!selectedBrand) return;
       void loadCarModifications().catch(() => undefined);
+      setIsSearchOpen(false);
       setSelectedModel(model);
       setSelectedModDetails(null);
       setSelectedCarLabel(null);
@@ -814,6 +815,7 @@ const AutoSection: React.FC<AutoProps> = ({
     // Start the requested step's chunk during the outgoing card animation.
     // Browsing the brand grid alone does not need either picker module.
     void loadCarModels().catch(() => undefined);
+    setIsSearchOpen(false);
     setSelectedBrand(brand);
     setSelectedModel(null);
     setSelectedYear(null);
@@ -926,6 +928,7 @@ const AutoSection: React.FC<AutoProps> = ({
                 key={step.id}
                 type="button"
                 onClick={() => {
+                  setIsSearchOpen(false);
                   if (step.id === "brand") {
                     setSelectedBrand(null);
                     setSelectedModel(null);
@@ -1247,7 +1250,7 @@ const AutoSection: React.FC<AutoProps> = ({
       animate={shouldAnimate ? { opacity: 1, x: 0, scale: 1 } : undefined}
       exit={shouldAnimate ? { opacity: 0, x: -24, scale: 0.985, filter: "blur(2px)" } : undefined}
       transition={shouldAnimate ? { duration: 0.24, ease: [0.22, 1, 0.36, 1] } : undefined}
-      className="home-picker-carousel flex flex-col gap-0"
+      className="home-picker-carousel home-auto-list-enter flex flex-col gap-0"
     >
 {!showAllBrands ? (
           <SectionPagination
@@ -1524,13 +1527,13 @@ const AutoSection: React.FC<AutoProps> = ({
                   under it — see the order-2/md:order-1 note on that panel. */}
               <div className="home-picker-results reveal-head order-1 min-w-0 md:order-2">
                   <div className="home-picker-search-area" data-search-mode={selectedBrand && (activeTab === "engine" || showSummaryTable) ? "complete-step" : selectedBrand && modelCount === 0 ? "fallback" : "list"}>
-                  <HomePickerSearchControl
+                  {(searchMount || (selectedBrand && modelCount === 0)) && <HomePickerSearchControl
                     mount={searchMount}
                     count={null}
                     unit={pluralWord(filteredBrands.length, "марка", "марки", "марок")}
                     tone="indigo"
                   >
-                  <AnimatePresence mode="wait" initial={false}>
+                  <AnimatePresence key={selectedBrand?.name ?? "brands"} mode="wait" initial={false}>
                     {!isSearchOpen ? (
                       // "Усі марки автомобілів" used to sit right beside this
                       // trigger as a second button — moved down next to the
@@ -1539,10 +1542,10 @@ const AutoSection: React.FC<AutoProps> = ({
                       // control it's actually paired with.
                       <motion.div
                         key="buttons"
-                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                        initial={shouldReduceMotion ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+                        transition={{ duration: shouldReduceMotion ? 0 : 0.14, ease: [0.16, 1, 0.3, 1] }}
                       >
                         <button
                           type="button"
@@ -1573,10 +1576,10 @@ const AutoSection: React.FC<AutoProps> = ({
                     ) : (
                       <motion.div
                         key="field"
-                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                        transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
+                        initial={shouldReduceMotion ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+                        transition={{ duration: shouldReduceMotion ? 0 : 0.14, ease: [0.16, 1, 0.3, 1] }}
                       >
                         <AutoBrandSearchInput
                           key={selectedBrand ? "model" : "brand"}
@@ -1602,7 +1605,7 @@ const AutoSection: React.FC<AutoProps> = ({
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  </HomePickerSearchControl>
+                  </HomePickerSearchControl>}
                   </div>
                 <motion.div
                   layout={shouldAnimate}
@@ -1715,7 +1718,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         animate={shouldAnimate ? { opacity: 1, x: 0, scale: 1, filter: "blur(0px)" } : undefined}
                         exit={shouldAnimate ? { opacity: 0, x: 18, scale: 0.99 } : undefined}
                         transition={shouldAnimate ? { duration: 0.32, ease: [0.22, 1, 0.36, 1] } : undefined}
-                        className="auto-model-transition-in"
+                        className="auto-model-transition-in home-auto-list-enter"
                       >
                         <CarModels
                           selectedBrand={selectedBrand.name}
@@ -1747,7 +1750,7 @@ const AutoSection: React.FC<AutoProps> = ({
                         animate={shouldAnimate ? { opacity: 1, x: 0, scale: 1, filter: "blur(0px)" } : undefined}
                         exit={shouldAnimate ? { opacity: 0, x: 18, scale: 0.99 } : undefined}
                         transition={shouldAnimate ? { duration: 0.32, ease: [0.22, 1, 0.36, 1] } : undefined}
-                        className="auto-model-transition-in"
+                        className="auto-model-transition-in home-auto-list-enter"
                       >
                         <CarModifications
                           selectedBrand={selectedBrand.name}

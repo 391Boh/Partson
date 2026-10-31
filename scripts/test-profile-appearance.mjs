@@ -87,7 +87,7 @@ try {
         await page.waitForFunction(() => document.querySelector('.profile-appearance-footer [role="status"]')?.textContent === 'Зміни зберігаються автоматично');
         assert.equal(await dialog.locator('.profile-cover-header').getAttribute('data-profile-background'), role === 'admin' ? 'legend' : 'enthusiast', 'Cover save failure rolls back');
       }
-      const asset = await page.request.get(new URL('/profile-covers/graphite.svg', page.url()).href);
+      const asset = await page.request.get(new URL('/profile-covers/graphite-v2.svg', page.url()).href);
       assert.match(asset.headers()['content-type'], /image\/svg/);
       const bounds = await dialog.boundingBox();
       assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1, 'Dialog fits viewport');

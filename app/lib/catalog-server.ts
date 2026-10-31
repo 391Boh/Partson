@@ -2756,7 +2756,9 @@ export const findCatalogProductByCode = async (
       (item) => item.article.trim().toLowerCase() === targetCode
     );
     if (byArticle) return byArticle;
-    return options?.exactOnly ? null : allgoodsExact[0] || null;
+    // Never fall back to allgoodsExact[0]: a near match is another product,
+    // and its photo/code then showed under the requested one.
+    if (options?.exactOnly) return null;
   }
 
   // Fast path: query getdata by code aliases.
@@ -2786,10 +2788,9 @@ export const findCatalogProductByCode = async (
       (item) => item.article.trim().toLowerCase() === targetCode
     );
     if (byArticle) return enrichLookupCandidate(byArticle);
-
-    if (!options?.exactOnly && candidates.length > 0) {
-      return enrichLookupCandidate(candidates[0] || null);
-    }
+    // No candidates[0] fallback: when 1C ignores the search key it answers
+    // with the first catalog page, and its first product (the Adriauto
+    // AD030213 cable) replaced edited/new products on their product page.
   }
 
   if (options?.exactOnly) {
@@ -2826,9 +2827,53 @@ interface OneCLookupOptions {
   cacheTtlMs?: number;
 }
 
+// 1C's `prices` answers {"Коды": [...]} with every price in one query (module
+// loaded after 31.10.2026). An older module replies "Не передан Код"; that is
+// remembered and the per-key path below is used, as before.
+let pricesBatchSupported: boolean | null = null;
+
+const fetchPriceEuroBatch = async (
+  keys: string[],
+  options?: OneCLookupOptions
+): Promise<Map<string, number> | null> => {
+  if (pricesBatchSupported === false || keys.length === 0) return null;
+  const sortedKeys = [...keys].sort();
+  const response = await oneCRequest("prices", {
+    method: "POST",
+    body: { Коды: sortedKeys },
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    retryDelayMs: options?.retryDelayMs ?? 200,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 3,
+    cacheKey: JSON.stringify({ endpoint: "prices-batch", keys: sortedKeys }),
+  });
+  if (response.status < 200 || response.status >= 300) return null;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(response.text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed.items)) {
+    if (typeof parsed.error === "string" && /Код/i.test(parsed.error)) pricesBatchSupported = false;
+    return null;
+  }
+
+  pricesBatchSupported = true;
+  const prices = new Map<string, number>();
+  for (const entry of parsed.items) {
+    const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : null;
+    const key = typeof record?.["Код"] === "string" ? normalizeFacetValue(record["Код"] as string) : "";
+    const price = record ? readFirstNumber(record, PRICE_FIELDS, Number.NaN) : Number.NaN;
+    if (key && Number.isFinite(price) && price > 0) prices.set(key, price);
+  }
+  return prices;
+};
+
 export const fetchPriceEuro = async (
   codeOrArticle: string,
-  options?: OneCLookupOptions
+  options?: OneCLookupOptions & { skipPricesPost?: boolean }
 ) => {
   const normalized = (codeOrArticle || "").trim();
   if (!normalized) return null;
@@ -2855,6 +2900,7 @@ export const fetchPriceEuro = async (
   if (exactPrice != null) {
     return exactPrice;
   }
+  if (options?.skipPricesPost) return null;
 
   const response = await oneCRequest("prices", {
     method: "POST",
@@ -2923,6 +2969,16 @@ export const fetchPriceEuroMapByLookupKeys = async (
     return Object.fromEntries(resolved);
   }
 
+  // One batch request for the remaining keys instead of a `prices` call per
+  // key (6 at a time). Keys it answers skip the per-key path; the rest (codes
+  // rather than catalog numbers) still get their exact product lookup, minus
+  // the `prices` call the batch already made for them.
+  const batchPrices = await fetchPriceEuroBatch(
+    normalizedKeys.filter((key) => !resolved.has(key)),
+    { timeoutMs: options?.timeoutMs, retryDelayMs: options?.retryDelayMs, cacheTtlMs: options?.cacheTtlMs }
+  ).catch(() => null);
+  for (const [key, value] of batchPrices ?? []) resolved.set(key, value);
+
   const unresolvedKeys = normalizedKeys.filter((key) => !resolved.has(key));
   if (unresolvedKeys.length === 0) {
     return Object.fromEntries(resolved);
@@ -2946,6 +3002,7 @@ export const fetchPriceEuroMapByLookupKeys = async (
         retries: options?.retries,
         retryDelayMs: options?.retryDelayMs,
         cacheTtlMs: options?.cacheTtlMs,
+        skipPricesPost: batchPrices !== null,
       }).catch(() => null);
 
       if (typeof price === "number" && Number.isFinite(price) && price > 0) {
@@ -3344,11 +3401,24 @@ export function addFullCatalogSnapshotProduct(product: CatalogProduct) {
   };
 }
 
+/** True while the in-memory full catalog is loaded and not past its stale TTL,
+ * i.e. a miss in it is a real "no such product" rather than "not loaded yet". */
+export const isFullCatalogSnapshotWarm = () =>
+  Boolean(fullCatalogCache) && Date.now() - (fullCatalogCache?.fetchedAt ?? 0) < FULL_CATALOG_STALE_TTL_MS;
+
 // Cache-only lookup by exact code or article in the warm snapshot: lets the
 // product page open a product missing from the build-time sitemap snapshot
 // (created after the deploy) without waiting on a slow 1C search.
 export const findFullCatalogSnapshotProduct = (token: string): CatalogProduct | null => {
-  if (!fullCatalogCache) return null;
+  if (!fullCatalogCache) {
+    // In production the product page holds its own copy of this module (the
+    // route handlers' warm snapshot isn't shared), so nothing else would ever
+    // load it here: every product missing from the sitemap snapshot went to
+    // slow 1C searches on each visit. Start the (deduplicated, backed-off)
+    // scan so later visits answer from memory.
+    void getFullCatalogSnapshot().catch(() => undefined);
+    return null;
+  }
   if (Date.now() - fullCatalogCache.fetchedAt >= FULL_CATALOG_FRESH_TTL_MS) {
     void getFullCatalogSnapshot().catch(() => undefined);
   }
@@ -3765,6 +3835,8 @@ export type SnapshotListingQuery = {
   inStock: boolean;
   priceFrom: number | null;
   priceTo: number | null;
+  /** "Акційні товари": only products with an active promo offer. */
+  promoOnly?: boolean;
   offset: number;
   limit: number;
 };
@@ -3804,6 +3876,8 @@ export const listCatalogFromSnapshot = async (
   const snapshotResult = await getFullCatalogSnapshot().catch(() => null);
   if (!snapshotResult) return null;
   const { snapshot } = snapshotResult;
+  // Same snapshot shape fetchPromoCatalogProducts reads promo offers with.
+  const promoSnapshot = query.promoOnly ? { ...snapshot, fetchedAt: fullCatalogCache?.fetchedAt ?? 0 } : null;
 
   let branches: CatalogHierarchyBranch[] = [];
   if (query.expandHierarchy && query.selectedCategories.length === 0 && (query.group || query.subcategory)) {
@@ -3843,6 +3917,10 @@ export const listCatalogFromSnapshot = async (
       return false;
     }
     if (query.vehicle && !matchesVehicleFitment(product.description, query.vehicle)) return false;
+    if (promoSnapshot) {
+      const key = catalogItemKey(product);
+      if (!key || !readSnapshotPromoOffer(key, promoSnapshot, product.priceEuro).hasPromo) return false;
+    }
     return true;
   });
 

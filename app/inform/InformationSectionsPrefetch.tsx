@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
+import { prefetchRoute } from "app/lib/route-prefetch";
 
 /**
  * Prefetches every information section once the page is idle. Link only
@@ -17,7 +18,7 @@ export default function InformationSectionsPrefetch({ paths }: { paths: string[]
 
   useEffect(() => {
     return scheduleBackgroundTask(() => {
-      for (const path of key.split("|")) router.prefetch(path);
+      for (const path of key.split("|")) prefetchRoute(router, path, "auto");
     });
   }, [key, router]);
 

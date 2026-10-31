@@ -2899,6 +2899,19 @@ html.is-scrolling .card-metal::after {
   from { opacity: 0; }
 }
 
+/* Native React snapshots and the live-DOM fallback share a short arrival.
+   Never add a second page animation while a snapshot transition is active. */
+::view-transition-group(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(root) {
+  animation-duration: 100ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -8081,14 +8094,14 @@ html[data-admin-copy="true"] body * {
 @keyframes infoVtOut {
   to {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-3px);
   }
 }
 
 @keyframes infoVtIn {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(6px);
   }
 }
 
@@ -8101,23 +8114,23 @@ html:active-view-transition-type(info-nav)::view-transition-new(root) {
 
 ::view-transition-group(.info-content),
 ::view-transition-group(.info-hero) {
-  animation-duration: 440ms;
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 ::view-transition-old(.info-content),
 ::view-transition-old(.info-hero) {
-  animation: infoVtOut 150ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: infoVtOut 100ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 ::view-transition-new(.info-content),
 ::view-transition-new(.info-hero) {
-  animation: infoVtIn 420ms cubic-bezier(0.22, 1, 0.36, 1) 30ms both;
+  animation: infoVtIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 ::view-transition-group(.info-pill) {
-  animation-duration: 420ms;
-  animation-timing-function: cubic-bezier(0.34, 1.32, 0.5, 1);
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -10068,6 +10081,13 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
 .catalog-product-card--admin .catalog-card-actions > .flex.shrink-0 { grid-column: 2; margin-left: 0; }
 .catalog-product-card .catalog-card-price-pill { border-radius: 12px; border-color: #bdd7ee; background: linear-gradient(145deg,#fff,#edf6ff); box-shadow: inset 0 1px 0 #fff,0 3px 7px rgb(30 64 105 / 7%); }
 .catalog-product-card .catalog-card-price-pill > span:last-child { flex-wrap: wrap; justify-content: flex-end; row-gap: 3px; }
+/* Touch screens give every link a 44px tap target, 4px taller than the price
+   pill. The teaser only arrives with the verified price, so it grew the price
+   row 48 → 52px and nudged the card (CLS on phones). The negative margin keeps
+   the tap target without changing the row's height. */
+@media (pointer: coarse) {
+  .catalog-product-card:not(.catalog-product-card--admin) .catalog-card-price-row--teaser > .catalog-card-discount-teaser { margin-block: -2px; }
+}
 .catalog-product-card .catalog-card-discount-teaser { flex-shrink: 0; border-color: rgb(190 24 93 / 25%); background: linear-gradient(135deg,#fff5f8,#fce4ec); box-shadow: inset 0 1px 0 #fff,0 3px 7px rgb(159 18 57 / 9%); }
 @media (max-width: 639px) {
   .catalog-product-card--admin { height: 440px !important; }
@@ -12900,6 +12920,56 @@ button[aria-label="Відкрити вкладку параметрів това
   background: conic-gradient(from 25deg, var(--avatar-rim-deep), var(--avatar-rim) 12%, var(--avatar-rim-light) 22%, var(--avatar-rim) 29%, var(--avatar-rim-deep) 45%, var(--avatar-rim) 58%, var(--avatar-rim-light) 72%, var(--avatar-rim) 80%, var(--avatar-rim-deep));
   pointer-events: none;
 }
+/* Frame grades: each step adds an effect, not only a colour. Uncommon —
+   turning sheen (teal) or tachometer ticks (blue); rare — double ring with an
+   aura (violet) or brushed metal (copper); epic — mirror platinum with a
+   sheen; legendary — halo, faster ring and sparks. */
+.profile-avatar[data-frame="blue"]::before {
+  background: repeating-conic-gradient(from 0deg, var(--avatar-rim-light) 0 4deg, var(--avatar-rim) 4deg 13deg, var(--avatar-rim-deep) 13deg 18deg);
+}
+.profile-avatar[data-frame="copper"]::before {
+  background: repeating-conic-gradient(from 10deg, var(--avatar-rim-deep) 0 3deg, var(--avatar-rim) 3deg 6deg, var(--avatar-rim-light) 6deg 7deg, var(--avatar-rim) 7deg 10deg);
+}
+.profile-avatar[data-frame="silver"]::before {
+  background: conic-gradient(from 0deg, #64748b, #f8fafc 8%, #94a3b8 16%, #fff 24%, #475569 34%, #e2e8f0 46%, #fff 52%, #64748b 62%, #f1f5f9 74%, #94a3b8 86%, #64748b);
+}
+.profile-avatar[data-rarity="rare"],
+.profile-avatar[data-rarity="epic"],
+.profile-avatar[data-rarity="legendary"] { padding: 5px; }
+.profile-avatar[data-rarity="rare"] {
+  box-shadow: 0 4px 10px rgb(2 6 23 / 18%), 0 0 0 1px color-mix(in srgb, var(--avatar-rim) 55%, transparent), 0 0 16px color-mix(in srgb, var(--avatar-rim) 42%, transparent);
+}
+.profile-avatar[data-frame="violet"] .profile-avatar-face {
+  box-shadow: 0 0 0 1.5px var(--avatar-rim-deep), 0 0 0 3px rgb(255 255 255 / 55%), inset 0 1px 0 rgb(255 255 255 / 30%);
+}
+.profile-avatar[data-rarity="epic"] {
+  box-shadow: 0 4px 10px rgb(2 6 23 / 20%), 0 0 0 1px rgb(255 255 255 / 40%), 0 0 18px rgb(226 232 240 / 38%);
+}
+.profile-avatar[data-rarity="legendary"] {
+  box-shadow: 0 4px 10px rgb(2 6 23 / 20%), 0 0 0 1px rgb(255 224 130 / 70%), 0 0 14px rgb(255 201 51 / 55%), 0 0 30px rgb(255 201 51 / 24%);
+}
+/* Static sheen so the picker preview already reads as polished metal. */
+.profile-avatar[data-rarity="epic"]:not([data-animated="true"])::after,
+.profile-avatar[data-rarity="legendary"]:not([data-animated="true"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(125deg, transparent 30%, rgb(255 255 255 / 30%) 42%, transparent 52%);
+}
+.profile-avatar-sparks { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.profile-avatar-sparks::before,
+.profile-avatar-sparks::after {
+  content: "";
+  position: absolute;
+  width: 26%;
+  aspect-ratio: 1;
+  background: #fff7d1;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  filter: drop-shadow(0 0 2px #ffc933);
+}
+.profile-avatar-sparks::before { top: 2%; right: 4%; }
+.profile-avatar-sparks::after { bottom: 6%; left: 4%; width: 18%; }
 .profile-avatar-face {
   position: relative;
   display: grid;
@@ -12946,8 +13016,29 @@ button[aria-label="Відкрити вкладку параметрів това
 @keyframes profile-avatar-command { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 30% { transform: translateY(-3px) rotate(-6deg) scale(1.07); } 65% { transform: translateY(1px) rotate(5deg) scale(1.035); } }
 @keyframes profile-avatar-orbit { to { transform: rotate(360deg); } }
 @keyframes profile-avatar-glint { 0%, 55% { transform: translateX(-110%); opacity: 0; } 65% { opacity: 1; } 100% { transform: translateX(110%); opacity: 0; } }
+.profile-avatar[data-animated="true"][data-rarity="epic"]::after,
+.profile-avatar[data-animated="true"][data-rarity="legendary"]::after {
+  content: "";
+  position: absolute;
+  inset: -15%;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 55%) 49%, transparent 62%);
+  animation: profile-avatar-glint 3.6s ease-in-out infinite paused;
+}
+.profile-avatar[data-animated="true"][data-rarity="legendary"]::before { animation: profile-avatar-orbit 3.2s linear infinite paused; }
+.profile-avatar[data-animated="true"] .profile-avatar-sparks::before { animation: profile-avatar-twinkle 2.4s ease-in-out infinite; }
+.profile-avatar[data-animated="true"] .profile-avatar-sparks::after { animation: profile-avatar-twinkle 2.4s ease-in-out 1.2s infinite; }
+.profile-avatar[data-animated="true"] .profile-avatar-sparks::before,
+.profile-avatar[data-animated="true"] .profile-avatar-sparks::after { animation-play-state: paused; }
+.profile-avatar[data-avatar-moving="true"] .profile-avatar-sparks::before,
+.profile-avatar[data-avatar-moving="true"] .profile-avatar-sparks::after,
+.profile-avatar[data-avatar-moving="true"][data-rarity]::before,
+.profile-avatar[data-avatar-moving="true"][data-rarity]::after { animation-play-state: running; }
+@keyframes profile-avatar-twinkle { 0%, 100% { transform: scale(.35) rotate(0); opacity: .35; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .profile-avatar[data-animated="true"] .profile-avatar-glyph,
+  .profile-avatar[data-animated="true"] .profile-avatar-sparks::before,
+  .profile-avatar[data-animated="true"] .profile-avatar-sparks::after,
   .profile-avatar[data-animated="true"]::before,
   .profile-avatar[data-animated="true"]::after { animation: none !important; }
   .profile-avatar[data-animated="true"]::after { display: none; }
@@ -13022,6 +13113,8 @@ button[aria-label="Відкрити вкладку параметрів това
   text-transform: uppercase;
   color: #adbfce;
 }
+.profile-avatar-group-title .profile-rarity { margin-left: auto; letter-spacing: 0.02em; text-transform: none; }
+.profile-avatar-group-feature { margin: -3px 0 8px; font-size: 11px; line-height: 1.4; color: #b5c7d6; }
 .profile-avatar-group--partner .profile-avatar-group-title { color: #89dfd0; }
 .profile-avatar-group--admin .profile-avatar-group-title { color: #f1cd85; }
 .profile-avatar-grid {
@@ -13516,6 +13609,127 @@ button[aria-label="Відкрити вкладку параметрів това
 .profile-background-label { display: grid; gap: 4px; padding: 9px 10px; }
 .profile-background-label strong { font-size: 12px; font-weight: 650; line-height: 1.35; color: #e4eff7; overflow-wrap: anywhere; }
 .profile-background-label > span { font-size: 11px; line-height: 1.4; color: #b5c7d6; font-variant-numeric: tabular-nums; }
+.profile-background-label em { font-size: 11px; font-style: normal; line-height: 1.35; color: #d3e2ec; overflow-wrap: anywhere; }
+.profile-background-swatch { box-shadow: inset 0 -24px 24px -18px rgb(8 24 36 / 55%); }
+
+/* Rarity grade: ascending pips, coloured by grade (not by the style's finish). */
+.profile-rarity { --rarity: #b5c7d6; display: inline-flex; align-items: center; gap: 5px; width: fit-content; color: var(--rarity); font-size: 10px; font-weight: 700; line-height: 1.3; white-space: nowrap; }
+.profile-rarity[data-rarity="uncommon"] { --rarity: #7ee2b0; }
+.profile-rarity[data-rarity="rare"] { --rarity: #8cc2ff; }
+.profile-rarity[data-rarity="epic"] { --rarity: #d6b8ff; }
+.profile-rarity[data-rarity="legendary"], .profile-rarity[data-rarity="exclusive"] { --rarity: #ffd36b; }
+.profile-rarity-pips { display: inline-flex; align-items: flex-end; gap: 2px; height: 9px; }
+.profile-rarity-pips > span { width: 3px; border-radius: 1px; background: #3d576b; }
+.profile-rarity-pips > span:nth-child(1) { height: 4px; }
+.profile-rarity-pips > span:nth-child(2) { height: 5px; }
+.profile-rarity-pips > span:nth-child(3) { height: 6px; }
+.profile-rarity-pips > span:nth-child(4) { height: 8px; }
+.profile-rarity-pips > span:nth-child(5) { height: 9px; }
+.profile-rarity-pips > span[data-on="true"] { background: var(--rarity); }
+.profile-frame-option[data-rarity="epic"]:not([aria-pressed="true"]):not(:disabled),
+.profile-background-option[data-rarity="epic"]:not([aria-pressed="true"]):not(:disabled) { border-color: #6c8094; }
+.profile-frame-option[data-rarity="legendary"]:not([aria-pressed="true"]):not(:disabled),
+.profile-background-option[data-rarity="legendary"]:not([aria-pressed="true"]):not(:disabled) { border-color: #8d7542; }
+
+/* Epic and legendary covers: a slow sheen crosses the header. */
+.profile-cover-header[data-profile-background="expert"] .profile-cover-background::after,
+.profile-cover-header[data-profile-background="legend"] .profile-cover-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 40%, rgb(241 245 249 / 16%) 50%, transparent 60%);
+  transform: translateX(-100%);
+  animation: profile-cover-sheen 9s ease-in-out infinite paused;
+}
+.profile-cover-header[data-profile-background="legend"] .profile-cover-background::after { background: linear-gradient(110deg, transparent 40%, rgb(255 228 150 / 22%) 50%, transparent 60%); }
+.profile-cover-background[data-avatar-moving="true"]::after { animation-play-state: running; }
+@keyframes profile-cover-sheen { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .profile-cover-background::after { animation: none !important; display: none; } }
+
+/* Profile theme: the cover chosen in the profile also tints the whole profile
+   window and the home greeting card (AccountInfo.tsx, HeroAccountClient.tsx).
+   "graphite" (the default cover) keeps the stock navy look. The greeting card
+   is the parent of the themed element, so it takes the palette via :has(). */
+:is([data-profile-theme="teal"], .hero-account-surface:has(.hero-benefits[data-profile-theme="teal"])) { --pt-accent: #5eead4; --pt-deep: #0d3b3d; --pt-cover: url("/profile-covers/teal-v2.svg"); }
+:is([data-profile-theme="blue"], .hero-account-surface:has(.hero-benefits[data-profile-theme="blue"])) { --pt-accent: #93c5fd; --pt-deep: #12305e; --pt-cover: url("/profile-covers/blue-v2.svg"); }
+:is([data-profile-theme="violet"], .hero-account-surface:has(.hero-benefits[data-profile-theme="violet"])) { --pt-accent: #d8b4fe; --pt-deep: #33205a; --pt-cover: url("/profile-covers/violet-v2.svg"); }
+:is([data-profile-theme="copper"], .hero-account-surface:has(.hero-benefits[data-profile-theme="copper"])) { --pt-accent: #fdba8c; --pt-deep: #4a2616; --pt-cover: url("/profile-covers/copper-v2.svg"); }
+:is([data-profile-theme="silver"], .hero-account-surface:has(.hero-benefits[data-profile-theme="silver"])) { --pt-accent: #e2ebf3; --pt-deep: #2c3945; --pt-cover: url("/profile-covers/silver-v2.svg"); }
+:is([data-profile-theme="gold"], .hero-account-surface:has(.hero-benefits[data-profile-theme="gold"])) { --pt-accent: #ffd36b; --pt-deep: #3d2f10; --pt-cover: url("/profile-covers/gold-v2.svg"); }
+
+.customer-window.customer-overlay-panel--profile.app-overlay-panel[data-profile-theme]:not([data-profile-theme="graphite"]) {
+  border-color: color-mix(in srgb, var(--pt-accent) 34%, transparent);
+  background:
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--pt-accent) 18%, transparent), transparent 38%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--pt-accent) 9%, transparent), transparent 44%),
+    linear-gradient(165deg, color-mix(in srgb, var(--pt-deep) 88%, #020617) 0%, #0c1722 50%, color-mix(in srgb, var(--pt-deep) 62%, #020617) 100%);
+  box-shadow:
+    0 30px 88px rgb(2 6 23 / 46%),
+    0 14px 36px color-mix(in srgb, var(--pt-deep) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--pt-accent) 22%, transparent),
+    inset 0 0 0 1px rgb(255 255 255 / 5%);
+}
+.customer-window.customer-overlay-panel--profile.app-overlay-panel[data-profile-theme]:not([data-profile-theme="graphite"])::after {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pt-accent) 10%, transparent) 0%, transparent 48%, color-mix(in srgb, var(--pt-accent) 6%, transparent) 100%);
+}
+.customer-window.customer-overlay-panel--profile.app-overlay-panel[data-profile-theme]:not([data-profile-theme="graphite"]) .soft-segment--active {
+  background: color-mix(in srgb, var(--pt-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pt-accent) 30%, transparent);
+  color: color-mix(in srgb, var(--pt-accent) 30%, #fff);
+}
+.customer-window.customer-overlay-panel--profile.app-overlay-panel[data-profile-theme]:not([data-profile-theme="graphite"]) .soft-panel-header.profile-cover-header {
+  border-color: color-mix(in srgb, var(--pt-accent) 30%, transparent);
+}
+
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"])) {
+  position: relative;
+  isolation: isolate;
+  border-color: color-mix(in srgb, var(--pt-accent) 36%, transparent);
+  background-color: color-mix(in srgb, var(--pt-deep) 40%, rgb(2 6 23 / 84%));
+  box-shadow: 0 24px 64px rgb(2 6 23 / 38%), 0 0 32px color-mix(in srgb, var(--pt-accent) 10%, transparent), inset 0 1px 0 color-mix(in srgb, var(--pt-accent) 28%, transparent);
+}
+/* The cover as its own layers behind the content. A transparency gradient
+   keeps it clear of the greeting on the left and lets it show through on the
+   right (::before). Hover — or keyboard focus inside — fades in a second copy
+   with a wider gradient (::after), revealing more of the artwork. Only opacity
+   changes, so the transition runs on the compositor without repainting. */
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]))::before,
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]))::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--pt-cover) right center / cover no-repeat;
+}
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]))::before {
+  -webkit-mask-image: linear-gradient(100deg, transparent 0%, transparent 22%, rgb(0 0 0 / 30%) 52%, rgb(0 0 0 / 75%) 80%, #000 100%);
+  mask-image: linear-gradient(100deg, transparent 0%, transparent 22%, rgb(0 0 0 / 30%) 52%, rgb(0 0 0 / 75%) 80%, #000 100%);
+  opacity: .7;
+}
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]))::after {
+  -webkit-mask-image: linear-gradient(100deg, transparent 0%, rgb(0 0 0 / 40%) 26%, rgb(0 0 0 / 85%) 60%, #000 100%);
+  mask-image: linear-gradient(100deg, transparent 0%, rgb(0 0 0 / 40%) 26%, rgb(0 0 0 / 85%) 60%, #000 100%);
+  opacity: 0;
+  transition: opacity 600ms var(--home-hover-ease, ease-out);
+}
+.hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"])):focus-within::after { opacity: .6; }
+@media (hover: hover) and (pointer: fine) {
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"])):hover::after { opacity: .85; }
+  html:not(.is-scrolling):not(.reduce-scroll-effects) .home-static .hero-account-surface:has(.hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"])):hover {
+    border-color: color-mix(in srgb, var(--pt-accent) 58%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pt-accent) 16%, transparent), inset 0 1px 0 color-mix(in srgb, var(--pt-accent) 40%, transparent), 0 14px 34px -16px color-mix(in srgb, var(--pt-accent) 38%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-account-surface:has(.hero-benefits[data-profile-theme])::after { transition: none; }
+}
+/* Neutral cards take the theme; discount, partnership and promo keep their meaning colours. */
+.home-static .hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]) > ul > li > .hero-benefit:is([data-benefit="orders"], [data-benefit="selection"]) { --benefit-tone: var(--pt-accent); }
+/* A dark backing keeps card text legible while the cover is revealed under it. */
+.home-static .hero-benefits[data-profile-theme]:not([data-profile-theme="graphite"]) > ul > li > .hero-benefit { background-color: rgb(4 10 22 / 48%); }
 @media (hover: hover) {
   .profile-cover-edit:hover { background: #28495c; border-color: #8ed8d4; }
   .profile-background-option:not(:disabled):not([aria-pressed="true"]):hover { border-color: #78c8cc; background: #28495c; }
@@ -16158,6 +16372,11 @@ a.product-faq-contact:focus-visible { outline: 3px solid #0284c7; outline-offset
     repeating-linear-gradient(0deg, rgb(80 105 120 / 2%) 0, rgb(80 105 120 / 2%) .5px, rgb(255 255 255 / 12%) 1px, transparent 1.5px, transparent 3px),
     linear-gradient(180deg, #f7fafc 0%, #edf2f5 46%, #fafcfd 79%, #f0f5f8 100%);
   box-shadow:inset 0 1px 0 #fff, 0 16px 32px -26px rgb(15 52 80 / 50%);
+}
+/* An open tab overlays the products (filtrtion.tsx reserves only the tab row),
+   so the dropped-down card casts a deeper shadow onto them. */
+.catalog-filter-shell .catalog-filter-card.is-expanded {
+  box-shadow:inset 0 1px 0 #fff, 0 22px 36px -20px rgb(15 52 80 / 45%), 0 4px 10px -6px rgb(15 52 80 / 20%);
 }
 .catalog-filter-shell .catalog-filter-card__header > div:first-child { font-weight:750; color:#0f3447; }
 .catalog-filter-shell .catalog-filter-card__header > div:first-child > span:first-child {
@@ -19285,3 +19504,107 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 @media (prefers-reduced-motion: reduce) {
   .vehicle-year-chip { transition: none; }
 }
+
+/* Product applicability editor, shared by catalogue and product admin forms. */
+.product-fitment-editor { container-type:inline-size; color:#244b50; border-block:1px solid #cbdcd8; padding-block:12px; }
+.product-fitment-editor > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; font-size:14px; font-weight:650; }
+.product-fitment-editor > summary > span { color:#426c65; font-size:12px; font-weight:500; }
+.product-fitment-editor fieldset { min-width:0; margin:12px 0 0; padding:0; border:0; }
+.product-fitment-editor p { margin:8px 0 12px; color:#486863; font-size:12px; line-height:1.65; }
+.product-fitment-row { display:grid; grid-template-columns:1fr 1.5fr .7fr .7fr 1.2fr 32px; align-items:end; gap:10px; padding:12px 0; border-bottom:1px solid #dce7e2; }
+.product-fitment-editor label { display:flex; min-width:0; flex-direction:column; gap:6px; color:#36594f; font-size:12px; font-weight:600; }
+.product-fitment-editor input,.product-fitment-editor select { box-sizing:border-box; width:100%; min-width:0; min-height:42px; padding:9px 10px; border:1px solid #bdd1ca; border-radius:8px; background:#fff; color:#1e3f39; font:inherit; font-size:13px; font-weight:450; }
+.product-fitment-editor input::placeholder { color:#60776f; }
+.product-fitment-editor :is(input,select,button,summary):focus-visible { outline:2px solid #13765f; outline-offset:3px; }
+.product-fitment-editor :is(input,select):disabled { background:#eef3f0; color:#647b72; }
+.product-fitment-action { display:inline-flex; min-height:42px; align-items:center; justify-content:center; gap:6px; margin-top:12px; padding:9px 12px; border:0; border-radius:8px; background:#e5f2eb; color:#205743; font-size:12px; font-weight:600; cursor:pointer; transition:background-color 160ms ease-out; }
+.product-fitment-action:hover { background:#d0e8da; }
+.product-fitment-action:disabled { opacity:.5; cursor:default; }
+.product-fitment-remove { display:grid; place-items:center; min-height:42px; border:0; border-radius:8px; background:transparent; color:#85534e; cursor:pointer; }
+.product-fitment-remove:hover { background:#f9ece9; }
+.product-fitment-bulk { margin-top:16px; }
+.product-fitment-bulk > summary { cursor:pointer; font-size:12px; font-weight:600; }
+.product-fitment-bulk-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; align-items:end; gap:10px; margin-top:12px; }
+.product-fitment-editor .product-fitment-error { color:#943629; font-weight:600; }
+@media(max-width:767px) {
+ .product-fitment-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .product-fitment-model { grid-column:2; }
+ .product-fitment-remove { justify-self:end; min-width:42px; }
+ .product-fitment-bulk-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(prefers-reduced-motion:reduce) { .product-fitment-action { transition:none; } }
+
+@container(max-width:700px) {
+ .product-fitment-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .product-fitment-model { grid-column:2; }
+ .product-fitment-remove { justify-self:end; min-width:42px; }
+ .product-fitment-bulk-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* Model and configuration choices use the available column, including narrow
+   catalogue sidebars on wide screens. Keep pagination and selection intact. */
+.vehicle-models,.vehicle-modifications { container-type:inline-size; }
+.vehicle-models .vehicle-model-grid { gap:12px; }
+.vehicle-models .vehicle-model-choice {
+ min-height:110px; height:auto; padding:18px 14px; border-radius:14px;
+ border:1px solid #b6ccd6; background:#f8fcfd; color:#193f50;
+ transition:background-color 160ms ease-out,border-color 160ms ease-out;
+}
+.vehicle-models .vehicle-model-choice > .vehicle-model-name { display:block; overflow:visible; -webkit-line-clamp:unset; font-size:17px; line-height:1.4; letter-spacing:0; font-weight:650; overflow-wrap:anywhere; }
+.vehicle-models .vehicle-model-choice > .vehicle-model-period { margin-top:8px; color:#466572; font-size:13px; line-height:1.4; letter-spacing:0; font-weight:500; }
+.vehicle-models .vehicle-model-choice[aria-pressed="true"] { background:#17576d!important; border-color:#17576d; color:#fff; }
+.vehicle-models .vehicle-model-choice[aria-pressed="true"] :is(.vehicle-model-name,.vehicle-model-period) { color:#fff; }
+.vehicle-modifications .vehicle-mod-options [data-option-page] > .grid { gap:12px; }
+.vehicle-modifications .vehicle-mod-choice { min-height:108px; padding:16px 12px; border:1px solid #b6ccd6; border-radius:14px; background:#f8fcfd; color:#193f50; box-shadow:none; }
+.vehicle-modifications .vehicle-mod-choice > span:last-child { font-size:20px; line-height:1.35; letter-spacing:0; font-weight:650; color:#193f50; text-transform:none; overflow-wrap:anywhere; }
+.vehicle-modifications .vehicle-mod-choice > span:has(>svg) { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; margin-bottom:8px; border-radius:10px; background:#e3f0f4; color:#24647a; }
+.vehicle-modifications .vehicle-mod-step-label > span { font-size:15px; line-height:1.5; letter-spacing:0; text-transform:none; }
+.vehicle-modifications .vehicle-mod-summary { gap:8px; }
+.vehicle-modifications .vehicle-mod-summary > button { min-height:38px; padding:8px 12px; font-size:13px; line-height:1.4; }
+.vehicle-modifications .vehicle-mod-confirm { min-height:48px; padding:12px 18px; font-size:15px; }
+.home-static .vehicle-mod-choice[data-kind="year"] { min-height:64px; padding:12px; }
+.home-static .vehicle-mod-choice[data-kind="year"] > span:last-child { font-size:20px; }
+.vehicle-models[data-compact="true"] .vehicle-model-choice { min-height:88px; padding:12px; font-size:14px; line-height:1.4; letter-spacing:0; text-transform:none; }
+@container(max-width:659px) {
+ .vehicle-models .vehicle-model-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+ .vehicle-models .vehicle-model-choice { min-height:94px; padding:14px 10px; }
+ .vehicle-models .vehicle-model-choice > .vehicle-model-name { font-size:16px; }
+ .vehicle-modifications .vehicle-mod-options [data-option-page] > .grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+ .vehicle-modifications .vehicle-mod-choice { min-height:94px; padding:12px 10px; }
+ .vehicle-modifications .vehicle-mod-choice > span:last-child { font-size:18px; }
+ .home-static .vehicle-mod-options [data-option-page] > .grid:has(>[data-kind="year"]) { grid-template-columns:repeat(3,minmax(0,1fr)); }
+ .home-static .vehicle-mod-choice[data-kind="year"] { min-height:58px; padding:10px 6px; }
+ .home-static .vehicle-mod-choice[data-kind="year"] > span:last-child { font-size:18px; }
+}
+@media(hover:hover) and (pointer:fine) {
+ .vehicle-models .vehicle-model-choice:hover,.vehicle-modifications .vehicle-mod-choice:hover { background:#e5f2f6; border-color:#5e92a6; }
+}
+.vehicle-models .vehicle-model-choice:focus-visible,.vehicle-modifications .vehicle-mod-choice:focus-visible { outline:2px solid #176985; outline-offset:3px; }
+@media(prefers-reduced-motion:reduce) { .vehicle-models .vehicle-model-choice,.vehicle-modifications .vehicle-mod-choice { transition:none; } }
+
+.home-static .vehicle-models .vehicle-model-choice[aria-pressed="true"] > span { color:#fff; }
+/* One or two available configurations fill the row instead of leaving
+   empty grid columns alongside a small choice. */
+.vehicle-modifications .vehicle-mod-options [data-option-page] > .grid:has(>button:only-child) { grid-template-columns:minmax(0,1fr); }
+.vehicle-modifications .vehicle-mod-options [data-option-page] > .grid:has(>button:nth-child(2):last-child) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.vehicle-modifications .vehicle-mod-choice:only-child { flex-direction:row; align-items:center; gap:14px; }
+.vehicle-modifications .vehicle-mod-choice:only-child > span:has(>svg) { margin-bottom:0; width:40px; height:40px; }
+.vehicle-modifications .vehicle-mod-choice > span:has(>svg) > svg { width:19px; height:19px; }
+.home-static .vehicle-modifications .vehicle-mod-step-label > span { font-size:15px; line-height:1.5; }
+
+/* Step changes keep search inside its toolbar; an unmounted portal must
+   never flash a full-column input while the next list is preparing. */
+.home-static .home-slot-auto .home-picker-search-area[data-search-mode="fallback"] { display:block; width:100%; max-width:240px; margin:0 0 16px; }
+@keyframes homeAutoStepChange {
+ from { opacity:.75; transform:translateX(10px); }
+ to { opacity:1; transform:translateX(0); }
+}
+@media(prefers-reduced-motion:no-preference) {
+ .home-static .home-slot-auto .home-auto-list-enter { animation:homeAutoStepChange 220ms cubic-bezier(.16,1,.3,1) both; }
+ .home-static .home-slot-auto .home-auto-list-enter [data-model-page]:first-child button { animation:none; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .home-static .home-slot-auto .home-auto-list-enter { animation:none; }
+}
+.home-static .home-slot-auto .home-picker-search-slot { width:176px; max-width:100%; }
+.home-static .home-slot-auto .home-picker-search-slot:has(input) { width:240px; max-width:100%; }

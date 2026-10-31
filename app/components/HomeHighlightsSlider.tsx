@@ -16,7 +16,7 @@ const VISUALLY_HIDDEN = {
 } as const;
 // Homepage preview URLs already serve a resized, cached WebP.
 const isPreparedCover = (image: string) => image.startsWith("/api/blog/og-image/") && image.includes("preview=1");
-const preparedCoverLoader = ({ src, width }: ImageLoaderProps) => `${src}&w=${Math.max(320, Math.min(width, 960))}`;
+const preparedCoverLoader = ({ src, width }: ImageLoaderProps) => `${src}&w=${Math.max(320, Math.min(width, 768))}`;
 const teaserOf = (text: string) => {
   const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+[.!?…]+(?=\s|$)|[^.!?…]+$/g) ?? [];
   let teaser = "";
@@ -70,12 +70,13 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
   const rotating = inView && pageVisible && hasSlides;
 
   useEffect(() => {
-    if (!serverResolved) return;
+    // The server and this endpoint share the same 10-minute cache. Fetch
+    // only to recover an empty server result, rather than repeat that read
+    // two seconds into every successful page load.
+    if (!serverResolved || initialArticles.length) return;
     const controller = new AbortController();
-    // Revalidate the small preview payload at hydration. The server-provided
-    // cover is already downloading; API latency never gates its first paint.
-    // Refresh after the initial render, without competing with the hero and
-    // first article cover. Cached server content is already usable immediately.
+    // Recover a failed/empty server preview after hydration; successful
+    // server content stays usable without another network round trip.
     const refresh = () => { void fetch("/api/home-blog?view=all", { signal: controller.signal })
       .then(response => response.ok ? response.json() : null)
       .then((payload: { items?: HomeHighlight[] } | null) => {
@@ -92,7 +93,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
         }
       })
       .catch(() => {}); };
-    const timer = window.setTimeout(refresh, initialArticles.length ? 2000 : 0);
+    const timer = window.setTimeout(refresh, 0);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [serverResolved, initialArticles.length]);
 
@@ -202,7 +203,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
               key={`${pendingSlide.id}:${pendingSlide.image}`}
               src={pendingSlide.image} alt="" fill aria-hidden="true"
               loader={isPreparedCover(pendingSlide.image) ? preparedCoverLoader : undefined}
-              sizes="(max-width: 767px) 100vw, 57vw"
+              sizes="(max-width: 767px) 100vw, (min-width: 1280px) 720px, 57vw"
               loading="eager" className="home-highlight-preload"
               onLoad={commitPendingSlide}
               onError={commitPendingSlide}
@@ -235,7 +236,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                     src={item.image} alt={item.imageAlt} fill
                     loader={isPreparedCover(item.image) ? preparedCoverLoader : undefined}
                     fetchPriority={!outgoing && item.id === initialArticles[0]?.id ? "high" : "auto"}
-                    sizes="(max-width: 767px) 100vw, 57vw"
+                    sizes="(max-width: 767px) 100vw, (min-width: 1280px) 720px, 57vw"
                     preload={!outgoing && item.id === initialArticles[0]?.id}
                     loading={item.id === initialArticles[0]?.id && !outgoing ? undefined : outgoing ? "lazy" : "eager"}
                     className="home-highlight-cover"

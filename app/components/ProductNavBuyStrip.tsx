@@ -23,7 +23,14 @@ const EMPTY_MIRROR: Mirror = {
   buttonDisabled: true,
 };
 
-const text = (element: Element | null | undefined) => (element?.textContent || "").replace(/\s+/g, " ").trim();
+// Visible text only: the offer's screen-reader labels ("Ціна зі знижкою: ")
+// are not repeated in the strip.
+const text = (element: Element | null | undefined) => {
+  if (!element) return "";
+  const copy = element.cloneNode(true) as Element;
+  copy.querySelectorAll(".sr-only").forEach((label) => label.remove());
+  return (copy.textContent || "").replace(/\s+/g, " ").trim();
+};
 
 /**
  * Short desktop screens (globals.css, max-height: 899px) let the product
@@ -139,8 +146,8 @@ export default function ProductNavBuyStrip({ name }: { name: string }) {
       <p className="product-nav-buy-name" title={name}>{name}</p>
       {mirror.price ? (
         <p className="product-nav-buy-price" data-promo={mirror.isPromo ? "" : undefined}>
-          <span>{mirror.price}</span>
           {mirror.oldPrice ? <s>{mirror.oldPrice}</s> : null}
+          <span>{mirror.price}</span>
         </p>
       ) : null}
       {showButton ? (

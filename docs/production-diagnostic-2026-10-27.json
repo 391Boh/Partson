@@ -1,0 +1,668 @@
+{
+  "date": "2026-10-27",
+  "liveOrigin": "https://partson.shop",
+  "localCommit": "ee8fb48",
+  "server": {
+    "time": "2026-10-27T15:55:45Z",
+    "root": "/var/www/Partson-release-20261027-3be2bcd",
+    "git": "3be2bcd",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:           1971        1455          71           0         443         360\nSwap:          5754         886        4868",
+    "disk": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/vda1        35G   30G  3.1G  91% /",
+    "uptime": "17:55:45 up 28 days, 11:14,  3 users,  load average: 2.18, 1.52, 1.04",
+    "processes": [
+      {
+        "name": "partson-auth",
+        "status": "online",
+        "restarts": 5,
+        "unstableRestarts": 0,
+        "memory": 7774208,
+        "cpu": 0.1,
+        "cwd": "/var/www/Partson",
+        "script": "/usr/bin/npm"
+      },
+      {
+        "name": "partson-web",
+        "status": "online",
+        "restarts": 0,
+        "unstableRestarts": 0,
+        "memory": 353054720,
+        "cpu": 1.9,
+        "cwd": "/var/www/Partson-release-20261027-3be2bcd",
+        "script": "/var/www/Partson-release-20261027-3be2bcd/node_modules/next/dist/bin/next"
+      }
+    ],
+    "versions": {
+      "next": "16.3.8",
+      "@sentry/nextjs": "10.73.0",
+      "body-parser": "2.3.0",
+      "follow-redirects": "1.16.0",
+      "fast-uri": "3.1.8"
+    },
+    "sharpUsedByNext": "0.35.5",
+    "sentryTunnelOption": false,
+    "dangerouslyAllowSVG": false,
+    "useCacheDirectives": [],
+    "serverActionFiles": [],
+    "authBodyParser": "2.3.0",
+    "authInflateFalse": false,
+    "lastLogDateRange": [
+      "2026-10-27 06:56:05",
+      "2026-10-27 17:54:20"
+    ],
+    "timeoutEndpoints": {
+      "getdata": 34,
+      "allgoods": 77,
+      "getimages": 17,
+      "getinfo": 19,
+      "images": 1,
+      "getimages_batch": 1,
+      "getphotobatch": 1,
+      "getimagesbatch": 1,
+      "getimagespack": 1,
+      "getphotosbatch": 1,
+      "getauto": 1
+    },
+    "onecDisk": "16K\t/var/1c/codex-exports\n8.0K\t/var/1c/xvfb-run.cdEM6R\n336K\t/var/1c/tmp\n88K\t/var/1c/tmp_home\n8.0K\t/var/1c/xvfb-run.S9CgX1\n8.0K\t/var/1c/.config\n7.1M\t/var/1c/logs\n8.0K\t/var/1c/xvfb-run.V3aeCA\n44K\t/var/1c/.cache\n8.0K\t/var/1c/xvfb-run.xpGwVc\n8.0K\t/var/1c/xvfb-run.4AzIme\n24K\t/var/1c/logs_run\n8.0K\t/var/1c/xvfb-run.U0tQjT\n8.0K\t/var/1c/xvfb-run.K8DW2u\n28K\t/var/1c/cluster\n7.0G\t/var/1c/bases\n24K\t/var/1c/.1cv8\n12K\t/var/1c/.1C\n8.0K\t/var/1c/xvfb-run.4MKjwr\n12K\t/var/1c/.local\n64K\t/var/1c/.dbus\n4.0K\t/var/1c/dump\n7.5G\t/var/1c"
+  },
+  "http": [
+    {
+      "path": "/",
+      "status": 200,
+      "ttfb": 499,
+      "total": 522,
+      "bytes": 174558,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=600, stale-while-revalidate=31535400",
+      "encoding": "gzip",
+      "nextCache": "HIT",
+      "canonical": "https://partson.shop"
+    },
+    {
+      "path": "/katalog",
+      "status": 200,
+      "ttfb": 210,
+      "total": 267,
+      "bytes": 460679,
+      "type": "text/html; charset=utf-8",
+      "cache": "private, no-cache, no-store, max-age=0, must-revalidate",
+      "encoding": "gzip",
+      "nextCache": null,
+      "canonical": "https://partson.shop/katalog"
+    },
+    {
+      "path": "/auto",
+      "status": 200,
+      "ttfb": 87,
+      "total": 92,
+      "bytes": 180136,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=21600, stale-while-revalidate=31514400",
+      "encoding": "gzip",
+      "nextCache": "HIT",
+      "canonical": "https://partson.shop/auto"
+    },
+    {
+      "path": "/groups",
+      "status": 200,
+      "ttfb": 88,
+      "total": 92,
+      "bytes": 181564,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=21600, stale-while-revalidate=31514400",
+      "encoding": "gzip",
+      "nextCache": "HIT",
+      "canonical": "https://partson.shop/groups"
+    },
+    {
+      "path": "/manufacturers",
+      "status": 200,
+      "ttfb": 98,
+      "total": 116,
+      "bytes": 223508,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=21600, stale-while-revalidate=31514400",
+      "encoding": "gzip",
+      "nextCache": "HIT",
+      "canonical": "https://partson.shop/manufacturers"
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "ttfb": 167,
+      "total": 212,
+      "bytes": 119531,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=600, stale-while-revalidate=31535400",
+      "encoding": "gzip",
+      "nextCache": "STALE",
+      "canonical": "https://partson.shop/blog"
+    },
+    {
+      "path": "/inform/privacy",
+      "status": 200,
+      "ttfb": 263,
+      "total": 331,
+      "bytes": 262786,
+      "type": "text/html; charset=utf-8",
+      "cache": "s-maxage=86400, stale-while-revalidate=31449600",
+      "encoding": "gzip",
+      "nextCache": "HIT",
+      "canonical": "https://partson.shop/inform/privacy"
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200,
+      "ttfb": 81,
+      "total": 82,
+      "bytes": 536,
+      "type": "text/plain",
+      "cache": "public, max-age=0, must-revalidate",
+      "encoding": "gzip",
+      "nextCache": "HIT"
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200,
+      "ttfb": 81,
+      "total": 83,
+      "bytes": 1164,
+      "type": "application/xml; charset=utf-8",
+      "cache": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "encoding": "gzip",
+      "nextCache": null
+    },
+    {
+      "path": "/merchant-feed.xml",
+      "status": 200,
+      "ttfb": 107,
+      "total": 249,
+      "bytes": 2768304,
+      "type": "text/xml",
+      "cache": null,
+      "encoding": "gzip",
+      "nextCache": null
+    },
+    {
+      "path": "/diagnostic-missing-page",
+      "status": 404,
+      "ttfb": 68,
+      "total": 73,
+      "bytes": 118661,
+      "type": "text/html; charset=utf-8",
+      "cache": "private, no-cache, no-store, max-age=0, must-revalidate",
+      "encoding": "gzip",
+      "nextCache": "HIT"
+    },
+    {
+      "path": "/api/home-blog?view=all",
+      "status": 200,
+      "ttfb": 255,
+      "total": 256,
+      "bytes": 1043,
+      "type": "application/json",
+      "cache": "public, max-age=60, s-maxage=600, stale-while-revalidate=3600",
+      "encoding": "gzip",
+      "nextCache": null
+    }
+  ],
+  "browser": {
+    "conditions": "Chrome, fresh contexts, no CPU/network throttling, 2s observation after DOMContentLoaded; one sample per viewport/route",
+    "results": [
+      {
+        "width": 390,
+        "path": "/",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 331,
+        "dom": 699,
+        "lcp": 812,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 390,
+        "path": "/katalog",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 464,
+        "dom": 1764,
+        "lcp": 1536,
+        "cls": 0.0011081513137068694,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 390,
+        "path": "/blog",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 446,
+        "dom": 1091,
+        "lcp": 1144,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 390,
+        "path": "/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 394,
+        "dom": 1293,
+        "lcp": 1356,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 1440,
+        "path": "/",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 257,
+        "dom": 731,
+        "lcp": 812,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 1440,
+        "path": "/katalog",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 373,
+        "dom": 648,
+        "lcp": 976,
+        "cls": 0.0013468315972222221,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 1440,
+        "path": "/blog",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 280,
+        "dom": 929,
+        "lcp": 952,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      },
+      {
+        "width": 1440,
+        "path": "/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+        "status": 200,
+        "errors": [],
+        "bad": [],
+        "ttfb": 462,
+        "dom": 804,
+        "lcp": 872,
+        "cls": 0,
+        "overflow": false,
+        "h1": 1,
+        "brokenImages": []
+      }
+    ]
+  },
+  "authGuards": [
+    {
+      "path": "/api/admin/users",
+      "status": 401,
+      "cache": "no-store"
+    },
+    {
+      "path": "/api/admin/chat-activity",
+      "status": 403,
+      "cache": "no-store"
+    },
+    {
+      "path": "/api/partner-status",
+      "status": 401,
+      "cache": null
+    }
+  ],
+  "xml": [
+    {
+      "path": "/sitemap.xml",
+      "root": "{http://www.sitemaps.org/schemas/sitemap/0.9}sitemapindex",
+      "entries": 8,
+      "items": 0,
+      "lastModified": null
+    },
+    {
+      "path": "/merchant-feed.xml",
+      "root": "rss",
+      "entries": 0,
+      "items": 1598,
+      "lastModified": "Tue, 27 Oct 2026 02:00:08 GMT"
+    }
+  ],
+  "productionAudit": {
+    "counts": {
+      "info": 0,
+      "low": 0,
+      "moderate": 1,
+      "high": 2,
+      "critical": 2,
+      "total": 5
+    },
+    "vulnerabilities": {
+      "@sentry/nextjs": {
+        "name": "@sentry/nextjs",
+        "severity": "critical",
+        "isDirect": true,
+        "via": [
+          {
+            "source": 1242814,
+            "name": "@sentry/nextjs",
+            "dependency": "@sentry/nextjs",
+            "title": "Sentry-Javascript: Middleware Bypass when using Tunnel route",
+            "url": "https://github.com/advisories/GHSA-mchm-gjx6-7h55",
+            "severity": "critical",
+            "cwe": [
+              "CWE-693"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=10.0.0-alpha.0 <10.75.2"
+          }
+        ],
+        "effects": [],
+        "range": "10.0.0-alpha.0 - 10.75.1",
+        "nodes": [
+          "node_modules/@sentry/nextjs"
+        ],
+        "fixAvailable": true
+      },
+      "body-parser": {
+        "name": "body-parser",
+        "severity": "high",
+        "isDirect": true,
+        "via": [
+          {
+            "source": 1243074,
+            "name": "body-parser",
+            "dependency": "body-parser",
+            "title": "body-parser vulnerable to Denial of Service via trailing bytes after a compressed request body",
+            "url": "https://github.com/advisories/GHSA-27r3-jxmh-p828",
+            "severity": "high",
+            "cwe": [
+              "CWE-248"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": ">=2.0.0 <2.4.0"
+          }
+        ],
+        "effects": [],
+        "range": "2.0.0 - 2.3.0",
+        "nodes": [
+          "node_modules/body-parser"
+        ],
+        "fixAvailable": true
+      },
+      "fast-uri": {
+        "name": "fast-uri",
+        "severity": "moderate",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1243098,
+            "name": "fast-uri",
+            "dependency": "fast-uri",
+            "title": "fast-uri vulnerable to URI scheme spoofing via percent-encoded scheme decoding",
+            "url": "https://github.com/advisories/GHSA-w74x-v6f9-j3xg",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-172",
+              "CWE-180"
+            ],
+            "cvss": {
+              "score": 6.1,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+            },
+            "range": ">=3.0.0 <3.1.9"
+          },
+          {
+            "source": 1243101,
+            "name": "fast-uri",
+            "dependency": "fast-uri",
+            "title": "fast-uri vulnerable to improper path equivalence in relative reference normalization",
+            "url": "https://github.com/advisories/GHSA-xhq7-xmqj-769h",
+            "severity": "low",
+            "cwe": [
+              "CWE-41"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+            },
+            "range": ">=3.0.0 <3.1.9"
+          },
+          {
+            "source": 1243104,
+            "name": "fast-uri",
+            "dependency": "fast-uri",
+            "title": "fast-uri vulnerable to host confusion via unchecked WHATWG host canonicalization",
+            "url": "https://github.com/advisories/GHSA-wjr9-j795-jxcr",
+            "severity": "moderate",
+            "cwe": [
+              "CWE-20",
+              "CWE-436"
+            ],
+            "cvss": {
+              "score": 4.8,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+            },
+            "range": ">=3.1.3 <3.1.9"
+          },
+          {
+            "source": 1243107,
+            "name": "fast-uri",
+            "dependency": "fast-uri",
+            "title": "fast-uri vulnerable to scheme injection via an unescaped first-segment colon in suffix references",
+            "url": "https://github.com/advisories/GHSA-333x-w4r6-6crp",
+            "severity": "low",
+            "cwe": [
+              "CWE-41",
+              "CWE-116"
+            ],
+            "cvss": {
+              "score": 3.7,
+              "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"
+            },
+            "range": ">=3.0.0 <3.1.9"
+          }
+        ],
+        "effects": [],
+        "range": "3.0.0 - 3.1.8",
+        "nodes": [
+          "node_modules/fast-uri"
+        ],
+        "fixAvailable": true
+      },
+      "follow-redirects": {
+        "name": "follow-redirects",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1242604,
+            "name": "follow-redirects",
+            "dependency": "follow-redirects",
+            "title": "follow-redirects array-form headers bypass cross-origin credential stripping",
+            "url": "https://github.com/advisories/GHSA-q3jh-wrc6-jgq8",
+            "severity": "high",
+            "cwe": [
+              "CWE-200",
+              "CWE-212"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=1.16.0 <1.16.1"
+          },
+          {
+            "source": 1242605,
+            "name": "follow-redirects",
+            "dependency": "follow-redirects",
+            "title": "follow-redirects sensitiveHeaders regex escaping can expose credential headers",
+            "url": "https://github.com/advisories/GHSA-8r9p-f939-6h3c",
+            "severity": "high",
+            "cwe": [
+              "CWE-185",
+              "CWE-200"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=1.16.0 <1.16.1"
+          }
+        ],
+        "effects": [],
+        "range": "1.16.0",
+        "nodes": [
+          "node_modules/follow-redirects"
+        ],
+        "fixAvailable": true
+      },
+      "next": {
+        "name": "next",
+        "severity": "critical",
+        "isDirect": true,
+        "via": [
+          {
+            "source": 1242816,
+            "name": "next",
+            "dependency": "next",
+            "title": "Next.js: Unauthenticated Remote Code Execution in Image Optimization API when SVG files are used",
+            "url": "https://github.com/advisories/GHSA-2464-fhr4-w9xw",
+            "severity": "critical",
+            "cwe": [
+              "CWE-1395"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=16.0.0 <=16.4.0"
+          },
+          {
+            "source": 1242818,
+            "name": "next",
+            "dependency": "next",
+            "title": "Next.js: Denial of Service in App Router using Server Actions",
+            "url": "https://github.com/advisories/GHSA-p3m5-59mp-jv5r",
+            "severity": "high",
+            "cwe": [
+              "CWE-770"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=16.0.0 <=16.4.0"
+          },
+          {
+            "source": 1242859,
+            "name": "next",
+            "dependency": "next",
+            "title": "Next.js: Unauthenticated Remote Code Execution in `use cache` functions returning typed arrays",
+            "url": "https://github.com/advisories/GHSA-673q-mjm6-r5xr",
+            "severity": "critical",
+            "cwe": [
+              "CWE-502"
+            ],
+            "cvss": {
+              "score": 0,
+              "vectorString": null
+            },
+            "range": ">=16.0.0 <=16.4.0"
+          }
+        ],
+        "effects": [],
+        "range": "16.0.0 - 16.4.0",
+        "nodes": [
+          "node_modules/next"
+        ],
+        "fixAvailable": true
+      }
+    }
+  },
+  "staticChecks": {
+    "typeScript": "pass",
+    "eslint": {
+      "files": 645,
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "build": {
+    "mode": "Normal production webpack build, BUILD_CPUS=1, representative static-param limits of 3 per directory/product family",
+    "staticPages": 119,
+    "result": "pass",
+    "upstreamWarnings": [
+      "getdata timeout after 480ms"
+    ],
+    "full2238Prerender": "not completed; attempts stopped to bound production 1C read load"
+  },
+  "onec": {
+    "checksPassed": 6,
+    "timingsMs": {
+      "priced": 259,
+      "unpriced": 236,
+      "direct": 245,
+      "prices": 76
+    }
+  },
+  "storage": {
+    "topProcesses": [
+      "PID    PPID   RSS %CPU COMMAND",
+      "3368742     573 240220 3.6 next-server (v1",
+      "3370331 3334493 209888 5.9 apache2",
+      "3370090 3334493 203548 12.8 apache2",
+      "3370330 3334493 184364 2.2 apache2",
+      "3370084 3334493 180216 12.4 apache2",
+      "3370469       1 47916  0.5 ragent",
+      "    736     708 33548  0.0 gnome-shell",
+      "3370440 3370375 27620  0.1 node",
+      "    487       1 23144  0.5 mysqld",
+      "    800       1 19892  0.0 fastpanel",
+      "    573       1 16624  0.0 PM2 v6.0.14: Go"
+    ],
+    "rootDu": "2.3M\t/root/1c-update-20261023\n112K\t/root/partson-deploy-20261009\n239M\t/root/.npm\n16K\t/root/.ssh\n24K\t/root/.config\n44K\t/root/partson-deploy-20261023-picker-scenes\n84K\t/root/partson-deploy-20261025-bc2a820\n44K\t/root/partson-deploy-20261025-134abab\n256K\t/root/nginx-fix-backup\n51M\t/root/license-tools\n488K\t/root/nginx-backup\n40K\t/root/partson-deploy-20261023\n40M\t/root/.cache\n44K\t/root/partson-deploy-20261023-map\n36K\t/root/partson-deploy-20261025-134abab-retry\n12K\t/root/nginx-disabled\n52K\t/root/partson-deploy-20261026-ff52ee7\n4.0K\t/root/1c-preflight-20261023\n856K\t/root/1c-upd\n76K\t/root/.pki\n188K\t/root/nginx_backup_2026-02-23_100256\n24K\t/root/.1cv8\n13M\t/root/.pm2\n8.0K\t/root/.1C\n44K\t/root/partson-deploy-20261023-pickers\n20K\t/root/.local\n720K\t/root/1c-live\n1.7G\t/root",
+    "fullDiskDu": {
+      "error": true,
+      "status": null
+    },
+    "oomQuery": {
+      "error": true,
+      "status": 1
+    }
+  },
+  "scope": "Read-only production checks; local build/report artifacts. No deployment, dependency update, production config changes, database mutations or checkout/payment tests."
+}

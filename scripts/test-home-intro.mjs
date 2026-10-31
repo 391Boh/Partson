@@ -17,8 +17,13 @@ try {
     }));
     assert.equal(sizes.length, 3);
     assert(await intro.locator('.home-part-path').evaluateAll(links => links.every(link => getComputedStyle(link, '::after').animationName === 'none')), 'Reduced motion disables the specular sweep');
-    assert(sizes[0].x < sizes[1].x && sizes[1].x < sizes[2].x, 'Three vertical columns stay side by side');
-    assert(Math.max(...sizes.map(size => size.y)) - Math.min(...sizes.map(size => size.y)) < 1, 'Columns start on one baseline');
+    if (width < 640) {
+      assert(sizes[0].y < sizes[1].y && sizes[1].y < sizes[2].y, 'Phone actions stack in their existing compact layout');
+      assert(Math.max(...sizes.map(size => size.x)) - Math.min(...sizes.map(size => size.x)) < 1, 'Phone actions align');
+    } else {
+      assert(sizes[0].x < sizes[1].x && sizes[1].x < sizes[2].x, 'Desktop columns stay side by side');
+      assert(Math.max(...sizes.map(size => size.y)) - Math.min(...sizes.map(size => size.y)) < 1, 'Columns start on one baseline');
+    }
     assert(sizes.every(size => size.height >= 44 && size.textFits), 'Action targets and descriptions fit');
     assert(Math.max(...sizes.map(size => size.height)) - Math.min(...sizes.map(size => size.height)) < 1, 'All paths have equal height');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');

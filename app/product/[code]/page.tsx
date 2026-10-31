@@ -23,6 +23,7 @@ import {
   fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
   findFullCatalogSnapshotProduct,
+  isFullCatalogSnapshotWarm,
   toPriceUah,
   peekSnapshotProductDescription,
 } from "app/lib/catalog-server";
@@ -108,6 +109,14 @@ import { buildOfferShippingDetails } from "app/lib/shipping-policy";
 const ONEC_PRODUCT_CODE_PATTERN = /^(?:\d{2,}|[А-ЯҐЄІЇ]{1,3})-\d{4,}$/u;
 const PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS = 4000;
 const PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS = 4000;
+// Per request: set when a product lookup timed out or failed instead of
+// answering. Such a request must not end in notFound() — ISR caches that 404
+// for the whole revalidate period, so a product 1C was merely slow to find
+// (under load, 4-30 s) stayed unreachable for everyone for an hour.
+const getProductLookupState = cache(() => ({ inconclusive: false }));
+const markProductLookupInconclusive = () => {
+  getProductLookupState().inconclusive = true;
+};
 const PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS = 4000;
 // fetchEuroRate answers instantly from its cache once warm; only the first
 // render after a restart waits on the source. At 80ms that first render
@@ -1154,9 +1163,32 @@ type ResolvedProductRouteData = {
   product: Awaited<ReturnType<typeof getCatalogProductUncached>> | null;
 };
 
+// Every way the slug can end in the product's article. buildProductPath
+// appends the article last, but a name ending in a number makes the split
+// ambiguous: "…-master-2-5dci-06-10892" is article 10892, yet the primary
+// token alone reads "06-10892", so that product's page always 404'd. The
+// primary reading stays first (an article like "1170-300-400" keeps
+// priority), then each shorter all-numeric tail down to the last segment.
+const extractArticleTailTokensFromSeoNameSlug = (rawNameSlug: string) => {
+  const normalized = safeDecodeURIComponent(rawNameSlug || "").trim().toLowerCase();
+  const parts = normalized.split("-").map((entry) => entry.trim()).filter(Boolean);
+  const tokens: string[] = [];
+  const add = (token: string) => {
+    if (token && isPlausibleProductLookupToken(token) && !tokens.includes(token)) tokens.push(token);
+  };
+  add(extractPrimaryLookupTokenFromSeoNameSlug(rawNameSlug));
+  for (let tailSize = Math.min(6, parts.length); tailSize >= 2; tailSize -= 1) {
+    const tailParts = parts.slice(-tailSize);
+    if (tailParts.every((part) => /^\d+$/.test(part))) add(tailParts.join("-"));
+  }
+  const last = parts[parts.length - 1] || "";
+  if (/\d/.test(last)) add(last);
+  return tokens;
+};
+
 const buildUniqueLookupTokens = (rawNameSlug: string) =>
   [
-    extractPrimaryLookupTokenFromSeoNameSlug(rawNameSlug),
+    ...extractArticleTailTokensFromSeoNameSlug(rawNameSlug),
     ...extractLookupTokensFromSeoNameSlug(rawNameSlug),
   ].filter((token, index, array) => Boolean(token) && array.indexOf(token) === index);
 
@@ -1270,8 +1302,11 @@ const findSitemapProductByRouteParam = cache(async (rawParam: string) => {
   return index.get(`route:${routeParam}`) || null;
 });
 
-const findCatalogProductByLookupToken = async (token: string) => {
-  if (shouldPreferSitemapProductLookup) {
+const findCatalogProductByLookupToken = async (
+  token: string,
+  options?: { deep?: boolean; cacheOnly?: boolean }
+) => {
+  if (shouldPreferSitemapProductLookup || options?.cacheOnly) {
     const sitemapMatch = await findSitemapProductByLookupTokens([token]).catch(
       () => null
     );
@@ -1282,6 +1317,7 @@ const findCatalogProductByLookupToken = async (token: string) => {
   // the in-memory catalog snapshot has them without a slow 1C search.
   const snapshotMatch = findFullCatalogSnapshotProduct(token);
   if (snapshotMatch) return snapshotMatch;
+  if (options?.cacheOnly) return null;
 
   const fastMatch = await getFirstResolvedNonNull([
     findCatalogProductByCode(
@@ -1299,50 +1335,74 @@ const findCatalogProductByLookupToken = async (token: string) => {
   if (fastMatch) {
     return fastMatch;
   }
+  if (options?.deep === false) return null;
 
   return getCatalogProduct(token).catch(() => null);
 };
 
+// The tail tokens are this slug's own trailing article/code segment, read
+// every possible way — buildProductPath always appends article||code last,
+// so when a candidate's own article or internal code equals one of them,
+// this IS the product the slug was generated for, whatever the rest of the
+// descriptive text says. That text doesn't always agree: 1C's bulk
+// "allgoods" listing (what the catalog card's link was built from) and its
+// single-item exact lookup (what this resolves against) sometimes return
+// very slightly different name text for the same product — a trailing word
+// truncated by one character, doubled vs. single whitespace — even though
+// every other field matches. Requiring the full name-slug to match exactly
+// rejected the product's own canonical URL as a false negative purely over
+// that drift. This check is deliberately scoped to the slug's tail only
+// (never any of the other multi-word/compact variants tried below) —
+// trusting a match on an arbitrary token, rather than specifically the
+// slug's own article segment, is exactly what let an unrelated analog code
+// embedded elsewhere in a product's name resolve to the wrong product.
+const acceptSeoSlugMatch = (
+  product: CatalogProduct | null,
+  rawNameSlug: string,
+  tailTokenCompacts: Set<string>
+) => {
+  const code = (product?.code || product?.article || "").trim();
+  if (!product || !code) return null;
+
+  const matchesTail =
+    tailTokenCompacts.has(compactProductLookupToken(product.article || "")) ||
+    tailTokenCompacts.has(compactProductLookupToken(product.code || ""));
+  if (!matchesTail && !doesProductMatchSeoNameSlug(product, rawNameSlug)) return null;
+
+  return { code, product };
+};
+
 const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
-  const primaryToken = extractPrimaryLookupTokenFromSeoNameSlug(rawNameSlug);
-  const primaryTokenCompact = primaryToken ? compactProductLookupToken(primaryToken) : "";
-  const lookupTokens = buildUniqueLookupTokens(rawNameSlug);
+  const tailTokens = extractArticleTailTokensFromSeoNameSlug(rawNameSlug);
+  const tailTokenCompacts = new Set(tailTokens.map(compactProductLookupToken).filter(Boolean));
 
-  for (const token of lookupTokens) {
-    const matchedProduct = await findCatalogProductByLookupToken(token);
-    const matchedCode = (matchedProduct?.code || matchedProduct?.article || "").trim();
-    if (!matchedProduct || !matchedCode) continue;
-
-    // The primary token is this slug's own trailing article/code segment —
-    // buildProductPath always appends article||code last, so when a
-    // candidate's own article or internal code equals it exactly, this IS
-    // the product the slug was generated for, whatever the rest of the
-    // descriptive text says. That text doesn't always agree: 1C's bulk
-    // "allgoods" listing (what the catalog card's link was built from) and
-    // its single-item exact lookup (what this resolves against) sometimes
-    // return very slightly different name text for the same product — a
-    // trailing word truncated by one character, doubled vs. single
-    // whitespace — even though every other field matches. Requiring the
-    // full name-slug to match exactly rejected the product's own canonical
-    // URL as a false negative purely over that drift. This check is
-    // deliberately scoped to the PRIMARY token only (never any of the other
-    // multi-word/compact variants tried above) — trusting a match on an
-    // arbitrary token, rather than specifically the slug's own article
-    // segment, is exactly what let an unrelated analog code embedded
-    // elsewhere in a product's name resolve to the wrong product.
-    const matchesPrimaryToken =
-      Boolean(primaryTokenCompact) &&
-      (compactProductLookupToken(matchedProduct.article || "") === primaryTokenCompact ||
-        compactProductLookupToken(matchedProduct.code || "") === primaryTokenCompact);
-
-    if (!matchesPrimaryToken && !doesProductMatchSeoNameSlug(matchedProduct, rawNameSlug)) {
-      continue;
+  // The article candidates first, all at once and without the slow deep 1C
+  // search: tried one by one, a few misses (~1-2 s each) used up the page's
+  // 4 s budget before the real article was reached, and the page 404'd.
+  const fastTailMatches = await Promise.all(
+    tailTokens.map((token) => findCatalogProductByLookupToken(token, { deep: false }).catch(() => null))
+  );
+  for (const product of fastTailMatches) {
+    const resolved = acceptSeoSlugMatch(product, rawNameSlug, tailTokenCompacts);
+    if (resolved) return resolved;
+  }
+  // The warm snapshot holds the whole catalog and the fast phase already
+  // asked 1C by exact article, so the remaining slug readings (e.g. "lx511-1"
+  // for article LX511/1) are checked against memory only. Querying 1C for
+  // each of them took ~16 s to reach the 404 of a removed product.
+  if (isFullCatalogSnapshotWarm()) {
+    for (const token of buildUniqueLookupTokens(rawNameSlug)) {
+      const product = await findCatalogProductByLookupToken(token, { cacheOnly: true });
+      const resolved = acceptSeoSlugMatch(product, rawNameSlug, tailTokenCompacts);
+      if (resolved) return resolved;
     }
+    return null;
+  }
 
-    return {
-      code: matchedCode,
-      product: matchedProduct,
-    };
+  for (const token of buildUniqueLookupTokens(rawNameSlug)) {
+    const product = await findCatalogProductByLookupToken(token);
+    const resolved = acceptSeoSlugMatch(product, rawNameSlug, tailTokenCompacts);
+    if (resolved) return resolved;
   }
 
   return null;
@@ -1560,7 +1620,8 @@ const recoverProductRouteDataFromNameSlug = cache(async (
   const recoveredRoute = await resolveWithTimeout(
     () => resolveProductFromSeoNameSlug(decodedParam),
     null,
-    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS,
+    markProductLookupInconclusive
   );
   if (recoveredRoute?.code) {
     return {
@@ -1573,14 +1634,16 @@ const recoverProductRouteDataFromNameSlug = cache(async (
   const recoveredCode = await resolveWithTimeout(
     () => resolveProductCodeFromNameSlug(decodedParam),
     null,
-    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+    PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS,
+    markProductLookupInconclusive
   );
   if (!recoveredCode) return null;
 
   const recoveredProduct = await resolveWithTimeout(
     () => getCatalogProduct(recoveredCode),
     null,
-    PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+    PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS,
+    markProductLookupInconclusive
   );
 
   return {
@@ -1854,13 +1917,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
             isSeoRoute: false,
             product: null,
           },
-          PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS
+          PRODUCT_PAGE_ROUTE_DATA_TIMEOUT_MS,
+          markProductLookupInconclusive
         ));
   if (!routeData.code) {
     const recoveredRouteData = await resolveWithTimeout(
       () => recoverProductRouteDataFromNameSlug(rawCode || ""),
       null,
-      PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS
+      PRODUCT_PAGE_ROUTE_RECOVERY_TIMEOUT_MS,
+      markProductLookupInconclusive
     );
     if (recoveredRouteData?.code) {
       routeData = recoveredRouteData;
@@ -1920,7 +1985,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           ? directCodeProductPromise
           : getCatalogProduct(resolvedCode),
       null,
-      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS,
+      markProductLookupInconclusive
     );
     if (freshProduct) product = freshProduct;
   }
@@ -1929,7 +1995,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const directFallbackProduct = await resolveWithTimeout(
       () => directCodeProductPromise || getCatalogProduct(fallbackCodeFromRoute),
       null,
-      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+      PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS,
+      markProductLookupInconclusive
     );
     if (directFallbackProduct) {
       product = directFallbackProduct;
@@ -1943,7 +2010,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
       const legacyFallbackProduct = await resolveWithTimeout(
         () => slugRecoveredProductPromise || getCatalogProduct(legacySlugLookupToken),
         null,
-        PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS
+        PRODUCT_PAGE_PRODUCT_LOOKUP_TIMEOUT_MS,
+        markProductLookupInconclusive
       );
       // Only accept the product if its canonical slug matches the requested URL.
       // Without this check a numeric token (e.g. "12345") could match an unrelated
@@ -1984,7 +2052,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const recoveredProduct = await resolveWithTimeout(
       () => slugRecoveredProductPromise,
       null,
-      650
+      650,
+      markProductLookupInconclusive
     );
     if (recoveredProduct) {
       product = recoveredProduct;
@@ -1997,12 +2066,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     }
   }
 
-  if (!resolvedCode) notFound();
-
-  const hasResolvedCatalogProduct = Boolean(product);
-  if (!product) {
+  if (!resolvedCode || !product) {
+    // Not found only when every lookup answered. A timeout or 1C failure
+    // throws instead: the error page is not cached, so the next visit tries
+    // again rather than getting a 404 frozen for an hour.
+    if (getProductLookupState().inconclusive && !isFullCatalogSnapshotWarm()) {
+      throw new Error(`Product lookup did not finish for "${rawCode}"`);
+    }
     notFound();
   }
+
+  const hasResolvedCatalogProduct = Boolean(product);
 
   // See product-edit-overrides.ts: an admin edit's confirmed fields are
   // recorded there right after a successful save, specifically because the

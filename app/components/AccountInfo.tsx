@@ -12,8 +12,8 @@ import {
   findProfileAvatar,
 } from "app/components/ProfileAvatar";
 import { ProfileBackgroundPicker } from "app/components/ProfileBackgroundPicker";
-import { writeCachedProfileBackground } from "app/components/WindowHubCover";
-import { findAvatarFrame, findProfileBackground, PROFILE_BACKGROUNDS } from "app/lib/profile-appearance";
+import { readCachedAvatarFrame, readCachedProfileBackground, writeCachedAvatarFrame, writeCachedProfileBackground } from "app/lib/profile-appearance-cache";
+import { findAvatarFrame, findProfileBackground, getProfileTheme, PROFILE_BACKGROUNDS } from "app/lib/profile-appearance";
 import React, { useEffect, useState, useRef } from "react";
 import {
   signOut,
@@ -132,8 +132,13 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   const userId = user?.uid ?? null;
   const [avatarId, setAvatarId] = useState<string | null>(() => readCachedAvatar(user?.uid));
   const [initialPartnerStatus] = useState(() => user?.uid ? getPartnerStatusPreview(user.uid) : null);
-  const [profileBackground, setProfileBackground] = useState<string | null>(null);
-  const [avatarFrame, setAvatarFrame] = useState<string | null>(null);
+  // Cached so the window opens already in the chosen theme and frame.
+  const [profileBackground, setProfileBackground] = useState<string | null>(
+    () => findProfileBackground(readCachedProfileBackground(user?.uid))?.id ?? null
+  );
+  const [avatarFrame, setAvatarFrame] = useState<string | null>(
+    () => findAvatarFrame(readCachedAvatarFrame(user?.uid))?.id ?? null
+  );
   const [appearanceStatusError, setAppearanceStatusError] = useState(false);
   const [appearanceStatusRetry, setAppearanceStatusRetry] = useState(0);
   const [totalSpent, setTotalSpent] = useState<number | null>(() => initialPartnerStatus?.totalSpent ?? null);
@@ -293,7 +298,8 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
   useEffect(() => {
     if (loading) return;
     writeCachedProfileBackground(userId, profileBackground);
-  }, [loading, userId, profileBackground]);
+    writeCachedAvatarFrame(userId, avatarFrame);
+  }, [loading, userId, profileBackground, avatarFrame]);
 
   const saveAppearance = async (patch: { avatar?: string | null; avatarFrame?: string | null; profileBackground?: string | null }) => {
     const currentUser = auth.currentUser;
@@ -602,6 +608,7 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
       aria-modal="true"
       aria-label="Профіль клієнта"
       data-appearance-open={isAvatarPickerOpen}
+      data-profile-theme={getProfileTheme(profileBackground)}
       className="customer-window customer-overlay-panel customer-overlay-panel--profile soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden select-none"
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-4">

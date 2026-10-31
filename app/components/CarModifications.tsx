@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeEngineVolume, readAutoYearRange, vehicleYearOptions } from "app/lib/vehicle-values";
 import VehicleYearSelect from "./VehicleYearSelect";
 import { fetchAutoDirectory } from "app/lib/onec-proxy-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -252,13 +253,8 @@ const CarModifications: React.FC<Props> = ({
         (Array.isArray(data) ? data : []).forEach((item) => {
           if (!item || typeof item !== "object") return;
           const record = item as Record<string, unknown>;
-          const start = toNumber(record[AUTO_FIELDS.yearStart]);
-          const endRaw = toNumber(record[AUTO_FIELDS.yearEnd]);
-          // 0 is 1C's "year unknown".
-          if (start == null || start === 0) return;
-          const end = endRaw == null || endRaw === 0 ? currentYear : endRaw;
-          if (start > end) return;
-          for (let y = start; y <= end; y += 1) years.add(y);
+          const range = readAutoYearRange(record);
+          vehicleYearOptions(range.start, range.end, currentYear).forEach(y => years.add(y));
         });
         const sorted = Array.from(years).sort((a, b) => a - b);
         if (!cancelled) {
@@ -306,15 +302,20 @@ const CarModifications: React.FC<Props> = ({
         }
         const uniqueMap = new Map<string, Modification>();
         data.forEach((item) => {
+          if (!item || typeof item !== "object") return;
           const record = item as Record<string, unknown>;
+          const range = readAutoYearRange(record);
           const mod: Modification = {
-            volume: toStringValue(record[AUTO_FIELDS.volume]),
+            volume: normalizeEngineVolume(record[AUTO_FIELDS.volume]),
             power: toNumber(record[AUTO_FIELDS.power]),
             gearbox: toStringValue(record[AUTO_FIELDS.gearbox]),
             drive: toStringValue(record[AUTO_FIELDS.drive]),
-            yearStart: toNumber(record[AUTO_FIELDS.yearStart]),
-            yearEnd: toNumber(record[AUTO_FIELDS.yearEnd]),
+            yearStart: range.start,
+            yearEnd: range.end,
           };
+          // Some 1C directories return all rows even when queried by year.
+          // Apply the range locally for every make/model as well.
+          if (mod.yearStart && Number(selectedYear) < mod.yearStart || mod.yearEnd && Number(selectedYear) > mod.yearEnd) return;
           const key = buildModKey(mod);
           if (!uniqueMap.has(key)) uniqueMap.set(key, mod);
         });
@@ -632,10 +633,12 @@ const CarModifications: React.FC<Props> = ({
   const headerCount = showResults ? uniqueMods.length : currentStepValues.length;
   // No years at all, or no modifications for the picked year: say so and let
   // the buyer continue with what is known instead of a dead end.
-  const missingDetails = selectedYear ? modsUnavailable : yearsUnavailable;
+  const missingDetails = selectedYear
+    ? modsUnavailable || (!isLoading && !showResults && currentStepValues.length === 0)
+    : yearsUnavailable;
 
   return (
-    <div data-complete={showResults ? "true" : undefined} className={`vehicle-modifications w-full flex flex-col ${isCompact ? "gap-2" : "gap-2.5"}`}>
+    <div data-compact={isCompact} data-complete={showResults ? "true" : undefined} className={`vehicle-modifications w-full flex flex-col ${isCompact ? "gap-2" : "gap-2.5"}`}>
       {/* Header — matches the "Вибір із N моделей автомобілів" row in
           CarModels.tsx; pagination now lives as edge arrows around the grid
           (below), the same as the model-selection step, instead of a

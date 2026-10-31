@@ -1,16 +1,7 @@
 "use client";
 
 import Link, { type LinkProps } from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  forwardRef,
-  useCallback,
-  useRef,
-  type AnchorHTMLAttributes,
-  type FocusEvent,
-  type MouseEvent,
-  type TouchEvent,
-} from "react";
+import { forwardRef, type AnchorHTMLAttributes } from "react";
 
 type SmartLinkProps = LinkProps &
   Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps> & {
@@ -19,21 +10,9 @@ type SmartLinkProps = LinkProps &
     prefetchOnTouch?: boolean;
   };
 
-const getPrefetchableHref = (href: LinkProps["href"]) => {
-  if (typeof href !== "string") return null;
-  if (!href.startsWith("/")) return null;
-  if (href.startsWith("/#")) return null;
-  if (href.includes("#")) return null;
-  return href;
-};
-
 const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLink(
   {
-    href,
     prefetch,
-    onMouseEnter,
-    onFocus,
-    onTouchStart,
     prefetchOnIntent = true,
     prefetchOnViewport = false,
     prefetchOnTouch = true,
@@ -41,58 +20,15 @@ const SmartLink = forwardRef<HTMLAnchorElement, SmartLinkProps>(function SmartLi
   },
   ref
 ) {
-  const router = useRouter();
-  const warmedRef = useRef(false);
-  const prefetchableHref = getPrefetchableHref(href);
-  const shouldViewportPrefetch = prefetchOnViewport && Boolean(prefetchableHref);
-  const effectivePrefetch = prefetch !== undefined ? prefetch : (shouldViewportPrefetch ? true : false);
-
-  const warmRoute = useCallback(() => {
-    if (
-      !prefetchOnIntent ||
-      warmedRef.current ||
-      !prefetchableHref
-    ) {
-      return;
-    }
-    warmedRef.current = true;
-    router.prefetch(prefetchableHref);
-  }, [prefetchOnIntent, prefetchableHref, router]);
-
-  const handleMouseEnter = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>) => {
-      // Passing links under a stationary pointer is not navigation intent.
-      if (!document.documentElement.classList.contains("is-scrolling")) warmRoute();
-      onMouseEnter?.(event);
-    },
-    [onMouseEnter, warmRoute]
-  );
-
-  const handleFocus = useCallback(
-    (event: FocusEvent<HTMLAnchorElement>) => {
-      warmRoute();
-      onFocus?.(event);
-    },
-    [onFocus, warmRoute]
-  );
-
-  const handleTouchStart = useCallback(
-    (event: TouchEvent<HTMLAnchorElement>) => {
-      if (prefetchOnTouch) warmRoute();
-      onTouchStart?.(event);
-    },
-    [onTouchStart, prefetchOnTouch, warmRoute]
-  );
-
+  // NavigationProgress delegates intent for every link through one listener
+  // and one cache. These flags also apply when this anchor's href changes.
   return (
     <Link
       ref={ref}
-      href={href}
-      onMouseEnter={handleMouseEnter}
-      onFocus={handleFocus}
-      onTouchStart={handleTouchStart}
       {...props}
-      prefetch={effectivePrefetch}
+      data-prefetch-intent={prefetchOnIntent ? undefined : "false"}
+      data-prefetch-touch={prefetchOnTouch ? undefined : "false"}
+      prefetch={prefetch ?? prefetchOnViewport}
     />
   );
 });
