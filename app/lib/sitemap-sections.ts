@@ -7,7 +7,7 @@ import { brands } from "app/components/brandsData";
 import { carBrands } from "app/components/carBrands";
 import { getInformationPath, informationSections } from "app/inform/section-config";
 import { getAutoSeoData } from "app/lib/auto-seo";
-import { buildAutoModelKey, getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
+import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildAutoBrandPath, buildAutoModelPath, buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
@@ -473,58 +473,42 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
     );
   }
 
+  const pushModel = (brand: string, model: string) => {
+    const logo = getBrandLogo(brand);
+    pushUniqueEntry(
+      buildAutoModelPath(brand, model),
+      0.7,
+      "monthly",
+      logo
+        ? {
+            loc: logo,
+            title: `${brand} ${model} — запчастини`,
+            caption: `Групи запчастин для ${brand} ${model} у каталозі PartsON`,
+          }
+        : null
+    );
+  };
+
+  // The verified snapshot already lists every model with products, so it is
+  // the whole list: per-brand 1C lookups that time out (as they do under the
+  // post-deploy warm-up) used to cut the sitemap to the brands that answered
+  // and keep it that way for hours.
+  const verifiedModelKeys = await getVerifiedAutoModelKeys();
+  if (verifiedModelKeys) {
+    for (const key of verifiedModelKeys) {
+      const [brand, model] = key.split("::");
+      if (brand && model) pushModel(brand, model);
+    }
+    return entries;
+  }
+
   const seoData = await resolveWithTimeout(
     () => getAutoSeoData(),
     null,
     SITEMAP_AUTO_SOURCE_TIMEOUT_MS
   ).catch(() => null);
-
-  const verifiedModelKeys = await getVerifiedAutoModelKeys();
-
-  if (!seoData?.brandGroups?.length && verifiedModelKeys) {
-    // 1C missed the timeout (it often does right after a deploy, under the
-    // cache warm-up): list the verified models from the build snapshot rather
-    // than a sitemap of brand pages only, which then stayed cached for hours.
-    for (const key of verifiedModelKeys) {
-      const [brand, model] = key.split("::");
-      if (!brand || !model) continue;
-      const logo = getBrandLogo(brand);
-      pushUniqueEntry(
-        buildAutoModelPath(brand, model),
-        0.7,
-        "monthly",
-        logo
-          ? {
-              loc: logo,
-              title: `${brand} ${model} — запчастини`,
-              caption: `Групи запчастин для ${brand} ${model} у каталозі PartsON`,
-            }
-          : null
-      );
-    }
-  }
-
-  if (seoData?.brandGroups?.length) {
-    for (const group of seoData.brandGroups) {
-      const logo = getBrandLogo(group.brand);
-      for (const model of group.models) {
-        if (verifiedModelKeys && !verifiedModelKeys.has(buildAutoModelKey(group.brand, model.name))) {
-          continue;
-        }
-        pushUniqueEntry(
-          buildAutoModelPath(group.brand, model.name),
-          0.7,
-          "monthly",
-          logo
-            ? {
-                loc: logo,
-                title: `${group.brand} ${model.name} — запчастини`,
-                caption: `Групи запчастин для ${group.brand} ${model.name} у каталозі PartsON`,
-              }
-            : null
-        );
-      }
-    }
+  for (const group of seoData?.brandGroups ?? []) {
+    for (const model of group.models) pushModel(group.brand, model.name);
   }
 
   return entries;
@@ -532,7 +516,7 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
 
 const getAutoSitemapEntriesCached = unstable_cache(
   buildAutoSitemapEntries,
-  ["auto-sitemap-v1"],
+  ["auto-sitemap-v2-verified"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["auto-sitemap"],

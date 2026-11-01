@@ -5,7 +5,7 @@ export const suites = {
     "firebase-auth-initialization", "firebase-auth-dependencies", "route-prefetch",
     "user-profile-store", "admin-notification-counts", "admin-notification-client", "style-splitting", "build-snapshots", "recommendation-prices",
     "catalog-request-lifecycle", "catalog-prefetch-freshness", "catalog-photo-filter",
-    "catalog-name-sort", "catalog-priced-first",
+    "catalog-name-sort", "catalog-priced-first", "catalog-analog-index",
     "catalog-codes-batch", "catalog-count", "product-stock", "product-admin-mutations",
     "product-form-validation", "product-params", "vehicle-fitment", "fitment-editor-data",
     "site-url", "euro-rate-client", "marketing-attribution", "onec-client", "onec-stock-cache",

@@ -4,6 +4,7 @@ import { readVehicleSelection, vehicleModelQuery, matchesVehicleFitment, type Ve
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductPromoPriceOverride } from "./product-promo-overrides";
 import { getProductTreeDataset } from "app/lib/product-tree";
+import { buildAnalogIndex, findAnalogsOfMatches, type AnalogIndex } from "app/lib/catalog-analog-index";
 import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
@@ -3703,6 +3704,15 @@ export const getSearchVocabulary = (): Map<string, number> | null => {
   return searchVocabulary.words;
 };
 
+// Analog groups of the warm snapshot, rebuilt only when the snapshot changes.
+let snapshotAnalogIndex: { products: CatalogProduct[]; index: AnalogIndex<CatalogProduct> } | null = null;
+const getSnapshotAnalogIndex = (snapshot: FullCatalogSnapshot) => {
+  if (snapshotAnalogIndex?.products !== snapshot.products) {
+    snapshotAnalogIndex = { products: snapshot.products, index: buildAnalogIndex(snapshot.products) };
+  }
+  return snapshotAnalogIndex.index;
+};
+
 // The categories and producers most of the matches belong to — "Гальмівні
 // колодки · 680" for "колодки" — shown above the product suggestions.
 const buildSearchFacets = (matches: CatalogProduct[]): SearchFacets => {
@@ -3788,15 +3798,22 @@ export const searchCatalogIndex = async (
   const offset = Math.max(0, Math.floor(options.offset || 0));
   const afterCode = options.afterCode || "";
   const respond = (matches: CatalogProduct[], usedQuery: string, correctedQuery?: string) => {
-    const ordered = options.rank ? rankSearchMatches(matches, usedQuery) : matches;
+    // The analogs of what was found follow the matches themselves.
+    const analogs = findAnalogsOfMatches(matches, getSnapshotAnalogIndex(snapshot)).sort(compareCodes);
+    const ordered = [...(options.rank ? rankSearchMatches(matches, usedQuery) : matches), ...analogs];
+    // Analogs break the plain code order, so continue right after the last
+    // shown code when it is still in the list.
+    const afterIndex = afterCode && !options.rank
+      ? ordered.findIndex((product) => product.code === afterCode)
+      : -1;
     const start = afterCode && !options.rank
-      ? ordered.findIndex((product) => product.code > afterCode)
+      ? afterIndex >= 0 ? afterIndex + 1 : ordered.findIndex((product) => product.code > afterCode)
       : offset;
     const items = start < 0 ? [] : ordered.slice(start, start + options.limit);
     return {
       items,
       hasMore: start >= 0 && start + items.length < ordered.length,
-      totalCount: matches.length,
+      totalCount: ordered.length,
       ...(correctedQuery ? { correctedQuery } : {}),
       ...(options.rank && offset === 0 && matches.length > 3 ? { facets: buildSearchFacets(matches) } : {}),
     };
@@ -3926,6 +3943,17 @@ export const listCatalogFromSnapshot = async (
       ? ["name", "article", "code", "producer", "description"]
       : [query.searchFilter];
   const producer = normalizeFacetValue(query.producer);
+  const matchesSearch = (product: CatalogProduct) =>
+    searchFields.some((field) => matchesSearchField(product, query.searchQuery, field));
+  // Analogs of the products the search finds pass the search condition too
+  // (the other filters still apply) and are listed after them.
+  const analogCodes = new Set(
+    searchFields.length > 0
+      ? findAnalogsOfMatches(snapshot.products.filter(matchesSearch), getSnapshotAnalogIndex(snapshot)).map(
+          (product) => product.code
+        )
+      : []
+  );
 
   const matches = snapshot.products.filter((product) => {
     if (branches.length > 0) {
@@ -3944,7 +3972,7 @@ export const listCatalogFromSnapshot = async (
     if (query.pricedOnly && !priced) return false;
     if (query.priceFrom !== null && !((product.priceEuro ?? 0) >= query.priceFrom)) return false;
     if (query.priceTo !== null && !((product.priceEuro ?? 0) <= query.priceTo)) return false;
-    if (searchFields.length > 0 && !searchFields.some((field) => matchesSearchField(product, query.searchQuery, field))) {
+    if (searchFields.length > 0 && !analogCodes.has(product.code) && !matchesSearch(product)) {
       return false;
     }
     if (query.vehicle && !matchesVehicleFitment(product.description, query.vehicle)) return false;
@@ -3967,7 +3995,7 @@ export const listCatalogFromSnapshot = async (
     const direction = query.nameSort === "asc" ? 1 : -1;
     matches.sort((a, b) => compareProductNames(a, b, direction));
   } else if (query.searchQuery) {
-    matches.sort(compareCodes);
+    matches.sort((a, b) => Number(analogCodes.has(a.code)) - Number(analogCodes.has(b.code)) || compareCodes(a, b));
   } else {
     matches.sort((a, b) => {
       const aPriced = hasSnapshotSalePrice(a);
