@@ -3,6 +3,7 @@ import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { readBuildSnapshot, recordBuildSnapshot, missingBuildSnapshot } from "./oneC-build-snapshots.js";
 
 // --- Development-only disk cache -------------------------------------------
 // In `next dev`, the in-memory response cache below is wiped whenever a server
@@ -452,6 +453,12 @@ export async function oneCRequest(endpoint, options = {}) {
   const retries = stockMovement ? 0 : requestedRetries;
   const requestGeneration = cacheGeneration;
 
+  const resolvedCacheKey = cacheKey ?? `${method}:${endpoint}:${stableStringify(body)}`;
+  if (process.env.ONEC_BUILD_SNAPSHOT_ONLY === "1") {
+    if (stockMovement) return missingBuildSnapshot(endpoint, resolvedCacheKey);
+    return readBuildSnapshot(endpoint, resolvedCacheKey) ?? missingBuildSnapshot(endpoint, resolvedCacheKey);
+  }
+
   pruneCache();
 
   const configError = getOneCConfigError();
@@ -466,15 +473,13 @@ export async function oneCRequest(endpoint, options = {}) {
     };
   }
 
-  const resolvedCacheKey =
-    cacheKey ?? `${method}:${endpoint}:${stableStringify(body)}`;
   if (cacheTtlMs > 0) {
     const cached = getCached(resolvedCacheKey);
-    if (cached) return cached;
+    if (cached) return recordBuildSnapshot(endpoint, resolvedCacheKey, cached);
     const disk = readDevDiskCache(endpoint, resolvedCacheKey);
     if (disk) {
       setCached(resolvedCacheKey, disk, cacheTtlMs);
-      return disk;
+      return recordBuildSnapshot(endpoint, resolvedCacheKey, disk);
     }
   }
   const staleMs = cacheTtlMs > 0 && STALE_WHILE_REVALIDATE_ENDPOINTS.has(endpoint) ? STALE_WHILE_REVALIDATE_MS : 0;
@@ -579,6 +584,7 @@ export async function oneCRequest(endpoint, options = {}) {
           writeDevDiskCache(endpoint, resolvedCacheKey, result);
         }
 
+        if (!stockMovement) recordBuildSnapshot(endpoint, resolvedCacheKey, result);
         return result;
       } catch (err) {
         attempt += 1;

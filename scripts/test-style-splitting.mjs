@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { splitSiteCss } from './split-site-css.mjs';
+const tokens = { exact: new Set(['public']), prefixes: [] };
+const split = splitSiteCss('@property --x{syntax:"<number>";initial-value:0;inherits:false}@keyframes fade{from{opacity:0}to{opacity:1}}.public,.admin{color:red;&:hover{color:blue}@media(width>400px){color:green}}.admin-only{animation:fade 1s}.public{color:black}', tokens);
+assert(split.site.includes('.public')); assert(!split.site.includes('.admin'));
+assert(split.deferred.includes('.admin')); assert(!split.deferred.includes('.public'));
+assert(split.site.includes('&:hover')); assert(split.deferred.includes('&:hover'), 'Nested interactive states follow their containing selector');
+assert(split.site.includes('@property')); assert(!split.deferred.includes('@property'));
+assert(split.site.includes('@keyframes')); assert(!split.deferred.includes('@keyframes'));
+const actual = splitSiteCss(readFileSync('public/styles/dev.css', 'utf8'));
+assert(actual.deferred.includes('.auth-social-button'));
+assert(!actual.site.includes('.auth-social-button'), 'Auth-specific styles load on intent');
+assert(actual.site.length < readFileSync('public/styles/dev.css', 'utf8').length * 0.9);
+console.log('PASS CSS partition, nested hover/media states, shared definitions and storefront size budget');

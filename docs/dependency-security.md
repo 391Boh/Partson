@@ -1,22 +1,14 @@
-# Перевірка залежностей — 6 жовтня 2026
+# Перевірка залежностей — 1 листопада 2026
 
-Оновлено Next.js до 16.3.8, ESLint-конфігурацію Next.js до 16.3.8 та сумісні транзитивні залежності (`proxy-addr`, `fast-uri`, `source-map-js`, `brace-expansion`). Override `@grpc/grpc-js: ^1.14.5` забезпечує виправлену версію для Firebase та Firebase Admin SDK.
+Перевірений lock-файл містить Next.js 16.4.3, Sentry 10.78.0, body-parser 2.4.0, React 19.2.8 та сумісні транзитивні оновлення. ESLint-конфігурація й аналізатор збірки відповідають Next.js 16.4.x. Встановлюйте залежності через `npm ci` на Node.js 22.
 
-Результат перевірки оновленого lock-файлу:
+Результат перевірки:
 
-- `npm audit --omit=dev`: 0 знайдених вразливостей.
-- `npm audit`: 7 high, 0 critical. Усі сім попереджень — один ланцюжок `braces` → `micromatch` → ESLint/Tailwind та їхні залежності розробки.
+- `npm audit --omit=dev`: **0 вразливостей**.
+- `npm audit`: **15 moderate**, 0 high, 0 critical. Це попередження `minimatch` і залежних від нього інструментів ESLint. Вони не входять у production-залежності.
 
-## Невиправлена залежність розробки
+Scoped overrides оновлюють `glob` для Sentry/rimraf та `minimatch` для typescript-estree, де сумісність перевіряється lint і збіркою. Старі споживачі `minimatch` 3 очікують інший API, тому глобальна примусова заміна на 11.x не застосовується. Шаблони ESLint беруться з репозиторію; не передавайте інструментам недовірені glob-шаблони. Джерело попередження: [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249).
 
-Для [`braces`, GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) виправленої опублікованої версії на дату перевірки немає. Зберігайте інструменти збірки на довірених шаблонах проєкту та оновіть залежності після публікації upstream-виправлення. Кількість попереджень npm враховує і транзитивні пакети, що залежать від уразливого пакета.
+`npm run audit:production` входить до CI та завершується помилкою при moderate або серйозніших production-вразливостях. `npm audit fix --force` може запропонувати несумісний відкат ESLint-конфігурації; використовуйте перевірений lock-файл.
 
-`npm audit fix --force` пропонував відкотити деякі прямі залежності до інших версій, зокрема ESLint-конфігурацію Next.js до 14.x. Це може порушити сумісність із Next.js 16. Використовуйте перевірений `package-lock.json` через `npm ci`.
-
-Інструменти розробки потрібні для `npm run build`; `npm ci --omit=dev` перед збіркою не встановить ESLint та Tailwind CLI.
-
-## Джерела виправлень
-
-- [Next.js ImageResponse: виправлення з 16.3.6](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j).
-- [gRPC: виправлення в 1.13.6 та 1.14.5](https://github.com/advisories/GHSA-m9gg-hp2v-232j).
-- [proxy-addr: виправлення з 2.0.8](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
+Dev-залежності потрібні для збірки: `npm ci --omit=dev` перед нею не встановить Tailwind CLI та інші інструменти.

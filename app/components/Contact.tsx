@@ -22,8 +22,7 @@ import Zvyaz from "app/components/zvyaz";
 import ContactAvatar, { type ContactAvatarVariant } from "app/components/ContactAvatar";
 import WindowHubCover from "app/components/WindowHubCover";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebase";
+import { readUserProfile } from "app/lib/user-profile-store";
 import { pushAnalyticsEvent } from "app/lib/gtm";
 
 const STORE_MAPS_URL =
@@ -158,9 +157,8 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
 
       if (!name || !phone) {
         try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists()) {
-            const d = snap.data() as Record<string, unknown>;
+          const d = await readUserProfile(user.uid);
+          if (d) {
             name ||= typeof d.name === "string" ? d.name : "";
             phone ||= typeof d.phone === "string" ? d.phone : "";
           }

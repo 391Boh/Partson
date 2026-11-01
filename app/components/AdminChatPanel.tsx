@@ -568,6 +568,10 @@ export default function AdminChatPanel({
   }, [unreadMessages, unreadOrders, unreadCalls, onNotificationCountChange]);
 
   useEffect(() => {
+    window.dispatchEvent(new Event('partson:admin-notifications-changed'));
+  }, [unreadMessages, unreadOrders, unreadCalls]);
+
+  useEffect(() => {
     if (!selectedUserId) return;
 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

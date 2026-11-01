@@ -30,7 +30,7 @@ const savedEnv = { ...process.env };
 process.env.ONEC_BASE_URL = `http://127.0.0.1:${server.address().port}`;
 process.env.ONEC_AUTH_HEADER = 'test-only';
 process.env.ONEC_DEV_DISK_CACHE = '0';
-const source = readFileSync(new URL('../app/api/_lib/oneC.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../app/api/_lib/oneC.js', import.meta.url), 'utf8').replace('from \"./oneC-build-snapshots.js\"', `from ${JSON.stringify(new URL('../app/api/_lib/oneC-build-snapshots.js', import.meta.url).href)}`);
 const { oneCRequest, clearAllOneCCache } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 try {

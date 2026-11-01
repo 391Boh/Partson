@@ -54,7 +54,7 @@ export default function HomePage() {
   // geometry and loads each module shortly before it reaches the viewport.
   // This keeps the hero response small and removes catalogue/brand lookups
   // from the homepage's critical rendering path.
-  // Above-the-fold styles only (~27 KB gzip instead of the full ~90 KB):
+  // Only the page's critical stylesheet blocks first paint:
   // React hoists this render-blocking <link> into <head>, and the root
   // layout's stylesheet loader sees it and fetches the full stylesheet
   // without blocking first paint. Without the file the full stylesheet stays

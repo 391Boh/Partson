@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, setDoc, where } from "firebase/firestore";
 import { db } from "app/lib/firebase-firestore";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
+import { readUserProfile, subscribeUserProfile } from "app/lib/user-profile-store";
+import { subscribeAdminNotificationCount } from "app/lib/admin-notification-client";
 
 export type LayoutAccountRuntimeProps = {
   isAdmin: boolean;
@@ -16,7 +18,7 @@ export type LayoutAccountRuntimeProps = {
 // This module is downloaded only for a restored account or explicit chat
 // interaction. Its SDK, role checks and presence listeners are not needed
 // to render a guest's header or page content.
-const firebaseDeps = { db, collection, doc, getDoc, onSnapshot, query, setDoc, where };
+const firebaseDeps = { db, collection, doc, onSnapshot, query, setDoc, where };
 
 const normalizeStoredId = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
@@ -179,7 +181,7 @@ export default function LayoutAccountRuntime({
     if (typeof window === "undefined") return;
     if (!firebaseAuthReady) return;
 
-    const { db, doc, getDoc, setDoc } = firebaseDeps;
+    const { db, doc, setDoc } = firebaseDeps;
     let cancelled = false;
 
     if (firebaseUser) {
@@ -217,12 +219,8 @@ export default function LayoutAccountRuntime({
         // making the role check wait on two serial network/IndexedDB trips.
         // A cached token is sufficient here; the live user-doc listener below
         // still applies role changes immediately without a forced refresh.
-        const userDataPromise = getDoc(userRef)
-          .then((userSnap) =>
-            userSnap.exists()
-              ? (userSnap.data() as Record<string, unknown>)
-              : undefined
-          )
+        const userDataPromise = readUserProfile(user.uid)
+          .then((data) => data ?? undefined)
           .catch((error) => {
             if (!isPermissionDeniedError(error)) {
               console.error("Failed to load user profile for role detection:", error);
@@ -349,12 +347,8 @@ export default function LayoutAccountRuntime({
   useEffect(() => {
     if (!authUserUid || !adminCheckReady) return;
 
-    const { db, doc, onSnapshot } = firebaseDeps;
-    const userRef = doc(db, "users", authUserUid);
-
-    const unsubscribe = onSnapshot(userRef, (snap) => {
-      if (!snap.exists()) return;
-      const isAdminRole = hasAdminAccess(snap.data() as Record<string, unknown>);
+    const unsubscribe = subscribeUserProfile(authUserUid, (data) => {
+      const isAdminRole = hasAdminAccess(data ?? {});
       const resolvedIsAdmin = isAdminRole || isAdminEmailRef.current;
 
       setIsAdmin((prev) => (prev === resolvedIsAdmin ? prev : resolvedIsAdmin));
@@ -514,52 +508,12 @@ export default function LayoutAccountRuntime({
   }, [userId, loading, setUserUnreadCount]);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isAdmin || !firebaseAuthReady || !firebaseUser) {
       setTotalNotifications(0);
       return;
     }
-
-    const { collection, db, onSnapshot } = firebaseDeps;
-
-    let unreadMessages = 0;
-    let unreadOrders = 0;
-    let unreadCalls = 0;
-
-    const syncTotal = () => {
-      setTotalNotifications(unreadMessages + unreadOrders + unreadCalls);
-    };
-
-    const unsubscribeMessages = onSnapshot(collection(db, "messages"), (snapshot) => {
-      unreadMessages = snapshot.docs.reduce((count, snapshotDoc) => {
-        const data = snapshotDoc.data() as Record<string, unknown>;
-        if (data?.sender !== "user") return count;
-        return data?.readByAdmin === true ? count : count + 1;
-      }, 0);
-      syncTotal();
-    });
-
-    const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
-      unreadOrders = snapshot.docs.reduce((count, snapshotDoc) => {
-        const data = snapshotDoc.data() as Record<string, unknown>;
-        return data?.read === true ? count : count + 1;
-      }, 0);
-      syncTotal();
-    });
-
-    const unsubscribeCalls = onSnapshot(collection(db, "zvyaz"), (snapshot) => {
-      unreadCalls = snapshot.docs.reduce((count, snapshotDoc) => {
-        const data = snapshotDoc.data() as Record<string, unknown>;
-        return data?.read === true ? count : count + 1;
-      }, 0);
-      syncTotal();
-    });
-
-    return () => {
-      unsubscribeMessages();
-      unsubscribeOrders();
-      unsubscribeCalls();
-    };
-  }, [isAdmin, setTotalNotifications]);
+    return subscribeAdminNotificationCount(firebaseUser, setTotalNotifications);
+  }, [isAdmin, firebaseAuthReady, firebaseUser, setTotalNotifications]);
 
   return null;
 }

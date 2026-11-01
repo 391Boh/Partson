@@ -1,9 +1,11 @@
 "use client";
 
+import { loadDeferredUi } from "./deferred-stylesheet";
+
 let modulePromise: Promise<typeof import("app/components/AuthModal")> | null = null;
 
 export const loadAuthModalModule = () => {
-  modulePromise ??= import("app/components/AuthModal").catch((error: unknown) => {
+  modulePromise ??= loadDeferredUi(() => import("app/components/AuthModal")).catch((error: unknown) => {
     modulePromise = null;
     throw error;
   });
@@ -17,7 +19,7 @@ export const preloadAuthModal = () => {
 let accountPromise: Promise<typeof import("app/components/AccountInfo")> | null = null;
 
 export const loadAccountInfoModule = () => {
-  accountPromise ??= import("app/components/AccountInfo").catch((error: unknown) => {
+  accountPromise ??= loadDeferredUi(() => import("app/components/AccountInfo")).catch((error: unknown) => {
     accountPromise = null;
     throw error;
   });

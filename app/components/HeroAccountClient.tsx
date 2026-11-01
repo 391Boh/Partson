@@ -5,6 +5,7 @@ import { ShoppingBag, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, B
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
+import { subscribeUserProfile as subscribeSharedUserProfile, updateUserProfileCache } from "app/lib/user-profile-store";
 import { preloadAuthModal } from "app/lib/auth-modal-loader";
 import { scheduleIdle } from "app/lib/schedule-idle";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
@@ -198,89 +199,22 @@ const parseProfileData = (data: Record<string, unknown>): ProfileData => {
   };
 };
 
-// Hero mounts this component twice at once (variant="benefits" and
-// variant="actions", see hero.tsx) — both want the same user's data, so
-// every subscriber for a given uid shares one live Firestore listener
-// instead of each instance opening (and paying for) its own.
-//
-// Live, not a one-shot getDoc: a car picked in the Auto.tsx widget further
-// down this same homepage, or a VIN added through the header's account
-// modal, used to leave this panel showing stale cars/VINs until the next
-// full page load — nothing on the page ever told the old cached-promise
-// version to refetch. onSnapshot means any write to users/{uid} from
-// anywhere (this tab or another) reaches every mounted instance immediately.
-let profileCache: { uid: string; data: ProfileData } | null = null;
-const profileListeners = new Map<string, Set<(data: ProfileData) => void>>();
-const profileUnsubscribers = new Map<string, () => void>();
+// Profile documents are shared with the app shell and account window.
+const subscribeUserProfile = (uid: string, listener: (data: ProfileData) => void) =>
+  subscribeSharedUserProfile(uid, (data) => {
+    const result = parseProfileData(data ?? {});
+    writeCachedProfileBackground(uid, result.profileBackground);
+    writeCachedAvatarFrame(uid, result.avatarFrame);
+    listener(result);
+  }, () => listener(parseProfileData({})));
 
-const subscribeUserProfile = (
-  uid: string,
-  listener: (data: ProfileData) => void
-): (() => void) => {
-  if (profileCache?.uid === uid) listener(profileCache.data);
-
-  let listeners = profileListeners.get(uid);
-  if (!listeners) {
-    listeners = new Set();
-    profileListeners.set(uid, listeners);
-  }
-  listeners.add(listener);
-
-  if (!profileUnsubscribers.has(uid)) {
-    let cancelled = false;
-    // Placeholder so a second subscriber arriving before the dynamic
-    // imports below resolve doesn't start a second listener for the same
-    // uid; replaced with the real unsubscribe once onSnapshot attaches.
-    profileUnsubscribers.set(uid, () => {
-      cancelled = true;
-    });
-    void (async () => {
-      const [{ db }, { doc, onSnapshot }] = await Promise.all([
-        import("app/lib/firebase-firestore"),
-        import("firebase/firestore"),
-      ]);
-      if (cancelled) return;
-      const stop = onSnapshot(
-        doc(db, "users", uid),
-        (snap) => {
-          const data = (snap.exists() ? snap.data() : {}) as Record<string, unknown>;
-          const result = parseProfileData(data);
-          profileCache = { uid, data: result };
-          // Next visit paints the theme and frame before this snapshot.
-          writeCachedProfileBackground(uid, result.profileBackground);
-          writeCachedAvatarFrame(uid, result.avatarFrame);
-          profileListeners.get(uid)?.forEach((cb) => cb(result));
-        },
-        () => {
-          const empty: ProfileData = {
-            name: null, vins: [], cars: [], selectionLabel: null, delivery: null,
-            avatar: null, avatarFrame: null, profileBackground: null, profileTheme: getProfileTheme(null), isAdmin: false,
-          };
-          profileCache = { uid, data: empty };
-          profileListeners.get(uid)?.forEach((cb) => cb(empty));
-        }
-      );
-      profileUnsubscribers.set(uid, stop);
-    })();
-  }
-
-  return () => {
-    const set = profileListeners.get(uid);
-    set?.delete(listener);
-    if (set && set.size === 0) {
-      profileListeners.delete(uid);
-      profileUnsubscribers.get(uid)?.();
-      profileUnsubscribers.delete(uid);
-      if (profileCache?.uid === uid) profileCache = null;
-    }
-  };
-};
-
-// Optimistic local writes (handleDeleteVin/handleDeleteCar below) still
-// update this cache directly for an instant preview — the live listener
-// above reconfirms the same value moments later once Firestore round-trips.
 const setUserProfileCache = (uid: string, data: ProfileData) => {
-  profileCache = { uid, data };
+  updateUserProfileCache(uid, (current) => {
+    const avto = current.avto && typeof current.avto === "object" ? current.avto as Record<string, unknown> : {};
+    const selection = data.selectionLabel ? avto.selection ?? current.selectedCarSelection ?? { label: data.selectionLabel } : null;
+    return { ...current, vins: data.vins, selectedCars: data.cars, selectedCarSelection: selection,
+      avto: { ...avto, cars: data.cars, selection } };
+  });
 };
 
 let ordersCache: { uid: string; data: OrdersSummary } | null = null;

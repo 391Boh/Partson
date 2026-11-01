@@ -13,8 +13,9 @@ declare global {
 
 export const whenFullStylesheetReady = (): Promise<void> => {
   if (typeof window === "undefined" || !window.__partsonCssReady) return Promise.resolve();
-  return Promise.race([
-    window.__partsonCssReady,
-    new Promise<void>((resolve) => window.setTimeout(resolve, FULL_STYLESHEET_MAX_WAIT_MS)),
-  ]);
+  return new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(resolve, FULL_STYLESHEET_MAX_WAIT_MS);
+    const done = () => { window.clearTimeout(timeout); resolve(); };
+    window.__partsonCssReady!.then(done, done);
+  });
 };

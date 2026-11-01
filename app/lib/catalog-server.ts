@@ -4261,6 +4261,16 @@ export const fetchEuroRate = async () => {
   return refreshEuroRate();
 };
 
+/** Search/checkout data must never advertise the initial guessed 50 UAH/EUR.
+ * Reuse the same confirmed rate as the catalog; await a refresh when stale. */
+export const fetchConfirmedEuroRate = async (): Promise<number | null> => {
+  if (!lastEuroFetchAt || Date.now() - lastEuroFetchAt >= EURO_RATE_TTL_MS) {
+    await refreshEuroRate();
+  }
+  return lastEuroFetchAt > 0 && Date.now() - lastEuroFetchAt < 24 * 60 * 60 * 1000
+    ? cachedEuroRate : null;
+};
+
 // `answered` tells "1C responded, there is no description" (render the
 // "уточнюється" note, cache it) apart from "1C did not respond" (keep
 // loading/retry) — fetchProductDescription alone returns null for both.

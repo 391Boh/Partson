@@ -1,36 +1,53 @@
-import { readFile } from "fs/promises";
-import { join } from "path";
-
 import { getGoogleMerchantFeedSnapshot } from "app/lib/google-merchant-feed";
+import { fetchConfirmedEuroRate } from "app/lib/catalog-server";
+import { merchantFeedHash, repriceMerchantFeed } from "app/lib/merchant-feed-pricing";
+import { readMerchantFeedSnapshot, writeMerchantFeedSnapshot } from "app/lib/merchant-feed-store";
 import { getSiteUrl } from "app/lib/site-url";
 import { normalizeInvalidXmlEntities } from "app/lib/xml-entities";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
-const buildXmlResponse = (xml: string) =>
-  new Response(normalizeInvalidXmlEntities(xml), {
-    headers: {
-      "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-    },
-  });
+type Feed = { xml: string; etag: string; expires: number };
+let cached: Feed | null = null;
+let pending: Promise<Feed> | null = null;
 
-export async function GET() {
-  // .cache/, not public/ — see scripts/generate-merchant-feed.ts's own
-  // comment: a file in public/ is auto-served at its matching URL by
-  // Next.js, which collided with this very route (both claiming
-  // /google-merchant-feed.xml) and made Next.js refuse to resolve either,
-  // 500ing the exact URL Google Merchant Center fetches.
-  const generatedFeedPath = join(process.cwd(), ".cache", "google-merchant-feed.xml");
-  const generatedXml = await readFile(generatedFeedPath, "utf-8").catch(() => "");
-  if (generatedXml.trim()) {
-    return buildXmlResponse(generatedXml);
+async function loadFeed(): Promise<Feed> {
+  const [prepared, rate] = await Promise.all([readMerchantFeedSnapshot(), fetchConfirmedEuroRate()]);
+  if (rate == null) throw new Error("No confirmed exchange rate");
+  let snapshot = prepared;
+  if (!snapshot || Date.now() - snapshot.pricing.generatedAt > 60 * 60 * 1000) {
+    try {
+      const fresh = await getGoogleMerchantFeedSnapshot({ siteUrl: getSiteUrl() });
+      if (!fresh.sourceCount) throw new Error("Unconfirmed empty catalog");
+      snapshot = fresh;
+      await writeMerchantFeedSnapshot(fresh).catch(() => undefined);
+    } catch (error) {
+      // A valid, bounded last-good EUR snapshot can still use today's rate.
+      if (!snapshot) throw error;
+    }
   }
+  const xml = normalizeInvalidXmlEntities(repriceMerchantFeed(snapshot.xml, snapshot.pricing, rate));
+  return { xml, etag: `"${merchantFeedHash(xml)}"`, expires: Date.now() + 60_000 };
+}
 
-  const snapshot = await getGoogleMerchantFeedSnapshot({
-    siteUrl: getSiteUrl(),
-  });
-
-  return buildXmlResponse(snapshot.xml);
+export async function GET(request: Request) {
+  try {
+    if (!cached || cached.expires <= Date.now()) {
+      pending ??= loadFeed().then(value => { cached = value; return value; }).finally(() => { pending = null; });
+      await pending;
+    }
+    const feed = cached!;
+    const unchanged = request.headers.get("if-none-match") === feed.etag;
+    return new Response(unchanged ? null : feed.xml, { status: unchanged ? 304 : 200, headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=60",
+      ETag: feed.etag,
+    } });
+  } catch {
+    return new Response("Product feed is temporarily unavailable", { status: 503, headers: {
+      "Cache-Control": "no-store", "Retry-After": "300",
+    } });
+  }
 }

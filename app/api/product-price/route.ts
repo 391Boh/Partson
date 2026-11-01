@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   fetchCatalogPriceDetailsByLookupKeys,
-  fetchEuroRate,
+  fetchConfirmedEuroRate,
   fetchPriceEuroMapByLookupKeys,
   fetchPromoAvailabilityByLookupKeys,
   fetchPromoOffersByLookupKeys,
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
           directConcurrency: 3,
           maxKeys: 8,
         }).catch(() => ({} as Record<string, number>));
-        const euroRatePromise = fetchEuroRate().catch(() => null);
+        const euroRatePromise = fetchConfirmedEuroRate().catch(() => null);
         // Partner mode reads the promo row live from allgoods (~0.2 s): the
         // same row carries both the "has promo" flag and the Акція amount, so
         // the 1.8 s price-detail call is now only a fallback for a promo row

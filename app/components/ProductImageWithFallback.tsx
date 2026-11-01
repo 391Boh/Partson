@@ -34,6 +34,7 @@ interface ProductImageWithFallbackProps {
   productCode?: string;
   articleHint?: string;
   hasKnownPhoto?: boolean;
+  fallbackSrc?: string;
   preferCachedPreview?: boolean;
   variant?: "full" | "catalog";
   unoptimized?: boolean;
@@ -68,6 +69,7 @@ export default function ProductImageWithFallback({
   productCode,
   articleHint,
   hasKnownPhoto = true,
+  fallbackSrc = "",
   preferCachedPreview = true,
   variant = "full",
   unoptimized: unoptimizedProp = false,
@@ -89,8 +91,8 @@ export default function ProductImageWithFallback({
             noFallback: true,
             cacheBust: cacheBustToken || undefined,
           })
-        : "",
-    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant]
+        : fallbackSrc,
+    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant, fallbackSrc]
   );
   const recoverySrc = useMemo(
     () =>
@@ -120,12 +122,12 @@ export default function ProductImageWithFallback({
   const preferImmediateDecode = loading === "eager" && fetchPriority === "high";
   const [requestSrc, setRequestSrc] = useState(primarySrc || "");
   const [cachedPreviewSrc, setCachedPreviewSrc] = useState("");
-  const [status, setStatus] = useState<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
+  const [status, setStatus] = useState<ImageStatus>(primarySrc ? "loading" : "missing");
   const [finalRetryQueued, setFinalRetryQueued] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [selectedGallerySrc, setSelectedGallerySrc] = useState("");
   const requestSrcRef = useRef("");
-  const statusRef = useRef<ImageStatus>(hasKnownPhoto ? "loading" : "missing");
+  const statusRef = useRef<ImageStatus>(primarySrc ? "loading" : "missing");
 
   useEffect(() => {
     requestSrcRef.current = requestSrc;
@@ -179,6 +181,11 @@ export default function ProductImageWithFallback({
       setStatus(alreadyDecoded ? "loaded" : "loading");
       return;
     }
+    if (!hasKnownPhoto && fallbackSrc && !cacheBustToken) {
+      setRequestSrc(fallbackSrc);
+      setStatus("loading");
+      return;
+    }
     if (!hasKnownPhoto && !cacheBustToken) {
       if (normalizedProductCode) {
         writeProductImageMissing(normalizedProductCode, normalizedArticleHint || undefined);
@@ -228,6 +235,7 @@ export default function ProductImageWithFallback({
     setStatus("loading");
   }, [
     hasKnownPhoto,
+    fallbackSrc,
     imageUpdate.previewSrc,
     cacheBustToken,
     normalizedArticleHint,
@@ -348,7 +356,7 @@ export default function ProductImageWithFallback({
   );
 
   const isLoaded = status === "loaded";
-  const showPlaceholder = (!hasKnownPhoto && !selectedGallerySrc) || status === "missing";
+  const showPlaceholder = (!primarySrc && !selectedGallerySrc) || status === "missing";
   const showCachedPreview = Boolean(cachedPreviewSrc && !selectedGallerySrc && !showPlaceholder && !isLoaded);
   // The primary photo shows its blur placeholder until it decodes; an opaque
   // skeleton over it hid the server-rendered image until hydration.

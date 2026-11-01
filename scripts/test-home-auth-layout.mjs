@@ -3,8 +3,7 @@ import http from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { build, stop } from 'esbuild';
 const { chromium } = await import(process.argv[2] || 'playwright');
-const manifest = JSON.parse(readFileSync('public/styles/manifest.json', 'utf8'));
-const css = readFileSync(`public${manifest.href}`);
+const css = readFileSync('public/styles/dev-site.css');
 const result = await build({
   stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
     import React from 'react'; import { createRoot } from 'react-dom/client';

@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
+import { writeMerchantFeedSnapshot } from "../app/lib/merchant-feed-store";
 
 const parseOptionalPositiveInt = (value: string | undefined) => {
   if (!value) return null;
@@ -64,6 +64,7 @@ async function main() {
   );
 
   const snapshot = await getGoogleMerchantFeedSnapshot();
+  if (!snapshot.sourceCount) throw new Error("Catalog source was empty; keeping the previous feed");
   // Not public/ — a file there is auto-served by Next.js at its matching
   // URL, which collides with app/google-merchant-feed.xml/route.ts (the
   // actual serving endpoint, which reads this file from disk rather than
@@ -75,8 +76,7 @@ async function main() {
   const outputDir = join(process.cwd(), ".cache");
   const outputPath = join(outputDir, "google-merchant-feed.xml");
 
-  mkdirSync(outputDir, { recursive: true });
-  writeFileSync(outputPath, snapshot.xml, "utf-8");
+  await writeMerchantFeedSnapshot(snapshot, outputDir);
 
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 

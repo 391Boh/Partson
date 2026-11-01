@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 // Exercise the actual catalog loader with independently controlled API replies.
-const source = readFileSync('app/components/Data.tsx', 'utf8');
+const source = readFileSync('app/components/catalog/useCatalogData.ts', 'utf8');
 const ast = ts.createSourceFile('Data.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let loader;
 function visit(node) {

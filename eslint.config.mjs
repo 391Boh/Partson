@@ -11,6 +11,7 @@ export default defineConfig([
     },
   },
   globalIgnores([
+    ".cache/**",
     ".next/**",
     ".next-dev/**",
     ".next-*/**",

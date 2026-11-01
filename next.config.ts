@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
   // /product-image/[code] and considers every cached image for inclusion in
   // the server output (10k+ files on a warm development machine).
   outputFileTracingExcludes: {
-    "/*": ["./.cache/product-images/**/*"],
+    "/*": ["./.cache/product-images/**/*", "./.cache/build-inputs/**/*"],
   },
   experimental: {
     // Note: optimizeCss (critters-based critical CSS inlining) is intentionally
@@ -179,7 +179,7 @@ const nextConfig: NextConfig = {
       {
         // Content-hashed by scripts/build-static-css.mjs — safe to cache
         // forever since a new build always produces a new filename.
-        source: "/styles/site.:hash([0-9a-f]{10}).css",
+        source: "/styles/:sheet(site|deferred).:hash([0-9a-f]{10}).css",
         headers: [
           ...securityHeaders,
           {
@@ -189,9 +189,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Critical styles use the same content hash as the complete sheet.
+        // Each critical subset has its own content hash.
         // Reuse them across visits instead of revalidating the first-paint CSS.
-        source: "/styles/critical-:target(home|inform|product).:hash([0-9a-f]{10}).css",
+        source: "/styles/critical-:target(home|catalog|inform|product|blog).:hash([0-9a-f]{10}).css",
         headers: [
           ...securityHeaders,
           {

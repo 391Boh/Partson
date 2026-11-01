@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, type ComponentType } from 'react';
 import dynamic from 'next/dynamic';
+import { loadDeferredUi } from "app/lib/deferred-stylesheet";
 import {
   ShoppingCart, User, Menu, Info,
   List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
@@ -95,6 +96,8 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   const [AuthModalComponent, setAuthModalComponent] =
     useState<ComponentType<AuthModalComponentProps> | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const [windowLoadFailed, setWindowLoadFailed] = useState(false);
+  const [windowLoadAttempt, setWindowLoadAttempt] = useState(0);
   const navRef = useRef<HTMLDivElement>(null);
   const searchModalRef = useRef<HTMLDivElement>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
@@ -104,7 +107,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
     if (AuthModalComponent) return;
     void loadAuthModalModule().then((module) => {
       React.startTransition(() => setAuthModalComponent(() => module.default));
-    });
+    }).catch(() => undefined);
   };
 
   // CLOSE MENUS ON CLICK OUTSIDE
@@ -191,6 +194,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   };
 
   const toggleModal = (name: keyof typeof modals) => {
+    setWindowLoadFailed(false);
     closeExternalOverlays();
     setShowSearchModal(false);
     const updateModal = () => setModals((prev) => {
@@ -216,6 +220,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
   };
 
   const closeModal = (name: keyof typeof modals) => {
+    setWindowLoadFailed(false);
     setModals(prev => ({ ...prev, [name]: false }));
     if (name === 'auth') {
       setAuthInitialMode(undefined);
@@ -311,31 +316,31 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
     if (!modals.contact || ContactComponent) return;
 
     let cancelled = false;
-    void import('./Contact').then((module) => {
+    void loadDeferredUi(() => import('./Contact')).then((module) => {
       if (!cancelled) {
         setContactComponent(() => module.default);
       }
-    });
+    }).catch(() => { if (!cancelled) setWindowLoadFailed(true); });
 
     return () => {
       cancelled = true;
     };
-  }, [ContactComponent, modals.contact]);
+  }, [ContactComponent, modals.contact, windowLoadAttempt]);
 
   useEffect(() => {
     if (!modals.order || OrderComponent) return;
 
     let cancelled = false;
-    void import('./Order').then((module) => {
+    void loadDeferredUi(() => import('./Order')).then((module) => {
       if (!cancelled) {
         setOrderComponent(() => module.default);
       }
-    });
+    }).catch(() => { if (!cancelled) setWindowLoadFailed(true); });
 
     return () => {
       cancelled = true;
     };
-  }, [OrderComponent, modals.order]);
+  }, [OrderComponent, modals.order, windowLoadAttempt]);
 
   useEffect(() => {
     if (!modals.auth || AuthModalComponent) return;
@@ -345,15 +350,15 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
       if (!cancelled) {
         React.startTransition(() => setAuthModalComponent(() => module.default));
       }
-    });
+    }).catch(() => { if (!cancelled) setWindowLoadFailed(true); });
 
     return () => {
       cancelled = true;
     };
-  }, [AuthModalComponent, modals.auth]);
+  }, [AuthModalComponent, modals.auth, windowLoadAttempt]);
 
   const prepareOrderWindow = () => {
-    void import('./Order').catch(() => undefined);
+    void loadDeferredUi(() => import('./Order')).catch(() => undefined);
     if (user) void fetchPartnerStatus(user).catch(() => undefined);
   };
 
@@ -712,6 +717,9 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
             data-overlay-toggle="contact"
             aria-expanded={modals.contact}
             aria-label="Контакти"
+            onPointerEnter={() => { void loadDeferredUi(() => import('./Contact')).catch(() => undefined); }}
+            onFocus={() => { void loadDeferredUi(() => import('./Contact')).catch(() => undefined); }}
+            onTouchStart={() => { void loadDeferredUi(() => import('./Contact')).catch(() => undefined); }}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -795,6 +803,15 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
         )}
 
       {/* MODALS */}
+      {windowLoadFailed && Object.values(modals).some(Boolean) && renderPortal(
+        <div role="alert" className="fixed inset-x-4 bottom-4 z-[100000] mx-auto max-w-md rounded-2xl border border-white/15 bg-slate-950 p-4 text-sm text-slate-100 shadow-xl">
+          <p>Не вдалося відкрити вікно. Перевірте з’єднання й спробуйте ще.</p>
+          <div className="mt-3 flex gap-3">
+            <button type="button" className="min-h-11 rounded-xl bg-sky-600 px-4 font-semibold hover:bg-sky-500" onClick={() => { setWindowLoadFailed(false); setWindowLoadAttempt(value => value + 1); }}>Спробувати ще</button>
+            <button type="button" className="min-h-11 rounded-xl px-4 text-slate-300 hover:text-white" onClick={() => { setWindowLoadFailed(false); setModals({ contact: false, order: false, auth: false }); }}>Закрити</button>
+          </div>
+        </div>
+      )}
       {modals.contact &&
         ContactComponent &&
         renderPortal(<ContactComponent onClose={() => closeModal('contact')} />)}

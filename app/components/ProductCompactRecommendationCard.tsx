@@ -1,5 +1,6 @@
 import ProductCardImage from "app/components/ProductCardImage";
 import SmartLink from "app/components/SmartLink";
+import { BadgePercent } from "lucide-react";
 import { buildVisibleProductName, buildVisibleCategoryLabel } from "app/lib/product-url";
 
 type ProductCompactRecommendationCardProps = {
@@ -16,6 +17,10 @@ type ProductCompactRecommendationCardProps = {
     category?: string;
   };
   priceLabel: string;
+  promoPriceLabel?: string | null;
+  hasPromo?: boolean;
+  promoPercent?: number | null;
+  isPartner?: boolean;
   sourceArticle?: string;
   imagePriority?: boolean;
   prefetchedImageSrc?: string;
@@ -26,13 +31,11 @@ type ProductCompactRecommendationCardProps = {
 // information that actually distinguishes one analog from another, which a
 // bigger photo of a generic-looking part rarely does.
 //
-// Height is sized to exactly what the reserved slots below add up to
-// (image row + the name/category slots' own min-heights + price row +
-// padding/gaps) — not rounded up "for safety". A taller card than its
-// content needs is exactly what turns a short name/missing category into a
-// big, inconsistent blank patch instead of a clean, uniformly-shaped tile.
+// Reserve the same name/category and two-row price slots in every card.
+// Partner verification can add a badge and an old price without shifting
+// neighboring cards or clipping large amounts on narrow product rails.
 const cardClass =
-  "product-compact-card group relative flex h-[184px] w-full min-w-0 shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border border-[#dbe6ec] bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_22px_-18px_rgba(15,23,42,0.35)] transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#7cc4d6] hover:shadow-[0_2px_4px_rgba(7,85,105,0.06),0_16px_28px_-18px_rgba(7,85,105,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
+  "product-compact-card group relative flex h-[248px] w-full min-w-0 shrink-0 snap-start flex-col overflow-hidden rounded-[14px] border border-[#dbe6ec] bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_22px_-18px_rgba(15,23,42,0.35)] transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#7cc4d6] hover:shadow-[0_2px_4px_rgba(7,85,105,0.06),0_16px_28px_-18px_rgba(7,85,105,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2";
 
 const stockLabel = (quantity: number) =>
   quantity > 0 ? `${quantity} шт.` : "Під замовлення";
@@ -41,6 +44,10 @@ export default function ProductCompactRecommendationCard({
   href,
   item,
   priceLabel,
+  promoPriceLabel = null,
+  hasPromo = false,
+  promoPercent = null,
+  isPartner = false,
   sourceArticle = "",
   imagePriority = false,
   prefetchedImageSrc = "",
@@ -53,6 +60,9 @@ export default function ProductCompactRecommendationCard({
   // The shared catalog image component can resolve the direct route near
   // the viewport and recover from failed/stale URLs without changing layout.
   const hasPrice = priceLabel !== "Ціну уточнити";
+  const showPromo = isPartner && Boolean(promoPriceLabel);
+  const showDiscount = hasPromo || showPromo;
+  const discountLabel = typeof promoPercent === "number" && promoPercent > 0 && promoPercent < 100 ? `−${Math.round(promoPercent)}%` : "Знижка";
 
   return (
     <SmartLink
@@ -61,7 +71,7 @@ export default function ProductCompactRecommendationCard({
       prefetchOnViewport={imagePriority}
       className={cardClass}
     >
-      <div className="flex items-center gap-2.5 p-2.5 pb-0">
+      <div className="flex shrink-0 items-center gap-2.5 p-2.5 pb-0">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[11px] border border-[#e2ebf0] bg-[#f6f9fb]">
           <ProductCardImage
             prefetchedSrc={prefetchedImageSrc}
@@ -80,6 +90,7 @@ export default function ProductCompactRecommendationCard({
           <span className="block truncate text-[11px] font-extrabold uppercase leading-4 tracking-[0.06em] text-slate-500">
             {item.producer || "Товар"}
           </span>
+          <p title={item.article || item.code} className="mt-0.5 truncate text-[11px] font-medium leading-4 text-slate-400">{item.article || item.code}</p>
           <p
             title={stockLabel(item.quantity)}
             className={`mt-1 flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-4 ${
@@ -113,18 +124,16 @@ export default function ProductCompactRecommendationCard({
           </p>
         </div>
 
-        <div className="mt-auto flex items-baseline justify-between gap-2 border-t border-[#edf2f5] pt-2">
-          <p className="min-w-0 truncate text-[12px] font-semibold leading-4 text-slate-500">
-            {item.article || item.code}
-          </p>
-          <span
-            className={`shrink-0 truncate tabular-nums leading-none ${
-              hasPrice
-                ? "text-[15px] font-extrabold text-[#075569]"
-                : "text-[12px] font-bold text-slate-500"
-            }`}
-          >
-            {priceLabel}
+        <div className="recommendation-price-row mt-auto grid min-h-[80px] min-w-0 grid-rows-[22px_1fr] items-end gap-1.5 border-t border-[#edf2f5] pt-2">
+          {showDiscount && (
+            <span className="recommendation-discount inline-flex max-w-full items-center justify-self-start gap-1 rounded-full border border-rose-200 bg-rose-50 px-1.5 py-1 text-rose-700" title={showPromo ? "Ваша партнерська знижка" : "Знижка для партнерів"}>
+              <BadgePercent aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 truncate text-[10px] font-extrabold leading-none">{discountLabel}{!showPromo ? <span className="ml-1 text-[9px] font-semibold">партнерам</span> : null}</span>
+            </span>
+          )}
+          <span className={`recommendation-price-pill row-start-2 flex min-h-9 min-w-0 max-w-full flex-col items-end justify-center justify-self-end rounded-[11px] border px-2 py-1.5 tabular-nums ${showPromo ? "border-rose-200 bg-rose-50/60" : "border-sky-100 bg-sky-50/60"}`}>
+            {showPromo && hasPrice && <del className="recommendation-old-price max-w-full text-[10px] font-semibold leading-3 text-slate-400 decoration-rose-300">{priceLabel}</del>}
+            <span className={`recommendation-price-value max-w-full break-words text-right text-[14px] font-extrabold leading-4 ${showPromo ? "text-rose-600" : hasPrice ? "text-[#075569]" : "text-[11px] text-slate-500"}`}>{showPromo ? promoPriceLabel : priceLabel}</span>
           </span>
         </div>
       </div>

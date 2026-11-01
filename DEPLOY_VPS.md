@@ -8,6 +8,7 @@
 ## 2. Build and run apps
 ```bash
 npm ci
+npm run sync:catalog
 npm run build
 ```
 

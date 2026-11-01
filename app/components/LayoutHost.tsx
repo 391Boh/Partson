@@ -4,6 +4,7 @@ import type { ComponentType, ReactNode } from "react";
 import { fetchCatalogTree } from "app/lib/onec-proxy-client";
 import { Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { loadDeferredUi } from "app/lib/deferred-stylesheet";
 import type { LayoutAccountRuntimeProps } from "./LayoutAccountRuntime";
 import Header from "./Header";
 import PageScrollMotion from "./PageScrollMotion";
@@ -27,15 +28,15 @@ import type { ProductFullEditTarget } from "./ProductFullEditModal";
 // Quiet time after the last scroll before html.is-scrolling is removed.
 const SCROLL_SETTLE_MS = 250;
 
-const ProductCreateModal = dynamic(() => import("./ProductCreateModal"), {
+const ProductCreateModal = dynamic(() => loadDeferredUi(() => import("./ProductCreateModal")), {
   ssr: false,
 });
 
-const ProductFullEditModal = dynamic(() => import("./ProductFullEditModal"), {
+const ProductFullEditModal = dynamic(() => loadDeferredUi(() => import("./ProductFullEditModal")), {
   ssr: false,
 });
 
-const AdminCatalogWindow = dynamic(() => import("./AdminCatalogWindow"), {
+const AdminCatalogWindow = dynamic(() => loadDeferredUi(() => import("./AdminCatalogWindow")), {
   ssr: false,
 });
 
@@ -544,7 +545,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let cancelled = false;
 
-    void import("./AdminChatPanel")
+    void loadDeferredUi(() => import("./AdminChatPanel"))
       .then((module) => {
         if (!cancelled) {
           setAdminChatPanelComponent(() => module.default);
@@ -564,7 +565,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
     let cancelled = false;
 
-    void import("./TelegramChat")
+    void loadDeferredUi(() => import("./TelegramChat"))
       .then((module) => {
         if (!cancelled) {
           setTelegramChatComponent(() => module.default);
@@ -771,24 +772,14 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       try {
         void import("./filtrtion");
       } catch {}
-      // AuthModal/Contact only start downloading once their button is tapped
-      // (see the `modals.auth`/`modals.contact` effects below) — on mobile
-      // that cold import is the visible lag between tap and modal appearing.
-      // These buttons are always visible in the header, so warm them
-      // unconditionally rather than behind the aggressive-warmup flag, which
-      // defaults off and never fires for real visitors.
-      try {
-        void import("./AuthModal");
-      } catch {}
-      try {
-        void import("./Contact");
-      } catch {}
+      // Header windows warm on pointer, focus or touch intent. Importing
+      // them here would also fetch their deferred CSS during guest startup.
     };
 
     const preloadAllChunks = () => {
       preloadCriticalChunks();
       try {
-        void import("./Order");
+        void loadDeferredUi(() => import("./Order")).catch(() => undefined);
       } catch {}
       try {
         void import("./tovar");

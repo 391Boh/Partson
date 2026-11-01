@@ -13,7 +13,7 @@ try {
     await route.fulfill({ json: { items: [{ code: body.inStock ? 'OLD' : 'NEW', article: 'TEST', name, producer: 'TEST', priceEuro: 10, quantity: 2, hasPhoto: false }], totalCount: 1, hasMore: false, nextCursor: '' } }).catch(() => {});
   });
   console.log('Opening filter test');
-  await page.goto(`${process.argv[3] || 'http://localhost:3000'}/katalog?search=filters-regression`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${process.env.TEST_ORIGIN || process.argv[3] || 'http://localhost:3000'}/katalog?search=filters-regression`, { waitUntil: 'domcontentloaded' });
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   await page.getByRole('button', { name: 'Ціна та сортування', exact: true }).click();
   const stock = page.getByRole('button', { name: 'В наявності', exact: true });

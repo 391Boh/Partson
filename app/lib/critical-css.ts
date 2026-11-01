@@ -49,8 +49,8 @@ export const resolveSiteStylesheetHref = (): string | null => {
         ? manifest.href
         : null;
     }
-    const { mtimeMs } = statSync(path.join(stylesDir, "dev.css"));
-    return `/styles/dev.css?t=${Math.floor(mtimeMs)}`;
+    const { mtimeMs } = statSync(path.join(stylesDir, "dev-site.css"));
+    return `/styles/dev-site.css?t=${Math.floor(mtimeMs)}`;
   } catch {
     return null;
   }
@@ -58,3 +58,14 @@ export const resolveSiteStylesheetHref = (): string | null => {
 
 // Marker the root layout's stylesheet loader looks for in <head>.
 export const CRITICAL_CSS_PRECEDENCE = "critical";
+
+export const resolveDeferredStylesheetHref = (): string | null => {
+  const stylesDir = path.join(process.cwd(), "public", "styles");
+  try {
+    if (process.env.NODE_ENV === "production") {
+      const manifest = JSON.parse(readFileSync(path.join(stylesDir, "manifest.json"), "utf8")) as { deferred?: string };
+      return manifest.deferred && /^deferred\.[0-9a-f]{10}\.css$/.test(manifest.deferred) ? `/styles/${manifest.deferred}` : null;
+    }
+    return `/styles/dev-deferred.css?t=${Math.floor(statSync(path.join(stylesDir, "dev-deferred.css")).mtimeMs)}`;
+  } catch { return null; }
+};

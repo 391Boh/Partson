@@ -79,6 +79,9 @@ export const expandDescriptionValue = (value: string, label = "") => {
 };
 
 const SPEC_LINE = /^([^\t]{1,80}?)\t+(.+)$/;
+// A spec row 1C glued onto the fitment line without its tab and line break:
+// "… 09.95-Сторона монтажу прав / лів".
+const GLUED_SPEC = /^(Сторона монтажу|Монтажна позиція)\s+(.+)$/i;
 
 export const parseProductDescription = (
   text: string | null | undefined
@@ -99,8 +102,12 @@ export const parseProductDescription = (
     if (split) {
       fitment = split.groups;
       fitmentText = lines.shift()!;
-      // The part description before the car list stays a normal paragraph.
+      // The part description before the car list stays a normal paragraph,
+      // and so does text after it (a note, a spec row glued onto the line).
       if (split.prefix) paragraphs.push(normalizeProductDisplayName(split.prefix));
+      const glued = split.suffix.match(GLUED_SPEC);
+      if (glued) specs.push({ label: glued[1], value: expandDescriptionValue(glued[2], glued[1]) });
+      else if (split.suffix) paragraphs.push(normalizeProductDisplayName(split.suffix));
     }
   }
 

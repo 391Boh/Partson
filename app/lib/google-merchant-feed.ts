@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  fetchEuroRate,
+  fetchConfirmedEuroRate,
   fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
@@ -15,6 +15,9 @@ import { buildFitmentSummary } from "app/lib/product-seo-copy";
 import { splitProductFitmentLine } from "app/lib/product-fitment-format";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { getFirebaseAdminDb } from "app/lib/firebase-admin";
+import { getSiteUrl } from "app/lib/site-url";
+import { resolvePublicProductPriceEuro } from "app/lib/public-product-price";
+import { createMerchantFeedPricing } from "app/lib/merchant-feed-pricing";
 import {
   SHIPPING_COUNTRY,
   SHIPPING_HANDLING_DAYS,
@@ -39,6 +42,7 @@ type GoogleMerchantFeedItem = {
   availability: string;
   condition: string;
   price: string;
+  priceEuro: number;
   brand: string;
   mpn: string;
   productType: string;
@@ -49,11 +53,12 @@ type GoogleMerchantFeedItem = {
   customLabel3?: string;
 };
 
-type GoogleMerchantFeedSnapshot = {
+export type GoogleMerchantFeedSnapshot = {
   xml: string;
   itemCount: number;
   skippedCount: number;
   sourceCount: number;
+  pricing: ReturnType<typeof createMerchantFeedPricing>;
 };
 
 const GOOGLE_BASE_NAMESPACE = "http://base.google.com/ns/1.0";
@@ -69,7 +74,7 @@ const parseOptionalPositiveInt = (value: string | undefined) => {
   return Math.floor(numeric);
 };
 
-const DEFAULT_SITE_URL = "https://partson.ua";
+const DEFAULT_SITE_URL = getSiteUrl();
 const MERCHANT_FEED_MAX_ITEMS = parseOptionalPositiveInt(
   process.env.MERCHANT_FEED_MAX_ITEMS
 );
@@ -402,7 +407,8 @@ const toGoogleMerchantFeedItem = (
   const code = (entry.code || "").trim();
   if (!code) return null;
 
-  const priceUah = toPriceUah(entry.priceEuro ?? null, euroRate);
+  const priceEuro = resolvePublicProductPriceEuro(entry);
+  const priceUah = toPriceUah(priceEuro, euroRate);
   if (priceUah == null) return null;
 
   // Google Merchant Center policy requires the image to depict the actual
@@ -453,6 +459,7 @@ const toGoogleMerchantFeedItem = (
     availability: entry.quantity > 0 ? "in stock" : "out of stock",
     condition: "new",
     price: `${priceUah.toFixed(2)} UAH`,
+    priceEuro: priceEuro!,
     brand: producer || "PartsON",
     mpn: article || code,
     productType: buildProductType(entry),
@@ -549,10 +556,11 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
   const requestedMaxItems =
     options?.maxItems === undefined ? MERCHANT_FEED_MAX_ITEMS : options.maxItems;
   const [euroRate, entries, galleryImages] = await Promise.all([
-    fetchEuroRate(),
+    fetchConfirmedEuroRate(),
     getAllProductSitemapEntries(),
     getMerchantGalleryImages(),
   ]);
+  if (euroRate == null) throw new Error("Cannot publish Merchant prices without a confirmed exchange rate");
 
   const maxItems =
     typeof requestedMaxItems === "number" &&
@@ -590,8 +598,10 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
     }
   }
 
+  const xml = buildGoogleMerchantFeedXml(siteUrl, items);
   return {
-    xml: buildGoogleMerchantFeedXml(siteUrl, items),
+    xml,
+    pricing: createMerchantFeedPricing(xml, Object.fromEntries(items.map(item => [item.id, item.priceEuro]))),
     itemCount: items.length,
     skippedCount: Math.max(0, sourceCount - items.length),
     sourceCount,

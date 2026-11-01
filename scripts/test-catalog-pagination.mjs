@@ -32,7 +32,7 @@ await page.route("**/api/catalog-search-count?**", (route) => route.fulfill({
   contentType: "application/json", body: JSON.stringify({ totalCount: count, exact: true }),
 }));
 try {
-  const base = process.env.SEARCH_TEST_URL || "http://localhost:3000";
+  const base = process.env.TEST_ORIGIN || process.env.SEARCH_TEST_URL || "http://localhost:3000";
   await page.goto(`${base}/katalog?search=pagination-regression&reset=search`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const pager = page.getByRole("group", { name: "Перемикання сторінок каталогу" });
   await pager.locator('button[data-page="10"]').waitFor({ timeout: 45_000 });

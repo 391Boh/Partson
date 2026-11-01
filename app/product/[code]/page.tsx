@@ -19,7 +19,7 @@ import {
 import {
   type CatalogProduct,
   fetchCatalogProductsByArticle,
-  fetchEuroRate,
+  fetchConfirmedEuroRate,
   fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
   findFullCatalogSnapshotProduct,
@@ -73,12 +73,13 @@ import { CRITICAL_CSS_PRECEDENCE, resolveCriticalCssHref } from "app/lib/critica
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 import { buildProductFaqJsonLd } from "app/lib/product-faq";
-import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { normalizeProductDisplayName } from "app/lib/product-display-name";
 import { buildProductMetaDescription, buildProductSeoTitle, buildProductImageAlt } from "app/lib/product-seo-copy";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProductEditOverride } from "app/lib/product-edit-overrides";
+import { resolvePublicProductPriceEuro } from "app/lib/public-product-price";
+import { buildProductSeoImages } from "app/lib/product-seo-images";
 import { getProductFirestorePresence } from "app/lib/product-firestore-presence";
 import { getProductPageGallery, getProductPageReviews } from "app/lib/product-page-extras";
 import {
@@ -149,12 +150,12 @@ const loadProductPageReviews = (code: string) =>
     PRODUCT_PAGE_REVIEWS_TIMEOUT_MS
   );
 
-const loadProductPageGallery = (code: string) =>
+const loadProductPageGallery = cache((code: string) =>
   resolveWithTimeout<string[] | null>(
     () => getProductPageGallery(code),
     null,
     PRODUCT_PAGE_GALLERY_TIMEOUT_MS
-  );
+  ));
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
@@ -166,7 +167,7 @@ const parseProductStaticParamsLimit = (value: string | undefined) => {
   return Math.floor(numeric);
 };
 
-export const revalidate = 3600;
+export const revalidate = 300;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {
@@ -619,13 +620,15 @@ const buildProductJsonLd = (options: {
     alternateName: visibleName && visibleName !== name ? name : undefined,
     description,
     url: canonicalUrl,
-    mainEntityOfPage: canonicalUrl,
+    mainEntityOfPage: { "@id": `${canonicalUrl}#page` },
     // The 1C group/subgroup stays in additionalProperty below.
     category: GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY,
-    image: Array.from(new Set(imageUrls.filter(Boolean))).map((url) => ({
+    image: Array.from(new Set(imageUrls.filter(Boolean))).map((url, index) => ({
       "@type": "ImageObject",
+      "@id": index === 0 ? `${canonicalUrl}#primary-image` : `${canonicalUrl}#image-${index}`,
       url,
       contentUrl: url,
+      representativeOfPage: index === 0 ? true : undefined,
       caption: `${visibleName || name}${article ? ` — артикул ${article}` : ""}`,
     })),
     sku: code || article || undefined,
@@ -982,25 +985,26 @@ const toPositiveNumberOrNull = (value: unknown) => {
 };
 
 const getProductSeoEuroRate = cache(async () =>
-  resolveWithTimeout(() => fetchEuroRate(), 50, PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS)
+  resolveWithTimeout<number | null>(() => fetchConfirmedEuroRate(), null, PRODUCT_PAGE_SEO_EURO_RATE_TIMEOUT_MS)
 );
 
 const resolveProductSeoPrice = cache(
   async (
+    code: string,
     inlinePriceEuro: number | null | undefined
   ): Promise<{
     priceEuro: number | null;
     priceUah: number | null;
     euroRate: number | null;
   }> => {
-    const inlinePrice = toPositiveNumberOrNull(inlinePriceEuro);
+    const inlinePrice = resolvePublicProductPriceEuro({ code, priceEuro: inlinePriceEuro });
     if (inlinePrice == null) {
       return { priceEuro: null, priceUah: null, euroRate: null };
     }
 
     const priceEuro = inlinePrice;
     const euroRate = await getProductSeoEuroRate();
-    const priceUah = toPriceUah(priceEuro, euroRate);
+    const priceUah = euroRate != null ? toPriceUah(priceEuro, euroRate) : null;
 
     return {
       priceEuro,
@@ -1774,22 +1778,24 @@ export async function generateMetadata({
     ? buildCanonicalProductPath(routeProduct, resolvedCode || fallbackCode)
     : `/product/${encodeURIComponent(decodedParam || resolvedCode || fallbackCode || "")}`;
 
-  const productImagePath = routeProduct?.hasPhoto === true
-    ? buildProductSeoImagePath(routeProduct.code || resolvedCode, routeProduct.article)
-    : PRODUCT_IMAGE_FALLBACK_PATH;
   const siteUrl = getSiteUrl();
-  const productImageUrl = `${siteUrl}${productImagePath}`;
   const productImageAlt = buildProductImageAlt({ productName: seoVisibleProductName, producer: productProducer, article: productArticle });
+  const presence = getProductFirestorePresence();
+  const metadataGallery = routeProduct && routeProduct.hasPhoto !== true && (!presence || presence.gallery.has(resolvedCode))
+    ? await loadProductPageGallery(resolvedCode) : [];
+  const metadataImages = buildProductSeoImages({
+    siteUrl, code: routeProduct?.code || resolvedCode, article: productArticle, label: productImageAlt,
+    hasCatalogPhoto: routeProduct?.hasPhoto === true, gallery: metadataGallery ?? [],
+  });
+  const productImageUrl = metadataImages.primary || `${siteUrl}${PRODUCT_IMAGE_FALLBACK_PATH}`;
   // The same photo at 16:9 for link previews that crop to landscape.
   const productWideImagePath = routeProduct?.hasPhoto === true
     ? buildProductImageVariantPath(routeProduct.code || resolvedCode, "16x9", productImageAlt, routeProduct.article)
     : "";
   const canonicalUrl = `${siteUrl}${canonicalPath}`;
-  const shouldIndexProduct =
-    !isModalView && Boolean(routeProduct) && isPublicCatalogProduct(routeProduct);
-
   const inlinePriceEuroForMeta = toPositiveNumberOrNull(routeProduct?.priceEuro);
-  const seoPriceForMeta = await resolveProductSeoPrice(inlinePriceEuroForMeta);
+  const seoPriceForMeta = await resolveProductSeoPrice(resolvedCode, inlinePriceEuroForMeta);
+  const shouldIndexProduct = !isModalView && Boolean(routeProduct) && seoPriceForMeta.priceEuro != null && Boolean(metadataImages.primary);
 
   const seoTitle = buildProductSeoTitle({
     name: seoVisibleProductName,
@@ -2142,11 +2148,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   const primaryLookupKey =
-    product.article.trim() || product.code.trim() || resolvedCode;
+    product.code.trim() || resolvedCode || product.article.trim();
   const lookupKeys = isModalView
     ? [primaryLookupKey]
     : Array.from(
-        new Set([product.article.trim(), product.code.trim(), resolvedCode].filter(Boolean))
+        new Set([product.code.trim(), resolvedCode, product.article.trim()].filter(Boolean))
       );
   // Description only: code first, same order as the catalog card/list row.
   // The 1C code is unique per product while an article can repeat across
@@ -2184,7 +2190,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       ? earlyGalleryImagesPromise
       : loadProductPageGallery(resolvedCode);
   const [pagePrice, brandLogoMap, promoTeaser] = await Promise.all([
-    resolveProductSeoPrice(inlineInitialPriceEuro),
+    resolveProductSeoPrice(resolvedCode, inlineInitialPriceEuro),
     getBrandLogoMap().catch(() => new Map<string, string>()),
     resolveProductPromoTeaser(lookupKeys).catch(() => ({
       hasPromo: false,
@@ -2243,17 +2249,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // Only confirmed catalog photos are safe for Google-facing image URLs. An
   // unknown/false flag must never turn the generic fallback logo into a
   // product image in Product/ItemPage structured data.
-  const productHasKnownPhoto = product.hasPhoto === true;
-  const productSeoImagePath = productHasKnownPhoto
+  const productHasCatalogPhoto = product.hasPhoto === true;
+  const productSeoImagePath = productHasCatalogPhoto
     ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
     : PRODUCT_IMAGE_FALLBACK_PATH;
-  const productSeoImageUrl = `${siteUrl}${productSeoImagePath}`;
   const [[reviewStats, initialReviews], galleryResult] = await Promise.all([
     reviewsPromise,
     galleryImagesPromise,
   ]);
   // null means unknown (timeout/failure); [] is a confirmed empty gallery.
   const galleryImageUrls = galleryResult ?? [];
+  const seoImages = buildProductSeoImages({
+    siteUrl, code: product.code || resolvedCode, article: product.article,
+    label: buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article }),
+    hasCatalogPhoto: productHasCatalogPhoto, gallery: galleryImageUrls,
+  });
+  const productHasKnownPhoto = Boolean(seoImages.primary);
+  const productSeoImageUrl = seoImages.primary;
   // Google's Product rich-result eligibility requires at least one of
   // offers/review/aggregateRating. A price-on-request product with no
   // reviews yet would otherwise ship a Product block with none of the
@@ -2276,17 +2288,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         quantity: product.quantity,
         priceUah: initialPriceUah,
         canonicalUrl,
-        // Google asks for 1x1, 4x3 and 16x9 versions of the product image.
-        imageUrls: [
-          productSeoImageUrl,
-          ...(["4x3", "16x9"] as const).map((ratio) => `${siteUrl}${buildProductImageVariantPath(
-            product.code || resolvedCode,
-            ratio,
-            buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article }),
-            product.article
-          )}`),
-          ...galleryImageUrls,
-        ],
+        imageUrls: seoImages.images,
         aggregateRating: reviewStats ?? undefined,
         reviews: initialReviews ?? undefined,
       })
@@ -2507,7 +2509,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         zoomEnabled
                         productCode={product.code || resolvedCode}
                         articleHint={product.article}
-                        hasKnownPhoto={productHasKnownPhoto}
+                        hasKnownPhoto={productHasCatalogPhoto}
+                        fallbackSrc={!productHasCatalogPhoto ? seoImages.primary : undefined}
                         preferCachedPreview
                         syncWithProductGallery
                         // The page's LCP image goes straight to /product-image,
@@ -2525,7 +2528,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       productName={product.name}
                       initialImages={galleryImageUrls}
                       initialImagesResolved={galleryResult !== null}
-                      mainImageSrc={productHasKnownPhoto ? productSeoImagePath : null}
+                      mainImageSrc={productHasCatalogPhoto ? productSeoImagePath : null}
                     />
                   </div>
                 </div>

@@ -29,7 +29,7 @@ const bundle = await build({
     createRoot(document.getElementById('root')).render(view.startsWith('contact')?<Contact onClose={close}/>:<Order onClose={close}/>);` },
   bundle: true, write: false, platform: 'browser', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, banner: { js: 'var process={env:{}};' },
   plugins: [{ name: 'offline-windows', setup(b) {
-    b.onResolve({ filter: /^(firebase\/(auth|firestore)|\.\.\/\.\.\/firebase|app\/context\/CartContext)$/ }, a => ({ path: a.path, namespace: 'mock' }));
+    b.onResolve({ filter: /^(firebase\/(auth|firestore)|\.\.\/\.\.\/firebase|app\/context\/CartContext|app\/lib\/firebase-firestore)$/ }, a => ({ path: a.path, namespace: 'mock' }));
     b.onLoad({ filter: /.*/, namespace: 'mock' }, ({ path }) => ({ resolveDir: process.cwd(), contents:
       path === 'firebase/auth' ? `import {auth} from '../../firebase';export const onAuthStateChanged=(a,cb)=>{cb(auth.currentUser);return()=>{}};export const getAuth=()=>auth;`
       : path === 'firebase/firestore' ? `const p=new URLSearchParams(location.search);const orders=p.get('orders')==='none'?[]:${ORDERS};
@@ -38,7 +38,7 @@ const bundle = await build({
           export const getDocs=async()=>({empty:docs.length===0,size:docs.length,docs});
           export const getFirestore=()=>({});export const addDoc=async()=>({id:'new'});export const setDoc=async()=>{};export const updateDoc=async()=>{};export const Timestamp={now:()=>({seconds:Date.now()/1000})};
           export const getDoc=async()=>({exists:()=>true,data:()=>({name:'Олександр',phone:'+380671234567',profileBackground:p.get('cover')||'enthusiast'})});
-          export const onSnapshot=(q,cb)=>{setTimeout(()=>cb({docs}),50);return()=>{}};`
+          export const onSnapshot=(q,cb)=>{setTimeout(()=>cb({docs,exists:()=>true,data:()=>({name:'Олександр',phone:'+380671234567',profileBackground:p.get('cover')||'enthusiast'})}),50);return()=>{}};`
       : path === 'app/context/CartContext' ? `const p=new URLSearchParams(location.search);let items=p.get('view')==='empty'?[]:${CART};
           export const useCart=()=>({cartItems:items,removeFromCart:()=>{},clearCart:()=>{},addToCart:()=>{}});`
       : `const p=new URLSearchParams(location.search);export const auth={currentUser:p.get('guest')?null:{uid:'fixture',email:'customer@example.com',getIdToken:async()=>'t'}};export const db={};export const app={};` }));
@@ -56,7 +56,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const base = `http://127.0.0.1:${server.address().port}`;
 try {
-  for (const [width, height] of [[320, 740], [390, 844], [844, 390], [1440, 950]]) {
+  for (const [width, height] of (process.env.UI_SMOKE ? [[390, 844], [1440, 950]] : [[320, 740], [390, 844], [844, 390], [1440, 950]])) {
     for (const view of ['cart', 'history', 'empty', 'checkout', 'contact', 'contact-address', 'contact-callback']) {
       const page = await browser.newPage({ viewport: { width, height } });
       const errors = []; page.on('pageerror', e => errors.push(e.message));

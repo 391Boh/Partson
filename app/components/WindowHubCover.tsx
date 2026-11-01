@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../../firebase";
+import { auth } from "../../firebase";
+import { subscribeUserProfile } from "app/lib/user-profile-store";
 import { useAvatarMotion } from "app/lib/use-avatar-motion";
 import { findProfileBackground, PROFILE_BACKGROUNDS } from "app/lib/profile-appearance";
 import { PROFILE_BACKGROUND_EVENT, readCachedProfileBackground, writeCachedProfileBackground } from "app/lib/profile-appearance-cache";
@@ -18,22 +18,18 @@ function useProfileBackgroundImage() {
 
   useEffect(() => {
     if (!uid) return;
-    let cancelled = false;
-    getDoc(doc(db, "users", uid))
-      .then((snapshot) => {
-        if (cancelled || !snapshot.exists()) return;
-        const stored = findProfileBackground(snapshot.data().profileBackground)?.id ?? null;
-        setId(stored);
-        writeCachedProfileBackground(uid, stored);
-      })
-      .catch(() => undefined);
+    const stop = subscribeUserProfile(uid, (data) => {
+      const stored = findProfileBackground(data?.profileBackground)?.id ?? null;
+      setId(stored);
+      writeCachedProfileBackground(uid, stored);
+    });
     const onChange = (event: Event) => {
       const detail = (event as CustomEvent<{ uid?: string; id?: string | null }>).detail;
       if (detail?.uid === uid) setId(detail.id ?? null);
     };
     window.addEventListener(PROFILE_BACKGROUND_EVENT, onChange);
     return () => {
-      cancelled = true;
+      stop();
       window.removeEventListener(PROFILE_BACKGROUND_EVENT, onChange);
     };
   }, [uid]);

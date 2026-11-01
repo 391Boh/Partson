@@ -3,6 +3,7 @@ import { buildPlainSeoSlug } from "app/lib/seo-slug";
 // Width:height of the letterboxed product photo variants served by
 // app/product-image/[code]/[ratio]/[file]/route.ts.
 export const PRODUCT_IMAGE_ASPECT_RATIOS = {
+  "1x1": [1, 1],
   "16x9": [16, 9],
   "4x3": [4, 3],
 } as const;

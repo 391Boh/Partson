@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
+import { useRecommendationPrices } from "app/lib/use-recommendation-prices";
+import type { RecommendationPrice } from "app/lib/recommendation-prices-client";
+
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
@@ -53,9 +56,6 @@ const formatPriceLabel = (priceEuro: number | null | undefined, euroRate: number
 const buildPriceStateKey = (item: Pick<RelatedItem, "code" | "article">) =>
   (item.code || item.article || "").trim();
 
-const buildPriceLookupKeys = (item: Pick<RelatedItem, "code" | "article">) =>
-  Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
-
 const buildRecommendationImageCode = (
   item: Pick<RelatedItem, "code" | "article">,
   sourceArticle = ""
@@ -82,7 +82,6 @@ const RELATED_ITEMS_REQUEST_TIMEOUT_MS = 5600;
 const SIMILAR_ITEMS_REQUEST_TIMEOUT_MS = 6200;
 const RECOMMENDATION_REQUEST_ATTEMPTS = 2;
 const RECOMMENDATION_RETRY_DELAY_MS = 240;
-const RECOMMENDATION_PRICE_TIMEOUT_MS = 520;
 const RELATED_ITEMS_VISIBLE_LIMIT = 6;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 const RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX =
@@ -182,7 +181,7 @@ const Skeleton = () => (
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={`rel-skeleton-${index}`}
-          className="h-[184px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100"
+          className="h-[248px] animate-pulse rounded-[16px] border border-slate-200 bg-slate-100"
         />
       ))}
     </div>
@@ -199,15 +198,14 @@ const RecommendationList = ({
   items: RelatedItem[];
   articleLabel: string;
   euroRate: number;
-  resolvedPrices: Record<string, number | null>;
+  resolvedPrices: Record<string, RecommendationPrice>;
   resolvedImages: Record<string, string>;
 }) => (
   <div className={getRecommendationListClass(items.length)}>
     {items.map((item, index) => {
       const stateKey = buildPriceStateKey(item);
-      const resolvedPriceEuro = stateKey in resolvedPrices
-        ? resolvedPrices[stateKey]
-        : item.priceEuro;
+      const pricing = resolvedPrices[stateKey];
+      const resolvedPriceEuro = pricing ? pricing.priceEuro : item.priceEuro;
       const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
       const imageKey = buildRecommendationImageKey(item, articleLabel);
 
@@ -223,6 +221,10 @@ const RecommendationList = ({
           href={buildDirectProductPath(item)}
           item={item}
           priceLabel={priceLabel}
+          promoPriceLabel={pricing?.promoPriceEuro ? formatPriceLabel(pricing.promoPriceEuro, euroRate) : null}
+          hasPromo={pricing?.hasPromo}
+          promoPercent={pricing?.promoPercent}
+          isPartner={pricing?.isPartner}
           sourceArticle={articleLabel}
           imagePriority={false}
           prefetchedImageSrc={resolvedImages[imageKey] || ""}
@@ -291,7 +293,6 @@ export default function ProductRelatedItemsClientSection({
   );
   const tabsId = useId();
   const [activeTab, setActiveTab] = useState<RecommendationTab>("analogs");
-  const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const [missingImageKeys, setMissingImageKeys] = useState<Record<string, true>>({});
   // Image results are read through refs so applying a batch result does not
@@ -577,86 +578,7 @@ export default function ProductRelatedItemsClientSection({
     [allVisibleItems]
   );
 
-  // Resolve prices for visible items that don't have prices yet
-  useEffect(() => {
-    if (allVisibleItems.length === 0) return;
-
-    const priceItems = allVisibleItems
-      .filter((item) => {
-        if (
-          typeof item.priceEuro === "number" &&
-          Number.isFinite(item.priceEuro) &&
-          item.priceEuro > 0
-        ) {
-          return false;
-        }
-
-        const stateKey = buildPriceStateKey(item);
-        if (!stateKey || Object.prototype.hasOwnProperty.call(resolvedPrices, stateKey)) {
-          return false;
-        }
-
-        return buildPriceLookupKeys(item).length > 0;
-      })
-      .map((item) => ({
-        stateKey: buildPriceStateKey(item),
-        lookupKeys: buildPriceLookupKeys(item),
-      }));
-
-    if (priceItems.length === 0) return;
-
-    let cancelled = false;
-
-    const loadPrices = async () => {
-      let timeoutId: number | undefined;
-      try {
-        const timeoutPromise = new Promise<Response>((_, reject) => {
-          timeoutId = window.setTimeout(
-            () => reject(new Error("recommendation-price-timeout")),
-            RECOMMENDATION_PRICE_TIMEOUT_MS
-          );
-        });
-        const response = await Promise.race([
-          fetch("/api/catalog-prices", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: priceItems }),
-          }),
-          timeoutPromise,
-        ]);
-        const payload = (await response.json()) as {
-          prices?: Record<string, number | null>;
-        };
-        if (cancelled) return;
-
-        const prices =
-          payload.prices && typeof payload.prices === "object" ? payload.prices : {};
-
-        setResolvedPrices((current) => ({ ...current, ...prices }));
-      } catch {
-        if (cancelled) return;
-
-        setResolvedPrices((current) => {
-          const next = { ...current };
-          for (const item of priceItems) {
-            if (!(item.stateKey in next)) next[item.stateKey] = null;
-          }
-          return next;
-        });
-      } finally {
-        if (timeoutId != null) window.clearTimeout(timeoutId);
-      }
-    };
-
-    const cancelScheduledLoad = scheduleProductRecommendationTask(() => {
-      void loadPrices();
-    });
-
-    return () => {
-      cancelled = true;
-      cancelScheduledLoad();
-    };
-  }, [allVisibleItems, resolvedPrices]);
+  const resolvedPrices = useRecommendationPrices(allVisibleItems, isNearViewport);
 
   // Load images for visible items
   useEffect(() => {

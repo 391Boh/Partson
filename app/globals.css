@@ -15786,6 +15786,12 @@ a.product-faq-contact:focus-visible { outline: 3px solid #0284c7; outline-offset
    shadow and focus ring (the negative margin keeps the cards aligned with
    the section text). From tablets up a row holds whole cards only — no card
    cut in half at the section edge; phones keep a peek of the next card. */
+.product-compact-card { container-type: inline-size; }
+.product-compact-card .recommendation-price-value {
+  font-size: clamp(12px, 7cqi, 14px);
+  overflow-wrap: anywhere;
+}
+.product-compact-card .recommendation-old-price { white-space: nowrap; }
 .product-page .product-rail {
   margin-inline: -6px; padding: 6px 6px 12px; scroll-padding-inline: 6px;
 }
@@ -17049,7 +17055,11 @@ html[data-admin-hint] .product-admin-slot:empty { display: block; flex: 0 0 100%
   line-height: 1.65;
 }
 
-/* Keep mobile product controls in one sticky layer during momentum scroll. */
+/* Keep mobile product controls in one sticky layer during momentum scroll.
+   The layer must be its own compositing layer: without it iOS Safari paints
+   the pinned bar a frame behind the fixed header while momentum-scrolling,
+   which reads as the navigation trembling (the same fix the section nav had
+   before it moved into this container). */
 .product-pinned-controls { display: contents; }
 @media (max-width: 767px) {
   .product-page .product-pinned-controls {
@@ -17057,7 +17067,9 @@ html[data-admin-hint] .product-admin-slot:empty { display: block; flex: 0 0 100%
     top: var(--header-height, 4rem); z-index: 41;
     margin: 0 calc(50% - 50vw) 14px;
     background: #f4f8fa; isolation: isolate;
-    transform: none; backface-visibility: visible;
+    -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden; backface-visibility: hidden;
+    will-change: transform;
   }
   .product-page .product-pinned-controls .product-admin-bar {
     position: relative; top: auto; margin: 0;

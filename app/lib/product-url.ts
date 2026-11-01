@@ -96,27 +96,46 @@ const ANALOG_TOKEN_CONTINUATION_MAX_LENGTH = 3;
 // starting a new one. buildVisibleProductName strips this group from the
 // visible name entirely; this extracts it instead, for display elsewhere.
 export const parseAnalogCodesFromName = (name: string): string[] => {
-  const source = (name || "").trim();
+  const source = (name || "").replace(/\t/g, " ").trim();
   if (!source) return [];
 
-  const codes: string[] = [];
-  const groupMatches = source.match(/\(([^)]*)\)/g) || [];
+  // Closed "(...)" groups, plus a trailing one 1C cut off at its name length
+  // limit ("…(LIN470172/LCC7103/AD5502481/7711163"): its last code may be
+  // cut short, so it is dropped unless the list ends with "/".
+  const groups: Array<{ inner: string; truncated: boolean }> = [];
+  for (const match of source.matchAll(/\(([^)]*)\)/g)) groups.push({ inner: match[1], truncated: false });
+  const unclosed = source.match(/\(([^()]*)$/);
+  if (unclosed) groups.push({ inner: unclosed[1], truncated: !/\/\s*$/.test(unclosed[1]) });
 
-  for (const rawGroup of groupMatches) {
-    const inner = rawGroup.slice(1, -1).trim();
+  const codes: string[] = [];
+  for (const { inner: rawInner, truncated } of groups) {
+    // "[FZ5552 комплект]" — a note about the kit, not an analog.
+    const inner = rawInner.replace(/\[[^\]]*\]/g, " ").trim();
     if (!inner || !ANALOG_CODE_GROUP_PATTERN.test(inner)) continue;
 
-    const tokens = inner
+    // "IMP 220735" — a space inside one code, not two codes.
+    let tokens = inner
       .split("/")
-      .map((token) => token.trim())
+      .map((token) => token.replace(/\s+/g, ""))
       .filter(Boolean);
+    if (truncated) tokens.pop();
+    // Codes carry digits. One stray word among real codes ("…/D8500E/BTUN/
+    // IMP4524") is dropped; a list that is mostly words ("VITO/ W639" — car
+    // models) is not an analog list. 1C's РозібратиАртикулиАналогів agrees.
+    const coded = tokens.filter((token) => /\d/.test(token) || token.length <= ANALOG_TOKEN_CONTINUATION_MAX_LENGTH);
+    if (coded.length < tokens.length) {
+      if (tokens.length - coded.length > 1 || coded.filter((token) => /\d/.test(token)).length < 2) continue;
+      tokens = coded;
+    }
 
     // Merged per group, not across groups — a short leading token in one
     // "(...)" group must never silently glue onto the previous group's code.
     const groupCodes: string[] = [];
     for (const token of tokens) {
-      if (groupCodes.length > 0 && token.length <= ANALOG_TOKEN_CONTINUATION_MAX_LENGTH) {
-        groupCodes[groupCodes.length - 1] = `${groupCodes[groupCodes.length - 1]}/${token}`;
+      if (token.length <= ANALOG_TOKEN_CONTINUATION_MAX_LENGTH) {
+        // A short piece continues the code before it ("op590/2"); at the
+        // start of a list it is a size from the name ("(600/3397018300)").
+        if (groupCodes.length > 0) groupCodes[groupCodes.length - 1] = `${groupCodes[groupCodes.length - 1]}/${token}`;
       } else {
         groupCodes.push(token);
       }

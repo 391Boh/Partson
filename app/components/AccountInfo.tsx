@@ -22,10 +22,9 @@ import {
   EmailAuthProvider,
 } from "firebase/auth";
 import { auth, db } from "../../firebase";
+import { subscribeUserProfile } from "app/lib/user-profile-store";
 import {
   doc,
-  getDoc,
-  onSnapshot,
   setDoc,
   query,
   collection,
@@ -182,91 +181,32 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
 
   useEffect(() => {
     if (!userId) return;
-
-    const fetchUserData = async () => {
-      try {
-        const docRef = doc(db, "users", userId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setPhone(data.phone || "Номер телефону не вказаний");
-          setName(data.name || "Ім'я не вказане");
-          setProfileEmail(
-            typeof data.email === "string" && data.email.trim()
-              ? data.email.trim()
-              : user?.email || null
-          );
-          const userVins = normalizeVins(
-            (data as Record<string, unknown>).vins ??
-              (data as Record<string, unknown>).VIN ??
-              (data as Record<string, unknown>).vin
-          );
-          setVins(
-            userVins.filter((vin, index) => userVins.indexOf(vin) === index)
-          );
-        } else {
-          setPhone("Номер телефону не знайдено");
-          setName("Ім'я не знайдено");
-          setProfileEmail(user?.email || null);
-        }
-      } catch (error) {
-        console.error("Помилка отримання даних з Firestore:", error);
-        setPhone("Помилка завантаження телефону");
-        setName("Помилка завантаження імені");
+    return subscribeUserProfile(userId, (data) => {
+      if (!data) {
+        setPhone("Номер телефону не знайдено");
+        setName("Ім'я не знайдено");
+        setVins([]);
         setProfileEmail(user?.email || null);
-      } finally {
         setLoading(false);
+        return;
       }
-    };
-
-    fetchUserData();
-  }, [userId, user?.email]);
-
-  useEffect(() => {
-    if (!userId) return;
-    const docRef = doc(db, "users", userId);
-    const unsubscribe = onSnapshot(
-      docRef,
-      (docSnap) => {
-        if (!docSnap.exists()) {
-          setVins([]);
-          setProfileEmail(user?.email || null);
-          return;
-        }
-        const data = docSnap.data();
-        setPhone(data.phone || "Номер телефону не вказаний");
-        setName(data.name || "Ім'я не вказане");
-        setProfileEmail(
-          typeof data.email === "string" && data.email.trim()
-            ? data.email.trim()
-            : user?.email || null
-        );
-        const storedAvatar =
-          typeof data.avatar === "string" && findProfileAvatar(data.avatar)
-            ? data.avatar
-            : null;
-        setAvatarId(storedAvatar);
-        setAvatarFrame(findAvatarFrame(data.avatarFrame)?.id ?? null);
-        setProfileBackground(findProfileBackground(data.profileBackground)?.id ?? null);
-        setProfileIsAdmin(data.role === "admin");
-        writeCachedAvatar(userId, storedAvatar);
-        const cleanedVins = normalizeVins(
-          (data as Record<string, unknown>).vins ??
-            (data as Record<string, unknown>).VIN ??
-            (data as Record<string, unknown>).vin
-        );
-        const uniqueVins = cleanedVins.filter(
-          (vin, index) => cleanedVins.indexOf(vin) === index
-        );
-        setVins(uniqueVins);
-      },
-      (error) => {
-        console.error("Помилка отримання VIN з Firestore:", error);
-      }
-    );
-
-    return () => unsubscribe();
+      setPhone(typeof data.phone === "string" && data.phone ? data.phone : "Номер телефону не вказаний");
+      setName(typeof data.name === "string" && data.name ? data.name : "Ім'я не вказане");
+      setProfileEmail(typeof data.email === "string" && data.email.trim() ? data.email.trim() : user?.email || null);
+      const storedAvatar = typeof data.avatar === "string" && findProfileAvatar(data.avatar) ? data.avatar : null;
+      setAvatarId(storedAvatar);
+      setAvatarFrame(findAvatarFrame(data.avatarFrame)?.id ?? null);
+      setProfileBackground(findProfileBackground(data.profileBackground)?.id ?? null);
+      setProfileIsAdmin(data.role === "admin");
+      writeCachedAvatar(userId, storedAvatar);
+      const cleanedVins = normalizeVins(data.vins ?? data.VIN ?? data.vin);
+      setVins(cleanedVins.filter((vin, index) => cleanedVins.indexOf(vin) === index));
+      setLoading(false);
+    }, (error) => {
+      console.error("Помилка отримання профілю з Firestore:", error);
+      setProfileEmail(user?.email || null);
+      setLoading(false);
+    });
   }, [userId, user?.email]);
 
   // Partner avatars unlock with partner status, admin ones with the admin

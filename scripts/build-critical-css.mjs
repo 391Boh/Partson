@@ -98,11 +98,12 @@ const STATIC_IMPORT = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?(?:[^"';]*?\s+
 const SSR_DYNAMIC_IMPORT =
   /\bdynamic\(\s*\(\)\s*=>\s*import\(\s*["']([^"']+)["']\s*\)(?:\.then\([^)]*\))?\s*(,\s*\{(?:[^{}]|\{[^{}]*\})*\})?\s*\)/g;
 
-const collectSourceFiles = (entryFiles) => {
+export const collectSourceFiles = (entryFiles, { includeDynamic = false, exclude = new Set() } = {}) => {
   const seen = new Set();
   const queue = entryFiles.map((file) => path.join(projectRoot, file));
   while (queue.length > 0) {
     const file = queue.pop();
+    if (exclude.has(file)) continue;
     if (seen.has(file)) continue;
     seen.add(file);
     const source = readFileSync(file, "utf8");
@@ -117,6 +118,12 @@ const collectSourceFiles = (entryFiles) => {
       const resolved = resolveImport(file, match[1]);
       if (resolved && !seen.has(resolved)) queue.push(resolved);
     }
+    if (includeDynamic) {
+      for (const match of source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) {
+        const resolved = resolveImport(file, match[1]);
+        if (resolved && !seen.has(resolved)) queue.push(resolved);
+      }
+    }
   }
   return [...seen];
 };
@@ -127,7 +134,7 @@ const TEMPLATE_HOLE = "\u0000";
 // ("shadow-[0_4px_16px_rgba(14,165,233,0.24)]") contain parens and commas.
 const TOKEN_SPLIT = /[\s"'`{}<>;]+/;
 
-const collectTokens = (files) => {
+export const collectTokens = (files) => {
   const exact = new Set();
   const prefixes = new Set();
   for (const file of files) {
@@ -181,7 +188,7 @@ const splitTopLevel = (value) => {
   return parts;
 };
 
-const selectorIsUsed = (selector, tokens) => {
+export const selectorIsUsed = (selector, tokens) => {
   let rest = "";
   let i = 0;
   while (i < selector.length) {

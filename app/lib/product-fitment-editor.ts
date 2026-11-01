@@ -54,8 +54,9 @@ export function writeFitmentRows(description: string, rows: FitmentRow[]): strin
     return [row.brand.trim().toUpperCase(), row.model.trim(), normalizeFitmentVolume(row.volume), period].filter(Boolean).join(' ');
   }).join('; ');
   if (parsed) {
-    if (fitment) lines[0] = [parsed.prefix, fitment].filter(Boolean).join(' ');
-    else if (parsed.prefix) lines[0] = parsed.prefix;
+    // Text after the list (a glued spec row, a note) is kept as written.
+    if (fitment) lines[0] = [parsed.prefix, fitment, parsed.suffix].filter(Boolean).join(' ');
+    else if (parsed.prefix || parsed.suffix) lines[0] = [parsed.prefix, parsed.suffix].filter(Boolean).join(' ');
     else lines.shift();
   } else if (fitment) lines.unshift(fitment);
   const result = lines.join('\n');

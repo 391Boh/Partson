@@ -14,7 +14,7 @@ import { trimSeoDescription } from "./lib/seo-metadata";
 import { getSiteUrl } from "./lib/site-url";
 import { safeJsonLd } from "./lib/safe-json-ld";
 import { FONT_FACE_CSS } from "./lib/font-faces";
-import { CRITICAL_CSS_PRECEDENCE } from "./lib/critical-css";
+import { CRITICAL_CSS_PRECEDENCE, resolveDeferredStylesheetHref } from "./lib/critical-css";
 
 // The global stylesheet is intentionally NOT `import`-ed here. A plain
 // `import "./globals.css"` gets turned by Next.js/React 19 into an
@@ -42,11 +42,11 @@ const resolveGlobalStylesheetHref = (): string => {
   // Dev: cache-bust on every request using the watcher's last rebuild time,
   // so a Tailwind rebuild is never masked by a stale browser cache.
   try {
-    const devCssPath = path.join(process.cwd(), "public", "styles", "dev.css");
+    const devCssPath = path.join(process.cwd(), "public", "styles", "dev-site.css");
     const mtimeMs = statSync(devCssPath).mtimeMs;
-    return `/styles/dev.css?t=${Math.floor(mtimeMs)}`;
+    return `/styles/dev-site.css?t=${Math.floor(mtimeMs)}`;
   } catch {
-    return "/styles/dev.css";
+    return "/styles/dev-site.css";
   }
 };
 
@@ -451,6 +451,7 @@ export default function RootLayout({
   return (
     <html lang="uk" suppressHydrationWarning>
       <head>
+        <meta name="partson-deferred-css" content={resolveDeferredStylesheetHref() ?? undefined} />
         <style id="partson-font-faces" dangerouslySetInnerHTML={{ __html: FONT_FACE_CSS }} />
         {/* Global stylesheet loader. Pages that load their own critical
             CSS (the homepage — see app/lib/critical-css.ts; React hoists that
@@ -460,8 +461,8 @@ export default function RootLayout({
             same plain parser-inserted, render-blocking <link> as before
             (document.write keeps it parser-inserted — a DOM-appended
             media="all" link would block anyway but racily, the FOUC risk the
-            earlier async attempt ran into). The full stylesheet is ~730 KB
-            (~90 KB gzip) and was the homepage's whole FCP delay. */}
+            earlier async attempt ran into). Window/admin styles load
+            separately on intent, outside the storefront stylesheet. */}
         <script
           dangerouslySetInnerHTML={{
             __html: buildStylesheetLoaderScript(globalStylesheetHref),

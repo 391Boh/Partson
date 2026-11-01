@@ -7,7 +7,7 @@ const bundle = await build({
   stdin: { contents: `import React from 'react';import{createRoot}from'react-dom/client';import Profile from './app/components/AccountInfo';const p=new URLSearchParams(location.search);createRoot(document.getElementById('root')).render(<Profile user={{uid:'fixture',email:'customer@example.com'}} onClose={()=>{window.dialogClosed=true}}/>);`, resolveDir: process.cwd(), loader: 'tsx' },
   bundle: true, write: false, platform: 'browser', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' },
   plugins: [{ name: 'offline-profile', setup(b) {
-    b.onResolve({ filter: /^(firebase\/(auth|firestore)|\.\.\/\.\.\/firebase)$/ }, a => ({ path: a.path, namespace: 'mock' }));
+    b.onResolve({ filter: /^(firebase\/(auth|firestore)|\.\.\/\.\.\/firebase|app\/lib\/firebase-firestore)$/ }, a => ({ path: a.path, namespace: 'mock' }));
     b.onLoad({ filter: /.*/, namespace: 'mock' }, a => ({ contents: a.path === 'firebase/auth'
       ? 'export const signOut=async()=>{};export const updatePassword=async()=>{};export const reauthenticateWithCredential=async()=>{};export const EmailAuthProvider={credential:()=>({})};'
       : a.path === 'firebase/firestore'
@@ -32,9 +32,10 @@ try {
       let failNext = false, saves = 0;
       const slowRefresh = role === 'partner' && width === 390;
       let statusComplete = false;
+      let releaseStatus;
       if (slowRefresh) await page.addInitScript(() => sessionStorage.setItem('partson:achievement-preview:fixture', JSON.stringify({ value: { isPartner: true, totalSpent: 12500 }, savedAt: Date.now() - 60000 })));
       await page.route('**/api/partner-status', async r => {
-        if (slowRefresh) await new Promise(resolve => setTimeout(resolve, 3000));
+        if (slowRefresh) await new Promise(resolve => { releaseStatus = resolve; });
         statusComplete = true;
         await r.fulfill({ json: { isPartner: role !== 'basic', totalSpent: role === 'admin' ? 100000 : role === 'partner' ? 12500 : 0 } });
       });
@@ -59,6 +60,7 @@ try {
         assert.equal(statusComplete, false, 'The server refresh is still pending');
         assert.equal(await dialog.getByRole('button', { name: 'Аметист', exact: true }).isEnabled(), true, 'Previously earned frames appear immediately');
         assert.equal(await dialog.getByText('Перевіряємо доступні рамки…', { exact: true }).count(), 0);
+        releaseStatus();
       }
       const gold = dialog.getByRole('button', { name: /Золото/ });
       assert.equal(await gold.isDisabled(), role !== 'admin');

@@ -15,6 +15,7 @@ type InitialCatalogPagePayload = {
   }>;
   prices?: Record<string, number | null>;
   images?: Record<string, string>;
+  euroRate?: number | null;
   hasMore?: boolean;
   nextCursor?: string;
   serviceUnavailable?: boolean;

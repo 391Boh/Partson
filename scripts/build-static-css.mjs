@@ -10,8 +10,8 @@
 // manifest.json layout.tsx reads at request time, so the file can be cached
 // immutably (a new deploy naturally gets a new hash) — mirrors how Next.js
 // hashes its own /_next/static chunks.
-// Dev: emits a fixed public/styles/dev.css (gitignored, no hashing needed)
-// and can run in --watch mode alongside `next dev`.
+// Dev: dev-site.css + dev-deferred.css, with combined dev.css retained for
+// standalone test fixtures. All are gitignored; --watch runs with next dev.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -26,6 +26,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { buildCriticalCss, CRITICAL_TARGETS } from "./build-critical-css.mjs";
+import { splitSiteCss } from "./split-site-css.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
@@ -59,7 +60,11 @@ const CRITICAL_TARGET_NAMES = Object.keys(CRITICAL_TARGETS);
 const devCriticalFile = (target) => `dev-critical-${target}.css`;
 
 const writeDevCriticalCss = () => {
-  const fullCss = readFileSync(path.join(outputDir, "dev.css"), "utf8");
+  const combined = readFileSync(path.join(outputDir, "dev.css"), "utf8");
+  const split = splitSiteCss(combined);
+  const fullCss = split.site;
+  writeFileSync(path.join(outputDir, "dev-site.css"), split.site);
+  writeFileSync(path.join(outputDir, "dev-deferred.css"), split.deferred);
   for (const target of CRITICAL_TARGET_NAMES) {
     try {
       const { css } = buildCriticalCss(fullCss, target);
@@ -86,7 +91,11 @@ const buildProduction = () => {
   const tempPath = path.join(outputDir, ".build-tmp.css");
   runTailwindOnce(tempPath);
 
-  const content = readFileSync(tempPath);
+  const split = splitSiteCss(readFileSync(tempPath, "utf8"));
+  const content = Buffer.from(split.site);
+  const deferredHash = createHash("sha1").update(split.deferred).digest("hex").slice(0, 10);
+  const deferred = `deferred.${deferredHash}.css`;
+  writeFileSync(path.join(outputDir, deferred), split.deferred);
   const hash = createHash("sha1").update(content).digest("hex").slice(0, 10);
   const finalName = `site.${hash}.css`;
   const finalPath = path.join(outputDir, finalName);
@@ -98,7 +107,8 @@ const buildProduction = () => {
   const criticalSizes = [];
   for (const target of CRITICAL_TARGET_NAMES) {
     const { css } = buildCriticalCss(content.toString("utf8"), target);
-    const name = `critical-${target}.${hash}.css`;
+    const criticalHash = createHash("sha1").update(css).digest("hex").slice(0, 10);
+    const name = `critical-${target}.${criticalHash}.css`;
     writeFileSync(path.join(outputDir, name), css);
     critical[target] = name;
     criticalSizes.push(`${name} (${(css.length / 1024).toFixed(1)} KiB)`);
@@ -109,11 +119,11 @@ const buildProduction = () => {
   // assets used by the active release. Prune only retired deployment folders.
   writeFileSync(
     path.join(outputDir, "manifest.json"),
-    JSON.stringify({ href: `/styles/${finalName}`, critical })
+    JSON.stringify({ href: `/styles/${finalName}`, deferred, critical })
   );
 
   console.log(
-    `[build-static-css] wrote /styles/${finalName} (${(content.length / 1024).toFixed(1)} KiB), ${criticalSizes.join(", ")}`
+    `[build-static-css] wrote /styles/${finalName} (${(content.length / 1024).toFixed(1)} KiB), deferred ${(Buffer.byteLength(split.deferred) / 1024).toFixed(1)} KiB, ${criticalSizes.join(", ")}`
   );
 };
 

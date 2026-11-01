@@ -980,7 +980,8 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   // Google-facing URLs: a 1C timeout is a temporary failure, not a missing
   // photo. 404 tells Google the image is gone (it drops it from the index and
   // from Product results); 503 + Retry-After tells it to come back later.
-  if (noRedirectFallback && lookupTimedOut && !strictMode && !catalogMode) {
+  const hasAuthoritativeMiss = (routeMissCache.get(routeMissCacheKey) || 0) > Date.now();
+  if (noRedirectFallback && !hasAuthoritativeMiss && !strictMode && !catalogMode) {
     return new NextResponse(null, {
       status: 503,
       headers: { "cache-control": "no-store", "retry-after": "120" },
@@ -994,8 +995,6 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   }
 
   if (strictMode || catalogMode || noRedirectFallback) {
-    const hasAuthoritativeMiss =
-      (routeMissCache.get(routeMissCacheKey) || 0) > Date.now();
     return fallbackNotFound(
       hasAuthoritativeMiss ? catalogMissCacheControl : "no-store"
     );

@@ -1,0 +1,20 @@
+// Explicit offline suites: live 1C create/edit/image probes are deliberately
+// separate from regression tests and never run against production by default.
+export const suites = {
+  unit: [
+    "firebase-auth-initialization", "firebase-auth-dependencies", "route-prefetch",
+    "user-profile-store", "admin-notification-counts", "admin-notification-client", "style-splitting", "build-snapshots", "recommendation-prices",
+    "catalog-request-lifecycle", "catalog-prefetch-freshness", "catalog-photo-filter",
+    "catalog-name-sort", "catalog-priced-first",
+    "catalog-codes-batch", "catalog-count", "product-stock", "product-admin-mutations",
+    "product-form-validation", "product-params", "vehicle-fitment", "fitment-editor-data",
+    "site-url", "euro-rate-client", "marketing-attribution", "onec-client", "onec-stock-cache",
+    "partner-grants", "partner-prices-route", "partner-status-cache", "profile-appearance-api",
+    "order-cancel", "admin-chat-activity", "admin-catalog-price-loading",
+    "home-blog-cache", "home-blog-cover",
+  ].map((name) => `scripts/test-${name}.mjs`),
+  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "recommendation-layout"]
+    .map((name) => `scripts/test-${name}.mjs`),
+  smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters"]
+    .map((name) => `scripts/test-${name}.mjs`),
+};

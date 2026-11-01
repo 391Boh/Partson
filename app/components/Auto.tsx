@@ -1,5 +1,7 @@
 "use client";
 
+import { readUserProfile } from "app/lib/user-profile-store";
+
 import VehicleYearSelect from "./VehicleYearSelect";
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
@@ -35,7 +37,6 @@ const pluralWord = (n: number | null, one: string, few: string, many: string) =>
 type AutoFirebaseDeps = {
   db: typeof import("../../firebase").db;
   doc: typeof import("firebase/firestore").doc;
-  getDoc: typeof import("firebase/firestore").getDoc;
   setDoc: typeof import("firebase/firestore").setDoc;
 };
 
@@ -55,7 +56,6 @@ const loadAutoFirebaseDeps = () => {
   ]).then(([firebaseModule, firestoreModule]) => ({
     db: firebaseModule.db,
     doc: firestoreModule.doc,
-    getDoc: firestoreModule.getDoc,
     setDoc: firestoreModule.setDoc,
   }));
   return autoFirebaseDepsPromise;
@@ -550,13 +550,9 @@ const AutoSection: React.FC<AutoProps> = ({
     }
 
     setVinLoading(true);
-    void loadAutoFirebaseDeps()
-      .then(({ db, doc, getDoc }) =>
-        getDoc(doc(db, "users", firebaseUser.uid))
-      )
-        .then((snap) => {
+    void readUserProfile(firebaseUser.uid)
+        .then((data) => {
           if (cancelled) return;
-          const data = snap.exists() ? snap.data() : null;
           const cleanedVins = Array.isArray(data?.vins)
             ? data.vins
                 .filter((vin): vin is string => typeof vin === "string")

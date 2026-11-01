@@ -44,6 +44,7 @@ import { carBrands } from "app/components/carBrands";
 import { warmCatalogImages } from "app/lib/catalog-image-batch-server";
 import {
   fetchCatalogProductsByQuery,
+  fetchConfirmedEuroRate,
   fetchPromoCatalogProducts,
   listCatalogFromSnapshot,
 } from "app/lib/catalog-server";
@@ -69,9 +70,14 @@ import {
 export const revalidate = 900;
 
 // Runs during HTML parsing, before the server-rendered grid is painted.
-const CATALOG_RESTORE_INLINE_SCRIPT = `(function(){try{if((${detectCatalogRestoreOverride.toString()})(location.search,window.localStorage)){var s=document.createElement("style");s.id=${JSON.stringify(CATALOG_RESTORE_STYLE_ID)};s.textContent=${JSON.stringify(`[${CATALOG_RESULTS_ATTRIBUTE}]{visibility:hidden}`)};document.head.appendChild(s)}}catch(e){}})()`;
+// The server-rendered cards carry guest prices; a signed-in visitor (partner
+// prices, admin cost prices) gets them hidden until the client knows who it is.
+const CATALOG_RESTORE_INLINE_SCRIPT = `(function(){try{if((${detectCatalogRestoreOverride.toString()})(location.search,window.localStorage)){var s=document.createElement("style");s.id=${JSON.stringify(CATALOG_RESTORE_STYLE_ID)};s.textContent=${JSON.stringify(`[${CATALOG_RESULTS_ATTRIBUTE}]{visibility:hidden}`)};document.head.appendChild(s)}}catch(e){}try{if(window.localStorage.getItem("user_id")){var g=document.createElement("style");g.textContent=${JSON.stringify("[data-guest-price] .catalog-card-price-pill,[data-guest-price] .catalog-list-price-slot{visibility:hidden}")};document.head.appendChild(g)}}catch(e){}})()`;
 
 const INITIAL_CATALOG_PAGE_LIMIT = 16;
+// The confirmed rate answers from memory once warm; only a cold or stale
+// process waits, and a miss leaves the rate to the client.
+const CATALOG_EURO_RATE_TIMEOUT_MS = 300;
 // Measured against real (not degraded) 1C: the plain unfiltered "browse
 // everything" snapshot (allgoods feed, 1C's cheapest query shape) reliably
 // resolves well inside the old 250ms budget once healthy — bumping it a bit
@@ -116,6 +122,7 @@ type InitialCatalogPagePayload = {
   }>;
   prices: Record<string, number | null>;
   images: Record<string, string>;
+  euroRate?: number | null;
   hasMore: boolean;
   nextCursor: string;
   cursorField?: string;
@@ -1409,7 +1416,14 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       MANUFACTURERS_DIRECTORY_TIMEOUT_MS
     )
   );
-  const [rawInitialPagePayload, seoFacets, productTreeDataset, manufacturersDirectoryData] = await Promise.all([
+  // Lets the first page render its prices in the HTML instead of waiting for
+  // the client's /api/proxy?endpoint=euro round trip after hydration.
+  const euroRatePromise = resolveWithTimeout(
+    () => fetchConfirmedEuroRate(),
+    null,
+    CATALOG_EURO_RATE_TIMEOUT_MS
+  ).catch(() => null);
+  const [rawInitialPagePayload, seoFacets, productTreeDataset, manufacturersDirectoryData, initialEuroRate] = await Promise.all([
     resolveWithTimeout(
       () => (hasParamFilters || Boolean(normalizeValue(resolvedSearchParams.vehicle)))
         ? Promise.resolve(null)
@@ -1428,6 +1442,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
       CATALOG_PRODUCT_TREE_TIMEOUT_MS
     ).catch(() => null),
     manufacturersDirectoryPromise,
+    euroRatePromise,
   ]);
   // Start the first page's 1C photo lookup now, while this HTML streams to the
   // browser, so its image requests find the thumbnails ready or in flight.
@@ -1441,6 +1456,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         // Images warm up client-side in one shared batch. Avoid holding the
         // initial HTML response behind filesystem checks for every card.
         images: {},
+        euroRate: initialEuroRate,
       }
     : null;
   // The facet totals describe the whole catalog, not the promo list.

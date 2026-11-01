@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useRecommendationPrices } from "app/lib/use-recommendation-prices";
+
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import {
@@ -30,7 +32,6 @@ type ProductRecentlyViewedSectionProps = {
 };
 
 const VISIBLE_RECENTLY_VIEWED_LIMIT = 6;
-const RECENTLY_VIEWED_PRICE_TIMEOUT_MS = 2200;
 const RECOMMENDATION_VISIBLE_ITEMS_EVENT = "partson:product-recommendation-visible-items";
 const RECOMMENDATION_VISIBLE_ITEMS_STORAGE_PREFIX =
   "partson:product-recommendation-visible-items:";
@@ -86,27 +87,6 @@ const formatPriceLabel = (priceEuro: number | null | undefined, euroRate: number
 const buildPriceStateKey = (item: Pick<RecentlyViewedProduct, "code" | "article">) =>
   (item.code || item.article || "").trim();
 
-const buildPriceLookupKeys = (item: Pick<RecentlyViewedProduct, "code" | "article">) =>
-  Array.from(new Set([item.code, item.article].map((value) => (value || "").trim()).filter(Boolean)));
-
-const scheduleRecentlyViewedTask = (task: () => void) => {
-  if (typeof window === "undefined") {
-    task();
-    return () => {};
-  }
-
-  let cancelled = false;
-  const runTask = () => {
-    if (cancelled) return;
-    task();
-  };
-  const timeoutId = window.setTimeout(runTask, 0);
-  return () => {
-    cancelled = true;
-    window.clearTimeout(timeoutId);
-  };
-};
-
 export default function ProductRecentlyViewedSection({
   product,
   euroRate = 50,
@@ -158,7 +138,6 @@ export default function ProductRecentlyViewedSection({
   const [blockedRecommendationKeys, setBlockedRecommendationKeys] = useState<Set<string>>(
     () => new Set()
   );
-  const [resolvedPrices, setResolvedPrices] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     try {
@@ -228,86 +207,7 @@ export default function ProductRecentlyViewedSection({
     return sourceItems.slice(0, VISIBLE_RECENTLY_VIEWED_LIMIT);
   }, [blockedRecommendationKeys, items]);
 
-  useEffect(() => {
-    if (visibleItems.length === 0) return;
-
-    const priceItems = visibleItems
-      .filter((item) => {
-        if (
-          typeof item.priceEuro === "number" &&
-          Number.isFinite(item.priceEuro) &&
-          item.priceEuro > 0
-        ) {
-          return false;
-        }
-
-        const stateKey = buildPriceStateKey(item);
-        if (!stateKey || Object.prototype.hasOwnProperty.call(resolvedPrices, stateKey)) {
-          return false;
-        }
-
-        return buildPriceLookupKeys(item).length > 0;
-      })
-      .map((item) => ({
-        stateKey: buildPriceStateKey(item),
-        lookupKeys: buildPriceLookupKeys(item),
-      }));
-
-    if (priceItems.length === 0) return;
-
-    let cancelled = false;
-
-    const loadPrices = async () => {
-      let timeoutId: number | undefined;
-      try {
-        const timeoutPromise = new Promise<Response>((_, reject) => {
-          timeoutId = window.setTimeout(
-            () => reject(new Error("recently-viewed-price-timeout")),
-            RECENTLY_VIEWED_PRICE_TIMEOUT_MS
-          );
-        });
-        const response = await Promise.race([
-          fetch("/api/catalog-prices", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: priceItems }),
-          }),
-          timeoutPromise,
-        ]);
-        const payload = (await response.json()) as {
-          prices?: Record<string, number | null>;
-        };
-        if (cancelled) return;
-
-        const prices = payload.prices && typeof payload.prices === "object"
-          ? payload.prices
-          : {};
-
-        setResolvedPrices((current) => ({ ...current, ...prices }));
-      } catch {
-        if (cancelled) return;
-
-        setResolvedPrices((current) => {
-          const next = { ...current };
-          for (const item of priceItems) {
-            if (!(item.stateKey in next)) next[item.stateKey] = null;
-          }
-          return next;
-        });
-      } finally {
-        if (timeoutId != null) window.clearTimeout(timeoutId);
-      }
-    };
-
-    const cancelScheduledLoad = scheduleRecentlyViewedTask(() => {
-      void loadPrices();
-    });
-
-    return () => {
-      cancelled = true;
-      cancelScheduledLoad();
-    };
-  }, [resolvedPrices, visibleItems]);
+  const resolvedPrices = useRecommendationPrices(visibleItems);
 
   if (visibleItems.length === 0) return null;
   // Same narrower, single-row, fade-masked treatment as the analogs/similar
@@ -325,9 +225,8 @@ export default function ProductRecentlyViewedSection({
       <div className={listClass}>
         {visibleItems.map((item) => {
           const stateKey = buildPriceStateKey(item);
-          const resolvedPriceEuro = stateKey in resolvedPrices
-            ? resolvedPrices[stateKey]
-            : item.priceEuro;
+          const pricing = resolvedPrices[stateKey];
+          const resolvedPriceEuro = pricing ? pricing.priceEuro : item.priceEuro;
           const priceLabel = formatPriceLabel(resolvedPriceEuro, euroRate);
 
           return (
@@ -336,6 +235,10 @@ export default function ProductRecentlyViewedSection({
               href={buildItemPath(item)}
               item={item}
               priceLabel={priceLabel}
+              promoPriceLabel={pricing?.promoPriceEuro ? formatPriceLabel(pricing.promoPriceEuro, euroRate) : null}
+              hasPromo={pricing?.hasPromo}
+              promoPercent={pricing?.promoPercent}
+              isPartner={pricing?.isPartner}
               imagePriority={false}
             />
           );
