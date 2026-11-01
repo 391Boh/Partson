@@ -19,6 +19,8 @@ pm2 save
 
 Якщо синхронізація й збірка виконуються на різних машинах, переносіть як приватний артефакт `.cache/build-inputs/`, `.cache/seo-counts.json`, `.cache/product-sitemap*.json`, `.cache/auto-model-sitemap.json`, `.cache/auto-model-breakdowns/`, `app/generated/group-preview-manifest.ts` і `public/group-previews/`. Вхідні відповіді 1С не можна публікувати в `public/` або комітити. Змінні `ONEC_BUILD_SNAPSHOT_ONLY` і `ONEC_RECORD_BUILD_SNAPSHOTS` встановлюються сценаріями лише для дочірнього процесу; не додавайте їх до PM2 runtime env. Після запуску сайту звичайні API та ISR використовують живі дані.
 
+Поки знімки не покривають усіх запитів статичної генерації, на сервері збірка запускається з `ONEC_BUILD_LIVE_FALLBACK=1`: запит без знімка йде в живу 1С і записується для наступної збірки, а не рендерить сторінку із заглушки 503.
+
 `npm run build:refresh` об’єднує синхронізацію й збірку; `npm run build:full` також оновлює merchant feed. `npm run build:compile` перевіряє компіляцію без генерації сторінок і без доступу до 1С; це перевірка CI, а не готовий реліз зі статичними сторінками.
 
 Для першого запуску замініть `pm2 restart` на `pm2 start`.

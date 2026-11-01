@@ -22,7 +22,11 @@ export function prepareSnapshotBuild({ root = process.cwd(), compileOnly = false
   }
   const missingLog = path.join(directory, `missing-${process.pid}.jsonl`);
   writeFileSync(missingLog, "");
-  return { missingLog, env: { ...process.env, ONEC_BUILD_SNAPSHOT_ONLY: "1", ONEC_BUILD_MISSING_LOG: missingLog } };
+  const env = { ...process.env, ONEC_BUILD_SNAPSHOT_ONLY: "1", ONEC_BUILD_MISSING_LOG: missingLog };
+  // Requests filled from live 1C are recorded, so the next build finds them.
+  if (env.ONEC_BUILD_LIVE_FALLBACK === "1" && !compileOnly) env.ONEC_RECORD_BUILD_SNAPSHOTS = "1";
+  else delete env.ONEC_BUILD_LIVE_FALLBACK;
+  return { missingLog, env };
 }
 
 const run = (args, env) => new Promise((resolve, reject) => {

@@ -456,7 +456,12 @@ export async function oneCRequest(endpoint, options = {}) {
   const resolvedCacheKey = cacheKey ?? `${method}:${endpoint}:${stableStringify(body)}`;
   if (process.env.ONEC_BUILD_SNAPSHOT_ONLY === "1") {
     if (stockMovement) return missingBuildSnapshot(endpoint, resolvedCacheKey);
-    return readBuildSnapshot(endpoint, resolvedCacheKey) ?? missingBuildSnapshot(endpoint, resolvedCacheKey);
+    const snapshot = readBuildSnapshot(endpoint, resolvedCacheKey);
+    if (snapshot) return snapshot;
+    // ONEC_BUILD_LIVE_FALLBACK: a request sync:catalog did not record goes to
+    // live 1C (and is recorded for the next build) instead of rendering the
+    // page from a 503 placeholder.
+    if (process.env.ONEC_BUILD_LIVE_FALLBACK !== "1") return missingBuildSnapshot(endpoint, resolvedCacheKey);
   }
 
   pruneCache();
