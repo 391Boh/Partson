@@ -152,12 +152,17 @@ function RouteViewStateSync({
   return null;
 }
 
+// Pages whose dark photographic hero starts under the fixed header: there the
+// header is transparent at the very top, like on the homepage.
+const MODEL_PAGE_PATH = /^\/auto\/[^/]+\/[^/]+\/?$/;
+const hasTransparentHeaderAtTop = (pathname: string) => pathname === "/" || MODEL_PAGE_PATH.test(pathname);
+
 // Keep visibility updates local: crossing the sentinel must not render the
 // account runtime, chat controls and navigation on every page.
 function PageHeader({ pathname, sentinelRef }: { pathname: string; sentinelRef: { current: HTMLSpanElement | null } }) {
   const hostRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (pathname !== "/") return;
+    if (!hasTransparentHeaderAtTop(pathname)) return;
     const sentinel = sentinelRef.current;
     const backdrop = hostRef.current?.querySelector<HTMLElement>(".site-header-shell > span[aria-hidden='true']");
     if (!sentinel || !backdrop || typeof IntersectionObserver === "undefined") return;
@@ -174,7 +179,7 @@ function PageHeader({ pathname, sentinelRef }: { pathname: string; sentinelRef: 
       backdrop.style.removeProperty("opacity");
     };
   }, [pathname, sentinelRef]);
-  return <div ref={hostRef}><Header transparentAtTop={pathname === "/"} /></div>;
+  return <div ref={hostRef}><Header transparentAtTop={hasTransparentHeaderAtTop(pathname)} /></div>;
 }
 
 function ScrollToTopButton({ sentinelRef }: { sentinelRef: { current: HTMLSpanElement | null } }) {
@@ -1072,7 +1077,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
       <main
         ref={pageContentRef}
         className={
-          isEmbeddedProductView || pathname === "/"
+          isEmbeddedProductView || hasTransparentHeaderAtTop(pathname)
             ? "min-h-screen"
             : "min-h-screen pt-header-offset"
         }

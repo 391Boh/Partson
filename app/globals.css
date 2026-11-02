@@ -11427,6 +11427,25 @@ html body .home-static .hero-photo { opacity: .72 !important; transition: none !
   .catalog-directory-page :is(.model-hero-crumbs a,.model-gen-nav :is(a,span)) { transition:none; }
 }
 
+/* The model hero sits under the transparent fixed header (LayoutHost). */
+.catalog-directory-page .directory-detail-shell .directory-detail-hero.model-hero {
+  min-height:0;
+  padding-top:calc(var(--header-height,4rem) + 36px);
+  padding-bottom:44px;
+}
+.catalog-directory-page .directory-detail-shell .model-hero .directory-hero-backdrop { inset:0; }
+.catalog-directory-page .model-hero .directory-heading-hero { font-size:clamp(30px,3.4vw,46px); line-height:1.08; letter-spacing:-.015em; max-width:22ch; }
+.catalog-directory-page .model-hero-footer { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:20px 32px; margin-top:24px; padding-top:20px; border-top:1px solid #9fc4d42e; }
+.catalog-directory-page .model-hero-footer .model-hero-facts { margin-top:0; }
+.catalog-directory-page .model-hero-cta { display:inline-flex; align-items:center; gap:10px; min-height:48px; padding:0 18px 0 22px; border-radius:14px; background:#0b8798; color:#fff; font-size:15px; font-weight:700; box-shadow:0 14px 30px -16px #0b8798, inset 0 1px 0 #ffffff26; transition:background-color .15s,box-shadow .15s; }
+.catalog-directory-page .model-hero-cta:hover { background:#0a7585; box-shadow:0 16px 34px -14px #0b8798, inset 0 1px 0 #ffffff26; }
+.catalog-directory-page .model-hero-cta:focus-visible { outline:2px solid #8ad6e5; outline-offset:3px; }
+@media (max-width:767px) {
+  .catalog-directory-page .directory-detail-shell .directory-detail-hero.model-hero { padding:calc(var(--header-height,4rem) + 20px) 16px 32px; }
+  .catalog-directory-page .model-hero-footer { flex-direction:column; align-items:stretch; gap:18px; }
+  .catalog-directory-page .model-hero-cta { justify-content:center; }
+}
+
 /* Model page part groups: one collapsible row per car system. */
 .catalog-directory-page .model-categories { display:grid; gap:10px; padding:16px; }
 .catalog-directory-page .model-category { border:1px solid #d9e7ec; border-radius:18px; background:#fff; overflow:hidden; transition:border-color .15s,box-shadow .15s; }
