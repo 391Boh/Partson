@@ -593,16 +593,15 @@ const buildProductJsonLd = (options: {
           // on the offer; without one, some Search surfaces suppress the
           // price/availability display entirely. Mirrors the real policy on
           // /inform/returns (14-day window for unopened, uninstalled goods,
-          // per the Ukrainian consumer-protection law cited there).
-          // `returnFees` is deliberately omitted — who covers return shipping
-          // is negotiated case by case there, not a fixed policy, and
-          // asserting one here would be inaccurate structured data.
+          // per the Ukrainian consumer-protection law cited there). The buyer
+          // pays return shipping for goods that simply did not fit.
           shippingDetails: buildOfferShippingDetails(),
           hasMerchantReturnPolicy: {
             "@type": "MerchantReturnPolicy",
             applicableCountry: "UA",
             returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
             merchantReturnDays: 14,
+            returnFees: "https://schema.org/ReturnFeesCustomerResponsibility",
             returnMethod: [
               "https://schema.org/ReturnByMail",
               "https://schema.org/ReturnInStore",

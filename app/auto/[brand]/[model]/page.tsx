@@ -32,7 +32,9 @@ import {
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
   type AutoModelGroupSummary,
+  type AutoModelProductLink,
 } from "app/lib/auto-directory-data";
+import { getModelFitmentProducts } from "app/lib/auto-model-fitment-products";
 import {
   buildAutoBrandPath,
   buildAutoModelPath,
@@ -199,7 +201,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   }
 
   const { brand, brandEntry, model } = resolved;
-  const breakdown = await getModelGroupBreakdown(brand, model);
+  const [breakdown, fitmentProducts] = await Promise.all([
+    getModelGroupBreakdown(brand, model),
+    getModelFitmentProducts(brand, model),
+  ]);
   assertModelBreakdownAvailable(breakdown, brand, model);
   const {
     groups,
@@ -227,6 +232,9 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   // linking with the raw, un-cleaned model name here would send the user to
   // a different, possibly empty, search than the one the counts came from.
   const searchTerm = effectiveQuery || model;
+  // Name matches that the verified-fitment block already shows are not repeated.
+  const fitmentHrefs = new Set(fitmentProducts.items.map((product) => product.href));
+  const nameMatchProducts = sampleProducts.filter((product) => !fitmentHrefs.has(product.href));
 
   // showIcon mirrors renderManufacturerGroupCard's convention: category
   // blocks already show the icon once in their own header, so per-group
@@ -322,6 +330,49 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
       </article>
     );
   };
+
+  const renderProductList = (products: AutoModelProductLink[]) => (
+    <ul className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+      {products.map((product) => (
+        <li key={product.href} className="min-w-0">
+          <SmartLink
+            href={product.href}
+            className={`${directoryListCardClass} flex h-full min-w-0 items-center gap-3 px-3 py-3 transition-colors duration-200 hover:border-sky-200 sm:px-4`}
+          >
+            {product.imageSrc ? (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white">
+                {/* Catalog thumbnail URL without fallback=404: a
+                    stale miss redirects to the placeholder image
+                    instead of rendering a broken icon. */}
+                <Image
+                  src={product.imageSrc}
+                  alt={[product.name, product.producer, product.article]
+                    .filter(Boolean)
+                    .join(" — ")}
+                  width={64}
+                  height={64}
+                  sizes="64px"
+                  loading="lazy"
+                  unoptimized
+                  className="h-full w-full object-contain"
+                />
+              </span>
+            ) : null}
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="text-[14px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
+                {product.name}
+              </span>
+              {product.producer || product.article ? (
+                <span className="text-[12px] font-medium text-slate-500 [overflow-wrap:anywhere]">
+                  {[product.producer, product.article].filter(Boolean).join(" · ")}
+                </span>
+              ) : null}
+            </span>
+          </SmartLink>
+        </li>
+      ))}
+    </ul>
+  );
 
   const siteUrl = getSiteUrl();
   const brandPath = buildAutoBrandPath(brand);
@@ -740,7 +791,28 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             )}
           </section>
 
-          {sampleProducts.length > 0 ? (
+          {fitmentProducts.items.length > 0 ? (
+            <section className={directoryPanelClass} aria-labelledby="auto-model-fitment-title">
+              <div className={directoryHeaderClass}>
+                <div className="max-w-4xl">
+                  <p className={directoryBadgeClass}>Сумісність з опису</p>
+                  <h2 id="auto-model-fitment-title" className={directoryTitleClass}>
+                    Підходять до {brand} {model}
+                  </h2>
+                  <p className={directoryDescriptionClass}>
+                    У застосуванні цих деталей вказано {brand} {model}
+                    {fitmentProducts.total > fitmentProducts.items.length
+                      ? ` — показано ${fitmentProducts.items.length} з ${formatCount(fitmentProducts.total)}`
+                      : ""}
+                    . Рік і двигун звірте на сторінці товару.
+                  </p>
+                </div>
+              </div>
+              {renderProductList(fitmentProducts.items)}
+            </section>
+          ) : null}
+
+          {nameMatchProducts.length > 0 ? (
             <section className={directoryPanelClass} aria-labelledby="auto-model-products-title">
               <div className={directoryHeaderClass}>
                 <div className="max-w-4xl">
@@ -755,46 +827,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   </p>
                 </div>
               </div>
-              <ul className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
-                {sampleProducts.map((product) => (
-                  <li key={product.href} className="min-w-0">
-                    <SmartLink
-                      href={product.href}
-                      className={`${directoryListCardClass} flex h-full min-w-0 items-center gap-3 px-3 py-3 transition-colors duration-200 hover:border-sky-200 sm:px-4`}
-                    >
-                      {product.imageSrc ? (
-                        <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white">
-                          {/* Catalog thumbnail URL without fallback=404: a
-                              stale miss redirects to the placeholder image
-                              instead of rendering a broken icon. */}
-                          <Image
-                            src={product.imageSrc}
-                            alt={[product.name, product.producer, product.article]
-                              .filter(Boolean)
-                              .join(" — ")}
-                            width={64}
-                            height={64}
-                            sizes="64px"
-                            loading="lazy"
-                            unoptimized
-                            className="h-full w-full object-contain"
-                          />
-                        </span>
-                      ) : null}
-                      <span className="flex min-w-0 flex-col gap-1">
-                        <span className="text-[14px] font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">
-                          {product.name}
-                        </span>
-                        {product.producer || product.article ? (
-                          <span className="text-[12px] font-medium text-slate-500 [overflow-wrap:anywhere]">
-                            {[product.producer, product.article].filter(Boolean).join(" · ")}
-                          </span>
-                        ) : null}
-                      </span>
-                    </SmartLink>
-                  </li>
-                ))}
-              </ul>
+              {renderProductList(nameMatchProducts)}
             </section>
           ) : null}
 

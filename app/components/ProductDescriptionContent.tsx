@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CarFront, ListChecks } from "lucide-react";
 import { parseProductDescription } from "app/lib/product-description-format";
 import {
@@ -11,6 +12,9 @@ type ProductDescriptionContentProps = {
   // "page" for the product page card, "compact" for the catalog card's back
   // face and the list-view row.
   variant?: "page" | "compact";
+  // Model pages for the fitment chips, keyed "brand::model" as the chips
+  // render them (see app/lib/product-fitment-links.ts).
+  modelLinks?: Record<string, string>;
 };
 
 // Models shown per make before the rest folds behind "Ще N" — only when at
@@ -27,20 +31,48 @@ const plural = (count: number, one: string, few: string, many: string) => {
   return many;
 };
 
-const ModelChips = ({ models }: { models: string[] }) => (
+const MODEL_CHIP_CLASS =
+  "block min-w-0 max-w-full break-words rounded-[9px] border bg-white px-2.5 py-1 text-[13px] font-semibold leading-5 shadow-[0_1px_0_rgba(15,23,42,0.03)]";
+
+const ModelChips = ({
+  brand,
+  models,
+  modelLinks,
+}: {
+  brand: string;
+  models: string[];
+  modelLinks?: Record<string, string>;
+}) => (
   <>
-    {models.map((model, index) => (
-      <li
-        key={`${index}:${model}`}
-        className="min-w-0 max-w-full break-words rounded-[9px] border border-slate-200 bg-white px-2.5 py-1 text-[13px] font-semibold leading-5 text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.03)]"
-      >
-        {model}
-      </li>
-    ))}
+    {models.map((model, index) => {
+      const href = modelLinks?.[`${brand}::${model}`];
+      return (
+        <li key={`${index}:${model}`} className="min-w-0 max-w-full">
+          {href ? (
+            <Link
+              href={href}
+              prefetch={false}
+              title={`Запчастини для ${brand} ${model}`}
+              className={`${MODEL_CHIP_CLASS} border-sky-200 text-sky-800 underline decoration-sky-300 underline-offset-2 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:decoration-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60`}
+            >
+              {model}
+            </Link>
+          ) : (
+            <span className={`${MODEL_CHIP_CLASS} border-slate-200 text-slate-700`}>{model}</span>
+          )}
+        </li>
+      );
+    })}
   </>
 );
 
-const FitmentMake = ({ group }: { group: ProductFitmentGroup }) => {
+const FitmentMake = ({
+  group,
+  modelLinks,
+}: {
+  group: ProductFitmentGroup;
+  modelLinks?: Record<string, string>;
+}) => {
   const volume = formatFitmentVolume(group.volume);
   const period = group.period ? formatFitmentPeriod(group.period) : "";
   const folds = group.models.length - VISIBLE_MODELS_PER_MAKE >= MIN_FOLDED_MODELS;
@@ -58,7 +90,7 @@ const FitmentMake = ({ group }: { group: ProductFitmentGroup }) => {
         ) : null}
       </div>
       <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={`Моделі ${group.brand}`}>
-        <ModelChips models={visible} />
+        <ModelChips brand={group.brand} models={visible} modelLinks={modelLinks} />
       </ul>
       {hidden.length > 0 ? (
         // Native disclosure: works in the server-rendered card before (and
@@ -71,7 +103,7 @@ const FitmentMake = ({ group }: { group: ProductFitmentGroup }) => {
             <span className="hidden group-open/more:inline">Згорнути</span>
           </summary>
           <ul className="mt-1 flex flex-wrap gap-1.5">
-            <ModelChips models={hidden} />
+            <ModelChips brand={group.brand} models={hidden} modelLinks={modelLinks} />
           </ul>
         </details>
       ) : null}
@@ -79,7 +111,13 @@ const FitmentMake = ({ group }: { group: ProductFitmentGroup }) => {
   );
 };
 
-const FitmentCard = ({ fitment }: { fitment: ProductFitmentGroup[] }) => {
+const FitmentCard = ({
+  fitment,
+  modelLinks,
+}: {
+  fitment: ProductFitmentGroup[];
+  modelLinks?: Record<string, string>;
+}) => {
   const modelCount = fitment.reduce((total, group) => total + group.models.length, 0);
   const makeCount = new Set(fitment.map((group) => group.brand)).size;
   return (
@@ -101,7 +139,7 @@ const FitmentCard = ({ fitment }: { fitment: ProductFitmentGroup[] }) => {
       </header>
       <ul className="mt-3.5 divide-y divide-sky-100/90">
         {fitment.map((group, index) => (
-          <FitmentMake key={`${index}:${group.brand}`} group={group} />
+          <FitmentMake key={`${index}:${group.brand}`} group={group} modelLinks={modelLinks} />
         ))}
       </ul>
     </section>
@@ -115,6 +153,7 @@ const FitmentCard = ({ fitment }: { fitment: ProductFitmentGroup[] }) => {
 export default function ProductDescriptionContent({
   text,
   variant = "page",
+  modelLinks,
 }: ProductDescriptionContentProps) {
   const { fitment, fitmentText, paragraphs, specs } = parseProductDescription(text);
 
@@ -149,7 +188,7 @@ export default function ProductDescriptionContent({
         </p>
       ))}
       {fitment ? (
-        <FitmentCard fitment={fitment} />
+        <FitmentCard fitment={fitment} modelLinks={modelLinks} />
       ) : fitmentText ? (
         <p className="break-words">{fitmentText}</p>
       ) : null}

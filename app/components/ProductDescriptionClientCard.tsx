@@ -13,6 +13,8 @@ type ProductDescriptionClientCardProps = {
   chatButton?: ReactNode;
   enableClientLookup?: boolean;
   fitmentText?: string;
+  // Model pages for the fitment chips (server-resolved).
+  modelLinks?: Record<string, string>;
   // The server already looked the description up in 1C and found none.
   serverChecked?: boolean;
 };
@@ -42,6 +44,7 @@ export default function ProductDescriptionClientCard({
   chatButton,
   enableClientLookup = true,
   fitmentText = "",
+  modelLinks,
   serverChecked = false,
 }: ProductDescriptionClientCardProps) {
   const normalizedInitialText =
@@ -274,7 +277,7 @@ export default function ProductDescriptionClientCard({
       </div>
       <div className={descriptionTextClass}>
         {descriptionText ? (
-          <ProductDescriptionContent text={descriptionText} />
+          <ProductDescriptionContent text={descriptionText} modelLinks={modelLinks} />
         ) : descriptionStatus === "loading" ? (
           <div
             className="space-y-2.5 py-1"

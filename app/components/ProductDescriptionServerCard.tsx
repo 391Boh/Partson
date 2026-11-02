@@ -8,6 +8,7 @@ import {
   lookupProductDescriptionForProduct,
   type ProductDescriptionLookupResult,
 } from "app/lib/catalog-server";
+import { buildFitmentModelLinks } from "app/lib/product-fitment-links";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 // 1C description lookups measure 1.9-3.7s live (see /api/product-description);
@@ -37,6 +38,11 @@ export const startProductDescriptionLookup = (code: string, article: string) =>
     (): ProductDescriptionLookupResult => ({ description: null, answered: false })
   );
 
+// Links from the fitment chips to their model pages: internal links between
+// products and the car pages they fit. A failure only drops the links.
+const resolveModelLinks = (description: string) =>
+  buildFitmentModelLinks(description).catch(() => undefined);
+
 // Most products have no description in the catalog snapshot — it lives behind
 // a separate 1C call that the client card used to make only after hydration,
 // so the server HTML (what crawlers index) carried a loading skeleton instead
@@ -48,7 +54,8 @@ export default async function ProductDescriptionServerCard({
 }: ProductDescriptionServerCardProps) {
   const initialText = props.initialText?.trim() || null;
   if (initialText || props.isModalView) {
-    return <ProductDescriptionClientCard {...props} initialText={initialText} />;
+    const modelLinks = initialText && !props.isModalView ? await resolveModelLinks(initialText) : undefined;
+    return <ProductDescriptionClientCard {...props} initialText={initialText} modelLinks={modelLinks} />;
   }
 
   const lookupKeys = Array.from(
@@ -76,10 +83,13 @@ export default async function ProductDescriptionServerCard({
     DESCRIPTION_SSR_TIMEOUT_MS
   );
 
+  const modelLinks = description ? await resolveModelLinks(description) : undefined;
+
   return (
     <ProductDescriptionClientCard
       {...props}
       initialText={description ?? null}
+      modelLinks={modelLinks}
       // A completed lookup with no result means there is no description, so
       // render the "уточнюється" note instead of a loading skeleton. A
       // timeout keeps the skeleton and lets the client retry.
