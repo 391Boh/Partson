@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
+import { CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
 
 import ModelsDirectoryClient from "app/auto/[brand]/ModelsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
@@ -209,7 +209,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
           badge={`Марка: ${brand.name}`}
           icon={CarFront}
           title={title}
-          description={`Оберіть модель ${brand.name}. На її сторінці ви знайдете групи запчастин і зможете перейти до товарів. Для остаточного підбору перевірте рік випуску, двигун та артикул деталі.`}
+          description={`${models.length > 0 ? `У каталозі PartsON — ${models.length.toLocaleString("uk-UA")} ${pluralizeModels(models.length)} ${brand.name} з групами запчастин. ` : ""}Оберіть модель ${brand.name}: на її сторінці ви знайдете групи запчастин і зможете перейти до товарів. Для остаточного підбору перевірте рік випуску, двигун та артикул деталі.`}
           breadcrumb={
             <nav aria-label="Навігаційні хлібні крихти">
               <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
@@ -233,18 +233,6 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
               : "Моделі оновлюються",
             "Групи запчастин по моделі",
             "Швидкий перехід у каталог",
-          ]}
-          stats={[
-            { label: "Марка", value: brand.name, icon: CarFront },
-            {
-              label: "Моделей",
-              value: models.length > 0 ? models.length.toLocaleString("uk-UA") : "—",
-              icon: ArrowRight,
-            },
-            { label: "Наступний крок", value: "Модель → групи", icon: Layers3 },
-          ]}
-          quickLinks={[
-            { href: "/auto", label: "Усі марки", icon: CarFront, prefetchOnViewport: true },
           ]}
         />
         </div>

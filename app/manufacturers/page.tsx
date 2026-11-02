@@ -157,32 +157,7 @@ export default async function ManufacturersPage() {
             badge="Бренди та виробники"
             icon={Factory}
             title="Бренди автозапчастин"
-            description="Шукаєте деталь конкретного бренду? Оберіть виробника, щоб переглянути його групи запчастин і доступні товари. Порівняйте артикули, характеристики та ціну — логотип сам по собі не визначає сумісність."
-            stats={[
-              {
-                label: "Виробників",
-                value: totalBrandsLabel,
-                icon: Factory,
-              },
-              {
-                label: "З товарами",
-                value: hasIndexedCounts ? indexedBrandsLabel : "Індекс",
-                icon: PackageSearch,
-              },
-              {
-                label: "Позицій",
-                value: hasIndexedCounts && indexedProducts > 0 ? indexedProductsLabel : "Каталог",
-                icon: Tags,
-              },
-            ]}
-            quickLinks={[
-              {
-                href: "#manufacturers-directory",
-                label: "Усі бренди",
-                icon: Search,
-                accent: true,
-              },
-            ]}
+            description={`${hasIndexedCounts && indexedProducts > 0 ? `У каталозі PartsON — ${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} автозапчастин і ${indexedProductsLabel} ${pluralizeUk(indexedProducts, "позиція", "позиції", "позицій")} від ${indexedBrandsLabel} ${pluralizeBrandsWord(indexedBrands)}. ` : `У каталозі PartsON — ${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} автозапчастин. `}Оберіть виробника, щоб переглянути його групи запчастин і доступні товари. Порівняйте артикули, характеристики та ціну — логотип сам по собі не визначає сумісність.`}
           />
 
         </div>

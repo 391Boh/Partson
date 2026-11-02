@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { ChevronRight, FolderTree, Layers3, PackageSearch } from "lucide-react";
+import { FolderTree, Layers3, PackageSearch } from "lucide-react";
 
 import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
-import { buildVisibleProductName } from "app/lib/product-url";
 import { appendSeoContactLast, buildPageMetadata, pickFittingSeoDescription } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -104,10 +103,6 @@ export default async function GroupsPage() {
 
   const hasResolvedGroups = totalGroups > 0;
 
-  const featuredGroups = [...clientGroups]
-    .sort((left, right) => right.subgroupsCount - left.subgroupsCount)
-    .slice(0, 2);
-
   const groupsStructuredData: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -178,43 +173,13 @@ export default async function GroupsPage() {
             badge="Сітка каталогу"
             icon={Layers3}
             title="Категорії автозапчастин"
-            description="Знаєте, що потрібно замінити? Оберіть систему автомобіля, потім групу та підгрупу. У кожному розділі можна порівняти виробників, ціни й наявність та уточнити автомобіль."
+            description={`У каталозі PartsON — ${totalGroups.toLocaleString("uk-UA")} ${pluralizeUk(totalGroups, "категорія", "категорії", "категорій")}, ${totalSubgroups.toLocaleString("uk-UA")} ${pluralizeGroups(totalSubgroups)} і ${totalThirdLevelItems.toLocaleString("uk-UA")} ${pluralizeSubgroups(totalThirdLevelItems)} автозапчастин. Оберіть систему автомобіля, потім групу та підгрупу: у кожному розділі можна порівняти виробників, ціни й наявність.`}
             highlights={[
               "Навігація по групах, підгрупах і кінцевих категоріях",
               "Підбір за вузлом автомобіля, назвою, артикулом або VIN",
               hasProductCounts
                 ? "Швидкий перехід у каталог із готовою структурою підбору"
                 : "Оберіть систему автомобіля й потрібну деталь",
-            ]}
-            stats={[
-              {
-                label: "Категорій",
-                value: totalGroups.toLocaleString("uk-UA"),
-                icon: Layers3,
-              },
-              {
-                label: "Груп",
-                value: totalSubgroups.toLocaleString("uk-UA"),
-                icon: FolderTree,
-              },
-              {
-                label: "Підгруп",
-                value: totalThirdLevelItems.toLocaleString("uk-UA"),
-                icon: ChevronRight,
-              },
-            ]}
-            quickLinks={[
-              {
-                href: "#groups-directory",
-                label: "Усі групи",
-                icon: FolderTree,
-                accent: true,
-              },
-              ...featuredGroups.map((group) => ({
-                href: `/groups/${group.slug}`,
-                label: buildVisibleProductName(group.label),
-                icon: ChevronRight,
-              })),
             ]}
           />
 

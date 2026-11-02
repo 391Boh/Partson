@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowRight, CarFront, Factory, Layers3, ShieldCheck, Truck } from "lucide-react";
+import { CarFront, ShieldCheck, Truck } from "lucide-react";
 
 import AutoBrandsDirectoryClient from "app/auto/AutoBrandsDirectoryClient";
 import CatalogHubHero from "app/components/CatalogHubHero";
@@ -124,46 +124,11 @@ export default function AutoPage() {
           badge="Підбір по авто"
           icon={CarFront}
           title={title}
-          description="Почніть із марки свого автомобіля. Далі оберіть модель і потрібну систему — наприклад, гальма або підвіску. Рік випуску, двигун та артикул допоможуть уточнити потрібну деталь."
+          description={`У каталозі PartsON — ${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)} авто. Почніть із марки свого автомобіля, далі оберіть модель і потрібну систему — наприклад, гальма або підвіску. Рік випуску, двигун та артикул допоможуть уточнити потрібну деталь.`}
           highlights={[
             `${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)}`,
             "Швидкий перехід у каталог",
             "Зручно з телефона і десктопа",
-          ]}
-          stats={[
-            {
-              label: "Марок",
-              value: carBrands.length.toLocaleString("uk-UA"),
-              icon: CarFront,
-            },
-            {
-              label: "Наступний крок",
-              value: "Марка → моделі",
-              icon: ArrowRight,
-            },
-            {
-              label: "Результат",
-              value: "Каталог запчастин",
-              icon: Layers3,
-            },
-          ]}
-          quickLinks={[
-            {
-              href: "#auto-brands-directory",
-              label: "Усі марки",
-              icon: CarFront,
-              accent: true,
-            },
-            {
-              href: "/groups",
-              label: "Групи товарів",
-              icon: Layers3,
-            },
-            {
-              href: "/manufacturers",
-              label: "Виробники",
-              icon: Factory,
-            },
           ]}
         />
 
