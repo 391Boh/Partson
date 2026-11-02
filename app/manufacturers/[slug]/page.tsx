@@ -1697,7 +1697,7 @@ export default async function ManufacturerDetailPage({
             </ol>
           </nav>
 
-          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="relative grid max-w-4xl gap-5">
             <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="manufacturer-logo-frame flex h-28 w-28 items-center justify-center rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-32 sm:w-32 lg:h-36 lg:w-36">
                 {producer.logoPath ? (
@@ -1729,7 +1729,27 @@ export default async function ManufacturerDetailPage({
                   {h1Title}
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                  Оберіть категорію або групу запчастин {producer.label}, щоб переглянути товари з цінами й наявністю. Для підбору конкретної деталі звірте артикул, характеристики та застосування до вашого автомобіля.
+                  У каталозі PartsON —{" "}
+                  <strong>
+                    {formatCount(producer.productCount)} {pluralizeUk(producer.productCount, "товар", "товари", "товарів")} {producer.label}
+                  </strong>
+                  {producer.groupsCount > 0 ? (
+                    <>
+                      {" "}у{" "}
+                      <strong>
+                        {formatCount(producer.groupsCount)} {pluralizeUk(producer.groupsCount, "групі", "групах", "групах")}
+                      </strong>
+                    </>
+                  ) : null}
+                  {producer.categoriesCount > 0 ? (
+                    <>
+                      {" "}і{" "}
+                      <strong>
+                        {formatCount(producer.categoriesCount)} {pluralizeUk(producer.categoriesCount, "підгрупі", "підгрупах", "підгрупах")}
+                      </strong>
+                    </>
+                  ) : null}
+                  . Оберіть категорію або групу запчастин {producer.label}, щоб переглянути товари з цінами й наявністю. Для підбору конкретної деталі звірте артикул, характеристики та застосування до вашого автомобіля.
                 </p>
 
                 {/* In-page quick nav — replaces two purely decorative
@@ -1771,26 +1791,6 @@ export default async function ManufacturerDetailPage({
               </div>
             </div>
 
-            <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70 sm:grid-cols-3 xl:grid-cols-1">
-              {[
-                { label: "товарів бренду", value: formatCount(producer.productCount), from: "from-sky-500", to: "to-cyan-500" },
-                { label: "груп товарів", value: formatCount(producer.groupsCount), from: "from-cyan-500", to: "to-teal-500" },
-                { label: "підгруп", value: formatCount(producer.categoriesCount), from: "from-teal-500", to: "to-emerald-500" },
-              ].map((metric) => (
-                <div
-                  key={metric.label}
-                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
-                >
-                  <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
-                  <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
-                    {metric.value}
-                  </span>
-                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
-                    {metric.label}
-                  </span>
-                </div>
-              ))}
-            </aside>
           </div>
         </section>
 

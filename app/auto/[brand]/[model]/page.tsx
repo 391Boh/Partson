@@ -764,19 +764,6 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     Оригінали й аналоги з фото та цінами, підбір за VIN, доставка по Україні й самовивіз у Львові.
                   </p>
 
-                  <div className="model-hero-footer">
-
-                  {totalProducts > 0 ? (
-                    <SmartLink
-                      href={allProductsPath}
-                      prefetchOnViewport
-                      className="model-hero-cta"
-                    >
-                      Усі товари для {model}
-                      <ChevronRight size={18} aria-hidden="true" />
-                    </SmartLink>
-                  ) : null}
-                  </div>
                 </div>
               </div>
             </div>

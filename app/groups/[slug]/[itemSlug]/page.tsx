@@ -24,7 +24,6 @@ import {
   directoryPanelClass,
   directoryPrimaryButtonClass,
 } from "app/components/catalog-directory-styles";
-import SmartLink from "app/components/SmartLink";
 import {
   EMPTY_CATALOG_SEO_FACETS,
   getCatalogSeoFacetsWithTimeout,
@@ -1082,15 +1081,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </ol>
             </nav>
 
-            <SmartLink
-              href={groupPagePath}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-white hover:text-sky-800"
-            >
-              &larr; До групи {visibleGroupLabel}
-            </SmartLink>
           </div>
 
-          <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="relative grid max-w-4xl gap-5">
             <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(20,184,166,0.06)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
                 <Image
@@ -1112,7 +1105,20 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   {visibleLabel}
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                  {pageDescription}
+                  {pageDescription}{" "}
+                  У каталозі —{" "}
+                  <strong>
+                    {item.productCount.toLocaleString("uk-UA")} {pluralizeUk(item.productCount, "товар", "товари", "товарів")}
+                  </strong>
+                  {item.producersCount > 0 ? (
+                    <>
+                      {" "}від{" "}
+                      <strong>
+                        {item.producersCount.toLocaleString("uk-UA")} {pluralizeUk(item.producersCount, "виробника", "виробників", "виробників")}
+                      </strong>
+                    </>
+                  ) : null}
+                  .
                 </p>
 
                 <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1129,25 +1135,6 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </div>
             </div>
 
-            <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-teal-100/70 sm:grid-cols-2 xl:grid-cols-1">
-              {[
-                { label: "товарів", value: item.productCount.toLocaleString("uk-UA"), from: "from-teal-500", to: "to-cyan-500" },
-                { label: "виробників", value: item.producersCount.toLocaleString("uk-UA"), from: "from-cyan-500", to: "to-sky-500" },
-              ].map((metric) => (
-                <div
-                  key={metric.label}
-                  className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(13,148,136,0.12)]"
-                >
-                  <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
-                  <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
-                    {metric.value}
-                  </span>
-                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
-                    {metric.label}
-                  </span>
-                </div>
-              ))}
-            </aside>
           </div>
         </section>
       </div>
