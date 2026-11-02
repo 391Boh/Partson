@@ -200,7 +200,9 @@ export const loadGroupPreview = (category: string, group: string) => {
   return request;
 };
 
-const GroupPreviewImage = React.memo(({ category, group, bare = false }: { category: string; group: string; bare?: boolean }) => {
+// `thumb`: a square photo filling its positioned parent (list rows); nothing
+// is drawn when there is no photo, so the parent's own placeholder shows.
+const GroupPreviewImage = React.memo(({ category, group, bare = false, thumb = false }: { category: string; group: string; bare?: boolean; thumb?: boolean }) => {
   const cacheKey = `${category.trim().toLowerCase()}::${group.trim().toLowerCase()}`;
   const [src, setSrc] = useState<string | null | undefined>(() =>
     groupPreviewCache.get(cacheKey) ?? groupPreviewManifest[cacheKey]
@@ -215,6 +217,25 @@ const GroupPreviewImage = React.memo(({ category, group, bare = false }: { categ
   }, [category, group]);
 
   if (src === null) return null;
+
+  if (thumb) {
+    if (src === undefined) {
+      return <span className="absolute inset-0 bg-sky-50 motion-safe:animate-pulse" aria-hidden="true" />;
+    }
+    return (
+      <span className="absolute inset-0 bg-white">
+        <Image
+          src={src}
+          alt={`Автозапчастини групи «${group}» у категорії «${category}»`}
+          fill
+          unoptimized
+          sizes="56px"
+          className="object-contain p-1"
+          onError={() => setSrc(null)}
+        />
+      </span>
+    );
+  }
 
   if (src === undefined) {
     return (

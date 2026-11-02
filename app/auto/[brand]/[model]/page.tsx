@@ -12,7 +12,6 @@ import OpenChatButton from "app/components/OpenChatButton";
 import SmartLink from "app/components/SmartLink";
 import {
   catalogPageBackgroundClass,
-  directoryBadgeClass,
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryDescriptionClass,
@@ -243,11 +242,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   // (category, group) pair the homepage's category browser (tovar.tsx) uses,
   // via the shared GroupPreviewImage component, so a group's card shows the
   // same photo here as it would there instead of a text-only row.
-  const renderModelGroupCard = (
-    group: AutoModelGroupSummary,
-    categoryLabel: string,
-    showIcon = false
-  ) => {
+  const renderModelGroupCard = (group: AutoModelGroupSummary, categoryLabel: string) => {
     // A group with real subgroups links to the whole group (all subgroups
     // included) — the individual subcategory filter is only meaningful once
     // a genuine subgroup tier exists to narrow into via the chips below.
@@ -265,39 +260,36 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     return (
       <article
         key={group.slug}
-        className={`${directoryListCardClass} group/card overflow-hidden`}
+        className="group/row rounded-[16px] border border-slate-200/85 bg-white px-3 py-2.5 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_8px_22px_rgba(14,165,233,0.10)] sm:px-3.5"
       >
-        <SmartLink href={groupHref} prefetchOnViewport className="group/category block">
-          <GroupPreviewImage category={categoryLabel} group={group.label} />
-        </SmartLink>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-          {showIcon ? (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white">
-              <Image
-                src={getCategoryIconPath(group.categoryLabel || group.filterGroup || group.label)}
-                alt=""
-                aria-hidden
-                width={22}
-                height={22}
-                sizes="22px"
-                className="h-[22px] w-[22px] object-contain"
-              />
-            </span>
-          ) : null}
+        <div className="flex items-center gap-3">
+          <SmartLink
+            href={groupHref}
+            prefetchOnViewport
+            tabIndex={-1}
+            aria-hidden="true"
+            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-100 bg-sky-50/60"
+          >
+            <Image
+              src={getCategoryIconPath(group.categoryLabel || categoryLabel || group.filterGroup || group.label)}
+              alt=""
+              width={26}
+              height={26}
+              sizes="26px"
+              className="h-[26px] w-[26px] object-contain opacity-70"
+            />
+            <GroupPreviewImage category={categoryLabel} group={group.label} thumb />
+          </SmartLink>
 
           <div className="min-w-0 flex-1">
             <SmartLink
               href={groupHref}
               prefetchOnViewport
-              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-teal-700"
+              className="block rounded-[6px] text-[15px] font-semibold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
             >
               {group.label}
             </SmartLink>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+            <span className="mt-0.5 block text-[13px] font-medium tabular-nums text-slate-500">
               {formatCount(group.productCount)}{" "}
               {pluralize(group.productCount, "товар", "товари", "товарів")}
             </span>
@@ -305,27 +297,24 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
         </div>
 
         {hasSubgroups ? (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-            <span className="category-level-caption">Підгрупи</span>
+          <ul className="mt-2 flex flex-wrap gap-1.5 sm:pl-[68px]" aria-label={`Підгрупи «${group.label}»`}>
             {group.subgroups.map((subgroup) => (
-              <SmartLink
-                key={subgroup.slug}
-                href={buildCatalogCarSearchPath(
-                  searchTerm,
-                  group.filterGroup,
-                  subgroup.filterSubcategory
-                )}
-                prefetchOnViewport
-                className="group/sub inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-2.5 py-1 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              >
-                {subgroup.label}
-                <span className="whitespace-nowrap rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 transition-colors duration-200 group-hover/sub:text-sky-600">
-                  {formatCount(subgroup.productCount)}{" "}
-                  {pluralize(subgroup.productCount, "товар", "товари", "товарів")}
-                </span>
-              </SmartLink>
+              <li key={subgroup.slug} className="min-w-0 max-w-full">
+                <SmartLink
+                  href={buildCatalogCarSearchPath(
+                    searchTerm,
+                    group.filterGroup,
+                    subgroup.filterSubcategory
+                  )}
+                  prefetchOnViewport
+                  className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-[14px] border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[12.5px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                >
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{subgroup.label}</span>
+                  <span className="shrink-0 tabular-nums text-slate-500">{formatCount(subgroup.productCount)}</span>
+                </SmartLink>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : null}
       </article>
     );
@@ -354,7 +343,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   sizes="64px"
                   loading="lazy"
                   unoptimized
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-contain text-[0px] text-transparent"
                 />
               </span>
             ) : null}
@@ -399,6 +388,16 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   // around empty numbers. No collectionJsonLd either — an ItemList with zero
   // items isn't useful structured data.
   if (groups.length === 0) {
+    // Other models of this make that do have products: the useful next step
+    // from an empty model page.
+    const verifiedKeys = await getVerifiedAutoModelKeys();
+    const siblingModels = Array.from(verifiedKeys ?? [])
+      .map((key) => key.split("::"))
+      .filter(([keyBrand, keyModel]) => keyBrand === brand && keyModel && keyModel !== model)
+      .map(([, keyModel]) => keyModel)
+      .sort((a, b) => a.localeCompare(b, "uk", { numeric: true }))
+      .slice(0, 24);
+
     return (
       <main className={`${catalogPageBackgroundClass} directory-detail-page min-h-screen py-5 sm:py-7`}>
         <script
@@ -445,7 +444,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 </Link>
               </div>
 
-              <div className="relative grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+              <div className="relative grid items-stretch gap-4">
                 <div className="rounded-[24px] border border-white/85 bg-white/74 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.065)] ring-1 ring-sky-100/65 sm:p-7">
                   <div className="directory-detail-identity grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
                     <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/95 bg-white/95 p-4 shadow-[0_16px_36px_rgba(15,23,42,0.09)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
@@ -462,8 +461,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     </div>
 
                     <div className="min-w-0">
-                      <span className={directoryBadgeClass}>Підбір для вашого авто</span>
-                      <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
+                      <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                         Запчастини для {brand} {model}
                       </h1>
                       <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
@@ -492,22 +490,47 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   </div>
                 </div>
 
-                <aside className="grid content-center gap-3 rounded-[24px] border border-white/85 bg-white/76 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.065)] ring-1 ring-teal-100/70 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="rounded-[18px] border border-slate-200/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(244,250,255,0.96))] p-4">
-                    <PackageSearch size={20} className="text-sky-700" strokeWidth={1.9} />
-                    <p className="mt-2 text-sm font-bold text-slate-900">Пошук у каталозі</p>
-                    <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
-                      Шукайте за назвою деталі, артикулом або виробником.
-                    </p>
-                  </div>
-                  <div className="rounded-[18px] border border-slate-200/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.99),rgba(242,251,248,0.96))] p-4">
-                    <ShieldCheck size={20} className="text-teal-700" strokeWidth={1.9} />
-                    <p className="mt-2 text-sm font-bold text-slate-900">Перевірка сумісності</p>
-                    <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
-                      У чаті можна уточнити потрібну модифікацію та деталь.
-                    </p>
-                  </div>
-                </aside>
+              </div>
+            </section>
+
+            <section className={directoryPanelClass} aria-labelledby="auto-model-empty-next">
+              <div className={directoryHeaderClass}>
+                <div className="max-w-3xl">
+                  <h2 id="auto-model-empty-next" className={directoryTitleClass}>
+                    {siblingModels.length > 0
+                      ? `Моделі ${brand}, для яких є запчастини`
+                      : "Як підібрати деталь"}
+                  </h2>
+                  <p className={directoryDescriptionClass}>
+                    {siblingModels.length > 0
+                      ? `Можливо, ваш ${brand} у каталозі значиться іншим поколінням або модифікацією. Оберіть модель зі списку, знайдіть деталь за артикулом або напишіть номер VIN у чат.`
+                      : "Знайдіть деталь за назвою чи артикулом у каталозі або напишіть номер VIN у чат — підберемо сумісну."}
+                  </p>
+                </div>
+              </div>
+
+              {siblingModels.length > 0 ? (
+                <ul className="flex flex-wrap gap-2 px-4 py-4 sm:px-5 sm:py-5">
+                  {siblingModels.map((siblingModel) => (
+                    <li key={siblingModel}>
+                      <SmartLink
+                        href={buildAutoModelPath(brand, siblingModel)}
+                        className="inline-flex min-h-11 items-center rounded-[12px] border border-slate-200/90 bg-white px-3.5 py-2 text-[14px] font-semibold text-slate-800 transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                      >
+                        {siblingModel}
+                      </SmartLink>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-4 text-[14px] font-semibold sm:flex-row sm:flex-wrap sm:gap-x-6 sm:px-5">
+                <SmartLink href={brandPath} className="text-sky-800 underline decoration-sky-300 underline-offset-4 hover:decoration-sky-700">
+                  Усі моделі {brand}
+                </SmartLink>
+                <SmartLink href="/groups" className="text-sky-800 underline decoration-sky-300 underline-offset-4 hover:decoration-sky-700">
+                  Каталог за групами запчастин
+                </SmartLink>
               </div>
             </section>
           </div>
@@ -615,24 +638,14 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 </div>
 
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={directoryBadgeClass}>Групи запчастин по моделі</span>
-                  </div>
-
-                  <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
+                  <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                     {title}
                   </h1>
                   <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                     {pageDescription}
                   </p>
 
-                  <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={directoryCompactMetricClass}>
-                        {totalProducts > 0 ? "Товари знайдено" : "Товари уточнюються"}
-                      </span>
-                    </div>
-
+                  <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
                     {totalProducts > 0 ? (
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <SmartLink
@@ -673,10 +686,29 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </div>
           </section>
 
+          {fitmentProducts.items.length > 0 ? (
+            <section className={directoryPanelClass} aria-labelledby="auto-model-fitment-title">
+              <div className={directoryHeaderClass}>
+                <div className="max-w-4xl">
+                  <h2 id="auto-model-fitment-title" className={directoryTitleClass}>
+                    Підходять до {brand} {model}
+                  </h2>
+                  <p className={directoryDescriptionClass}>
+                    У застосуванні цих деталей вказано {brand} {model}
+                    {fitmentProducts.total > fitmentProducts.items.length
+                      ? ` — показано ${fitmentProducts.items.length} з ${formatCount(fitmentProducts.total)}`
+                      : ""}
+                    . Рік і двигун звірте на сторінці товару.
+                  </p>
+                </div>
+              </div>
+              {renderProductList(fitmentProducts.items)}
+            </section>
+          ) : null}
+
           <section className={directoryPanelClass}>
             <div className={directoryHeaderClass}>
               <div className="max-w-4xl">
-                <p className={directoryBadgeClass}>Групи запчастин</p>
                 <h2 className={directoryTitleClass}>
                   Групи для {brand} {model}
                 </h2>
@@ -708,10 +740,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                             />
                           </span>
                           <div className="min-w-0">
-                            <p className="directory-kicker text-[10px] uppercase text-sky-800">
-                              Категорія
-                            </p>
-                            <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
+                            <h3 className="directory-heading text-xl text-slate-900 sm:text-2xl">
                               {category.label}
                             </h3>
                           </div>
@@ -725,8 +754,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 p-2.5 sm:grid-cols-2 sm:p-3 xl:grid-cols-3">
-                      <h4 className="category-level-heading">Групи</h4>
+                    <div className="grid grid-cols-1 gap-2 p-2.5 sm:p-3">
                       {category.groups.map((group) => renderModelGroupCard(group, category.label))}
                     </div>
                   </article>
@@ -749,10 +777,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                             />
                           </span>
                           <div className="min-w-0">
-                            <p className="directory-kicker text-[10px] uppercase text-sky-800">
-                              Категорія
-                            </p>
-                            <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
+                            <h3 className="directory-heading text-xl text-slate-900 sm:text-2xl">
                               Інше
                             </h3>
                           </div>
@@ -769,7 +794,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 p-2.5 sm:grid-cols-2 sm:p-3 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-2 p-2.5 sm:p-3">
                       {uncategorizedGroups.map((group) => renderModelGroupCard(group, "Інше"))}
                     </div>
                   </article>
@@ -781,42 +806,17 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               // this JSX is ever built.
               <div className="category-card-grid grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
                 {groups.map((group) =>
-                  renderModelGroupCard(
-                    group,
-                    group.categoryLabel || group.filterGroup || group.label,
-                    true
-                  )
+                  renderModelGroupCard(group, group.categoryLabel || group.filterGroup || group.label)
                 )}
               </div>
             )}
           </section>
 
-          {fitmentProducts.items.length > 0 ? (
-            <section className={directoryPanelClass} aria-labelledby="auto-model-fitment-title">
-              <div className={directoryHeaderClass}>
-                <div className="max-w-4xl">
-                  <p className={directoryBadgeClass}>Сумісність з опису</p>
-                  <h2 id="auto-model-fitment-title" className={directoryTitleClass}>
-                    Підходять до {brand} {model}
-                  </h2>
-                  <p className={directoryDescriptionClass}>
-                    У застосуванні цих деталей вказано {brand} {model}
-                    {fitmentProducts.total > fitmentProducts.items.length
-                      ? ` — показано ${fitmentProducts.items.length} з ${formatCount(fitmentProducts.total)}`
-                      : ""}
-                    . Рік і двигун звірте на сторінці товару.
-                  </p>
-                </div>
-              </div>
-              {renderProductList(fitmentProducts.items)}
-            </section>
-          ) : null}
 
           {nameMatchProducts.length > 0 ? (
             <section className={directoryPanelClass} aria-labelledby="auto-model-products-title">
               <div className={directoryHeaderClass}>
                 <div className="max-w-4xl">
-                  <p className={directoryBadgeClass}>Збіг за назвою</p>
                   <h2 id="auto-model-products-title" className={directoryTitleClass}>
                     Товари з «{sampleProductsQuery}» у назві
                   </h2>
