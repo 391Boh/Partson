@@ -145,6 +145,17 @@ export const findCarModelInBrand = async (
   );
 };
 
+/** Production years of a model from the make's 1C model list (null when 1C has none or is unavailable). */
+export const getCarModelYears = async (
+  brand: string,
+  model: string
+): Promise<{ yearFrom: number | null; yearTo: number | null } | null> => {
+  const lookup = await loadModelsForBrand(brand).catch(() => null);
+  if (!lookup || lookup.status !== "ok") return null;
+  const entry = lookup.data.models.find((candidate) => candidate.name === model);
+  return entry && (entry.yearFrom || entry.yearTo) ? { yearFrom: entry.yearFrom, yearTo: entry.yearTo } : null;
+};
+
 // Same restyling-word / roman-numeral / chassis-code cleanup the katalog
 // car-selection flow uses (KatalogClientPage.tsx / Data.tsx) — shared so all
 // three call sites always agree on what counts as "рестайлинг", a roman

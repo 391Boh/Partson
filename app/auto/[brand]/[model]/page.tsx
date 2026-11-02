@@ -27,6 +27,7 @@ import {
   assertModelBreakdownAvailable,
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
+  getCarModelYears,
   type AutoModelGroupSummary,
   type AutoModelProductLink,
 } from "app/lib/auto-directory-data";
@@ -36,7 +37,7 @@ import {
   buildAutoModelPath,
   buildCatalogCarSearchPath,
 } from "app/lib/catalog-links";
-import { formatCarBrandWithCyrillic } from "app/lib/car-brand-cyrillic";
+import { formatCarBrandWithCyrillic, getCarBrandCyrillicName } from "app/lib/car-brand-cyrillic";
 import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -112,15 +113,50 @@ const formatCount = (value: number) => value.toLocaleString("uk-UA");
 // claims "у наявності" when groupsCount is actually > 0 — the same live
 // count verified by hasAnyModelProducts for the sitemap, never a generic
 // promise.
-const buildModelGroupsDescription = (brand: string, model: string, groupsCount: number) =>
-  groupsCount > 0
-    ? `Оригінали та аналоги для ${formatCarBrandWithCyrillic(brand)} ${model} у наявності: фото, ціни, підбір за моделлю в каталозі PartsON. Доставка по Україні.`
-    : `Оригінали та аналоги для ${formatCarBrandWithCyrillic(brand)} ${model} у каталозі PartsON — підбір деталей за моделлю. Доставка по Україні.`;
+type ModelSeoFacts = {
+  years: { yearFrom: number | null; yearTo: number | null } | null;
+  products: number;
+  groups: number;
+  // Largest car systems first ("деталі двигуна", "деталі підвіски").
+  systems: string[];
+};
 
-const buildModelTitle = (brand: string, model: string, groupsCount: number) =>
-  groupsCount > 0
-    ? `${brand} ${model} — ${groupsCount.toLocaleString("uk-UA")} ${pluralize(groupsCount, "група", "групи", "груп")} запчастин, ціна і підбір`
-    : `${brand} ${model} — запчастини, ціна і підбір`;
+const CURRENT_YEAR = new Date().getFullYear();
+
+// "2004–2014", "з 2019" (still produced), "" when 1C has no years.
+const formatModelYears = (years: ModelSeoFacts["years"]) => {
+  if (!years?.yearFrom) return "";
+  if (!years.yearTo || years.yearTo >= CURRENT_YEAR) return `з ${years.yearFrom}`;
+  return years.yearFrom === years.yearTo ? `${years.yearFrom}` : `${years.yearFrom}–${years.yearTo}`;
+};
+
+const lowerFirst = (value: string) => (/^[А-ЯІЇЄҐ][а-яіїєґ']/.test(value) ? value[0].toLocaleLowerCase("uk") + value.slice(1) : value);
+
+const formatSystems = (systems: string[], limit = 3) => {
+  const names = systems.slice(0, limit).map(lowerFirst);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} та ${names[names.length - 1]}` : names[0] ?? "";
+};
+
+// Title: the query ("запчастини opel astra h") first, then years and the
+// count that makes the result worth clicking.
+const buildModelTitle = (brand: string, model: string, facts: ModelSeoFacts) => {
+  const years = formatModelYears(facts.years);
+  const name = `Запчастини ${brand} ${model}${years ? ` ${years}` : ""}`;
+  return facts.products > 0
+    ? `${name}: ціни, ${formatCount(facts.products)} ${pluralize(facts.products, "товар", "товари", "товарів")}`
+    : `${name}: підбір і ціни`;
+};
+
+const buildModelGroupsDescription = (brand: string, model: string, facts: ModelSeoFacts) => {
+  const years = formatModelYears(facts.years);
+  const car = `${formatCarBrandWithCyrillic(brand)} ${model}${years ? ` (${years})` : ""}`;
+  if (facts.products === 0) {
+    return `Запчастини для ${car}: підбір деталей за моделлю та VIN, оригінали й аналоги з цінами в каталозі PartsON. Доставка по Україні, самовивіз у Львові.`;
+  }
+  // Two systems keep the delivery note inside the 160-character snippet.
+  const systems = formatSystems(facts.systems, 2);
+  return `Запчастини для ${car}: ${formatCount(facts.products)} ${pluralize(facts.products, "товар", "товари", "товарів")} у ${formatCount(facts.groups)} ${pluralize(facts.groups, "групі", "групах", "групах")}${systems ? ` — ${systems}` : ""}. Ціни, фото, оригінали й аналоги. Доставка по Україні, Львів.`;
+};
 
 async function resolveBrandAndModel(params: Promise<AutoModelPageParams>) {
   const { brand: brandSlug, model: modelSlug } = await params;
@@ -147,9 +183,10 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
   // getModelGroupBreakdown is React cache()-wrapped, so calling it here and
   // again in the page body for the same (brand, model) is deduped within the
   // same request — no extra 1C round-trip, just a richer, accurate description.
-  const [breakdown, verifiedModelKeys] = await Promise.all([
+  const [breakdown, verifiedModelKeys, years] = await Promise.all([
     getModelGroupBreakdown(brand, model),
     getVerifiedAutoModelKeys(),
+    getCarModelYears(brand, model),
   ]);
   assertModelBreakdownAvailable(breakdown, brand, model);
   const { groups } = breakdown;
@@ -163,8 +200,16 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
     verifiedModelKeys.has(buildAutoModelKey(brand, model));
   const brandLower = brand.toLowerCase();
   const modelLower = model.toLowerCase();
-  const title = buildModelTitle(brand, model, groups.length);
-  const description = appendSeoContact(buildModelGroupsDescription(brand, model, groups.length));
+  const seoFacts: ModelSeoFacts = {
+    years,
+    products: breakdown.totalProducts,
+    groups: groups.length,
+    systems: breakdown.categories.map((category) => category.label),
+  };
+  const title = buildModelTitle(brand, model, seoFacts);
+  const description = appendSeoContact(buildModelGroupsDescription(brand, model, seoFacts));
+  const yearsText = formatModelYears(years);
+  const cyrillicBrand = getCarBrandCyrillicName(brand)?.toLocaleLowerCase("uk");
 
   return buildPageMetadata({
     title,
@@ -179,8 +224,11 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
       `купити запчастини ${brandLower} ${modelLower}`,
       `каталог запчастин ${brandLower} ${modelLower}`,
       `оригінальні запчастини ${brandLower} ${modelLower}`,
-      "групи запчастин по моделі",
-      "підбір автозапчастин",
+      `запчастини ${brandLower} ${modelLower} ціна`,
+      `запчастини ${brandLower} ${modelLower} львів`,
+      ...(yearsText ? [`запчастини ${brandLower} ${modelLower} ${yearsText}`] : []),
+      ...(cyrillicBrand ? [`запчастини ${cyrillicBrand} ${modelLower}`] : []),
+      "підбір автозапчастин за моделлю",
     ],
     openGraphTitle: `${title} | PartsON`,
     // The segment's opengraph-image/twitter-image card (1200×630) supplies
@@ -197,10 +245,11 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   }
 
   const { brand, brandEntry, model } = resolved;
-  const [breakdown, fitmentProducts, verifiedKeys] = await Promise.all([
+  const [breakdown, fitmentProducts, verifiedKeys, years] = await Promise.all([
     getModelGroupBreakdown(brand, model),
     getModelFitmentProducts(brand, model),
     getVerifiedAutoModelKeys(),
+    getCarModelYears(brand, model),
   ]);
   const brandModels = Array.from(verifiedKeys ?? [])
     .map((key) => key.split("::"))
@@ -433,7 +482,14 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   const allProductsPath = buildCatalogCarSearchPath(searchTerm);
   // Matches the query shape ("запчастини audi a4"), same as the empty-state heading.
   const title = `Запчастини ${brand} ${model}`;
-  const pageDescription = buildModelGroupsDescription(brand, model, groups.length);
+  const yearsText = formatModelYears(years);
+  const pageDescription = buildModelGroupsDescription(brand, model, {
+    years,
+    products: totalProducts,
+    groups: groups.length,
+    systems: categories.map((category) => category.label),
+  });
+  const topSystems = formatSystems(categories.map((category) => category.label));
 
   const renderHeroNav = () => (
     <div className="model-hero-nav relative z-[1]">
@@ -685,33 +741,30 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                 <div className="min-w-0">
                   <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                     {title}
+                    {yearsText ? <span className="model-hero-years"> {yearsText}</span> : null}
                   </h1>
                   <p className="model-hero-lead mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                    {pageDescription}
+                    У каталозі PartsON для {formatCarBrandWithCyrillic(brand)} {model} —{" "}
+                    <strong>
+                      {formatCount(totalProducts)} {pluralize(totalProducts, "товар", "товари", "товарів")}
+                    </strong>{" "}
+                    у{" "}
+                    <strong>
+                      {formatCount(groups.length)} {pluralize(groups.length, "групі", "групах", "групах")}
+                    </strong>
+                    {topSystems ? `: ${topSystems}` : ""}.
+                    {fitmentProducts.total > 0 ? (
+                      <>
+                        {" "}
+                        <strong>{formatCount(fitmentProducts.total)}</strong>{" "}
+                        {pluralize(fitmentProducts.total, "деталь має", "деталі мають", "деталей мають")} сумісність із {model},
+                        підтверджену в описі.
+                      </>
+                    ) : null}{" "}
+                    Оригінали й аналоги з фото та цінами, підбір за VIN, доставка по Україні й самовивіз у Львові.
                   </p>
 
                   <div className="model-hero-footer">
-                  <dl className="model-hero-facts">
-                    <div>
-                      <dt>{pluralize(totalProducts, "товар", "товари", "товарів")} у каталозі</dt>
-                      <dd>{formatCount(totalProducts)}</dd>
-                    </div>
-                    <div>
-                      <dt>{pluralize(groups.length, "група", "групи", "груп")} запчастин</dt>
-                      <dd>{formatCount(groups.length)}</dd>
-                    </div>
-                    {fitmentProducts.total > 0 ? (
-                      <div>
-                        <dt>із вказаною сумісністю</dt>
-                        <dd>{formatCount(fitmentProducts.total)}</dd>
-                      </div>
-                    ) : categories.length > 0 ? (
-                      <div>
-                        <dt>{pluralize(categories.length, "категорія", "категорії", "категорій")}</dt>
-                        <dd>{formatCount(categories.length)}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
 
                   {totalProducts > 0 ? (
                     <SmartLink
@@ -733,7 +786,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             <div className={directoryHeaderClass}>
               <div className="max-w-4xl">
                 <h2 id="auto-model-groups-title" className={directoryTitleClass}>
-                  Групи запчастин для {brand} {model}
+                  Каталог запчастин {brand} {model} за системами авто
                 </h2>
                 <p className={directoryDescriptionClass}>
                   Відкрийте систему авто й оберіть групу — каталог одразу відфільтрується під {model}.
@@ -780,7 +833,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               <div className={directoryHeaderClass}>
                 <div className="max-w-4xl">
                   <h2 id="auto-model-fitment-title" className={directoryTitleClass}>
-                    Підходять до {brand} {model}
+                    Деталі з підтвердженою сумісністю для {brand} {model}
                   </h2>
                   <p className={directoryDescriptionClass}>
                     У застосуванні цих деталей вказано {brand} {model}

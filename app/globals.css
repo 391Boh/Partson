@@ -11406,11 +11406,8 @@ html body .home-static .hero-photo { opacity: .72 !important; transition: none !
 .catalog-directory-page .model-gen-nav a:hover { background:#173a52; border-color:#8ad6e566; color:#fff; }
 .catalog-directory-page .model-gen-nav span[aria-current="page"] { background:#08798c; border-color:#5fc6d4; color:#fff; box-shadow:0 6px 18px -8px #08798c; }
 .catalog-directory-page .model-hero .model-hero-lead { color:#d6e4ec; font-size:16px; line-height:1.65; max-width:60ch; }
-.catalog-directory-page .model-hero-facts { display:flex; flex-wrap:wrap; gap:14px 0; margin-top:20px; max-width:560px; }
-.catalog-directory-page .model-hero-facts > div { display:flex; flex-direction:column; flex:1 1 120px; padding:0 20px; border-left:1px solid #9fc4d433; }
-.catalog-directory-page .model-hero-facts > div:first-child { padding-left:0; border-left:0; }
-.catalog-directory-page .model-hero-facts dd { order:-1; color:#f4fbff; font-size:30px; font-weight:750; line-height:1.05; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
-.catalog-directory-page .model-hero-facts dt { margin-top:4px; color:#b3c9d6; font-size:13px; font-weight:550; line-height:1.35; }
+.catalog-directory-page .model-hero .model-hero-lead strong { color:#fff; font-weight:750; font-variant-numeric:tabular-nums; }
+.catalog-directory-page .model-hero .model-hero-years { color:#8fd3df; font-weight:650; white-space:nowrap; }
 @media (max-width:767px) {
   .catalog-directory-page .model-hero-nav { margin-bottom:18px; }
   .catalog-directory-page .model-gen-nav { display:grid; gap:8px; }
@@ -11419,9 +11416,6 @@ html body .home-static .hero-photo { opacity: .72 !important; transition: none !
   .catalog-directory-page .model-gen-nav li { scroll-snap-align:start; flex-shrink:0; }
   .catalog-directory-page .model-gen-nav :is(a,span[aria-current]) { min-height:44px; }
   .catalog-directory-page .model-hero .model-hero-lead { font-size:15px; }
-  .catalog-directory-page .model-hero-facts > div { flex:1 1 0; padding:0 12px; }
-  .catalog-directory-page .model-hero-facts dd { font-size:26px; }
-  .catalog-directory-page .model-hero-facts dt { font-size:12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .catalog-directory-page :is(.model-hero-crumbs a,.model-gen-nav :is(a,span)) { transition:none; }
@@ -11436,7 +11430,6 @@ html body .home-static .hero-photo { opacity: .72 !important; transition: none !
 .catalog-directory-page .directory-detail-shell .model-hero .directory-hero-backdrop { inset:0; }
 .catalog-directory-page .model-hero .directory-heading-hero { font-size:clamp(30px,3.4vw,46px); line-height:1.08; letter-spacing:-.015em; max-width:22ch; }
 .catalog-directory-page .model-hero-footer { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:20px 32px; margin-top:24px; padding-top:20px; border-top:1px solid #9fc4d42e; }
-.catalog-directory-page .model-hero-footer .model-hero-facts { margin-top:0; }
 .catalog-directory-page .model-hero-cta { display:inline-flex; align-items:center; gap:10px; min-height:48px; padding:0 18px 0 22px; border-radius:14px; background:#0b8798; color:#fff; font-size:15px; font-weight:700; box-shadow:0 14px 30px -16px #0b8798, inset 0 1px 0 #ffffff26; transition:background-color .15s,box-shadow .15s; }
 .catalog-directory-page .model-hero-cta:hover { background:#0a7585; box-shadow:0 16px 34px -14px #0b8798, inset 0 1px 0 #ffffff26; }
 .catalog-directory-page .model-hero-cta:focus-visible { outline:2px solid #8ad6e5; outline-offset:3px; }
