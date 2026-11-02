@@ -11388,6 +11388,44 @@ html body .home-static .hero-photo { opacity: .72 !important; transition: none !
 .catalog-directory-page .directory-detail-hero > .relative > a { color:#d1e8f1; background:#102639a6; border-color:#a3c9dc30; }
 .catalog-directory-page .directory-detail-hero > .relative.grid > div[class*="bg-white"] { background:transparent; border-color:transparent; box-shadow:none; --tw-ring-shadow:0 0 #0000; padding:0; }
 .catalog-directory-page :is(.directory-intro,.directory-detail-hero) :is(a,button):focus-visible { outline-color:#8ad6e5; }
+
+/* Car model hero: readable facts on the dark photo, breadcrumb trail and a
+   generation switcher (Astra F · G · H …) as the page's main navigation. */
+.catalog-directory-page .model-hero-nav { display:grid; gap:14px; margin:4px 0 22px; }
+.catalog-directory-page .model-hero nav.model-hero-crumbs { margin:0; font-size:13px; }
+.catalog-directory-page .model-hero-crumbs ol { display:flex; flex-wrap:wrap; align-items:center; gap:0 6px; font-size:13px; line-height:1.4; }
+.catalog-directory-page .model-hero .model-hero-crumbs li { display:inline-flex; flex-wrap:nowrap; align-items:center; gap:6px; white-space:nowrap; overflow-wrap:normal; }
+.catalog-directory-page .model-hero .model-hero-crumbs a { display:inline-flex; align-items:center; color:#c4d6e2; border-radius:6px; text-decoration:underline; text-decoration-color:transparent; text-underline-offset:4px; transition:color .15s,text-decoration-color .15s; }
+.catalog-directory-page .model-hero .model-hero-crumbs a:hover { color:#fff; text-decoration-color:#8ad6e5; }
+.catalog-directory-page .model-hero-crumbs svg { color:#6f8ea1; flex-shrink:0; }
+.catalog-directory-page .model-hero .model-hero-crumbs span[aria-current="page"] { color:#f3f9fc; font-weight:650; }
+.catalog-directory-page .model-gen-nav { display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; }
+.catalog-directory-page .model-gen-label { color:#9fbccc; font-size:13px; font-weight:600; white-space:nowrap; }
+.catalog-directory-page .model-gen-nav ul { display:flex; flex-wrap:wrap; gap:6px; }
+.catalog-directory-page .model-gen-nav :is(a,span[aria-current]) { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:40px; padding:0 14px; border:1px solid #b9d4e333; border-radius:12px; background:#0f2638d9; color:#dbe9f1; font-size:14px; font-weight:650; white-space:nowrap; transition:background-color .15s,border-color .15s,color .15s; }
+.catalog-directory-page .model-gen-nav a:hover { background:#173a52; border-color:#8ad6e566; color:#fff; }
+.catalog-directory-page .model-gen-nav span[aria-current="page"] { background:#08798c; border-color:#5fc6d4; color:#fff; box-shadow:0 6px 18px -8px #08798c; }
+.catalog-directory-page .model-hero .model-hero-lead { color:#d6e4ec; font-size:16px; line-height:1.65; max-width:60ch; }
+.catalog-directory-page .model-hero-facts { display:flex; flex-wrap:wrap; gap:14px 0; margin-top:20px; max-width:560px; }
+.catalog-directory-page .model-hero-facts > div { display:flex; flex-direction:column; flex:1 1 120px; padding:0 20px; border-left:1px solid #9fc4d433; }
+.catalog-directory-page .model-hero-facts > div:first-child { padding-left:0; border-left:0; }
+.catalog-directory-page .model-hero-facts dd { order:-1; color:#f4fbff; font-size:30px; font-weight:750; line-height:1.05; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+.catalog-directory-page .model-hero-facts dt { margin-top:4px; color:#b3c9d6; font-size:13px; font-weight:550; line-height:1.35; }
+@media (max-width:767px) {
+  .catalog-directory-page .model-hero-nav { margin-bottom:18px; }
+  .catalog-directory-page .model-gen-nav { display:grid; gap:8px; }
+  .catalog-directory-page .model-gen-nav ul { flex-wrap:nowrap; overflow-x:auto; margin:0 -20px; padding:2px 20px 6px; scroll-padding-inline:20px; scroll-snap-type:x proximity; scrollbar-width:none; }
+  .catalog-directory-page .model-gen-nav ul::-webkit-scrollbar { display:none; }
+  .catalog-directory-page .model-gen-nav li { scroll-snap-align:start; flex-shrink:0; }
+  .catalog-directory-page .model-gen-nav :is(a,span[aria-current]) { min-height:44px; }
+  .catalog-directory-page .model-hero .model-hero-lead { font-size:15px; }
+  .catalog-directory-page .model-hero-facts > div { flex:1 1 0; padding:0 12px; }
+  .catalog-directory-page .model-hero-facts dd { font-size:26px; }
+  .catalog-directory-page .model-hero-facts dt { font-size:12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-directory-page :is(.model-hero-crumbs a,.model-gen-nav :is(a,span)) { transition:none; }
+}
 @media (max-width:1023px) { .directory-intro-facts { border-top-color:#91c7d533; } }
 @media (max-width:767px) {
   .directory-hero-photo { object-position:72% center; }

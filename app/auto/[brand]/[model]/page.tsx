@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Layers3, PackageSearch, ShieldCheck } from "lucide-react";
+import { ChevronRight, Layers3, PackageSearch, ShieldCheck } from "lucide-react";
 
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import GroupPreviewImage from "app/components/GroupPreviewImage";
@@ -200,10 +200,29 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   }
 
   const { brand, brandEntry, model } = resolved;
-  const [breakdown, fitmentProducts] = await Promise.all([
+  const [breakdown, fitmentProducts, verifiedKeys] = await Promise.all([
     getModelGroupBreakdown(brand, model),
     getModelFitmentProducts(brand, model),
+    getVerifiedAutoModelKeys(),
   ]);
+  const brandModels = Array.from(verifiedKeys ?? [])
+    .map((key) => key.split("::"))
+    .filter(([keyBrand, keyModel]) => keyBrand === brand && Boolean(keyModel))
+    .map(([, keyModel]) => keyModel);
+  // The other generations of this model family ("Astra F … Astra K") with
+  // products, for the hero's generation switcher.
+  const familyName = model.trim().split(/\s+/)[0] || model;
+  const familyKey = familyName.toLocaleLowerCase("uk");
+  const generationModels = Array.from(
+    new Set([
+      ...brandModels.filter(
+        (candidate) => candidate.trim().split(/\s+/)[0]?.toLocaleLowerCase("uk") === familyKey
+      ),
+      model,
+    ])
+  )
+    .sort((a, b) => a.localeCompare(b, "uk", { numeric: true }))
+    .slice(0, 16);
   assertModelBreakdownAvailable(breakdown, brand, model);
   const {
     groups,
@@ -371,6 +390,52 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   const title = `Запчастини ${brand} ${model}`;
   const pageDescription = buildModelGroupsDescription(brand, model, groups.length);
 
+  const renderHeroNav = () => (
+    <div className="model-hero-nav relative z-[1]">
+      <nav aria-label="Навігаційні хлібні крихти" className="model-hero-crumbs">
+        <ol>
+          <li>
+            <Link href="/">Головна</Link>
+            <ChevronRight size={14} aria-hidden="true" />
+          </li>
+          <li>
+            <Link href="/auto">Підбір по авто</Link>
+            <ChevronRight size={14} aria-hidden="true" />
+          </li>
+          <li>
+            <Link href={brandPath}>{brand}</Link>
+            <ChevronRight size={14} aria-hidden="true" />
+          </li>
+          <li>
+            <span aria-current="page">{model}</span>
+          </li>
+        </ol>
+      </nav>
+
+      {generationModels.length > 1 ? (
+        <nav aria-label={`Покоління ${brand} ${familyName}`} className="model-gen-nav">
+          <span className="model-gen-label">Покоління {familyName}</span>
+          <ul>
+            {generationModels.map((generationModel) => {
+              const label = generationModel.trim().slice(familyName.length).trim() || generationModel;
+              return (
+                <li key={generationModel}>
+                  {generationModel === model ? (
+                    <span aria-current="page">{label}</span>
+                  ) : (
+                    <SmartLink href={buildAutoModelPath(brand, generationModel)} title={`${brand} ${generationModel}`}>
+                      {label}
+                    </SmartLink>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      ) : null}
+    </div>
+  );
+
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -390,11 +455,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   if (groups.length === 0) {
     // Other models of this make that do have products: the useful next step
     // from an empty model page.
-    const verifiedKeys = await getVerifiedAutoModelKeys();
-    const siblingModels = Array.from(verifiedKeys ?? [])
-      .map((key) => key.split("::"))
-      .filter(([keyBrand, keyModel]) => keyBrand === brand && keyModel && keyModel !== model)
-      .map(([, keyModel]) => keyModel)
+    const siblingModels = brandModels
+      .filter((keyModel) => keyModel !== model)
       .sort((a, b) => a.localeCompare(b, "uk", { numeric: true }))
       .slice(0, 24);
 
@@ -408,41 +470,13 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
         <div className="directory-detail-shell">
           <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
-            <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
+            <section className="directory-detail-hero model-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
           <DirectoryHeroBackdrop tone="auto" />
           <CatalogSectionNav current="auto" />
               <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
               <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-              <div className="relative z-[1] mb-4 flex flex-wrap items-center justify-between gap-3">
-                <nav aria-label="Навігаційні хлібні крихти">
-                  <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-                    <li className="inline-flex items-center gap-2">
-                      <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-                    </li>
-                    <li className="inline-flex items-center gap-2">
-                      <span aria-hidden="true">/</span>
-                      <Link href="/auto" className="transition hover:text-slate-800">Підбір по авто</Link>
-                    </li>
-                    <li className="inline-flex items-center gap-2">
-                      <span aria-hidden="true">/</span>
-                      <Link href={brandPath} className="transition hover:text-slate-800">{brand}</Link>
-                    </li>
-                    <li className="inline-flex items-center gap-2">
-                      <span aria-hidden="true">/</span>
-                      <span className="text-slate-700">{model}</span>
-                    </li>
-                  </ol>
-                </nav>
-
-                <Link
-                  href={brandPath}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-white hover:text-sky-800"
-                >
-                  <ArrowLeft size={13} className="inline-block" />
-                  Усі моделі {brand}
-                </Link>
-              </div>
+              {renderHeroNav()}
 
               <div className="relative grid items-stretch gap-4">
                 <div className="rounded-[24px] border border-white/85 bg-white/74 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.065)] ring-1 ring-sky-100/65 sm:p-7">
@@ -464,7 +498,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                         Запчастини для {brand} {model}
                       </h1>
-                      <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
+                      <p className="model-hero-lead mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
                         {breakdownStatus === "unavailable"
                           ? "Зараз не вдалося завантажити товари для цієї моделі. Перегляньте загальний каталог або напишіть у чат — допоможемо підібрати деталь."
                           : "Для цієї моделі поки немає окремо підтверджених товарів. Це не означає, що потрібної деталі немає: перегляньте загальний каталог або напишіть у чат — допоможемо уточнити сумісність."}
@@ -586,45 +620,17 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
       <div className="directory-detail-shell">
         <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5 animate-fadeIn">
-          <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
+          <section className="directory-detail-hero model-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="auto" />
           <CatalogSectionNav current="auto" />
             <div className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent blur-xl" />
             <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-            <div className="relative z-[1] mb-4 flex flex-wrap items-center justify-between gap-3">
-              <nav aria-label="Навігаційні хлібні крихти">
-                <ol className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-                  <li className="inline-flex items-center gap-2">
-                    <Link href="/" className="transition hover:text-slate-800">Головна</Link>
-                  </li>
-                  <li className="inline-flex items-center gap-2">
-                    <span aria-hidden="true">/</span>
-                    <Link href="/auto" className="transition hover:text-slate-800">Підбір по авто</Link>
-                  </li>
-                  <li className="inline-flex items-center gap-2">
-                    <span aria-hidden="true">/</span>
-                    <Link href={brandPath} className="transition hover:text-slate-800">{brand}</Link>
-                  </li>
-                  <li className="inline-flex items-center gap-2">
-                    <span aria-hidden="true">/</span>
-                    <span className="text-slate-700">{model}</span>
-                  </li>
-                </ol>
-              </nav>
+            {renderHeroNav()}
 
-              <Link
-                href={brandPath}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-sky-200 hover:bg-white hover:text-sky-800"
-              >
-                <ArrowLeft size={13} className="inline-block" />
-                Усі моделі {brand}
-              </Link>
-            </div>
-
-            <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="relative max-w-3xl">
               <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(14,165,233,0.06)] ring-1 ring-sky-100/80 sm:h-28 sm:w-28">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/90 p-4 sm:h-28 sm:w-28">
                   <Image
                     src={brandEntry.logo}
                     alt={`Логотип марки автомобіля ${brand}`}
@@ -641,48 +647,45 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
                     {title}
                   </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
+                  <p className="model-hero-lead mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                     {pageDescription}
                   </p>
 
-                  <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
-                    {totalProducts > 0 ? (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <SmartLink
-                          href={allProductsPath}
-                          prefetchOnViewport
-                          className={directoryPrimaryButtonClass}
-                        >
-                          Усі товари для {model}
-                        </SmartLink>
+                  <dl className="model-hero-facts">
+                    <div>
+                      <dt>{pluralize(totalProducts, "товар", "товари", "товарів")} у каталозі</dt>
+                      <dd>{formatCount(totalProducts)}</dd>
+                    </div>
+                    <div>
+                      <dt>{pluralize(groups.length, "група", "групи", "груп")} запчастин</dt>
+                      <dd>{formatCount(groups.length)}</dd>
+                    </div>
+                    {fitmentProducts.total > 0 ? (
+                      <div>
+                        <dt>із вказаною сумісністю</dt>
+                        <dd>{formatCount(fitmentProducts.total)}</dd>
+                      </div>
+                    ) : categories.length > 0 ? (
+                      <div>
+                        <dt>{pluralize(categories.length, "категорія", "категорії", "категорій")}</dt>
+                        <dd>{formatCount(categories.length)}</dd>
                       </div>
                     ) : null}
-                  </div>
+                  </dl>
+
+                  {totalProducts > 0 ? (
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <SmartLink
+                        href={allProductsPath}
+                        prefetchOnViewport
+                        className={directoryPrimaryButtonClass}
+                      >
+                        Усі товари для {model}
+                      </SmartLink>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-
-              <aside className="grid gap-2.5 rounded-[24px] border border-white/85 bg-white/78 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.08)] ring-1 ring-sky-100/70 sm:grid-cols-2 xl:grid-cols-1">
-                {[
-                  { label: "товарів знайдено", value: formatCount(totalProducts), from: "from-sky-500", to: "to-cyan-500" },
-                  { label: "груп запчастин", value: formatCount(groups.length), from: "from-cyan-500", to: "to-teal-500" },
-                  ...(categories.length > 0
-                    ? [{ label: "категорій", value: formatCount(categories.length), from: "from-teal-500", to: "to-emerald-500" }]
-                    : []),
-                ].map((metric) => (
-                  <div
-                    key={metric.label}
-                    className="group/stat relative overflow-hidden rounded-[18px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.18),transparent_42%),linear-gradient(145deg,rgba(255,255,255,0.99),rgba(247,250,253,0.96))] px-3.5 py-3 transition-[transform,box-shadow] duration-300 hover:shadow-[0_12px_26px_rgba(14,165,233,0.12)]"
-                  >
-                    <span className={`absolute inset-x-0 top-0 h-[2.5px] bg-gradient-to-r ${metric.from} ${metric.to} opacity-70 transition-opacity duration-300 group-hover/stat:opacity-100`} />
-                    <span className={`directory-counter block bg-gradient-to-br ${metric.from} ${metric.to} bg-clip-text text-2xl leading-none text-transparent`}>
-                      {metric.value}
-                    </span>
-                    <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
-                      {metric.label}
-                    </span>
-                  </div>
-                ))}
-              </aside>
             </div>
           </section>
 
