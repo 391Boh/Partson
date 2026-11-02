@@ -277,17 +277,17 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     return (
       <article
         key={group.slug}
-        className="model-group-card group/row relative flex flex-col rounded-[16px] border border-slate-200/90 bg-white p-3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-300 hover:bg-sky-50/40 hover:shadow-[0_10px_24px_-14px_rgba(8,121,140,0.45)]"
+        className="model-group-card group/row relative flex flex-col rounded-[20px] border border-slate-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-200 hover:border-sky-300 hover:shadow-[0_16px_34px_-20px_rgba(8,121,140,0.55)] sm:p-5"
       >
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-100 bg-sky-50/70">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-100 bg-[linear-gradient(145deg,#f3f9fc,#e8f4f8)] sm:h-[88px] sm:w-[88px] sm:rounded-[16px]">
             <Image
               src={getCategoryIconPath(group.categoryLabel || categoryLabel || group.filterGroup || group.label)}
               alt=""
-              width={28}
-              height={28}
-              sizes="28px"
-              className="h-7 w-7 object-contain opacity-70"
+              width={34}
+              height={34}
+              sizes="34px"
+              className="h-[34px] w-[34px] object-contain opacity-70"
             />
             <GroupPreviewImage category={categoryLabel} group={group.label} thumb />
           </span>
@@ -298,25 +298,26 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             <SmartLink
               href={groupHref}
               prefetchOnViewport
-              className="block rounded-[6px] text-[15px] font-semibold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[16px] after:content-[''] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sky-300/80"
+              className="block rounded-[6px] text-[16px] font-bold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[20px] after:content-[''] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sky-300/80 sm:text-[17px]"
             >
               {group.label}
             </SmartLink>
-            <span className="mt-1 block text-[13px] font-medium tabular-nums text-slate-500">
+            <span className="mt-2 inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-[13px] font-semibold tabular-nums text-teal-800 ring-1 ring-teal-100">
               {formatCount(group.productCount)}{" "}
               {pluralize(group.productCount, "товар", "товари", "товарів")}
             </span>
           </div>
 
-          <ChevronRight
-            size={18}
+          <span
             aria-hidden="true"
-            className="shrink-0 text-slate-400 transition-colors duration-200 group-hover/row:text-sky-700"
-          />
+            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 sm:flex text-slate-500 transition-colors duration-200 group-hover/row:border-sky-700 group-hover/row:bg-sky-700 group-hover/row:text-white"
+          >
+            <ChevronRight size={18} />
+          </span>
         </div>
 
         {hasSubgroups ? (
-          <ul className="relative z-[1] mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3" aria-label={`Підгрупи «${group.label}»`}>
+          <ul className="relative z-[1] mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4" aria-label={`Підгрупи «${group.label}»`}>
             {group.subgroups.map((subgroup) => (
               <li key={subgroup.slug} className="min-w-0 max-w-full">
                 <SmartLink
@@ -326,10 +327,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     subgroup.filterSubcategory
                   )}
                   prefetchOnViewport
-                  className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[10px] border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[13px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-300 hover:bg-white hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-[12px] border border-slate-200/90 bg-slate-50/80 py-1.5 pl-3 pr-1.5 text-[14px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-300 hover:bg-white hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <span className="min-w-0 [overflow-wrap:anywhere]">{subgroup.label}</span>
-                  <span className="shrink-0 rounded-full bg-white px-1.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
+                  <span className="shrink-0 rounded-[8px] bg-white px-2 py-0.5 text-[12px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200/80">
                     {formatCount(subgroup.productCount)}
                   </span>
                 </SmartLink>
@@ -378,7 +379,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
           className="shrink-0 text-slate-500 transition-transform duration-200 group-open/cat:rotate-180 motion-reduce:transition-none"
         />
       </summary>
-      <div className="grid grid-cols-1 gap-2.5 px-3 pb-3 sm:grid-cols-2 sm:px-4 sm:pb-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 px-3 pb-3 sm:grid-cols-2 sm:gap-4 sm:px-4 sm:pb-4 lg:px-5 lg:pb-5">
         {categoryGroups.map((group) => renderModelGroupCard(group, iconLabel))}
       </div>
     </details>
@@ -772,7 +773,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             ) : (
               // categories.length === 0 here always implies groups.length > 0
               // — the groups.length === 0 case returns early above.
-              <div className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:gap-4 sm:px-5 sm:py-5">
                 {groups.map((group) =>
                   renderModelGroupCard(group, group.categoryLabel || group.filterGroup || group.label)
                 )}
