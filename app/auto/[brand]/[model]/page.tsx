@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Layers3, PackageSearch, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers3, PackageSearch, ShieldCheck } from "lucide-react";
 
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import GroupPreviewImage from "app/components/GroupPreviewImage";
@@ -12,8 +12,6 @@ import OpenChatButton from "app/components/OpenChatButton";
 import SmartLink from "app/components/SmartLink";
 import {
   catalogPageBackgroundClass,
-  directoryCompactMetricAccentClass,
-  directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
   directoryListCardClass,
@@ -279,44 +277,46 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     return (
       <article
         key={group.slug}
-        className="group/row rounded-[16px] border border-slate-200/85 bg-white px-3 py-2.5 transition-[border-color,box-shadow] duration-200 hover:border-sky-200 hover:shadow-[0_8px_22px_rgba(14,165,233,0.10)] sm:px-3.5"
+        className="model-group-card group/row relative flex flex-col rounded-[16px] border border-slate-200/90 bg-white p-3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-sky-300 hover:bg-sky-50/40 hover:shadow-[0_10px_24px_-14px_rgba(8,121,140,0.45)]"
       >
         <div className="flex items-center gap-3">
-          <SmartLink
-            href={groupHref}
-            prefetchOnViewport
-            tabIndex={-1}
-            aria-hidden="true"
-            className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-100 bg-sky-50/60"
-          >
+          <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-100 bg-sky-50/70">
             <Image
               src={getCategoryIconPath(group.categoryLabel || categoryLabel || group.filterGroup || group.label)}
               alt=""
-              width={26}
-              height={26}
-              sizes="26px"
-              className="h-[26px] w-[26px] object-contain opacity-70"
+              width={28}
+              height={28}
+              sizes="28px"
+              className="h-7 w-7 object-contain opacity-70"
             />
             <GroupPreviewImage category={categoryLabel} group={group.label} thumb />
-          </SmartLink>
+          </span>
 
           <div className="min-w-0 flex-1">
+            {/* The stretched link makes the whole card one target; subgroup
+                links below sit above it. */}
             <SmartLink
               href={groupHref}
               prefetchOnViewport
-              className="block rounded-[6px] text-[15px] font-semibold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+              className="block rounded-[6px] text-[15px] font-semibold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[16px] after:content-[''] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sky-300/80"
             >
               {group.label}
             </SmartLink>
-            <span className="mt-0.5 block text-[13px] font-medium tabular-nums text-slate-500">
+            <span className="mt-1 block text-[13px] font-medium tabular-nums text-slate-500">
               {formatCount(group.productCount)}{" "}
               {pluralize(group.productCount, "товар", "товари", "товарів")}
             </span>
           </div>
+
+          <ChevronRight
+            size={18}
+            aria-hidden="true"
+            className="shrink-0 text-slate-400 transition-colors duration-200 group-hover/row:text-sky-700"
+          />
         </div>
 
         {hasSubgroups ? (
-          <ul className="mt-2 flex flex-wrap gap-1.5 sm:pl-[68px]" aria-label={`Підгрупи «${group.label}»`}>
+          <ul className="relative z-[1] mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3" aria-label={`Підгрупи «${group.label}»`}>
             {group.subgroups.map((subgroup) => (
               <li key={subgroup.slug} className="min-w-0 max-w-full">
                 <SmartLink
@@ -326,10 +326,12 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     subgroup.filterSubcategory
                   )}
                   prefetchOnViewport
-                  className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-[14px] border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[12.5px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-[10px] border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[13px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-300 hover:bg-white hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <span className="min-w-0 [overflow-wrap:anywhere]">{subgroup.label}</span>
-                  <span className="shrink-0 tabular-nums text-slate-500">{formatCount(subgroup.productCount)}</span>
+                  <span className="shrink-0 rounded-full bg-white px-1.5 text-[11.5px] font-semibold tabular-nums text-slate-500">
+                    {formatCount(subgroup.productCount)}
+                  </span>
                 </SmartLink>
               </li>
             ))}
@@ -338,6 +340,49 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
       </article>
     );
   };
+
+  // One make system per row; it opens to its groups. Native <details> keeps
+  // every group link in the server HTML and works before hydration.
+  const renderCategoryAccordion = (
+    key: string,
+    label: string,
+    iconLabel: string,
+    categoryGroups: AutoModelGroupSummary[],
+    productCount: number,
+    open: boolean
+  ) => (
+    <details key={key} className="model-category group/cat" open={open}>
+      <summary className="model-category-summary">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-sky-100 bg-sky-50">
+          <Image
+            src={getCategoryIconPath(iconLabel)}
+            alt=""
+            aria-hidden
+            width={28}
+            height={28}
+            sizes="28px"
+            className="h-7 w-7 object-contain"
+          />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[17px] font-bold leading-snug text-slate-900 [overflow-wrap:anywhere]">{label}</span>
+          <span className="mt-0.5 block text-[13px] font-medium tabular-nums text-slate-500">
+            {formatCount(categoryGroups.length)} {pluralize(categoryGroups.length, "група", "групи", "груп")}
+            {" · "}
+            {formatCount(productCount)} {pluralize(productCount, "товар", "товари", "товарів")}
+          </span>
+        </span>
+        <ChevronDown
+          size={20}
+          aria-hidden="true"
+          className="shrink-0 text-slate-500 transition-transform duration-200 group-open/cat:rotate-180 motion-reduce:transition-none"
+        />
+      </summary>
+      <div className="grid grid-cols-1 gap-2.5 px-3 pb-3 sm:grid-cols-2 sm:px-4 sm:pb-4 xl:grid-cols-3">
+        {categoryGroups.map((group) => renderModelGroupCard(group, iconLabel))}
+      </div>
+    </details>
+  );
 
   const renderProductList = (products: AutoModelProductLink[]) => (
     <ul className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
@@ -689,6 +734,52 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </div>
           </section>
 
+          <section className={directoryPanelClass} aria-labelledby="auto-model-groups-title">
+            <div className={directoryHeaderClass}>
+              <div className="max-w-4xl">
+                <h2 id="auto-model-groups-title" className={directoryTitleClass}>
+                  Групи запчастин для {brand} {model}
+                </h2>
+                <p className={directoryDescriptionClass}>
+                  Відкрийте систему авто й оберіть групу — каталог одразу відфільтрується під {model}.
+                </p>
+              </div>
+            </div>
+
+            {categories.length > 0 ? (
+              <div className="model-categories">
+                {categories.map((category, categoryIndex) =>
+                  renderCategoryAccordion(
+                    `${category.slug}:${categoryIndex}`,
+                    category.label,
+                    category.label,
+                    category.groups,
+                    category.productCount,
+                    categoryIndex === 0
+                  )
+                )}
+                {uncategorizedGroups.length > 0
+                  ? renderCategoryAccordion(
+                      "uncategorized",
+                      "Інше",
+                      "Інше",
+                      uncategorizedGroups,
+                      uncategorizedProductCount,
+                      false
+                    )
+                  : null}
+              </div>
+            ) : (
+              // categories.length === 0 here always implies groups.length > 0
+              // — the groups.length === 0 case returns early above.
+              <div className="grid grid-cols-1 gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
+                {groups.map((group) =>
+                  renderModelGroupCard(group, group.categoryLabel || group.filterGroup || group.label)
+                )}
+              </div>
+            )}
+          </section>
+
           {fitmentProducts.items.length > 0 ? (
             <section className={directoryPanelClass} aria-labelledby="auto-model-fitment-title">
               <div className={directoryHeaderClass}>
@@ -708,112 +799,6 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               {renderProductList(fitmentProducts.items)}
             </section>
           ) : null}
-
-          <section className={directoryPanelClass}>
-            <div className={directoryHeaderClass}>
-              <div className="max-w-4xl">
-                <h2 className={directoryTitleClass}>
-                  Групи для {brand} {model}
-                </h2>
-                <p className={directoryDescriptionClass}>
-                  Кожна група веде до каталогу, вже відфільтрованого під {model}.
-                </p>
-              </div>
-            </div>
-
-            {categories.length > 0 ? (
-              <div className="category-card-grid category-hierarchy-grid px-4 py-4 sm:px-5 sm:py-5">
-                {categories.map((category, categoryIndex) => (
-                  <article
-                    key={`${category.slug}:${categoryIndex}`}
-                    className="overflow-hidden rounded-[24px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.19),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_54%,rgba(243,250,248,0.94)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/85"
-                  >
-                    <div className="border-b border-sky-100/80 px-4 py-4 sm:px-5">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="flex min-w-0 gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
-                            <Image
-                              src={getCategoryIconPath(category.label)}
-                              alt=""
-                              aria-hidden
-                              width={28}
-                              height={28}
-                              sizes="28px"
-                              className="h-7 w-7 object-contain"
-                            />
-                          </span>
-                          <div className="min-w-0">
-                            <h3 className="directory-heading text-xl text-slate-900 sm:text-2xl">
-                              {category.label}
-                            </h3>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={directoryCompactMetricAccentClass}>
-                            {formatCount(category.productCount)}{" "}
-                            {pluralize(category.productCount, "товар", "товари", "товарів")}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2 p-2.5 sm:p-3">
-                      {category.groups.map((group) => renderModelGroupCard(group, category.label))}
-                    </div>
-                  </article>
-                ))}
-
-                {uncategorizedGroups.length > 0 ? (
-                  <article className="overflow-hidden rounded-[24px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.19),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_54%,rgba(243,250,248,0.94)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/85">
-                    <div className="border-b border-sky-100/80 px-4 py-4 sm:px-5">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="flex min-w-0 gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
-                            <Image
-                              src={getCategoryIconPath("Інше")}
-                              alt=""
-                              aria-hidden
-                              width={28}
-                              height={28}
-                              sizes="28px"
-                              className="h-7 w-7 object-contain"
-                            />
-                          </span>
-                          <div className="min-w-0">
-                            <h3 className="directory-heading text-xl text-slate-900 sm:text-2xl">
-                              Інше
-                            </h3>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={directoryCompactMetricClass}>
-                            {pluralize(uncategorizedGroups.length, "група", "групи", "груп")}
-                          </span>
-                          <span className={directoryCompactMetricAccentClass}>
-                            {formatCount(uncategorizedProductCount)}{" "}
-                            {pluralize(uncategorizedProductCount, "товар", "товари", "товарів")}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2 p-2.5 sm:p-3">
-                      {uncategorizedGroups.map((group) => renderModelGroupCard(group, "Інше"))}
-                    </div>
-                  </article>
-                ) : null}
-              </div>
-            ) : (
-              // categories.length === 0 here always implies groups.length > 0
-              // — the groups.length === 0 case returns early above, before
-              // this JSX is ever built.
-              <div className="category-card-grid grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5 xl:grid-cols-3">
-                {groups.map((group) =>
-                  renderModelGroupCard(group, group.categoryLabel || group.filterGroup || group.label)
-                )}
-              </div>
-            )}
-          </section>
 
 
           {nameMatchProducts.length > 0 ? (
