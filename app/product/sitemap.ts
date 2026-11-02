@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { fetchConfirmedEuroRate } from "app/lib/catalog-server";
 
 import { getMerchantGalleryImages } from "app/lib/google-merchant-feed";
 import { buildProductSeoImagePath } from "app/lib/product-image-path";
@@ -62,10 +63,11 @@ export default async function sitemap(props: {
     return [];
   }
 
-  const [productLastModified, galleryImages] = await Promise.all([
-    getProductSitemapLastModified(entries).catch(() => new Map<string, string>()),
+  const [euroRate, galleryImages] = await Promise.all([
+    fetchConfirmedEuroRate().catch(() => null),
     getGalleryImages(),
   ]);
+  const productLastModified = await getProductSitemapLastModified(entries, { euroRate, galleryImages }).catch(() => new Map<string, string>());
 
   const items: MetadataRoute.Sitemap = entries
     .map((entry) => {

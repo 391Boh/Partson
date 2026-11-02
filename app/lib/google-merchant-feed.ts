@@ -59,6 +59,7 @@ export type GoogleMerchantFeedSnapshot = {
   skippedCount: number;
   sourceCount: number;
   pricing: ReturnType<typeof createMerchantFeedPricing>;
+  catalogEntries: ProductSitemapEntry[];
 };
 
 const GOOGLE_BASE_NAMESPACE = "http://base.google.com/ns/1.0";
@@ -602,6 +603,7 @@ export const getGoogleMerchantFeedSnapshot = async (options?: {
   return {
     xml,
     pricing: createMerchantFeedPricing(xml, Object.fromEntries(items.map(item => [item.id, item.priceEuro]))),
+    catalogEntries: entries.map(entry => ({ ...entry, priceEuro: resolvePublicProductPriceEuro(entry) })),
     itemCount: items.length,
     skippedCount: Math.max(0, sourceCount - items.length),
     sourceCount,

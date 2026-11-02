@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const exports = {};
 const mocks = {
+ 'app/lib/catalog-server': { fetchConfirmedEuroRate: async () => 51.37 },
  'app/lib/product-image-path': { buildProductSeoImagePath: code => `/product-image/${code}?iv=5&fallback=404` },
  'app/lib/product-url': { buildProductPath: ({code}) => `/product/${code}` },
  'app/lib/product-sitemap': { getPricedProductEntriesBySitemapId: async () => [{code:'one',hasPhoto:true},{code:'two',hasPhoto:false},{code:'three'}] },

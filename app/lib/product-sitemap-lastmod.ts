@@ -4,6 +4,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ProductSitemapEntry } from "app/lib/product-sitemap";
+import { toPriceUah } from "./catalog-server";
+import { resolvePublicProductPriceEuro } from "./public-product-price";
 
 // 1C has no per-product "updated at", so the product sitemap had no <lastmod>
 // at all and Google kept serving product pages from crawls months old. This
@@ -13,11 +15,10 @@ const LASTMOD_PATH = path.join(process.cwd(), ".cache/product-sitemap-lastmod.js
 
 // Bump when the product page's markup changes for every product at once
 // (e.g. new structured data): no product's lastmod is older than this.
-// 2026-10-27: descriptions with fitment, 4:3/16:9 images, corrected labels,
-// store photos no longer on product pages.
-const PRODUCT_PAGE_REVISED_AT = "2026-10-27T00:00:00.000Z";
+// 2026-11-02: consistent public prices and real product/gallery image schema.
+const PRODUCT_PAGE_REVISED_AT = "2026-11-02T00:00:00.000Z";
 
-type LastmodRecord = { f: string; d: string };
+type LastmodRecord = { f: string; d: string; priceUah?: number | null };
 
 let store: Record<string, LastmodRecord> | null = null;
 let loading: Promise<Record<string, LastmodRecord>> | null = null;
@@ -35,7 +36,7 @@ const loadStore = () => {
   return loading;
 };
 
-const fingerprint = (entry: ProductSitemapEntry) =>
+const fingerprint = (entry: ProductSitemapEntry, priceUah: number | null, gallery: string[]) =>
   [
     entry.name,
     entry.article,
@@ -48,11 +49,14 @@ const fingerprint = (entry: ProductSitemapEntry) =>
     entry.quantity > 0 ? 1 : 0,
     // The fitment line feeds the meta description and the vehicle picker.
     entry.fitment ?? "",
+    priceUah ?? "",
+    gallery.join(","),
   ].join("|");
 
 /** Per-product lastmod (ISO), keyed by product code. */
 export async function getProductSitemapLastModified(
-  entries: ProductSitemapEntry[]
+  entries: ProductSitemapEntry[],
+  options?: { euroRate?: number | null; galleryImages?: Map<string, string[]> }
 ): Promise<Map<string, string>> {
   const records = await loadStore();
   const now = new Date().toISOString();
@@ -62,10 +66,12 @@ export async function getProductSitemapLastModified(
   for (const entry of entries) {
     const code = entry.code.trim();
     if (!code) continue;
-    const f = fingerprint(entry);
     const known = records[code];
+    const priceUah = options?.euroRate != null
+      ? toPriceUah(resolvePublicProductPriceEuro(entry), options.euroRate) : known?.priceUah ?? null;
+    const f = fingerprint(entry, priceUah, options?.galleryImages?.get(code) ?? []);
     if (!known || known.f !== f) {
-      records[code] = { f, d: now };
+      records[code] = { f, d: now, priceUah };
       changed = true;
     }
     const date = records[code].d;

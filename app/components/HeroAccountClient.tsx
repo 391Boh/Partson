@@ -43,9 +43,9 @@ const actionButtonBase = [
   "font-bold",
   "tracking-[0.08em]",
   "uppercase",
-  "transition-[box-shadow,filter,background-color,border-color,background-position,transform]",
-  "duration-400",
-  "ease-out",
+  "hero-profile-action",
+  "min-h-11",
+  "touch-manipulation",
   "focus-visible:outline",
   "focus-visible:outline-2",
   "focus-visible:outline-offset-2",
@@ -56,9 +56,9 @@ const actionButtonBase = [
   "group",
 ].join(" ");
 
-const primaryButton = `${actionButtonBase} border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.96)_0%,rgba(14,165,233,0.92)_52%,rgba(56,189,248,0.88)_100%)] text-white shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_10px_24px_rgba(14,165,233,0.22),0_6px_16px_rgba(2,132,199,0.16)] ring-1 ring-sky-200/14 motion-safe:hover:border-sky-200/65 motion-safe:hover:brightness-[1.07] motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.28)_inset,0_14px_32px_rgba(14,165,233,0.30),0_8px_22px_rgba(2,132,199,0.20)]`;
-const loginButton = `${primaryButton} bg-no-repeat [background-size:180%_180%] [background-position:0%_50%] motion-safe:hover:[background-position:100%_50%] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/55 before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-10 after:bg-[linear-gradient(90deg,rgba(255,255,255,0.14),rgba(255,255,255,0))]`;
-const secondaryButton = `${actionButtonBase} border-white/28 bg-white/10 text-sky-50 shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_8px_20px_rgba(2,6,23,0.26)] backdrop-blur-sm motion-safe:hover:border-white/48 motion-safe:hover:bg-white/18 motion-safe:hover:shadow-[0_1px_0_rgba(255,255,255,0.24)_inset,0_12px_28px_rgba(2,6,23,0.32)]`;
+const primaryButton = `${actionButtonBase} hero-profile-action-primary border-sky-300/45 bg-[image:linear-gradient(135deg,rgba(7,89,133,0.96)_0%,rgba(14,165,233,0.92)_52%,rgba(56,189,248,0.88)_100%)] text-white shadow-[0_1px_0_rgba(255,255,255,0.20)_inset,0_8px_20px_rgba(2,132,199,0.18)]`;
+const loginButton = primaryButton;
+const secondaryButton = `${actionButtonBase} hero-profile-action-secondary border-white/28 bg-white/10 text-sky-50 shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_8px_20px_rgba(2,6,23,0.26)]`;
 
 // Same shape-handling as AccountInfo.tsx's normalizeVins — the vins field
 // isn't always a clean string[] (legacy docs can hold a comma/semicolon
@@ -501,7 +501,7 @@ export default function HeroAccountClient({
               onTouchStart={preloadAuthModal}
               className={loginButton}
             >
-              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+              <span className="relative inline-flex items-center gap-1.5">
                 <LogIn className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                 Увійти
               </span>
@@ -520,7 +520,7 @@ export default function HeroAccountClient({
               onTouchStart={preloadAuthModal}
               className={secondaryButton}
             >
-              <span className="relative inline-flex items-center gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.07]">
+              <span className="relative inline-flex items-center gap-1.5">
                 <UserPlus className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
                 Реєстрація
               </span>

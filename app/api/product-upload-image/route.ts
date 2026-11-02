@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
   if (article) clearProductImageCacheForProduct(article);
   if (!removePhoto) seedProductImageBase64Cache([code, article], base64Data);
   try {
-    revalidateTag("product-page-data", "max");
+    revalidateTag("product-page-data", { expire: 0 });
     if (article) revalidatePath(`/product/${encodeURIComponent(article)}`, "page");
     if (code !== article) revalidatePath(`/product/${encodeURIComponent(code)}`, "page");
     revalidatePath("/katalog", "page");

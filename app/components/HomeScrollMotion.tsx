@@ -41,6 +41,12 @@ export default function HomeScrollMotion() {
     };
     const onMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse") return;
+      // Keep interactive hit areas still; pointer-follow belongs to the
+      // surrounding presentation cards, never buttons or links.
+      if ((event.target as Element | null)?.closest("a, button, input, select, textarea, [role='button']")) {
+        release();
+        return;
+      }
       const classes = document.documentElement.classList;
       if (classes.contains("is-scrolling") || classes.contains("reduce-scroll-effects")) return;
       const target = (event.target as Element | null)?.closest<HTMLElement>(HOVER_SELECTOR) ?? null;

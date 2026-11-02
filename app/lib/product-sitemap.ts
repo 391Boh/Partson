@@ -108,6 +108,13 @@ let productSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
 let productSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
 let pricedProductSitemapEntryBatchesMemory: ProductSitemapEntry[][] | null = null;
 let pricedProductSitemapEntryBatchesPromise: Promise<ProductSitemapEntry[][]> | null = null;
+let snapshotCacheCheckedAt = 0;
+const expireSnapshotCaches = () => {
+  if (!shouldUseProductSitemapSnapshot() || Date.now() - snapshotCacheCheckedAt < 300_000) return;
+  snapshotCacheCheckedAt = Date.now();
+  productSitemapEntryBatchesMemory = null;
+  pricedProductSitemapEntryBatchesMemory = null;
+};
 
 const formatLoggedError = (error: unknown) => {
   if (error instanceof Error) {
@@ -435,6 +442,7 @@ const buildProductSitemapEntryBatches = async (): Promise<ProductSitemapEntry[][
 };
 
 const getProductSitemapEntryBatchesSafe = async () => {
+  expireSnapshotCaches();
   if (shouldBypassProductSitemapCache()) {
     return buildProductSitemapEntryBatches();
   }
@@ -636,6 +644,7 @@ const chunkProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
 };
 
 const getPricedProductSitemapEntryBatchesSafe = async () => {
+  expireSnapshotCaches();
   if (shouldBypassProductSitemapCache()) {
     const allEntries = (await buildProductSitemapEntryBatches()).flat();
     const enrichedEntries = await enrichProductSitemapEntriesWithPrices(allEntries);

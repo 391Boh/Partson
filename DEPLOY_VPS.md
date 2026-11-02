@@ -14,7 +14,8 @@ npm run build
 
 ### Google Merchant feed auto-update
 
-Install a daily cron job that regenerates `public/google-merchant-feed.xml` at 04:00:
+Install the hourly cron job (`17 * * * *`) that regenerates
+`.cache/google-merchant-feed.xml`, its EUR pricing metadata and product snapshots:
 
 ```bash
 npm run merchant:cron:install
@@ -33,6 +34,10 @@ npm run merchant:feed:update
 ```
 
 Logs are written to `logs/merchant-feed.log`.
+
+Reinstall the cron after upgrading from the old daily schedule. See
+[product prices and images](docs/seo/product-prices-and-images.md) for feed,
+nginx alias and Google validation checks.
 
 ### Memory Optimization (IMPORTANT!)
 

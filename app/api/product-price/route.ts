@@ -12,13 +12,14 @@ import {
 } from "app/lib/catalog-server";
 import { verifyPartnerRequest } from "app/api/_lib/partner-auth";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
-import { getProductEditOverride } from "app/lib/product-edit-overrides";
+import { resolvePublicProductPriceEuro } from "app/lib/public-product-price";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const normalizeLookupKeys = (values: string[]) =>
-  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+    .sort((a, b) => Number(/^(?:\d{2,}|[А-ЯҐЄІЇ]{1,3})-\d{4,}$/u.test(b)) - Number(/^(?:\d{2,}|[А-ЯҐЄІЇ]{1,3})-\d{4,}$/u.test(a)));
 
 type ProductPricePayload = {
   priceUah: number | null;
@@ -178,14 +179,10 @@ export async function GET(request: NextRequest) {
         // price, the "Купити" panel immediately re-fetches, and 1C hands
         // back the pre-edit number for one refresh cycle, reading as "the
         // edit didn't take".
-        const overridePriceEuro = lookupKeys
-          .map((lookupKey) => getProductEditOverride(lookupKey)?.priceEuro)
-          .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
-        const priceEuro =
-          overridePriceEuro ??
-          lookupKeys
+        const fallbackPriceEuro = lookupKeys
             .map((lookupKey) => lookupPrices[lookupKey.trim().toLowerCase()])
             .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+        const priceEuro = resolvePublicProductPriceEuro({ code: lookupKeys[0], priceEuro: fallbackPriceEuro });
         const rawPromoPriceEuro = lookupKeys
           .map((lookupKey) => livePromoPrices[lookupKey.trim().toLowerCase()])
           .find((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
