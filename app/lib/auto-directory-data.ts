@@ -709,6 +709,33 @@ const collectTieredModelBreakdown = async (
   return { data: (first as { data: BreakdownData }).data, complete: allComplete };
 };
 
+// A scan younger than this answers the page straight away; one older than
+// MODEL_BREAKDOWN_REFRESH_AFTER_MS is refreshed from 1C in the background.
+// The live scan pages through 1C for up to 8s, which every first visit to a
+// model (and every client navigation into one) used to wait for although the
+// nightly sync and earlier visits had already saved the same breakdown.
+const MODEL_BREAKDOWN_SERVE_SNAPSHOT_MS = 1000 * 60 * 60 * 24;
+const MODEL_BREAKDOWN_REFRESH_AFTER_MS = 1000 * 60 * 60;
+const breakdownRefreshes = new Map<string, Promise<void>>();
+
+const refreshModelBreakdownInBackground = (brand: string, model: string, cleanedModel: string) => {
+  const key = buildAutoModelKey(brand, model);
+  if (breakdownRefreshes.has(key)) return;
+  const refresh = resolveWithTimeout(
+    () => collectTieredModelBreakdown(brand, cleanedModel),
+    null,
+    MODEL_GROUP_BREAKDOWN_TIMEOUT_MS
+  )
+    .then(async (lookup) => {
+      if (lookup?.complete && lookup.data.totalProducts > 0) {
+        await writeModelBreakdownSnapshot(brand, model, lookup.data);
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => breakdownRefreshes.delete(key));
+  breakdownRefreshes.set(key, refresh);
+};
+
 export const getModelGroupBreakdown = cache(
   async (brand: string, model: string): Promise<AutoModelGroupBreakdown> => {
     const cleanedModel = cleanModelQuery(model);
@@ -721,6 +748,14 @@ export const getModelGroupBreakdown = cache(
       effectiveQuery: cleanedModel,
     };
     if (!cleanedModel) return { ...emptyData, status: "empty" };
+
+    const recent = await readModelBreakdownSnapshot(brand, model, MODEL_BREAKDOWN_SERVE_SNAPSHOT_MS);
+    if (recent) {
+      if (Date.now() - Date.parse(recent.savedAt) > MODEL_BREAKDOWN_REFRESH_AFTER_MS) {
+        refreshModelBreakdownInBackground(brand, model, cleanedModel);
+      }
+      return { ...recent.data, status: "ok", snapshotSavedAt: recent.savedAt };
+    }
 
     const lookup = await resolveWithTimeout(
       () => collectTieredModelBreakdown(brand, cleanedModel),
