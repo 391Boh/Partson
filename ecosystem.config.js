@@ -37,8 +37,10 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '3000',
-        // Оптимізація пам'яті Node.js
-        NODE_OPTIONS: '--max-old-space-size=1024 --max-semi-space-size=128'
+        // Heap below max_memory_restart so V8 collects garbage before PM2
+        // has to kill the process; a 128 MB young generation kept ~300 MB
+        // resident on a 2 GB server shared with 1C.
+        NODE_OPTIONS: '--max-old-space-size=640 --max-semi-space-size=32'
       }
     },
     {
