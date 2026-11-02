@@ -124,6 +124,7 @@ export default function AutoPage() {
           badge="Підбір по авто"
           icon={CarFront}
           title={title}
+          titleAccent="за маркою і моделлю авто"
           description={`У каталозі PartsON — ${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)} авто. Почніть із марки свого автомобіля, далі оберіть модель і потрібну систему — наприклад, гальма або підвіску. Рік випуску, двигун та артикул допоможуть уточнити потрібну деталь.`}
           highlights={[
             `${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)}`,

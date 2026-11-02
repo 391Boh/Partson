@@ -9,7 +9,7 @@ export default function LoadingBrand() {
       <div className="catalog-hub-stage">
         <section className="directory-intro">
           <DirectoryHeroBackdrop tone="auto" />
-          <CatalogSectionNav current="auto" />
+          <CatalogSectionNav current="auto" warmup={false} />
           <div className="directory-brand-skeleton" aria-hidden="true">
             <span className="directory-brand-skeleton-title" />
             <span className="directory-brand-skeleton-line" />

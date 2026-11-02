@@ -13,6 +13,7 @@ import { AUTO_FIELDS } from "./autoFields";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
+import FilterListNavigation from "./FilterListNavigation";
 import { useRowCappedList } from "../lib/row-capped-list";
 
 interface Props {
@@ -560,7 +561,7 @@ const extractErrorMessage = (text: string) => {
   }, [modelYearMap]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
   const compactModelListRef = useRef<HTMLDivElement | null>(null);
-  useRowCappedList(
+  const listNavigation = useRowCappedList(
     compactModelListRef,
     isCompact,
     loading || (yearLoading && selectedYear != null) || error ? null : filteredModels
@@ -723,7 +724,7 @@ const extractErrorMessage = (text: string) => {
                       {LABEL_NO_MODELS}
                     </div>
                   ) : (
-                    <div ref={compactModelListRef} className="vehicle-model-grid grid grid-cols-2 gap-1 sm:grid-cols-4 sm:gap-1">
+                    <div ref={compactModelListRef} tabIndex={0} role="region" aria-label="Моделі авто" className="vehicle-model-grid grid grid-cols-2 gap-1 sm:grid-cols-4 sm:gap-1">
                       {page.map((model) => {
                         const isActive = selectedModel === model;
                         return (
@@ -750,6 +751,7 @@ const extractErrorMessage = (text: string) => {
             </div>
           )}
         </div>
+        <FilterListNavigation navigation={listNavigation} label="Моделі авто" />
       </div>
     );
   }

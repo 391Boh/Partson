@@ -9,6 +9,7 @@ import { AUTO_FIELDS } from "./autoFields";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 import type { YearMeta } from "./CarModels";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
+import FilterListNavigation from "./FilterListNavigation";
 import { useRowCappedList } from "../lib/row-capped-list";
 
 interface ModDetails {
@@ -489,7 +490,7 @@ const CarModifications: React.FC<Props> = ({
 
   const optionPagesRef = useRef<HTMLDivElement | null>(null);
   const compactOptionListRef = useRef<HTMLDivElement | null>(null);
-  useRowCappedList(compactOptionListRef, isCompact && !isSelectingYear, showResults ? null : currentStepValues);
+  const listNavigation = useRowCappedList(compactOptionListRef, isCompact && !isSelectingYear, showResults ? null : currentStepValues);
   const optionPagesScrollRafRef = useRef(0);
   // Skips the scroll→page sync while an arrow-tap / clamp `scrollTo` animates
   // (see paged-rail-scroll.ts).
@@ -804,7 +805,7 @@ const CarModifications: React.FC<Props> = ({
                     <div className="flex">
                       {stepPages.map((page, pageIndex) => (
                         <div key={pageIndex} data-option-page className="w-full min-w-0 shrink-0 snap-start px-1.5 sm:px-2">
-                          <div ref={compactOptionListRef} className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-4"}`}>
+                          <div ref={compactOptionListRef} tabIndex={0} role="region" aria-label="Модифікації авто" className={`grid gap-1.5 sm:gap-2 ${isCompact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-4"}`}>
                             {page.map((value) => (
                               <button
                                 key={value}
@@ -841,6 +842,7 @@ const CarModifications: React.FC<Props> = ({
                     </button>
                   )}
                 </div>
+                {isCompact && <FilterListNavigation navigation={listNavigation} label="Модифікації авто" />}
                 <DirectoryPagePagination
                   currentPage={safeOptionPage}
                   pageCount={totalOptionPages}

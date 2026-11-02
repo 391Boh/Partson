@@ -470,10 +470,9 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
       suppressHydrationWarning
       className="site-header-shell font-ui relative z-50 flex w-full items-center justify-center text-white"
     >
-      {/* Fades in on scroll (see LayoutHost.tsx's isPageAtTop) — gone
-          entirely at the very top of the homepage, revealing the hero
-          photo behind the fixed header; reappears once the page scrolls
-          away from the top, on every page including the homepage. */}
+      {/* The homepage and catalog directories reveal their hero photograph
+          through the header at the top. PageHeader's sentinel observer
+          fades this background in once the visitor scrolls down. */}
       <span
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ease-out ${

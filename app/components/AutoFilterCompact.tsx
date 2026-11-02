@@ -537,6 +537,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
             <button
               type="button"
               onClick={() => handleStepClick('brand')}
+              aria-current={activeStep === 'brand' ? 'step' : undefined}
               title={selectedBrand?.name ?? ''}
               className={`group min-w-0 flex flex-col items-center gap-1 rounded-[13px] border px-1 py-2 text-center md:flex-row md:gap-2 md:text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
                 activeStep === 'brand'
@@ -571,6 +572,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
             <button
               type="button"
               onClick={() => handleStepClick('model')}
+              aria-current={activeStep === 'model' ? 'step' : undefined}
               disabled={!canChooseModel}
               title={selectedModel ?? ''}
               className={`group min-w-0 flex flex-col items-center gap-1 rounded-[13px] border px-1 py-2 text-center md:flex-row md:gap-2 md:text-left transition-all duration-200 md:gap-2.5 md:px-3 md:py-2.5 ${
@@ -606,6 +608,7 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
             <button
               type="button"
               onClick={() => handleStepClick('engine')}
+              aria-current={activeStep === 'engine' ? 'step' : undefined}
               disabled={!canChooseMods}
               title={
                 selectedCarLabel

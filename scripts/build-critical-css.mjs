@@ -51,6 +51,8 @@ export const CRITICAL_TARGETS = {
     "app/manufacturers/page.tsx",
     "app/manufacturers/[slug]/page.tsx",
     "app/components/Search.tsx",
+    // Route fallbacks can be shown before the full stylesheet has arrived.
+    "app/components/CatalogDirectoryLoading.tsx",
   ],
   inform: [
     "app/layout.tsx",

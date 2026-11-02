@@ -4,7 +4,7 @@ export const suites = {
   unit: [
     "firebase-auth-initialization", "firebase-auth-dependencies", "route-prefetch",
     "user-profile-store", "admin-notification-counts", "admin-notification-client", "style-splitting", "build-snapshots", "recommendation-prices",
-    "catalog-request-lifecycle", "catalog-prefetch-freshness", "catalog-photo-filter",
+    "catalog-request-lifecycle", "catalog-prefetch-freshness", "catalog-photo-filter", "catalog-page-seo",
     "catalog-name-sort", "catalog-priced-first", "catalog-analog-index",
     "catalog-codes-batch", "catalog-count", "product-stock", "product-admin-mutations",
     "product-form-validation", "product-params", "vehicle-fitment", "fitment-editor-data",
@@ -13,7 +13,7 @@ export const suites = {
     "order-cancel", "admin-chat-activity", "admin-catalog-price-loading",
     "home-blog-cache", "home-blog-cover", "product-google-pricing", "product-seo-images", "product-image-sitemap", "product-image-final-miss",
   ].map((name) => `scripts/test-${name}.mjs`),
-  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "recommendation-layout"]
+  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "recommendation-layout", "directory-hero", "navigation-progress"]
     .map((name) => `scripts/test-${name}.mjs`),
   smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters"]
     .map((name) => `scripts/test-${name}.mjs`),

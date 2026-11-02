@@ -832,12 +832,12 @@ const Category: React.FC<CategoryProps> = ({
     <div className="flex h-full flex-col gap-2">
       {(!searchInHeader || (!isSearchMode && Boolean(activeCategory || activeGroup))) && (
       <div className="catalog-filter-category-toolbar flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-extrabold text-slate-800">
+        <div role="group" aria-label="Перехід між категоріями" className="catalog-filter-category-trail flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-extrabold text-slate-800">
           {!isSearchMode && (activeCategory || activeGroup) ? (
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-extrabold text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition-colors duration-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+              className="catalog-filter-back inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-extrabold text-sky-900 shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition-colors duration-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
             >
               <ChevronLeft size={13} strokeWidth={3} className="pointer-events-none" />
               {"\u041d\u0430\u0437\u0430\u0434"}

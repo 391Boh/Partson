@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 // Catalog filter lists (brands, models, modifications, categories,
 // producers) show at most this many rows; the rest scrolls inside the list.
@@ -17,6 +17,14 @@ export function useRowCappedList(
   enabled: boolean,
   contentKey: unknown,
 ) {
+  const [navigation, setNavigation] = useState({ overflow: false, above: false, below: false, start: 1, end: 0, total: 0 });
+  const scrollList = useCallback((direction: -1 | 1) => {
+    const list = ref.current;
+    if (!list) return;
+    const first = list.firstElementChild as HTMLElement | null;
+    const distance = Math.max(44, list.clientHeight - (first?.offsetHeight ?? 0));
+    list.scrollBy({ top: distance * direction, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [ref]);
   useEffect(() => {
     const list = ref.current;
     if (!list) return;
@@ -32,8 +40,23 @@ export function useRowCappedList(
     const syncEdges = () => {
       const capped = list.hasAttribute("data-row-cap");
       const below = list.scrollHeight - list.clientHeight - list.scrollTop;
-      list.dataset.moreAbove = String(capped && list.scrollTop > 2);
-      list.dataset.moreBelow = String(capped && below > 2);
+      const above = capped && list.scrollTop > 2;
+      const moreBelow = capped && below > 2;
+      list.dataset.moreAbove = String(above);
+      list.dataset.moreBelow = String(moreBelow);
+      let start = 1;
+      let end = list.children.length;
+      if (capped) {
+        const bounds = list.getBoundingClientRect();
+        const visible = Array.from(list.children).flatMap((item, index) => {
+          const rect = item.getBoundingClientRect();
+          return rect.bottom > bounds.top + 2 && rect.top < bounds.bottom - 2 ? [index + 1] : [];
+        });
+        start = visible[0] ?? 1;
+        end = visible.at(-1) ?? start;
+      }
+      const next = { overflow: capped && (above || moreBelow), above, below: moreBelow, start, end, total: list.children.length };
+      setNavigation((previous) => Object.keys(next).every((key) => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
     };
 
     const measure = () => {
@@ -97,4 +120,5 @@ export function useRowCappedList(
       // scroll position on every parent re-render.
     };
   }, [ref, enabled, contentKey]);
+  return { ...navigation, overflow: enabled && contentKey != null && navigation.overflow, scrollList };
 }

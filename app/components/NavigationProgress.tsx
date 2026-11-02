@@ -51,6 +51,8 @@ export default function NavigationProgress() {
     bar.style.opacity = '1';
     bar.style.visibility = 'hidden';
     bar.style.willChange = 'auto';
+    bar.dataset.state = 'idle';
+    delete bar.dataset.paused;
     isRunningRef.current = false;
   }, []);
 
@@ -69,20 +71,22 @@ export default function NavigationProgress() {
     const transform = getComputedStyle(bar).transform;
     animationRef.current?.cancel();
     bar.style.visibility = 'visible';
+    bar.dataset.state = 'complete';
     bar.style.transform = 'scaleX(1)';
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       animationRef.current = bar.animate([{ transform }, { transform: 'scaleX(1)' }], {
-        duration: 120,
+        duration: 160,
         easing: 'ease-out',
       });
+      if (document.visibilityState === 'hidden') animationRef.current.pause();
     }
 
     timer1Ref.current = setTimeout(() => {
       if (!barRef.current) return;
-      barRef.current.style.transition = 'opacity 0.18s ease-out';
+      barRef.current.style.transition = 'opacity 0.2s ease-out';
       barRef.current.style.opacity = '0';
-      timer2Ref.current = setTimeout(resetBar, 200);
-    }, 120);
+      timer2Ref.current = setTimeout(resetBar, 220);
+    }, 180);
   }, [clearPending, resetBar]);
 
   const runStart = useCallback(() => {
@@ -94,14 +98,17 @@ export default function NavigationProgress() {
     isRunningRef.current = true;
     bar.style.visibility = 'visible';
     bar.style.opacity = '1';
+    bar.dataset.state = 'loading';
+    bar.dataset.paused = String(document.visibilityState === 'hidden');
     bar.style.transition = 'none';
     bar.style.willChange = 'transform';
-    bar.style.transform = 'scaleX(0.88)';
+    bar.style.transform = 'scaleX(0.94)';
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      animationRef.current = bar.animate([{ transform: 'scaleX(0.04)' }, { transform: 'scaleX(0.88)' }], {
-        duration: 1400,
+      animationRef.current = bar.animate([{ transform: 'scaleX(0.035)' }, { transform: 'scaleX(0.94)' }], {
+        duration: 8_000,
         easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
       });
+      if (document.visibilityState === 'hidden') animationRef.current.pause();
     }
     // An interrupted or failed navigation must never leave a permanent bar.
     timer2Ref.current = setTimeout(resetBar, 15_000);
@@ -109,14 +116,40 @@ export default function NavigationProgress() {
 
   const start = useCallback(() => {
     if (startTimerRef.current !== null || isRunningRef.current) return;
+    // A new navigation owns the bar; the previous fade must not hide it.
+    if (barRef.current?.dataset.state === 'complete') {
+      clearPending();
+      resetBar();
+    }
     startTimerRef.current = setTimeout(() => {
       startTimerRef.current = null;
       runStart();
     }, 120);
-  }, [runStart]);
+  }, [clearPending, resetBar, runStart]);
 
   useEffect(() => {
     const uninstallIntent = installNavigationIntent(router);
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onVisibilityChange = () => {
+      const bar = barRef.current;
+      if (!bar || bar.dataset.state === 'idle') return;
+      const paused = document.visibilityState === 'hidden';
+      bar.dataset.paused = String(paused);
+      const animation = animationRef.current;
+      if (paused && animation?.playState === 'running') {
+        // pause() takes effect on the next frame; pinning the current time
+        // freezes the bar at once instead of one frame later.
+        const time = animation.currentTime;
+        animation.pause();
+        animation.currentTime = time;
+      }
+      else if (!paused && animation?.playState === 'paused') animation.play();
+    };
+    const onMotionChange = () => {
+      if (!reducedMotion.matches) return;
+      animationRef.current?.cancel();
+      animationRef.current = null;
+    };
     const routeKey = () => `${window.location.pathname}${window.location.search}`;
     let previousRoute = routeKey();
 
@@ -157,6 +190,8 @@ export default function NavigationProgress() {
     };
 
     document.addEventListener('click', handleClick, { capture: true, passive: true });
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    reducedMotion.addEventListener('change', onMotionChange);
     window.addEventListener('popstate', handlePopState);
 
     return () => {
@@ -164,6 +199,8 @@ export default function NavigationProgress() {
       window.history.pushState = origPushState;
       window.history.replaceState = origReplaceState;
       document.removeEventListener('click', handleClick, { capture: true });
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      reducedMotion.removeEventListener('change', onMotionChange);
       window.removeEventListener('popstate', handlePopState);
     };
   }, [router, start]);
@@ -179,12 +216,13 @@ export default function NavigationProgress() {
         ref={barRef}
         aria-hidden="true"
         className="nav-progress-bar"
+        data-state="idle"
         style={{
           position: 'fixed',
           top: 0,
           left: 0,
           width: '100%',
-          height: '3px',
+          height: '4px',
           zIndex: 9999,
           transform: 'scaleX(0)',
           transformOrigin: 'left',

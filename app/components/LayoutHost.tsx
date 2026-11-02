@@ -154,8 +154,8 @@ function RouteViewStateSync({
 
 // Pages whose dark photographic hero starts under the fixed header: there the
 // header is transparent at the very top, like on the homepage.
-const MODEL_PAGE_PATH = /^\/auto\/[^/]+\/[^/]+\/?$/;
-const hasTransparentHeaderAtTop = (pathname: string) => pathname === "/" || MODEL_PAGE_PATH.test(pathname);
+const hasTransparentHeaderAtTop = (pathname: string) =>
+  pathname === "/" || /^\/(?:auto|groups|manufacturers)(?:\/|$)/.test(pathname);
 
 // Keep visibility updates local: crossing the sentinel must not render the
 // account runtime, chat controls and navigation on every page.

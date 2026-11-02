@@ -11,6 +11,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import FilterListNavigation from "./FilterListNavigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 import { useRowCappedList } from "../lib/row-capped-list";
@@ -198,7 +199,7 @@ export default function HorizontalDirectoryRail({
 
   // In the catalog filter the mobileList rail is laid out as a vertical
   // grid (globals.css), so it scrolls down past four rows instead of paging.
-  useRowCappedList(railRef, mobileList, children);
+  const listNavigation = useRowCappedList(railRef, mobileList, children);
 
   // A swipe should move by a full page (every column currently visible),
   // not by a single column — so only the first column of each page group
@@ -240,6 +241,16 @@ export default function HorizontalDirectoryRail({
           tabIndex={0}
           onScroll={handleScroll}
           onKeyDown={(event) => {
+            if (event.target === event.currentTarget && railRef.current?.hasAttribute("data-row-cap")) {
+              if (["ArrowDown", "ArrowUp", "PageDown", "PageUp"].includes(event.key)) {
+                event.preventDefault();
+                listNavigation.scrollList(event.key === "ArrowDown" || event.key === "PageDown" ? 1 : -1);
+              } else if (event.key === "Home" || event.key === "End") {
+                event.preventDefault();
+                railRef.current.scrollTo({ top: event.key === "Home" ? 0 : railRef.current.scrollHeight, behavior: "instant" });
+              }
+              return;
+            }
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
             event.preventDefault();
             move(event.key === "ArrowLeft" ? -1 : 1);
@@ -259,6 +270,8 @@ export default function HorizontalDirectoryRail({
           <ChevronRight size={20} strokeWidth={2.5} />
         </button>
       </div>
+
+      {mobileList && <FilterListNavigation navigation={listNavigation} label={ariaLabel} />}
 
       {pageCount > 1 ? (
         <DirectoryPagePagination

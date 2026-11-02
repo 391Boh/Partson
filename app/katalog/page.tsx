@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { applyProducerPageAvailability, buildCatalogBreadcrumbJsonLd, buildCatalogCollectionJsonLd, normalizeValue, resolveCatalogSeoState, type CatalogSeoState } from "app/lib/catalog-page-seo";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -11,7 +12,6 @@ import {
   CreditCard,
   ListTree,
   MapPin,
-  PackageSearch,
   Phone,
   Tags,
   Truck,
@@ -25,13 +25,9 @@ import CatalogRestoreInlineScript from "app/katalog/CatalogRestoreInlineScript";
 import { buildCatalogQuerySignature } from "app/lib/catalog-query-signature";
 import { PRODUCT_PARAMS_QUERY_KEY } from "app/lib/product-params";
 import {
-  buildAutoBrandPath,
   buildAutoModelPath,
-  buildCatalogCategoryPath,
-  buildCatalogProducerPath,
   buildGroupPath,
   buildManufacturerPath,
-  buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import {
   EMPTY_CATALOG_SEO_FACETS,
@@ -52,7 +48,7 @@ import { buildManufacturersDirectoryData } from "app/lib/manufacturers-directory
 import { buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
-import { appendSeoContact, buildPageMetadata } from "app/lib/seo-metadata";
+import { buildPageMetadata } from "app/lib/seo-metadata";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -336,199 +332,6 @@ interface KatalogPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-type CatalogSeoState = {
-  tab: string;
-  group: string;
-  subcategory: string;
-  producer: string;
-  brand: string;
-  searchQuery: string;
-  searchFilter: string;
-  resetFlag: string;
-  expandHierarchy: boolean;
-  canonicalPath: string;
-  title: string;
-  description: string;
-  indexable: boolean;
-  // False only when the SEO facets were loaded and the producer has no
-  // /manufacturers page (no catalog products) — e.g. ?producer=QH. The
-  // canonical and breadcrumb must not point at a URL that 404s.
-  producerHasPage: boolean;
-};
-
-const pickFirstValue = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] || "" : value || "";
-
-const normalizeValue = (value: string | string[] | undefined) =>
-  pickFirstValue(value).replace(/\s+/g, " ").trim();
-
-const buildGroupLandingPath = (group: string) => {
-  const path = buildGroupPath(group);
-  return path !== "/groups" ? path : buildCatalogCategoryPath(group);
-};
-
-const buildManufacturerLandingPath = (producer: string, hasPage = true) => {
-  if (!hasPage) return buildCatalogProducerPath(producer);
-  const path = buildManufacturerPathFromLabel(producer);
-  return path !== "/manufacturers" ? path : buildCatalogProducerPath(producer);
-};
-
-const normalizeFacetPair = (group: string, subcategory: string) => {
-  if (!group || !subcategory) return { group, subcategory };
-  return group.toLowerCase() === subcategory.toLowerCase()
-    ? { group, subcategory: "" }
-    : { group, subcategory };
-};
-
-const resolveCatalogSeoState = (
-  searchParams: Record<string, string | string[] | undefined>
-): CatalogSeoState => {
-  const tab = normalizeValue(searchParams.tab).toLowerCase();
-  const normalizedGroup = normalizeValue(searchParams.group);
-  const normalizedSubcategory = normalizeValue(searchParams.subcategory);
-  const producer = normalizeValue(searchParams.producer);
-  const brand = normalizeValue(searchParams.brand);
-  const searchQuery = normalizeValue(searchParams.search);
-  const searchFilter = normalizeValue(searchParams.filter);
-  const resetFlag = normalizeValue(searchParams.reset);
-  const expandHierarchy = normalizeValue(searchParams.scope) === "hierarchy";
-  const { group, subcategory } = normalizeFacetPair(
-    normalizedGroup,
-    normalizedSubcategory
-  );
-
-  const usedKeys = Object.entries(searchParams)
-    .filter(([, value]) => normalizeValue(value).length > 0)
-    .map(([key]) => key);
-
-  let canonicalPath = "/katalog";
-  let title = "Каталог автозапчастин у Львові";
-  let description = appendSeoContact(
-    "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
-  );
-
-  if (producer && group && subcategory) {
-    canonicalPath = buildCatalogProducerPath(producer, group, subcategory, {
-      expandHierarchy,
-    });
-    title = `${producer}: ${subcategory} - ${group} | Каталог автозапчастин`;
-    description = appendSeoContact(
-      `${producer} у категорії ${subcategory}: автозапчастини ${group} у каталозі PartsON, актуальна наявність, перевірка сумісності за VIN та доставка по Україні.`
-    );
-  } else if (producer && group) {
-    canonicalPath = buildCatalogProducerPath(producer, group, null, {
-      expandHierarchy,
-    });
-    title = `${producer}: ${group} — каталог автозапчастин`;
-    description = appendSeoContact(
-      `${producer} у групі ${group}: автозапчастини за артикулом, категорією, ціною й наявністю в PartsON, консультація та доставка по Україні.`
-    );
-  } else if (producer) {
-    canonicalPath = buildManufacturerLandingPath(producer);
-    title = `${producer} — виробник автозапчастин`;
-    description = appendSeoContact(
-      `Автозапчастини ${producer} у PartsON: сторінка виробника, пошук за артикулом, категорією і наявністю, підбір сумісних деталей та доставка по Україні.`
-    );
-  } else if (group && subcategory) {
-    canonicalPath = buildCatalogCategoryPath(group, subcategory, {
-      expandHierarchy,
-    });
-    title = `${subcategory} — ${group} | Каталог автозапчастин`;
-    description = appendSeoContact(
-      `${subcategory} у групі ${group}: каталог автозапчастин PartsON з виробниками, цінами, наявністю, підбором за артикулом і доставкою по Україні.`
-    );
-  } else if (group) {
-    canonicalPath = buildGroupLandingPath(group);
-    title = `${group} — група автозапчастин`;
-    description = appendSeoContact(
-      `${group} у каталозі PartsON: підгрупи автозапчастин, пошук за артикулом і виробником, перевірка сумісності, самовивіз і доставка по Україні.`
-    );
-  } else if (tab === "category") {
-    canonicalPath = "/groups";
-    title = "Категорії автозапчастин";
-    description = appendSeoContact(
-      "Категорії автозапчастин PartsON: зручний перехід до груп і підгруп, пошук деталей за артикулом, виробником, сумісністю та VIN."
-    );
-  } else if (tab === "producer") {
-    canonicalPath = "/manufacturers";
-    title = "Виробники автозапчастин";
-    description = appendSeoContact(
-      "Виробники автозапчастин у PartsON: сторінки брендів, фільтрований каталог, пошук деталей за артикулом, групою товару і підбір за VIN."
-    );
-  } else if (tab === "auto" && brand) {
-    // Canonicalize to the clean /auto/[brand] route rather than
-    // self-referencing this query-string facet — both render the same
-    // brand-picker content, and pointing here would split the SEO signal
-    // between two URLs for the same page instead of consolidating it.
-    canonicalPath = buildAutoBrandPath(brand);
-    title = `${brand} — підбір автозапчастин по авто`;
-    description = appendSeoContact(
-      `${brand}: підбір автозапчастин у PartsON за моделлю, модифікацією та VIN, швидкий перехід до сумісних товарів і доставка по Україні.`
-    );
-  } else if (tab === "auto") {
-    canonicalPath = "/auto";
-    title = "Підбір автозапчастин по авто";
-    description = appendSeoContact(
-      "Підбір автозапчастин по авто в PartsON: оберіть марку, модель і модифікацію, щоб відкрити сумісні товари в каталозі."
-    );
-  }
-
-  if (searchQuery) {
-    title = `Пошук у каталозі: ${searchQuery}`;
-    description = appendSeoContact(
-      `Пошук "${searchQuery}" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару.`
-    );
-  }
-
-  // Only the bare /katalog is indexable. Every query-string variant is either
-  // a duplicate of a clean landing page (?group= → /groups/…, ?producer= →
-  // /manufacturers/…, ?tab=auto&brand= → /auto/…, which canonicalPath above
-  // already points at) or a producer×group×subcategory combination — an
-  // open-ended space (and any arbitrary value like ?group=x still rendered
-  // 200) that previously got "index" + a self-referencing query canonical,
-  // inviting thousands of near-empty duplicates into the index. These stay
-  // crawlable (noindex,follow — not blocked in robots.txt) so Google can
-  // see the noindex and still follow the product links on them.
-  const indexable = usedKeys.length === 0;
-
-  return {
-    tab,
-    group,
-    subcategory,
-    producer,
-    brand,
-    searchQuery,
-    searchFilter,
-    resetFlag,
-    expandHierarchy,
-    canonicalPath,
-    title,
-    description,
-    indexable,
-    producerHasPage: true,
-  };
-};
-
-const applyProducerPageAvailability = (
-  state: CatalogSeoState,
-  facets: CatalogSeoFacets
-): CatalogSeoState => {
-  // Empty facets mean 1C and the snapshot were both unavailable — keep the
-  // manufacturer canonical rather than guess a page is missing.
-  if (!state.producer || facets.producers.length === 0) return state;
-  const producerSlug = buildSeoSlug(state.producer);
-  if (facets.producers.some((producer) => producer.slug === producerSlug)) return state;
-
-  const isProducerLanding = !state.group && !state.subcategory && !state.searchQuery;
-  return {
-    ...state,
-    producerHasPage: false,
-    canonicalPath: isProducerLanding
-      ? buildCatalogProducerPath(state.producer)
-      : state.canonicalPath,
-  };
-};
-
 const loadCatalogSeoFacets = () =>
   getCatalogSeoFacetsWithTimeout(CATALOG_SEO_FACETS_TIMEOUT_MS)
     .catch(() => EMPTY_CATALOG_SEO_FACETS)
@@ -542,6 +345,8 @@ const loadCatalogSeoFacets = () =>
 const buildCatalogSeoHeading = (state: CatalogSeoState) =>
   state.searchQuery
     ? `Пошук «${state.searchQuery}» — каталог автозапчастин PartsON`
+    : state.promoOnly
+      ? `Акційні автозапчастини${state.producer ? ` ${state.producer}` : ""}${state.group ? `: ${state.subcategory || state.group}` : ""} — ціни зі знижкою`
     : state.producer && state.subcategory && state.group
       ? `${state.producer} ${state.subcategory} (${state.group}) — автозапчастини у Львові`
       : state.producer && state.group
@@ -696,173 +501,6 @@ const resolveCatalogSeoTotalCount = (
   return null;
 };
 
-const buildCatalogBreadcrumbJsonLd = (siteUrl: string, state: CatalogSeoState) => {
-  const { canonicalPath, group, producer, subcategory, tab } = state;
-  const currentUrl = `${siteUrl}${canonicalPath}`;
-  const itemListElement: Array<Record<string, string | number>> = [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Головна",
-      item: siteUrl,
-    },
-  ];
-
-  if (producer && group && subcategory) {
-    itemListElement.push(
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Виробники",
-        item: `${siteUrl}/manufacturers`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: producer,
-        item: `${siteUrl}${buildManufacturerLandingPath(producer, state.producerHasPage)}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 4,
-        name: group,
-        item: `${siteUrl}${buildCatalogProducerPath(producer, group)}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 5,
-        name: subcategory,
-        item: currentUrl,
-      }
-    );
-  } else if (producer && group) {
-    itemListElement.push(
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Виробники",
-        item: `${siteUrl}/manufacturers`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: producer,
-        item: `${siteUrl}${buildManufacturerLandingPath(producer, state.producerHasPage)}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 4,
-        name: group,
-        item: currentUrl,
-      }
-    );
-  } else if (producer) {
-    itemListElement.push(
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Виробники",
-        item: `${siteUrl}/manufacturers`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: producer,
-        item: currentUrl,
-      }
-    );
-  } else if (group && subcategory) {
-    itemListElement.push(
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Групи",
-        item: `${siteUrl}/groups`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: group,
-        item: `${siteUrl}${buildGroupLandingPath(group)}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 4,
-        name: subcategory,
-        item: currentUrl,
-      }
-    );
-  } else if (group) {
-    itemListElement.push(
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Групи",
-        item: `${siteUrl}/groups`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: group,
-        item: currentUrl,
-      }
-    );
-  } else if (tab === "category") {
-    itemListElement.push({
-      "@type": "ListItem",
-      position: 2,
-      name: "Групи",
-      item: `${siteUrl}/groups`,
-    });
-  } else if (tab === "producer") {
-    itemListElement.push({
-      "@type": "ListItem",
-      position: 2,
-      name: "Виробники",
-      item: `${siteUrl}/manufacturers`,
-    });
-  } else {
-    itemListElement.push({
-      "@type": "ListItem",
-      position: 2,
-      name: "Каталог",
-      item: currentUrl,
-    });
-  }
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "@id": `${currentUrl}#breadcrumb`,
-    itemListElement,
-  };
-};
-
-const buildCatalogCollectionJsonLd = (siteUrl: string, state: CatalogSeoState) => {
-  const { canonicalPath, title, description, group, producer, subcategory } = state;
-  const currentUrl = `${siteUrl}${canonicalPath}`;
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    "@id": `${currentUrl}#collection-page`,
-    url: currentUrl,
-    name: title,
-    description,
-    inLanguage: "uk-UA",
-    isPartOf: {
-      "@type": "WebSite",
-      name: "PartsON",
-      url: siteUrl,
-    },
-    about: [
-      producer ? { "@type": "Brand", name: producer } : null,
-      group ? { "@type": "Thing", name: group } : null,
-      subcategory ? { "@type": "Thing", name: subcategory } : null,
-    ].filter(Boolean),
-  };
-};
-
 const buildSeoProductPath = (item: CatalogSeoProduct) =>
   buildProductPath({
     code: item.code,
@@ -885,7 +523,7 @@ const buildCatalogItemListJsonLd = (
   state: CatalogSeoState,
   items: CatalogSeoProduct[]
 ) => {
-  const currentUrl = `${siteUrl}${state.canonicalPath}`;
+  const currentUrl = `${siteUrl}${state.pagePath}`;
   const itemListElement = items
     .filter((item) => item.code && item.name && isPublicCatalogProduct(item))
     .slice(0, INITIAL_CATALOG_PAGE_LIMIT)
@@ -903,7 +541,7 @@ const buildCatalogItemListJsonLd = (
     "@type": "ItemList",
     "@id": `${currentUrl}#catalog-products`,
     name: `${state.title} — товари`,
-    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListOrder: "https://schema.org/ItemListUnordered",
     numberOfItems: itemListElement.length,
     itemListElement,
   };
@@ -934,6 +572,8 @@ const CatalogSeoSnapshot = async ({
   const initialFilteredCount = hasExactCount ? totalCount : visibleItemsCount;
   const showDiscovery = topGroups.length > 0 || topProducers.length > 0;
   const popularModels = await buildPopularAutoModels();
+  const siteUrl = getSiteUrl();
+  const breadcrumbs = buildCatalogBreadcrumbJsonLd(siteUrl, state).itemListElement;
 
 
   const seoHeading = buildCatalogSeoHeading(state);
@@ -959,7 +599,7 @@ const CatalogSeoSnapshot = async ({
     : state.producer && state.group && state.subcategory
       ? `${state.producer} ${state.subcategory} у групі «${state.group}»: оригінальні та аналогові запчастини за артикулом і кодом OEM, актуальна наявність і ціни в PartsON. Перевірка сумісності за VIN-номером перед замовленням.`
       : state.producer && state.group
-        ? `${state.producer} у категорії «${state.group}»: підбір запчастин за артикулом і кодом OEM, оригінали та сертифіковані аналоги, перевірка сумісності за VIN, актуальна наявність та ціни онлайн.`
+        ? `${state.producer} у категорії «${state.group}»: підбір запчастин за артикулом і кодом OEM, оригінали та аналоги, перевірка сумісності за VIN, актуальна наявність та ціни онлайн.`
         : state.producer
           ? `Автозапчастини ${state.producer} у PartsON: пошук за артикулом і кодом OEM, перевірка сумісності за VIN, підбір аналогів і оригінальних деталей, ціни та наявність онлайн.`
           : state.group && state.subcategory
@@ -975,10 +615,10 @@ const CatalogSeoSnapshot = async ({
   const seoText2 = state.searchQuery
     ? `PartsON — магазин автозапчастин у Львові: консультація спеціалістів, широкий асортимент оригінальних і аналогових деталей, швидке оформлення замовлення.`
     : state.producer
-      ? `Консультація з підбору ${state.producer}, перевірка OEM-сумісності та відправка замовлення день у день.`
+      ? `Консультація з підбору ${state.producer}, перевірка OEM-сумісності та допомога з оформленням замовлення.`
       : state.group
-        ? `Консультація з підбору «${state.group}», допомога у визначенні артикулу та відправка замовлення день у день.`
-        : `PartsON — офіційний магазин автозапчастин у Львові. Консультація спеціалістів з підбору деталей та допомога з визначенням артикулу чи OEM-коду.`;
+        ? `Консультація з підбору «${state.group}», допомога у визначенні артикулу та допомога з оформленням замовлення.`
+        : `PartsON — магазин автозапчастин у Львові. Консультація спеціалістів з підбору деталей та допомога з визначенням артикулу чи OEM-коду.`;
 
   const catalogSeoServiceLinks: Array<{ href: string; label: string; icon: typeof MapPin }> = [
     { href: "/inform/location", label: "Самовивіз у Львові", icon: MapPin },
@@ -1010,11 +650,7 @@ const CatalogSeoSnapshot = async ({
     <CatalogShownCountClient initialCount={visibleItemsCount} className={className} />
   );
 
-  const breadcrumbParts = [
-    state.producer,
-    state.group,
-    state.subcategory,
-  ].filter(Boolean) as string[];
+
 
   return (
     <section
@@ -1033,23 +669,20 @@ const CatalogSeoSnapshot = async ({
 
             {/* Ліва колонка — тексти */}
             <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
-              {/* Хлібні крихти-бейдж */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-100 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-700 shadow-sm">
-                  <PackageSearch size={11} aria-hidden />
-                  Каталог PartsON
-                </span>
-                {breadcrumbParts.length > 0 && (
-                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-slate-500">
-                    {breadcrumbParts.map((part, i) => (
-                      <span key={part} className="inline-flex min-w-0 items-center gap-1">
-                        {i > 0 && <span className="text-slate-300" aria-hidden>/</span>}
-                        <span className="max-w-[180px] truncate sm:max-w-[260px]">{part}</span>
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </div>
+              <nav className="catalog-breadcrumbs" aria-label="Хлібні крихти">
+                <ol>
+                  {breadcrumbs.map((part, index) => (
+                    <li key={`${part.item}-${index}`}>
+                      {index > 0 && <span aria-hidden="true" className="catalog-breadcrumb-divider">/</span>}
+                      {index === breadcrumbs.length - 1 ? (
+                        <span aria-current="page">{part.name}</span>
+                      ) : (
+                        <Link href={part.item.slice(siteUrl.length) || "/"} prefetch={false}>{part.name}</Link>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
 
               {/* H1 сторінки — єдиний; товарна сітка вище заголовків не має */}
               <h1
@@ -1107,39 +740,39 @@ const CatalogSeoSnapshot = async ({
                 <a
                   href="tel:+380634211851"
                   aria-label={`Подзвонити в магазин PartsON: ${STORE_PHONE_DISPLAY}`}
-                  className="group inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-sky-100 bg-white px-3 text-[12px] font-bold text-slate-700 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="group inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-sky-100 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-sky-100 text-sky-600">
                     <Phone size={14} aria-hidden />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Консультація</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-sky-700">Консультація</span>
                     <span className="block truncate">{STORE_PHONE_DISPLAY}</span>
                   </span>
                 </a>
                 <Link
                   href="/inform/location"
                   aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-slate-100 text-slate-500">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-slate-100 text-sky-700">
                     <MapPin size={14} aria-hidden />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Магазин</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-sky-700">Магазин</span>
                     <span className="block truncate">{STORE_ADDRESS}</span>
                   </span>
                 </Link>
                 <Link
                   href="/inform/delivery"
                   aria-label="Доставка автозапчастин — умови та тарифи"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-slate-700 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-emerald-50 text-emerald-600">
                     <Truck size={14} aria-hidden />
                   </span>
                   <span>
-                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-500">Доставка</span>
+                    <span className="block text-[9.5px] font-black uppercase tracking-[0.12em] text-sky-700">Доставка</span>
                     Нова Пошта
                   </span>
                 </Link>
@@ -1464,13 +1097,13 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
     ? initialPagePayload?.totalCount ?? null
     : resolveCatalogSeoTotalCount(state, seoFacets);
   const structuredDataState = applyProducerPageAvailability(state, seoFacets);
-  const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, structuredDataState);
   const breadcrumbJsonLd = buildCatalogBreadcrumbJsonLd(siteUrl, structuredDataState);
   const catalogItemListJsonLd = buildCatalogItemListJsonLd(
     siteUrl,
     structuredDataState,
     initialPagePayload?.items ?? []
   );
+  const collectionJsonLd = buildCatalogCollectionJsonLd(siteUrl, structuredDataState, Boolean(catalogItemListJsonLd));
   const topGroups = (productTreeDataset?.groups ?? []).slice(0, 16).map((g) => ({
     label: g.label,
     slug: g.slug,
@@ -1553,7 +1186,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         initialViewMode={initialViewMode}
       />
       <CatalogSeoSnapshot
-        state={state}
+        state={structuredDataState}
         items={initialPagePayload?.items ?? []}
         hasMore={initialPagePayload?.hasMore}
         totalCount={seoTotalCount ?? initialPagePayload?.totalCount ?? null}
