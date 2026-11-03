@@ -126,10 +126,13 @@ const normalizeSiteUrl = (value?: string | null) => {
   return (normalized || DEFAULT_SITE_URL).replace(/\/+$/, "");
 };
 
+// Broad to narrow, as Google reads product_type ("Деталі для ТО > Масляний
+// фільтр"): its first level is what Shopping product groups split on.
+// 1C's Категория is the top catalog section, Группа and Подгруппа below it.
 const buildProductType = (entry: ProductSitemapEntry) => {
   const seen = new Set<string>();
 
-  return [entry.group, entry.subGroup, entry.category]
+  return [entry.category, entry.group, entry.subGroup]
     .map((value) => (value || "").trim())
     .filter((value) => {
       if (!value) return false;
