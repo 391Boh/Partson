@@ -167,6 +167,13 @@ async function run(outputPath: string, startedAt: number) {
   );
 
   console.log(`ℹ️  Марок: ${carBrands.length}, моделей до перевірки: ${allPairs.length}`);
+  // No brand answered (1C timing out under the build's load): that is no
+  // answer, not "no models". Saving it wiped the verified list — the
+  // auto sitemap fell to the brand pages and products lost their model
+  // links. Fail instead, so main() keeps the previous snapshot.
+  if (allPairs.length === 0) {
+    throw new Error("1C returned no car models for any brand");
+  }
 
   const { verifiedKeys: previousVerifiedKeys, resumeIndex: previousResumeIndex } =
     readPreviousSnapshot(outputPath);
