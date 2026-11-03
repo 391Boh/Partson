@@ -488,7 +488,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
         }}
       />
 
-      <div className="page-shell-inline flex items-center justify-between gap-2 sm:gap-4">
+      <div className="page-shell-inline site-header-row flex items-center justify-between gap-2 sm:gap-4">
 
         {/* LEFT SECTION */}
         <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
@@ -626,8 +626,8 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
         </div>
 
         {/* SEARCH CENTER */}
-        <div className="flex min-w-0 flex-1 justify-center px-1 sm:px-3">
-          <div className="hidden lg:block w-full max-w-[380px]">
+        <div className="site-header-search flex min-w-0 flex-1 justify-center px-1 sm:px-3">
+          <div className="site-header-search-field hidden lg:block w-full max-w-[480px]">
             {hasDesktopSearch ? renderSearchBar(() => {}) : (
               <div className="h-10 w-full rounded-xl border border-gray-600 bg-gray-800/80 shadow-md" />
             )}

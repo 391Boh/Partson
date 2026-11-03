@@ -1147,7 +1147,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
   // while JS loads; the cards then find them in the cache. The first one is
   // the LCP candidate (high priority); the rest stay low so they don't
   // compete with CSS/JS. Media queries match Data.tsx's responsive grid budget.
-  const FIRST_SCREEN_IMAGE_PRELOADS = 8;
+  const FIRST_SCREEN_IMAGE_PRELOADS = 12;
   const firstScreenImageHrefs = (initialPagePayload?.items ?? [])
     .filter((item) => item.hasPhoto !== false && (item.code || item.article))
     .slice(0, FIRST_SCREEN_IMAGE_PRELOADS)
@@ -1174,7 +1174,9 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
             index < 2 ? undefined
               : index < 4 ? "(min-width: 640px)"
               : index < 6 ? "(min-width: 1024px)"
-              : "(min-width: 1280px)"
+              : index < 8 ? "(min-width: 1280px)"
+              : index < 10 ? "(min-width: 1800px)"
+              : "(min-width: 2400px)"
           }
         />
       ))}

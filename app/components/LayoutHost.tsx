@@ -1043,7 +1043,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   };
 
   return (
-    <div style={{ ["--header-height" as string]: "4rem" }}>
+    <div className="site-layout-shell">
       <span
         ref={scrollTopSentinelRef}
         data-page-top-sentinel

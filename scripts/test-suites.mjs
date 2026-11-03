@@ -13,8 +13,8 @@ export const suites = {
     "order-cancel", "admin-chat-activity", "admin-catalog-price-loading",
     "home-blog-cache", "home-blog-cover", "product-google-pricing", "merchant-feed-refresh", "product-seo-images", "product-image-sitemap", "product-image-final-miss",
   ].map((name) => `scripts/test-${name}.mjs`),
-  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "recommendation-layout", "directory-hero", "navigation-progress"]
+  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "product-card-responsive", "recommendation-layout", "directory-hero", "navigation-progress"]
     .map((name) => `scripts/test-${name}.mjs`),
-  smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters"]
+  smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters", "responsive-layout", "home-mobile-pickers"]
     .map((name) => `scripts/test-${name}.mjs`),
 };

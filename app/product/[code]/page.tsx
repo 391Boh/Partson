@@ -2500,7 +2500,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               admin bar opens the card instead. Renders nothing for visitors. */}
           {isModalView && adminEditGate}
           <header className="product-hero relative border-b border-slate-200/80 bg-white px-3 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4 lg:px-7 lg:pb-7">
-            <div className="relative mx-auto max-w-[1280px]">
+            <div className="product-hero-inner relative mx-auto w-full min-w-0">
               {!isModalView && (
                 <div className="product-navigation-row">
                   <nav aria-label="Навігаційні хлібні крихти" className="product-breadcrumbs">

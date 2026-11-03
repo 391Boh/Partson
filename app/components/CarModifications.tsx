@@ -8,6 +8,7 @@ import { CalendarDays, Check, ChevronLeft, ChevronRight, Compass, Gauge, Setting
 import { AUTO_FIELDS } from "./autoFields";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
 import type { YearMeta } from "./CarModels";
+import { useHomePagedGrid } from "app/lib/use-home-paged-grid";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 import FilterListNavigation from "./FilterListNavigation";
 import { useRowCappedList } from "../lib/row-capped-list";
@@ -489,6 +490,7 @@ const CarModifications: React.FC<Props> = ({
   const canGoNext = safeOptionPage < totalOptionPages - 1;
 
   const optionPagesRef = useRef<HTMLDivElement | null>(null);
+  useHomePagedGrid(optionPagesRef, safeOptionPage);
   const compactOptionListRef = useRef<HTMLDivElement | null>(null);
   const listNavigation = useRowCappedList(compactOptionListRef, isCompact && !isSelectingYear, showResults ? null : currentStepValues);
   const optionPagesScrollRafRef = useRef(0);

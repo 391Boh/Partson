@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AUTO_FIELDS } from "./autoFields";
 import { transliterateCyrillicToLatin, fixLayoutUkrainianToEnglish } from "../lib/transliterate";
 import { DirectoryPagePagination } from "./HorizontalDirectoryRail";
+import { useHomePagedGrid } from "app/lib/use-home-paged-grid";
 import { createPagedRailScrollGuard } from "../lib/paged-rail-scroll";
 import FilterListNavigation from "./FilterListNavigation";
 import { useRowCappedList } from "../lib/row-capped-list";
@@ -560,6 +561,7 @@ const extractErrorMessage = (text: string) => {
     return result;
   }, [modelYearMap]);
   const modelPagesRef = useRef<HTMLDivElement | null>(null);
+  useHomePagedGrid(modelPagesRef, safeModelPage);
   const compactModelListRef = useRef<HTMLDivElement | null>(null);
   const listNavigation = useRowCappedList(
     compactModelListRef,
@@ -811,7 +813,14 @@ const extractErrorMessage = (text: string) => {
         {/* Hosted on the homepage: the year filter sits in the list itself,
             above the toolbar, and stays put while a filtered list reloads. */}
         {onYearMetaChange && !loading && (
-          <VehicleYearRail value={selectedYear ?? null} years={yearOptions} loading={yearLoading && yearOptions.length === 0} onChange={onYearSelect} />
+          <>
+            <div className="home-model-year-mobile">
+              <VehicleYearSelect value={selectedYear ?? null} years={yearOptions} loading={yearLoading && yearOptions.length === 0} onChange={onYearSelect} />
+            </div>
+            <div className="home-model-year-desktop">
+              <VehicleYearRail value={selectedYear ?? null} years={yearOptions} loading={yearLoading && yearOptions.length === 0} onChange={onYearSelect} />
+            </div>
+          </>
         )}
 
         {(loading || (yearLoading && selectedYear != null)) && (

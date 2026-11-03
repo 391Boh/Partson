@@ -28,6 +28,7 @@ import {
   toPriceUAH,
   IMAGE_EAGER_ITEMS_COUNT_LIST,
   getGridImageEagerCount,
+  getCatalogGridColumnCount,
   VIRTUALIZATION_MIN_ITEMS,
   IMAGE_HIGH_PRIORITY_ITEMS_COUNT,
   VIRTUAL_OVERSCAN_ROWS,
@@ -1163,11 +1164,12 @@ const Data: React.FC<DataProps> = ({
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
   const gridColumnCount = useMemo(() => {
+    if (!isAdmin) return getCatalogGridColumnCount(viewportWidth);
     if (viewportWidth >= 1280) return 4;
     if (viewportWidth >= 1024) return 3;
     if (viewportWidth >= 640) return 2;
     return 1;
-  }, [viewportWidth]);
+  }, [viewportWidth, isAdmin]);
   // List view's row height differs from the grid card's fixed 320px, and
   // the virtual window's spacer math assumes that fixed height — rather than
   // re-deriving it for a second layout, list mode simply renders unwindowed
@@ -1585,7 +1587,7 @@ const Data: React.FC<DataProps> = ({
           </p>
         )}
         {!loading && correctedQuery && (
-          <p role="status" className="mb-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-slate-700">
+          <p role="status" className="mb-3 rounded-xl bg-sky-50 px-4 py-2 text-sm text-sky-900">
             За запитом «{rawSearchQuery}» збігів немає. Показуємо результати для «{correctedQuery}».
           </p>
         )}
@@ -1877,7 +1879,7 @@ const Data: React.FC<DataProps> = ({
                   className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] transition-[background,color,box-shadow] duration-200 ${
                     viewMode === "grid"
                       ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_5px_12px_rgba(2,132,199,0.38)]"
-                      : "text-slate-400 hover:bg-sky-50 hover:text-sky-600"
+                      : "text-sky-800 hover:bg-sky-50 hover:text-sky-900"
                   }`}
                 >
                   <LayoutGrid size={15} strokeWidth={2.4} />
@@ -1890,7 +1892,7 @@ const Data: React.FC<DataProps> = ({
                   className={`inline-flex h-8 w-8 items-center justify-center rounded-[10px] transition-[background,color,box-shadow] duration-200 ${
                     viewMode === "list"
                       ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_5px_12px_rgba(2,132,199,0.38)]"
-                      : "text-slate-400 hover:bg-sky-50 hover:text-sky-600"
+                      : "text-sky-800 hover:bg-sky-50 hover:text-sky-900"
                   }`}
                 >
                   <List size={15} strokeWidth={2.4} />
@@ -1953,7 +1955,7 @@ const Data: React.FC<DataProps> = ({
                           className={`inline-flex h-7 min-w-[26px] shrink-0 items-center justify-center rounded-[9px] px-1 text-[11.5px] font-black tabular-nums transition-[background,color,box-shadow] duration-200 ${
                             item.page === clampedDisplayedPage
                               ? "bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] text-white shadow-[0_4px_10px_rgba(2,132,199,0.38)]"
-                              : "text-slate-500 hover:bg-sky-50 hover:text-sky-700 disabled:pointer-events-none disabled:opacity-40"
+                              : "text-sky-800 hover:bg-sky-50 hover:text-sky-900 disabled:pointer-events-none disabled:opacity-40"
                           }`}
                         >
                           {item.page}

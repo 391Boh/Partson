@@ -1,387 +1,164 @@
 'use client';
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { ArrowUpRight, Clock3, Mail, MapPin, Phone } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
-import { observeViewportEntrance } from "app/lib/viewport-entrance";
-import {
-  ChevronRight,
-  Boxes,
-  Car,
-  Clock,
-  Mail,
-  Info,
-  Factory,
-  MapPin,
-  Newspaper,
-  Phone,
-  ShieldCheck,
-  Wrench,
-  Truck,
-  Undo2,
-  Wallet,
-} from "lucide-react";
-import { SiFacebook, SiInstagram, SiTelegram, SiViber } from "./FooterSocialIcons";
-import React from "react";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
+import { observeViewportEntrance } from "app/lib/viewport-entrance";
+import { SiTelegram, SiViber } from "./FooterSocialIcons";
 
-const telegramBotName = (
-  process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot"
-)
-  .replace(/^@/u, "")
-  .trim();
-const telegramBotUrl = `https://t.me/${encodeURIComponent(telegramBotName)}`;
-const viberProfileUrl = "https://viber.me/380634211851";
-
-const infoLinks = [
-  { href: "/inform/about",       icon: Info,        label: "Про нас" },
-  { href: "/inform/delivery",    icon: Truck,       label: "Доставка" },
-  { href: "/inform/location",    icon: MapPin,      label: "Контакти" },
-  { href: "/inform/payment",     icon: Wallet,      label: "Оплата" },
-  { href: "/inform/returns",     icon: Undo2,       label: "Повернення" },
-  { href: "/inform/privacy",     icon: ShieldCheck, label: "Конфіденційність" },
-  { href: "/editorial-policy",   icon: ShieldCheck, label: "Редакційна політика" },
-  { href: "/auto",               icon: Car,         label: "Марки і моделі" },
-  { href: "/inform/diagnostics", icon: Wrench,      label: "Діагностика" },
-  { href: "/blog",               icon: Newspaper,   label: "Блог" },
-  { href: "/groups",             icon: Boxes,       label: "Групи товарів" },
-  { href: "/manufacturers",      icon: Factory,     label: "Виробники" },
+const telegramBotName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot").replace(/^@/u, "").trim();
+const messengers = [
+  { label: "Telegram", Icon: SiTelegram, href: `https://t.me/${encodeURIComponent(telegramBotName)}` },
+  { label: "Viber", Icon: SiViber, href: "https://viber.me/380634211851" },
+];
+const catalogLinks = [
+  { href: "/katalog", label: "Усі запчастини" },
+  { href: "/auto", label: "Марки і моделі" },
+  { href: "/groups", label: "Категорії товарів" },
+  { href: "/manufacturers", label: "Виробники" },
+];
+const customerLinks = [
+  { href: "/inform/about", label: "Про нас" },
+  { href: "/inform/delivery", label: "Доставка" },
+  { href: "/inform/payment", label: "Оплата" },
+  { href: "/inform/returns", label: "Повернення" },
+  { href: "/inform/diagnostics", label: "Діагностика" },
+  { href: "/blog", label: "Блог" },
 ];
 
+function FooterNavigation({ title, links }: { title: string; links: readonly { href: string; label: string }[] }) {
+  return (
+    <nav className="site-footer-nav" aria-label={title}>
+      <h3>{title}</h3>
+      <ul>
+        {links.map(({ href, label }) => (
+          <li key={href}>
+            <SmartLink href={href} className="site-footer-link">
+              <span>{label}</span><ArrowUpRight size={15} aria-hidden="true" />
+            </SmartLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export default function Footer() {
-  const footerRef = useRef<HTMLElement>(null);
-  const bottomSentinelRef = useRef<HTMLSpanElement>(null);
-  const [atPageBottom, setAtPageBottom] = useState(false);
+  const headingRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const columns = footerRef.current?.querySelectorAll<HTMLElement>("[data-footer-entrance]");
-    const cleanups = Array.from(columns ?? [], (column) => observeViewportEntrance(column, 6));
-    return () => cleanups.forEach((cleanup) => cleanup());
+    const heading = headingRef.current;
+    return heading ? observeViewportEntrance(heading, 6) : undefined;
   }, []);
 
   useEffect(() => {
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Kyiv", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    });
     const check = () => {
-      const now = new Date();
-      const day = now.getDay();
-      const h = now.getHours() + now.getMinutes() / 60;
-      setIsOpen(day === 0 ? (h >= 8 && h < 16) : (h >= 8 && h < 18));
+      const parts = formatter.formatToParts(new Date());
+      const read = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? "";
+      const hour = Number(read("hour")) + Number(read("minute")) / 60;
+      setIsOpen(hour >= 8 && hour < (read("weekday") === "Sun" ? 16 : 18));
     };
     check();
+    const timer = window.setInterval(check, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const sentinel = bottomSentinelRef.current;
-    if (!sentinel || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setAtPageBottom(Boolean(entry?.isIntersecting)),
-      { rootMargin: "260px 0px 0px", threshold: 0 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
-
-  // Richer than before on purpose — the old values (0.22/0.16/0.10) read as
-  // almost flat against the light base gradient, especially next to the
-  // more saturated glow accents used on the homepage sections above it.
-  const baseGradient =
-    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.30), transparent 46%), radial-gradient(circle at 88% 0%, rgba(45,212,191,0.22), transparent 50%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.15), transparent 54%), linear-gradient(135deg,#f6fafd 0%,#eaf1ff 45%,#e4f7f9 100%)";
-  const hoverGradient =
-    "radial-gradient(circle at 12% 20%, rgba(14,165,233,0.42), transparent 46%), radial-gradient(circle at 88% 0%, rgba(16,185,129,0.28), transparent 50%), radial-gradient(circle at 52% 95%, rgba(99,102,241,0.19), transparent 54%), linear-gradient(135deg,#ffffff 0%,#dceefe 46%,#e6fdf3 100%)";
-
-  // Small colored accent before each column header — the headers read as
-  // interchangeable gray labels otherwise, with no visual anchor tying them
-  // to the section's own accent color used elsewhere in this footer/on the
-  // homepage (indigo → blue → cyan → teal down the page).
-  const sectionHeadingClass =
-    "mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-slate-500";
-
-  const infoLinkClass =
-    "group/info inline-flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-slate-700 no-underline transition-[color,background-color,border-color,box-shadow] duration-150 ease-linear hover:border-sky-100/90 hover:bg-white/78 hover:text-sky-900 hover:shadow-[0_8px_18px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.86)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
-
-  const infoIconClass =
-    "shrink-0 text-[13px] text-sky-600 transition-colors duration-200 group-hover/info:text-sky-800";
-
-  const handleBrandClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    if (window.location.pathname !== "/") return;
-    if (window.scrollY > 0) {
-      event.preventDefault();
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
+  const handleBrandClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (window.location.pathname !== "/" || window.scrollY <= 0) return;
+    event.preventDefault();
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
-  const colBase = "h-full";
-  const bottomReveal = atPageBottom ? "opacity-100" : "opacity-[0.92]";
-
   return (
-    <footer
-      ref={footerRef}
-      className={`mt-2 relative overflow-hidden py-8 sm:py-10 select-none group transition-shadow duration-500 ${
-        atPageBottom
-          ? "shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_-18px_46px_-20px_rgba(14,165,233,0.32)]"
-          : "shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_-4px_24px_-8px_rgba(2,6,23,0.08)]"
-      }`}
-      onCopy={(e) => e.preventDefault()}
-      onCut={(e) => e.preventDefault()}
-    >
-      {/* background layers */}
-      {/* Always-on ambient motion (not gated behind hover, which most
-          visitors — especially on mobile — never trigger on a footer they
-          just scroll past) — two large blurred color blobs drifting slowly
-          past each other, same drift curve as the catalog loader's aurora. */}
-      <span className="footer-aurora-a" aria-hidden="true" />
-      <span className="footer-aurora-b" aria-hidden="true" />
-      <span className="footer-grid-texture" aria-hidden="true" />
-      <span
-        className="pointer-events-none absolute inset-0 transition-opacity duration-300 ease-in-out opacity-100 group-hover:opacity-0"
-        style={{ backgroundImage: baseGradient }}
-      />
-      <span
-        className="pointer-events-none absolute inset-0 transition-opacity duration-300 ease-in-out opacity-0 group-hover:opacity-100"
-        style={{ backgroundImage: hoverGradient }}
-      />
-      <span
-        className={`pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-[radial-gradient(ellipse_at_50%_100%,rgba(14,165,233,0.34),rgba(45,212,191,0.18)_34%,rgba(99,102,241,0.08)_54%,transparent_76%)] transition-opacity duration-700 ease-out ${
-          atPageBottom ? "opacity-100" : "opacity-0"
-        }`}
-      />
-      {/* Top seam: same glow-bar + hairline pair used on every hero card this
-          session — ties the footer's transition from the page above it into
-          the same visual language instead of a single flat line. */}
-      <span className="pointer-events-none absolute inset-x-10 top-0 h-10 bg-gradient-to-r from-transparent via-sky-300/45 to-transparent blur-xl" />
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/80 to-transparent" />
-
-      <div className="page-shell-inline relative z-10">
-        {/* 3-column grid */}
-        <div className="grid grid-cols-1 items-stretch gap-y-8 md:grid-cols-3 md:gap-x-12 lg:gap-x-16">
-
-          {/* ── Col 1: brand + social ───────────────────────── */}
-          <div
-            data-footer-entrance
-            className={`${colBase} flex flex-col justify-between rounded-2xl border border-white/40 bg-white/18 px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.46)] backdrop-blur-[2px] md:border-r md:border-slate-200/45 md:bg-transparent md:px-0 md:pb-0 md:pl-0 md:pr-8 md:pt-8 md:shadow-none md:backdrop-blur-0 lg:pt-12`}
-          >
-            <SmartLink
-              href="/"
-              onClick={handleBrandClick}
-              className={`mx-auto flex max-w-[240px] flex-col items-center gap-1.5 text-center transition-opacity duration-700 ease-out ${bottomReveal}`}
-            >
-              <Image
-                src="/partson-logo-v3.webp"
-                alt="Логотип інтернет-магазину автозапчастин PartsON"
-                width={184}
-                height={100}
-                sizes="(max-width: 640px) 118px, 138px"
-                quality={90}
-                className="h-auto w-[118px] object-contain drop-shadow-[0_10px_18px_rgba(14,165,233,0.16)] sm:w-[138px]"
-                onError={(e) => {
-                  const img = e.currentTarget;
-                  if (img.dataset.fallbackApplied === "1") return;
-                  img.dataset.fallbackApplied = "1";
-                  img.src = "/partson-mark-v3.webp";
-                }}
-              />
-              <p className="text-sm leading-5 text-slate-600">Інтернет-магазин автозапчастин</p>
-            </SmartLink>
-
-            <div className="mt-6">
-              <p className={`${sectionHeadingClass} justify-center`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" aria-hidden="true" />
-                Ми в соцмережах
-              </p>
-              <div className="flex items-center justify-center gap-3">
-                {[
-                  { label: "Facebook",  Icon: SiFacebook,  color: "#1877F2", border: "border-blue-200/70",  bg: "hover:bg-blue-50/60",  hoverBorder: "hover:border-[#1877F2]", href: "" },
-                  { label: "Instagram", Icon: SiInstagram, color: "#E4405F", border: "border-rose-200/70",  bg: "hover:bg-rose-50/60",  hoverBorder: "hover:border-[#E4405F]", href: "" },
-                  { label: "Telegram",  Icon: SiTelegram,  color: "#229ED9", border: "border-cyan-200/70",  bg: "hover:bg-sky-50/60",   hoverBorder: "hover:border-[#229ED9]", href: telegramBotUrl },
-                  { label: "Viber",     Icon: SiViber,     color: "#7360F2", border: "border-violet-200/70", bg: "hover:bg-violet-50/60", hoverBorder: "hover:border-[#7360F2]", href: viberProfileUrl },
-                ].map(({ label, Icon, color, border, bg, hoverBorder, href }) => href ? (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Відкрити ${label} PartsON`}
-                    title={`${label} PartsON`}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${border} bg-white/60 transition-[border-color,background-color,box-shadow] duration-200 ${bg} ${hoverBorder} hover:shadow-[0_8px_18px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300`}
-                    style={{ color }}
-                  >
-                    <span>
-                      <Icon size={22} aria-hidden="true" />
-                    </span>
-                  </a>
-                ) : (
-                  <button
-                    key={label}
-                    type="button"
-                    aria-label={label}
-                    className={`inline-flex h-10 w-10 cursor-default items-center justify-center rounded-xl border ${border} bg-white/60 transition-[border-color,background-color,box-shadow] duration-200 ${bg} ${hoverBorder} hover:shadow-[0_8px_18px_rgba(15,23,42,0.10),inset_0_1px_0_rgba(255,255,255,0.84)]`}
-                    style={{ color }}
-                  >
-                    <span>
-                      <Icon size={22} aria-hidden="true" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+    <footer className="site-footer" aria-label="Інформація та контакти PartsON">
+      <div className="page-shell-inline site-footer-shell">
+        <div className="site-footer-intro" ref={headingRef}>
+          <div className="site-footer-intro-copy">
+            <h2>Допоможемо знайти <span>вашу деталь.</span></h2>
+            <p>Зверніться до нас за телефоном або в месенджері.</p>
           </div>
-
-          {/* ── Col 2: info links ────────────────────────────── */}
-          <div
-            data-footer-entrance
-            className={`${colBase} flex flex-col md:border-r md:border-slate-200/45 md:pr-8`}
-          >
-            <p className={sectionHeadingClass}>
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" aria-hidden="true" />
-              Інформація
-            </p>
-            <ul className="grid grid-cols-2 content-start gap-x-4 gap-y-1 text-sm">
-              {infoLinks.map(({ href, icon: Icon, label }) => (
-                <li key={href}>
-                  <SmartLink className={infoLinkClass} href={href}>
-                    <Icon size={14} className={infoIconClass} />
-                    <span className="min-w-0 leading-snug">{label}</span>
-                  </SmartLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* ── Col 3: contacts ───── */}
-          <div
-            data-footer-entrance
-            className={`${colBase} flex flex-col md:pl-2`}
-          >
-            <p className={sectionHeadingClass}>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-              Контакти
-            </p>
-
-            <div className="flex flex-col gap-1">
-
-              {/* Phone */}
-              <a
-                href="tel:+380634211851"
-                className="group/ph flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/80 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/ph:bg-sky-200/80 group-hover/ph:text-sky-900">
-                  <Phone size={13} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Телефон</p>
-                  <p className="text-sm font-semibold tracking-[-0.01em] text-slate-800">+38 (063) 421-18-51</p>
-                </div>
-                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/ph:text-sky-400" />
-              </a>
-
-              {/* Email */}
-              <a
-                href="mailto:romaniukbboogg@gmail.com"
-                className="group/em flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100/80 text-sky-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/em:bg-sky-200/80 group-hover/em:text-sky-900">
-                  <Mail size={13} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Email</p>
-                  <p className="min-w-0 break-all text-sm font-semibold tracking-[-0.01em] text-slate-800">romaniukbboogg@gmail.com</p>
-                </div>
-                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/em:text-sky-400" />
-              </a>
-
-              {/* Address */}
-              <SmartLink
-                href="/inform/location"
-                className="group/addr flex items-center gap-3 rounded-xl px-1 py-2.5 text-slate-800 no-underline transition-[background-color] duration-150 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-              >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100/80 text-emerald-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-[background-color,color] duration-150 group-hover/addr:bg-emerald-200/80 group-hover/addr:text-emerald-900">
-                  <MapPin size={13} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Адреса</p>
-                  <p className="text-sm font-semibold tracking-[-0.01em] text-slate-800">вул. Перфецького, 8</p>
-                  <p className="text-xs text-slate-500">Львів, Україна</p>
-                </div>
-                <ChevronRight size={12} className="shrink-0 text-slate-300 transition-colors duration-150 group-hover/addr:text-emerald-400" />
-              </SmartLink>
-
-              {/* Hours */}
-              <div className="flex items-start gap-3 rounded-xl px-1 py-2.5">
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100/80 text-amber-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                  <Clock size={13} />
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-slate-400">Графік роботи</p>
-                    {isOpen !== null && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold tracking-[0.04em] ${isOpen ? "bg-emerald-100/90 text-emerald-700" : "bg-red-100/90 text-red-600"}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-emerald-500" : "bg-red-500"}`} />
-                        {isOpen ? "Відкрито" : "Закрито"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-sm font-semibold tracking-[-0.01em] text-slate-800">Пн–Сб: 08:00–18:00</p>
-                  <p className="text-xs text-slate-500">Нд: 08:00–16:00</p>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
+          <a href="tel:+380634211851" className="site-footer-call" aria-label="Зателефонувати PartsON: +38 (063) 421-18-51">
+            <Phone size={21} strokeWidth={1.8} aria-hidden="true" />
+            <span>+38 (063) 421-18-51</span>
+            <ArrowUpRight size={20} aria-hidden="true" />
+          </a>
         </div>
 
-        {/* bottom bar */}
-        <div
-          data-footer-entrance
-          className={`${colBase} mt-8 border-t border-slate-200/70 pt-5 text-center text-sm text-slate-500`}
-        >
-          <SmartLink
-            href="/inform/payment"
-            aria-label="Онлайн-оплата через LiqPay — умови оплати"
-            className="card-metal relative mx-auto mb-4 flex w-fit items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-[border-color,box-shadow,background-color] hover:border-emerald-200 hover:bg-white hover:shadow-[0_12px_28px_rgba(16,185,129,0.10)]"
-          >
-            <span className="rounded-lg bg-white px-2.5 py-1.5">
-              <Image
-                src="/liqpay-logo.svg"
-                alt="LiqPay"
-                width={500}
-                height={104}
-                className="h-[18px] w-auto"
-              />
-            </span>
-            <span className="text-left">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
-                Безпечна онлайн-оплата
-              </span>
-              <span className="mt-0.5 block text-xs font-semibold text-slate-700">
-                Карткою через захищений платіжний сервіс
-              </span>
-            </span>
-          </SmartLink>
-          <p>
-            © {new Date().getFullYear()}{" "}
-            <SmartLink href="/" className="font-semibold text-sky-700 hover:text-sky-900">
-              PartsON
+        <div className="site-footer-main">
+          <div className="site-footer-brand">
+            <div className="site-footer-brand-head">
+              <SmartLink href="/" onClick={handleBrandClick} className="site-footer-logo" aria-label="PartsON — головна сторінка">
+                <Image
+                  src="/partson-logo-v3.webp" alt="PartsON" width={184} height={100}
+                  sizes="(max-width: 767px) 112px, 156px" quality={90}
+                  onError={event => {
+                    const image = event.currentTarget;
+                    if (image.dataset.fallbackApplied) return;
+                    image.dataset.fallbackApplied = "1";
+                    image.src = "/partson-mark-v3.webp";
+                  }}
+                />
+              </SmartLink>
+              <p>Інтернет-магазин автозапчастин. Львів та доставка по Україні.</p>
+            </div>
+            <div className="site-footer-messengers" role="group" aria-label="Зв’язатися в месенджері">
+              {messengers.map(({ label, Icon, href }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={`Відкрити ${label} PartsON`}>
+                  <Icon size={18} aria-hidden="true" /><span>{label}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <FooterNavigation title="Каталог" links={catalogLinks} />
+          <FooterNavigation title="Покупцеві" links={customerLinks} />
+
+          <section className="site-footer-contacts" aria-labelledby="footer-contacts-heading">
+            <h3 id="footer-contacts-heading">Контакти</h3>
+            <address>
+              <SmartLink href="/inform/location" className="site-footer-contact">
+                <MapPin size={18} aria-hidden="true" />
+                <span><strong>вул. Перфецького, 8</strong><span>Львів, Україна</span></span>
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </SmartLink>
+              <a href="mailto:romaniukbboogg@gmail.com" className="site-footer-contact site-footer-email">
+                <Mail size={18} aria-hidden="true" /><span>romaniukbboogg@gmail.com</span>
+              </a>
+            </address>
+            <div className="site-footer-hours">
+              <Clock3 size={18} aria-hidden="true" />
+              <div>
+                <p>Пн–Сб: <span>08:00–18:00</span></p>
+                <p>Нд: <span>08:00–16:00</span></p>
+                <span className="site-footer-status" data-open={isOpen === null ? undefined : isOpen} aria-live="polite">
+                  <span aria-hidden="true" />{isOpen === null ? "Графік роботи магазину" : isOpen ? "Працюємо зараз" : "Зараз зачинено"}
+                </span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="site-footer-bottom">
+          <div className="site-footer-utility">
+            <SmartLink href="/inform/payment" className="site-footer-payment" aria-label="Онлайн-оплата через LiqPay — умови оплати">
+              <span><Image src="/liqpay-logo.svg" alt="LiqPay" width={500} height={104} sizes="86px" /></span>
+              <span>Оплата карткою через LiqPay</span>
             </SmartLink>
-            . Усі права захищено.
-          </p>
-          <p className="mt-1.5 text-xs leading-5 text-slate-400">
-            Використовуючи сайт, ви погоджуєтесь з{" "}
-            <SmartLink href="/inform/privacy" className="font-semibold text-sky-600 hover:text-sky-900">
-              Політикою конфіденційності
-            </SmartLink>
-            .{" "}
-            <AnalyticsConsentSettingsButton
-              className="font-semibold text-sky-600 underline decoration-sky-200 underline-offset-2 hover:text-sky-900"
-            />
-          </p>
+            <nav className="site-footer-legal" aria-label="Правила та налаштування сайту">
+              <SmartLink href="/inform/privacy">Конфіденційність</SmartLink>
+              <SmartLink href="/editorial-policy">Редакційна політика</SmartLink>
+              <AnalyticsConsentSettingsButton />
+            </nav>
+          </div>
+          <p className="site-footer-copyright">© {new Date().getFullYear()} PartsON. Усі права захищено.</p>
         </div>
       </div>
-      <span
-        ref={bottomSentinelRef}
-        className="pointer-events-none absolute bottom-0 left-0 h-px w-px"
-        aria-hidden="true"
-      />
     </footer>
   );
 }

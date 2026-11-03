@@ -34,14 +34,13 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           <div className="reveal-adv-copy home-story-copy flex min-w-0 flex-col lg:order-2">
             <div className="home-story-copy-body flex flex-1 flex-col pt-4 sm:pt-5">
               <header className="home-store-heading home-store-card-heading">
-                <span className="home-store-kicker">Каталог PartsON · Львів</span>
                 <h2 className="font-display font-display-readable">Автозапчастини{" "}<br /><span>для вашого авто</span></h2>
                 <p>Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.</p>
               </header>
               <div className="home-store-assortment">
                 <ul>
-                  {catalogScope.map((row, index) => (
-                    <li key={row.label}><span className="home-store-row-number" aria-hidden="true">0{index + 1}</span><div><h3>{row.label}</h3><p>{row.items}</p></div></li>
+                  {catalogScope.map((row) => (
+                    <li key={row.label}><h3>{row.label}</h3><p>{row.items}</p></li>
                   ))}
                 </ul>
               </div>
@@ -57,7 +56,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
 
           <div className="reveal-adv-map home-story-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_14px_34px_-24px_rgba(10,45,64,0.4)] lg:order-1">
             <header className="home-store-location-heading">
-              <div><span>Магазин у Львові</span><h3>Завітайте в PartsON</h3></div>
+              <h3>Завітайте в PartsON</h3>
               <MapPin size={23} strokeWidth={1.6} aria-hidden="true" />
             </header>
             <StoreLocationMap src={STORE_MAP_EMBED_URL} />

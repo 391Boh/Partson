@@ -106,16 +106,23 @@ const getBackgroundPagePrefetchDepth = () => {
 // still load eagerly, while the rest of the page is resolved by one batch.
 const IMAGE_HIGH_PRIORITY_ITEMS_COUNT = 1;
 
-// Start visible grid photos directly: 2 on phones, up to 8 on desktops.
-// The catalog HTML uses matching media queries for its preload hints.
-const IMAGE_EAGER_ITEMS_COUNT = 8;
+export function getCatalogGridColumnCount(width: number): number {
+  if (width >= 2400) return 6;
+  if (width >= 1800) return 5;
+  if (width >= 1280) return 4;
+  if (width >= 1024) return 3;
+  if (width >= 640) return 2;
+  return 1;
+}
 
+// Start two visible rows directly, including wide desktop grids.
+// The catalog HTML uses matching media queries for its preload hints.
 const getGridImageEagerCount = (width: number) =>
-  width < 640 ? 2 : width < 1024 ? 4 : width < 1280 ? 6 : IMAGE_EAGER_ITEMS_COUNT;
+  getCatalogGridColumnCount(width) * 2;
 
 // List rows are much shorter than a grid card, so more of them sit in the
 // first viewport — list view eager-loads this many up front instead of
-// IMAGE_EAGER_ITEMS_COUNT. Every "how many images get to skip the shared
+// grid image count. Every "how many images get to skip the shared
 // batch and start their own request immediately" computation must use this
 // per-viewMode count consistently, or the extra list rows it covers end up
 // eager (rendered as if visible) but still gated behind the batch response,
@@ -511,7 +518,7 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 };
 
 const CATALOG_GRID_CLASS =
-  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
+  "catalog-results-grid mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
 
 const CATALOG_ADMIN_GRID_CLASS =
   "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";

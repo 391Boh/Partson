@@ -18,6 +18,7 @@ import HomePickerSearchControl from "./HomePickerSearchControl";
 import { DeferredAutoBackdrop } from "./DeferredHomeVisuals";
 import { useSectionReveal } from "app/lib/use-section-reveal";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
+import { useHomePagedGrid } from "app/lib/use-home-paged-grid";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
 const loadCarModels = () => import("./CarModels");
@@ -688,6 +689,7 @@ const AutoSection: React.FC<AutoProps> = ({
   }, [filteredBrands, brandsPerPage]);
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
+  useHomePagedGrid(brandPagesRef, safeBrandPage);
   const brandPagesScrollRafRef = useRef(0);
   // Holds the scroll-driven page sync while an arrow-tap / clamp `scrollTo` is
   // still animating, so its intermediate `scroll` events don't push

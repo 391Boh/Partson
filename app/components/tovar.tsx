@@ -25,6 +25,7 @@ import SectionPagination from "./SectionPagination";
 import HomePickerSearchControl from "./HomePickerSearchControl";
 import HomePickerHeading from "./HomePickerHeading";
 import { DeferredCategoryBackdrop } from "./DeferredHomeVisuals";
+import { useHomePagedGrid } from "app/lib/use-home-paged-grid";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 
 interface CategoryRow {
@@ -951,6 +952,7 @@ const ProductFetcher: React.FC<Props> = ({
   }, [hasExternalProducts, isHydrated]);
 
   const groupPagesRef = useRef<HTMLDivElement | null>(null);
+  useHomePagedGrid(groupPagesRef, page - 1);
   const groupScrollFrameRef = useRef<number | null>(null);
   // Skips the scroll→page sync while an arrow-tap / clamp `scrollTo` animates
   // (see paged-rail-scroll.ts).

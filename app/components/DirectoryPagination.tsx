@@ -4,16 +4,16 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const subscribeWidth = (notify: () => void) => {
-  const queries = [matchMedia("(min-width:768px)"), matchMedia("(min-width:1024px)")];
+  const queries = [matchMedia("(min-width:768px)"), matchMedia("(min-width:1024px)"), matchMedia("(min-width:1800px)")];
   queries.forEach(query => query.addEventListener("change", notify));
   return () => queries.forEach(query => query.removeEventListener("change", notify));
 };
-const readColumns = () => matchMedia("(min-width:1024px)").matches ? 4 : matchMedia("(min-width:768px)").matches ? 3 : 2;
+const readColumns = () => matchMedia("(min-width:1800px)").matches ? 6 : matchMedia("(min-width:1024px)").matches ? 4 : matchMedia("(min-width:768px)").matches ? 3 : 2;
 
 export function useDirectoryPagination<T>(items: T[], resetKey: string, maxPageSize = 12) {
   const columns = useSyncExternalStore(subscribeWidth, readColumns, () => 4);
   // Three rows per page, including narrow screens; categories need wider cards.
-  const pageSize = maxPageSize === 6 ? (columns === 2 ? 3 : 6) : columns * 3;
+  const pageSize = maxPageSize === 6 ? (columns === 2 ? 3 : columns === 6 ? 9 : 6) : columns * 3;
   const [selection, setSelection] = useState({ key: resetKey, page: 1 });
   // Persist the new key as well as deriving page 1, so clearing a search
   // cannot resurrect the page selected before that search began.

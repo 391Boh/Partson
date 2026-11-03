@@ -10,6 +10,7 @@ import HomePickerHeading from "./HomePickerHeading";
 import HomePickerSearchControl from "./HomePickerSearchControl";
 import { DeferredBrandsBackdrop } from "./DeferredHomeVisuals";
 import { useSectionReveal } from "app/lib/use-section-reveal";
+import { useHomePagedGrid } from "app/lib/use-home-paged-grid";
 import { createPagedRailScrollGuard } from "app/lib/paged-rail-scroll";
 import { buildCatalogProducerPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { buildSeoSlug } from "app/lib/seo-slug";
@@ -466,6 +467,7 @@ export default function BrandCarousel({
   const canGoNext = safePage < totalPages - 1;
 
   const brandPagesRef = useRef<HTMLDivElement | null>(null);
+  useHomePagedGrid(brandPagesRef, safePage);
   const scrollGuardRef = useRef(createPagedRailScrollGuard());
   const currentBrandPageRef = useRef(safePage);
   useEffect(() => { currentBrandPageRef.current = safePage; }, [safePage]);

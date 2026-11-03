@@ -107,66 +107,26 @@ export default function DeferredFooter() {
   }, [FooterComponent, isHome]);
 
   if (FooterComponent) {
-    return (
-      <div data-deferred-footer className="min-h-[1200px] sm:min-h-[1160px] md:min-h-[700px] lg:min-h-[600px] xl:min-h-[560px]">
-        <FooterComponent />
-      </div>
-    );
+    return <div data-deferred-footer className="footer-frame"><FooterComponent /></div>;
   }
 
   return (
-    <div
-      data-deferred-footer
-      ref={anchorRef}
-      // Reserves roughly the real footer's height so it doesn't pop in from
-      // ~0px and jolt the page/scroll position the moment the lazy chunk
-      // resolves — sized per breakpoint since the footer's columns stack on
-      // narrow screens (measured against the real footer at each width).
-      className="h-[1200px] overflow-hidden py-8 sm:h-[1160px] sm:py-10 md:h-[700px] lg:h-[600px] xl:h-[560px]"
-      aria-hidden="true"
-    >
+    <div data-deferred-footer ref={anchorRef} className="footer-frame footer-placeholder" aria-hidden="true">
       <div className="page-shell-inline">
-        <div className="grid grid-cols-1 items-stretch gap-y-8 md:grid-cols-3 md:gap-x-12 lg:gap-x-16">
-          {/* Col 1: brand + social */}
-          <div className="flex flex-col items-center gap-4 md:pr-8 md:pt-8">
-            <div className="footer-skeleton-block h-[62px] w-[138px]" />
-            <div className="footer-skeleton-block h-3 w-40" />
-            <div className="mt-4 flex items-center justify-center gap-3">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="footer-skeleton-block h-10 w-10 !rounded-xl" />
-              ))}
-            </div>
-            <div className="footer-skeleton-block h-8 w-full max-w-[220px] !rounded-2xl" />
-          </div>
-
-          {/* Col 2: info links */}
-          <div className="flex flex-col md:pr-8">
-            <div className="footer-skeleton-block mb-4 h-3 w-24" />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              {Array.from({ length: 12 }, (_, i) => (
-                <div key={i} className="footer-skeleton-block h-3 w-full max-w-[110px]" />
-              ))}
-            </div>
-          </div>
-
-          {/* Col 3: contacts */}
-          <div className="flex flex-col gap-3 md:pl-2">
-            <div className="footer-skeleton-block mb-1 h-3 w-24" />
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="footer-skeleton-block h-8 w-8 shrink-0 !rounded-xl" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="footer-skeleton-block h-2.5 w-16" />
-                  <div className="footer-skeleton-block h-3.5 w-32" />
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="footer-placeholder-intro">
+          <div><div className="footer-skeleton-block" /><div className="footer-skeleton-block" /></div>
+          <div className="footer-skeleton-block" />
         </div>
-
-        <div className="mt-8 flex flex-col items-center gap-4 border-t border-slate-200/70 pt-5">
-          <div className="footer-skeleton-block h-11 w-64 !rounded-2xl" />
-          <div className="footer-skeleton-block h-3 w-48" />
+        <div className="site-footer-main">
+          <div className="site-footer-brand footer-placeholder-brand">
+            <div className="footer-skeleton-block" /><div className="footer-skeleton-block" />
+          </div>
+          {[4, 6, 4].map((count, index) => (
+            <div key={index} className={index === 2 ? "site-footer-contacts" : ""}>
+              <div className="footer-skeleton-block footer-placeholder-title" />
+              {Array.from({length:count}, (_, key) => <div key={key} className="footer-skeleton-block footer-placeholder-link" />)}
+            </div>
+          ))}
         </div>
       </div>
     </div>

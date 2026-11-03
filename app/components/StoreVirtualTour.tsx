@@ -55,7 +55,6 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
         <div className="home-store-tour-title-group">
           <span className="home-store-tour-symbol" aria-hidden="true"><Compass size={27} strokeWidth={1.6} /></span>
           <div>
-            <span className="home-store-tour-kicker">Віртуальна прогулянка</span>
             <h3 id="store-tour-title">PartsON у форматі 360°</h3>
             <p>Огляньте фасад і зайдіть усередину магазину в панорамі 360°.</p>
           </div>
