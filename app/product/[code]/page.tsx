@@ -24,6 +24,7 @@ import {
   findCatalogProductByCode,
   findFullCatalogSnapshotProduct,
   confirmCatalogProductsMissing,
+  fetchExactCatalogProductByLookup,
   isFullCatalogSnapshotWarm,
   toPriceUah,
   peekSnapshotProductDescription,
@@ -1378,10 +1379,9 @@ const acceptSeoSlugMatch = (
   return { code, product };
 };
 
-// Before the catalog snapshot has loaded (right after a restart), a slow
-// token search is no answer: ask 1C directly, by every reading of the URL's
-// article ("lx511-1" also as LX511/1), whether such a product exists.
-const confirmRouteProductMissing = async (rawCode: string) => {
+// Every reading of the URL's article ("lx511-1" also as LX511/1), for the
+// exact 1C checks below. Empty when the URL carries no article at all.
+const buildRouteArticleTokens = (rawCode: string, limit: number) => {
   const routeSlugs = extractProductRouteSlugsFromParam(rawCode);
   const directCode = canUseDirectProductCodeFallback(rawCode) && !routeSlugs
     ? extractProductCodeFromParam(rawCode)
@@ -1389,12 +1389,49 @@ const confirmRouteProductMissing = async (rawCode: string) => {
   const tailTokens = directCode
     ? [directCode]
     : extractArticleTailTokensFromSeoNameSlug(routeSlugs?.nameSlug || rawCode);
-  // No article reading at all ("/product/nonexistent-xyz"): not a product URL.
-  if (tailTokens.length === 0) return true;
   const tokens = tailTokens.flatMap((token) =>
     token.includes("-") ? ["-", "/", ".", " ", ""].map((separator) => token.split("-").join(separator)) : [token]
   );
-  return confirmCatalogProductsMissing(tokens.slice(0, 16));
+  return {
+    directCode,
+    nameSlug: routeSlugs?.nameSlug || rawCode,
+    tailTokens,
+    tokens: Array.from(new Set(tokens)).slice(0, limit),
+  };
+};
+
+// The last check before a 404: ask 1C by exact code/article. A product
+// created or re-articled in 1C after the deploy is in neither the sitemap
+// snapshot nor (until its next rescan) the catalog snapshot, and the fast 1C
+// lookup above gives up after 850 ms — under load that miss used to become a
+// 404 cached for the whole revalidate period, while the catalog search,
+// asking 1C itself, kept finding the product.
+const findRouteProductLive = async (rawCode: string, limit: number) => {
+  const { directCode, nameSlug, tailTokens, tokens } = buildRouteArticleTokens(rawCode, limit);
+  if (tokens.length === 0) return null;
+  const tailTokenCompacts = new Set(tailTokens.map(compactProductLookupToken).filter(Boolean));
+  const matches = await Promise.all(
+    tokens.map((token) => fetchExactCatalogProductByLookup(token, { timeoutMs: 3000 }).catch(() => null))
+  );
+  for (const match of matches) {
+    const resolved = directCode
+      ? match && (match.code || match.article)
+        ? { code: (match.code || match.article).trim(), product: match }
+        : null
+      : acceptSeoSlugMatch(match, nameSlug, tailTokenCompacts);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
+// Before the catalog snapshot has loaded (right after a restart), a slow
+// token search is no answer: ask 1C directly, by every reading of the URL's
+// article, whether such a product exists.
+const confirmRouteProductMissing = async (rawCode: string, limit: number) => {
+  const { tokens } = buildRouteArticleTokens(rawCode, limit);
+  // No article reading at all ("/product/nonexistent-xyz"): not a product URL.
+  if (tokens.length === 0) return true;
+  return confirmCatalogProductsMissing(tokens);
 };
 
 const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
@@ -2094,17 +2131,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   if (!resolvedCode || !product) {
-    // Not found only when every lookup answered. A timeout or 1C failure
-    // throws instead: the error page is not cached, so the next visit tries
-    // again rather than getting a 404 frozen for an hour.
-    if (
-      getProductLookupState().inconclusive &&
-      !isFullCatalogSnapshotWarm() &&
-      !(await confirmRouteProductMissing(rawCode || ""))
-    ) {
-      throw new Error(`Product lookup did not finish for "${rawCode}"`);
+    // A warm snapshot that answered every lookup only needs the article's
+    // first readings checked; a cold or timed-out search checks them all.
+    const liveCheckLimit =
+      getProductLookupState().inconclusive || !isFullCatalogSnapshotWarm() ? 16 : 4;
+    const liveRouteProduct = await findRouteProductLive(rawCode || "", liveCheckLimit);
+    if (liveRouteProduct) {
+      product = liveRouteProduct.product;
+      resolvedCode = liveRouteProduct.code;
+    } else {
+      // Not found only when 1C confirmed it. A timeout or 1C failure throws
+      // instead: the error page is not cached, so the next visit tries again
+      // rather than getting a 404 frozen for the revalidate period.
+      if (!(await confirmRouteProductMissing(rawCode || "", liveCheckLimit))) {
+        throw new Error(`Product lookup did not finish for "${rawCode}"`);
+      }
+      notFound();
     }
-    notFound();
   }
 
   const hasResolvedCatalogProduct = Boolean(product);

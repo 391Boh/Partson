@@ -55,6 +55,13 @@ const rows = readFitmentRows(description);
 assert.equal(rows.length, 1);
 assert.equal(writeFitmentRows(description, rows), 'Ручка NISSAN QASHQAI БУ! Мінімальні пошкодження\nКолір\tчорн');
 
+// TecDoc's range after the last make covers every make listed before it.
+const shared = splitProductFitmentLine('VOLVO C30, V50; FORD FOCUS II 1.6-2.0 10.03-').groups;
+assert.equal(shared.map(g => `${g.brand} ${g.volume} ${g.period}`).join(' ;; '), 'VOLVO 1.6-2.0 10.03- ;; FORD 1.6-2.0 10.03-',
+  'a trailing range applies to every make since the previous range');
+const ownRanges = splitProductFitmentLine('AUDI A4 1.6 11.94-; VW PASSAT 1.8 10.96-').groups;
+assert.equal(ownRanges.map(g => g.volume).join(','), '1.6,1.8', 'a make with its own range keeps it');
+
 const car = { brand: 'VOLKSWAGEN', model: 'Golf', year: null, volume: null, power: null, gearbox: null, drive: null };
 assert(matchesVehicleFitment('Трос ручника WV Golf', car), 'the car filter accepts the WV spelling');
 assert(matchesVehicleFitment('Трос ручника Mersedes Benz Sprinter', { ...car, brand: 'MERCEDES-BENZ', model: 'Sprinter' }));

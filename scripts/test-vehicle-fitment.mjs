@@ -38,6 +38,22 @@ assert(!matches('OPEL VIVARO B 1.6D 05.14-',vivaro),'Another letter generation d
 assert(!matches('OPEL VIVARO',vivaro),'A bare family still cannot confirm the year');
 assert(matches('OPEL ASTRA G, ZAFIRA A',{brand:'OPEL',model:'Astra G',year:2001}));
 assert(!matches(undefined,car));
+// The range after the last make covers the makes listed before it.
+const v=(brand,model,extra={})=>({brand,model,year:null,volume:null,power:null,gearbox:null,drive:null,...extra});
+assert(matches('VOLVO C30, V50; FORD FOCUS II 1.6-2.0 10.03-',v('VOLVO','C30 I')),'a bare model takes the shared trailing range');
+assert(!matches('VOLVO C30, V50; FORD FOCUS II 1.6-2.0 10.03-',v('VOLVO','C30 I',{year:1999})),'the shared range limits the years');
+// The model is named before the range: Renault "10" is not the month of "10.80-".
+assert(!matches('RENAULT MASTER I 2.0-2.5D 10.80-',v('RENAULT','10')),'a date is not a model');
+assert(!matches('MAZDA 323 S V 1.3-2.0 07.94-',v('MAZDA','2 II')),'an engine volume is not a model');
+assert(!matches('HYUNDAI IONIQ 6 09.22-',v('HYUNDAI','Ioniq')),'a number after the name is another model');
+assert(matches('FORD Mondeo 1993 - 2000',v('FORD','Mondeo I')),'a year range after the name is not');
+// "80 B3, 80 B4" are two entries; "GALAXY MK I" names generation I.
+assert(matches('AUDI 80 B3, 80 B4; VW GOLF III 1.6-2.0 08.85-04.03',v('AUDI','80 V B4')),'a model after a comma that starts with a digit');
+assert(matches('FORD GALAXY MK I 1.9D 03.95-05.06',v('FORD','Galaxy I'))&&!matches('FORD GALAXY MK I 1.9D 03.95-05.06',v('FORD','Galaxy II')),'MK I is generation I');
+// A spec row glued onto the fitment line keeps the list readable.
+assert(matches('CITROEN C3 I, XSARA PICASSO 1.4-2.0D 03.91-Висота [мм]\t7.0',v('CITROEN','Xsara Picasso')),'a glued spec row');
+// The car picker lists Lanos, Nexia… under CHEVROLET; TecDoc says DAEWOO.
+assert(matches('DAEWOO LANOS, NEXIA 1.5 05.97-',v('CHEVROLET','Lanos I')),'DAEWOO models are Chevrolet ones');
 assert.equal(readVehicleSelection('invalid'),null);
 assert(encodeVehicleSelection(car).includes('1991'));
 

@@ -31,11 +31,16 @@ const ALIASES: Record<string, string[]> = {
   'MERCEDES-BENZ': ['MERCEDES-BENZ', 'MERCEDES BENZ', 'MERCEDES', 'MB', 'MERSEDES BENZ', 'MERSEDES'],
   MERCEDES: ['MERCEDES-BENZ', 'MERCEDES BENZ', 'MERCEDES', 'MB', 'MERSEDES BENZ', 'MERSEDES'],
   'SKODA': ['SKODA', 'ŠKODA'], 'LAND ROVER': ['LAND ROVER', 'LANDROVER'],
+  // The car picker lists Lanos, Nexia, Matiz, Lacetti, Nubira… under
+  // CHEVROLET only; TecDoc descriptions name them DAEWOO.
+  CHEVROLET: ['CHEVROLET', 'DAEWOO'],
 };
 // All makes exposed by the car picker, including commercial vehicles.
 const BRANDS = 'AUDI|BMW|CHERY|CHEVROLET|CHRYSLER|CITROEN|CADILLAC|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|WV|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MERSEDES BENZ|MERSEDES|MB|LAND ROVER|ALFA ROMEO|ACURA|ASTON MARTIN|BENTLEY|FERRARI|GEELY|HUMMER|ISUZU|LADA|LAMBORGHINI|LINCOLN|LOTUS|MASERATI|MAYBACH|PONTIAC|ROLLS-ROYCE|MAN|RAM';
 export const brandAtStart = new RegExp(`^(${BRANDS})(?=\\s|$)`, 'i');
 const ROMAN = /^(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)$/;
+// An entry's trailing engine-volume and/or date range: " 1.6-2.0 10.03-".
+const ENTRY_TAIL = /\s(\d[.,]\d(?:\s*-.*)?[\s\S]*|(?:\d{2}\.)?\d{2,4}-[\s\S]*)$/;
 export function vehicleModelQuery(vehicle: VehicleSelection): string {
   const tokens = normalize(cleanCarModelForSearch(vehicle.model)).replace(/[()[\]]/g, ' ').split(/\s+/).filter(Boolean);
   const cut = tokens.findIndex((token, i) => i > 0 && (ROMAN.test(token) || /^[A-Z]{1,3}\d{1,3}(?:\/\w+)?$/.test(token)));
@@ -93,26 +98,47 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
   const applicationLines = description.split(/\r?\n/).flatMap(line => {
     if (!line.includes('\t')) return [line];
     const [label, ...values] = line.split('\t');
-    return /застосув|применяем|сумісн|сумісність|автомоб|application|fitment/i.test(label) ? [values.join(' ')] : [];
+    if (/застосув|применяем|сумісн|сумісність|автомоб|application|fitment/i.test(label)) return [values.join(' ')];
+    // A spec row 1C glued onto the fitment line ("… ZX 1.4-2.0D 03.91-Висота
+    // [мм]\t7.0"): the list is the text before the row's Cyrillic label.
+    const listed = normalize(label).match(new RegExp(`(?:^|\\s)(${BRANDS})\\s[^\\p{Script=Cyrillic}]*`, 'iu'));
+    return listed ? [listed[0]] : [];
   });
   for (const line of applicationLines) {
     let currentBrand = '';
     const normalizedLine = normalize(line);
     const firstBrand = normalizedLine.match(new RegExp(`(?:^|\\s)(${BRANDS})(?=\\s|$)`, 'i'));
     const application = firstBrand ? normalizedLine.slice(firstBrand.index! + firstBrand[0].length - firstBrand[1].length) : normalizedLine;
-    for (const raw of application.split(';')) {
+    // Comma-delimited model entries share the group's trailing engine/year
+    // range. Slash-separated generations such as B3/B4 remain one entry, and
+    // so does a decimal comma ("SPRINTER 3,5-T"); "80 B3, 80 B4" are two.
+    const groups = application.split(';').map(raw => {
       const group = raw.trim();
       const named = group.match(brandAtStart);
+      const entries = group.slice(named?.[0].length || 0).trim().split(/,(?:\s+|(?=[A-Z]))/);
+      const ownTail = entries.at(-1)?.match(ENTRY_TAIL)?.[0] || '';
+      return { named, entries, ownTail, sharedTail: ownTail };
+    });
+    // A tail covers every make listed since the previous tail: in "VOLVO C30,
+    // V50; FORD FOCUS II 1.6-2.0 10.03-" it is TecDoc's range for the whole
+    // list, VOLVO included.
+    for (let index = groups.length - 2; index >= 0; index -= 1) {
+      if (!groups[index].ownTail) groups[index].sharedTail = groups[index + 1].sharedTail;
+    }
+    for (const { named, entries, sharedTail } of groups) {
       if (named) currentBrand = named[1];
       if (!aliases.includes(currentBrand)) continue;
-      const body = group.slice(named?.[0].length || 0).trim();
-      // Comma-delimited model entries share the group's trailing engine/year
-      // range. Slash-separated generations such as B3/B4 remain one entry.
-      const entries = body.split(/,\s*(?=[A-Z])/);
-      const sharedTail = entries.at(-1)?.match(/\s(\d[.,]\d(?:\s*-.*)?[\s\S]*|(?:\d{2}\.)?\d{2,4}-[\s\S]*)$/)?.[0] || '';
       for (const entry of entries) {
-        if (!contains(entry, model)) continue;
-        const afterModel = entry.slice(entry.indexOf(model) + model.length).trim();
+        // The model is named before the engine/year range: Renault "10" is
+        // not the month in "10.80-", Mazda "2" not the "2.0" of a volume.
+        const entryName = entry.replace(ENTRY_TAIL, '');
+        if (!contains(entryName, model)) continue;
+        // "GALAXY MK I": the Mark prefix before a generation numeral.
+        const afterModel = entryName.slice(entryName.indexOf(model) + model.length).trim().replace(/^MK\s*(?=[IVX]+(?:\s|$))/, '');
+        // A number right after the name makes it another model: "MODEL 3"
+        // is not Model X, "IONIQ 6" not Ioniq ("SPRINTER 3,5-T" is a
+        // tonnage, "Mondeo 1993 - 2000" a year range).
+        if (/^(?!(?:19|20)\d{2}\s*-)\d+(?![.,]\d)(?=\s|$|\()/.test(afterModel)) continue;
         const listedGenerations = afterModel.match(/^(?:(?:[A-Z]{1,3}\d{1,3}|XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)(?:\/(?:[A-Z]{1,3})?\d{1,3}|\/(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I))*)(?=\s|$)/)?.[0];
         if (generation.length && listedGenerations && !generation.some(g => contains(listedGenerations, g))) continue;
         const scoped = !/\d[.,]\d|\d{2,4}\s*-/.test(entry) ? `${entry} ${sharedTail}` : entry;

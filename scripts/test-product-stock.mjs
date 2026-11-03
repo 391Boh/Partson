@@ -9,6 +9,8 @@ let sent;
 let freshStock = null;
 let readCount = 0;
 let promoReadback = {};
+let snapshotProduct = null;
+const revalidatedPaths = [];
 const promoReadbackRequests = [];
 const noop = () => {};
 const priceResult = {};
@@ -18,7 +20,7 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../app/api/_lib/onec
 assert.equal(priceResult.readOneCPriceResultValue({ ЦенаАкции: "7,25" }, "promo"), 7.25);
 const mocks = {
   "next/server": { NextResponse: Response },
-  "next/cache": { revalidatePath: noop, revalidateTag: noop },
+  "next/cache": { revalidatePath: (path) => revalidatedPaths.push(path), revalidateTag: noop },
   "app/api/_lib/oneC": {
     clearAllOneCCache: noop,
     oneCRequest: async (_endpoint, options) => {
@@ -36,7 +38,10 @@ const mocks = {
   "app/lib/catalog-page-route-cache": { clearCatalogPageRouteCache: noop },
   "app/lib/catalog-server": {
     invalidateFullCatalogSnapshot: noop,
-    patchFullCatalogSnapshotProduct: noop,
+    patchFullCatalogSnapshotProduct: (_code, patch) => {
+      if (snapshotProduct) snapshotProduct = { ...snapshotProduct, ...patch };
+    },
+    findFullCatalogSnapshotProduct: () => snapshotProduct,
     fetchPromoOffersByLookupKeys: async (keys, options) => {
       promoReadbackRequests.push({ keys, options });
       return promoReadback;
@@ -50,6 +55,7 @@ const mocks = {
   },
   "app/lib/product-promo-overrides": { setProductPromoPriceOverride: noop },
   "app/lib/product-edit-overrides": { setProductEditOverride: noop },
+  "app/lib/product-url": { buildProductPath: (product) => `/product/${product.name}--${product.article}` },
 };
 const promoConfirmation = {};
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../app/api/_lib/confirm-onec-promo-price.ts", import.meta.url), "utf8"), {
@@ -114,6 +120,19 @@ assert.equal(created.body.priceEuro, 12.5);
 assert.equal(created.body.quantity, 4);
 assert.equal(sent.body.Кількість, 4);
 assert.equal(sent.body.артикул_ціни, undefined, "New product prices use the internal code");
+// A renamed product moves to a new name-slug URL: both the old and the new
+// one are refreshed, not only /product/<article> and /product/<code>.
+{
+  snapshotProduct = { code: "123", article: "OLD-1", name: "old" };
+  revalidatedPaths.length = 0;
+  const renamed = await update({ name: "new", catalogNumber: "NEW-1" }, {
+    success: true, product_result: { success: true, Наименование: "new", НомерПоКаталогу: "NEW-1" },
+  });
+  assert.equal(renamed.status, 200);
+  assert.ok(revalidatedPaths.includes("/product/old--OLD-1"), "The pre-edit URL is refreshed");
+  assert.ok(revalidatedPaths.includes("/product/new--NEW-1"), "The post-edit URL is refreshed");
+  snapshotProduct = null;
+}
 console.log("Product stock regression checks passed.");
 
 const savedPrices = await update({ article: 'NEW-ARTICLE', ЦінаПрод: 12.5, ЦінаЗакуп: 8.25, requirePriceConfirmation: true }, {

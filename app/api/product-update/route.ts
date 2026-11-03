@@ -7,10 +7,12 @@ import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import {
   fetchExactCatalogProductByLookup,
+  findFullCatalogSnapshotProduct,
   invalidateFullCatalogSnapshot,
   patchFullCatalogSnapshotProduct,
 } from "app/lib/catalog-server";
 import { setProductEditOverride } from "app/lib/product-edit-overrides";
+import { buildProductPath } from "app/lib/product-url";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
@@ -503,6 +505,7 @@ export async function POST(request: NextRequest) {
     ...(typeof confirmedCostPriceEuro === "number" ? { costPriceEuro: confirmedCostPriceEuro } : {}),
   };
   setProductEditOverride(code, overridePatch);
+  const productBeforeEdit = findFullCatalogSnapshotProduct(code);
   // Same confirmed values into the in-memory catalog snapshot, which the
   // header's quick search and other snapshot readers use — otherwise they
   // kept showing the pre-edit product until a background rescan finished.
@@ -512,6 +515,18 @@ export async function POST(request: NextRequest) {
     ...(subGroup ? { subGroup } : {}),
     ...(category !== undefined ? { category } : {}),
   });
+  // The product's real URL is its name slug, not /product/<article> or
+  // /product/<code> revalidated above, and a renamed or re-articled product
+  // moves to a new one. Refresh both, so neither keeps serving a pre-edit
+  // page (or a 404 cached before the edit) for the revalidate period.
+  const productAfterEdit = findFullCatalogSnapshotProduct(code);
+  try {
+    for (const path of new Set([productBeforeEdit, productAfterEdit].flatMap((item) => (item ? [buildProductPath(item)] : [])))) {
+      revalidatePath(path, "page");
+    }
+  } catch {
+    // can throw outside of a request context (e.g., tests/build)
+  }
 
   return json({
     ok: true,

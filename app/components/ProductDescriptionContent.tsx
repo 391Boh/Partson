@@ -66,15 +66,28 @@ const ModelChips = ({
   </>
 );
 
+const FitmentRange = ({ volume, period }: { volume: string; period: string }) => (
+  <>
+    {volume ? (
+      <span className="rounded-full bg-sky-100/80 px-2 py-0.5 text-[12px] font-bold text-sky-800 tabular-nums">{volume}</span>
+    ) : null}
+    {period ? (
+      <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[12px] font-bold text-emerald-800 tabular-nums">{period}</span>
+    ) : null}
+  </>
+);
+
 const FitmentMake = ({
   group,
   modelLinks,
+  showRange,
 }: {
   group: ProductFitmentGroup;
   modelLinks?: Record<string, string>;
+  showRange: boolean;
 }) => {
-  const volume = formatFitmentVolume(group.volume);
-  const period = group.period ? formatFitmentPeriod(group.period) : "";
+  const volume = showRange ? formatFitmentVolume(group.volume) : "";
+  const period = showRange && group.period ? formatFitmentPeriod(group.period) : "";
   const folds = group.models.length - VISIBLE_MODELS_PER_MAKE >= MIN_FOLDED_MODELS;
   const visible = folds ? group.models.slice(0, VISIBLE_MODELS_PER_MAKE) : group.models;
   const hidden = folds ? group.models.slice(VISIBLE_MODELS_PER_MAKE) : [];
@@ -82,12 +95,7 @@ const FitmentMake = ({
     <li className="min-w-0 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <span className="text-[13.5px] font-extrabold uppercase tracking-[0.03em] text-slate-900">{group.brand}</span>
-        {volume ? (
-          <span className="rounded-full bg-sky-100/80 px-2 py-0.5 text-[12px] font-bold text-sky-800 tabular-nums">{volume}</span>
-        ) : null}
-        {period ? (
-          <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[12px] font-bold text-emerald-800 tabular-nums">{period}</span>
-        ) : null}
+        <FitmentRange volume={volume} period={period} />
       </div>
       <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={`Моделі ${group.brand}`}>
         <ModelChips brand={group.brand} models={visible} modelLinks={modelLinks} />
@@ -120,6 +128,13 @@ const FitmentCard = ({
 }) => {
   const modelCount = fitment.reduce((total, group) => total + group.models.length, 0);
   const makeCount = new Set(fitment.map((group) => group.brand)).size;
+  // One engine/year range for the whole list (TecDoc's summary after the
+  // last make) is shown once, not repeated beside every make.
+  const [first] = fitment;
+  const sharedRange =
+    fitment.length > 1 &&
+    Boolean(first.volume || first.period) &&
+    fitment.every((group) => group.volume === first.volume && group.period === first.period);
   return (
     <section
       aria-label="Застосування"
@@ -137,9 +152,18 @@ const FitmentCard = ({
           </p>
         </div>
       </header>
+      {sharedRange ? (
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] font-semibold text-slate-600">
+          <span>Для всіх марок:</span>
+          <FitmentRange
+            volume={formatFitmentVolume(first.volume)}
+            period={first.period ? formatFitmentPeriod(first.period) : ""}
+          />
+        </p>
+      ) : null}
       <ul className="mt-3.5 divide-y divide-sky-100/90">
         {fitment.map((group, index) => (
-          <FitmentMake key={`${index}:${group.brand}`} group={group} modelLinks={modelLinks} />
+          <FitmentMake key={`${index}:${group.brand}`} group={group} modelLinks={modelLinks} showRange={!sharedRange} />
         ))}
       </ul>
     </section>

@@ -1,0 +1,124 @@
+{
+  "checkedAt": "2026-11-03T09:16:10.246Z",
+  "feeds": [
+    {
+      "url": "https://partson.shop/google-merchant-feed.xml",
+      "status": 200,
+      "count": 1644,
+      "inStock": 1617,
+      "outOfStock": 27,
+      "lastModified": null,
+      "etag": "W/\"6348f6dbe868265c4821504e6f600685db71057da73a468fe1ef8a1aac3190e5\""
+    },
+    {
+      "url": "https://partson.shop/merchant-feed.xml",
+      "status": 200,
+      "count": 1644,
+      "inStock": 1617,
+      "outOfStock": 27,
+      "lastModified": null,
+      "etag": "W/\"6348f6dbe868265c4821504e6f600685db71057da73a468fe1ef8a1aac3190e5\""
+    }
+  ],
+  "products": [
+    {
+      "id": "00-00000056",
+      "restored": false,
+      "price": 357,
+      "pagePrice": 357,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        200
+      ],
+      "imageBytes": 5994
+    },
+    {
+      "id": "00-00000076",
+      "restored": false,
+      "price": 322,
+      "pagePrice": 322,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        503,
+        200
+      ],
+      "imageBytes": 48580
+    },
+    {
+      "id": "00-00001898",
+      "restored": true,
+      "price": 814,
+      "pagePrice": 814,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        200
+      ],
+      "imageBytes": 8444
+    },
+    {
+      "id": "РТ-00001540",
+      "restored": true,
+      "price": 309,
+      "pagePrice": 309,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        200
+      ],
+      "imageBytes": 32562
+    },
+    {
+      "id": "РТ-00001897",
+      "restored": true,
+      "price": 165,
+      "pagePrice": 165,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        200
+      ],
+      "imageBytes": 11576
+    },
+    {
+      "id": "РТ-00001140",
+      "restored": true,
+      "price": 178,
+      "pagePrice": 178,
+      "pageStatus": 200,
+      "imageStatus": 200,
+      "imageAttempts": [
+        200
+      ],
+      "imageBytes": 21106
+    }
+  ],
+  "assets": [
+    {
+      "path": "/styles/critical-home.6dfd510ac1.css",
+      "status": 200
+    },
+    {
+      "path": "/_next/static/chunks/179rn17rqz5ut.js",
+      "status": 200
+    },
+    {
+      "path": "/_next/static/chunks/32bkiimd8_ssq.js",
+      "status": 200
+    },
+    {
+      "path": "/_next/static/chunks/0mykufb6p471b.js",
+      "status": 200
+    },
+    {
+      "path": "/_next/static/chunks/1320alo-2edfk.js",
+      "status": 200
+    },
+    {
+      "path": "/_next/static/chunks/turbopack-2c3mg3r-05n1w.js",
+      "status": 200
+    }
+  ]
+}

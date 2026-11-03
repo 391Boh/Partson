@@ -3197,7 +3197,7 @@ export const fetchPromoOffersByLookupKeys = async (
   // then article) before the badge could render. Only a cold snapshot (right
   // after a restart, before instrumentation.ts's warm-up finishes) falls
   // through to that live per-key lookup below.
-  if (fullCatalogCache && !options?.live) {
+  if (fullCatalogState.cache && !options?.live) {
     // Reading the cache directly (not awaiting getFullCatalogSnapshot) means
     // this never blocks on a refresh — a stale-but-present snapshot still
     // answers instantly. Still nudge it to revalidate in the background if
@@ -3206,7 +3206,7 @@ export const fetchPromoOffersByLookupKeys = async (
 
     const snapshotResult: Record<string, PromoOffer> = {};
     for (const key of normalizedKeys) {
-      snapshotResult[key] = readSnapshotPromoOffer(key, fullCatalogCache, getSnapshotProductIndex()?.get(key)?.priceEuro);
+      snapshotResult[key] = readSnapshotPromoOffer(key, fullCatalogState.cache, getSnapshotProductIndex()?.get(key)?.priceEuro);
     }
     return snapshotResult;
   }
@@ -3341,10 +3341,41 @@ type FullCatalogSnapshot = {
 const catalogItemKey = (item: Pick<CatalogProduct, "code" | "article">) =>
   normalizeFacetValue(item.code) || normalizeFacetValue(item.article);
 
-let fullCatalogCache: (FullCatalogSnapshot & { fetchedAt: number }) | null = null;
-let fullCatalogRefreshPromise: Promise<FullCatalogSnapshot> | null = null;
-let fullCatalogRefreshStartedAt = 0;
-let fullCatalogRefreshFailedAt = 0;
+// The production build bundles this module into several chunks (the pages'
+// SSR graph and the route handlers' graph each get their own copies), and
+// every copy used to keep its own snapshot. An admin create/edit updated the
+// route handlers' copy only, so the catalog search found a new product while
+// its product page, reading a different copy, answered 404 until its own
+// rescan ~30 min later. Anchored on globalThis, as product-edit-overrides.ts
+// does, every copy shares one snapshot, one rescan and one edit log.
+type FullCatalogState = {
+  cache: (FullCatalogSnapshot & { fetchedAt: number }) | null;
+  refreshPromise: Promise<FullCatalogSnapshot> | null;
+  refreshStartedAt: number;
+  refreshFailedAt: number;
+  // Bumped on every invalidation: a rescan that was already running when an
+  // edit landed read pre-edit 1C data, so its result must not be stored as
+  // fresh (see getFullCatalogSnapshot's refresh).
+  generation: number;
+  patches: Map<string, { patch: SnapshotProductPatch; at: number }>;
+  inserts: Map<string, { product: CatalogProduct; at: number }>;
+};
+
+declare global {
+  var __partsonFullCatalogState: FullCatalogState | undefined;
+}
+
+const fullCatalogState: FullCatalogState =
+  globalThis.__partsonFullCatalogState ??
+  (globalThis.__partsonFullCatalogState = {
+    cache: null,
+    refreshPromise: null,
+    refreshStartedAt: 0,
+    refreshFailedAt: 0,
+    generation: 0,
+    patches: new Map(),
+    inserts: new Map(),
+  });
 const FULL_CATALOG_SCAN_HUNG_MS = 1000 * 60 * 10;
 const FULL_CATALOG_RETRY_AFTER_FAILURE_MS = 1000 * 60;
 
@@ -3362,18 +3393,13 @@ const FULL_CATALOG_RETRY_AFTER_FAILURE_MS = 1000 * 60;
 // nulling it out instead would force that next read to block on a full
 // ~20-sequential-1C-call scan.
 export function invalidateFullCatalogSnapshot() {
-  fullCatalogGeneration += 1;
-  if (!fullCatalogCache) return;
-  fullCatalogCache = {
-    ...fullCatalogCache,
+  fullCatalogState.generation += 1;
+  if (!fullCatalogState.cache) return;
+  fullCatalogState.cache = {
+    ...fullCatalogState.cache,
     fetchedAt: Date.now() - FULL_CATALOG_FRESH_TTL_MS - 1000,
   };
 }
-
-// Bumped on every invalidation: a rescan that was already running when an
-// edit landed read pre-edit 1C data, so its result must not be stored as
-// fresh (see getFullCatalogSnapshot's refresh).
-let fullCatalogGeneration = 0;
 
 type SnapshotProductPatch = Partial<Omit<CatalogProduct, "code">>;
 
@@ -3382,7 +3408,7 @@ type SnapshotProductPatch = Partial<Omit<CatalogProduct, "code">>;
 // edit, so readers of the snapshot — above all the header's quick search
 // (searchCatalogIndex) — show the edited product immediately instead of its
 // pre-edit copy until a background rescan finishes.
-const snapshotPatches = new Map<string, { patch: SnapshotProductPatch; at: number }>();
+const snapshotPatches = fullCatalogState.patches;
 
 const applySnapshotPatch = (product: CatalogProduct, patch: SnapshotProductPatch): CatalogProduct => {
   const next: CatalogProduct = { ...product, ...patch };
@@ -3396,7 +3422,7 @@ const applySnapshotPatch = (product: CatalogProduct, patch: SnapshotProductPatch
 // Products created through the admin panel, keyed like snapshotPatches. A
 // rescan already running when the product was created would not contain it,
 // so it is appended to that rescan's result too.
-const snapshotInserts = new Map<string, { product: CatalogProduct; at: number }>();
+const snapshotInserts = fullCatalogState.inserts;
 
 const applySnapshotPatches = <T extends FullCatalogSnapshot>(snapshot: T, scanStartedAt: number): T => {
   for (const [code, { at }] of snapshotPatches) {
@@ -3423,35 +3449,34 @@ export function addFullCatalogSnapshotProduct(product: CatalogProduct) {
   if (!key) return;
   snapshotInserts.set(key, { product, at: Date.now() });
 
-  if (!fullCatalogCache) return;
-  const exists = fullCatalogCache.products.some((item) => normalizeFacetValue(item.code) === key);
-  fullCatalogCache = {
-    ...fullCatalogCache,
+  if (!fullCatalogState.cache) return;
+  const exists = fullCatalogState.cache.products.some((item) => normalizeFacetValue(item.code) === key);
+  fullCatalogState.cache = {
+    ...fullCatalogState.cache,
     products: exists
-      ? fullCatalogCache.products.map((item) => (normalizeFacetValue(item.code) === key ? product : item))
-      : [...fullCatalogCache.products, product],
+      ? fullCatalogState.cache.products.map((item) => (normalizeFacetValue(item.code) === key ? product : item))
+      : [...fullCatalogState.cache.products, product],
   };
 }
 
 /** True while the in-memory full catalog is loaded and not past its stale TTL,
  * i.e. a miss in it is a real "no such product" rather than "not loaded yet". */
 export const isFullCatalogSnapshotWarm = () =>
-  Boolean(fullCatalogCache) && Date.now() - (fullCatalogCache?.fetchedAt ?? 0) < FULL_CATALOG_STALE_TTL_MS;
+  Boolean(fullCatalogState.cache) && Date.now() - (fullCatalogState.cache?.fetchedAt ?? 0) < FULL_CATALOG_STALE_TTL_MS;
 
 // Cache-only lookup by exact code or article in the warm snapshot: lets the
 // product page open a product missing from the build-time sitemap snapshot
 // (created after the deploy) without waiting on a slow 1C search.
 export const findFullCatalogSnapshotProduct = (token: string): CatalogProduct | null => {
-  if (!fullCatalogCache) {
-    // In production the product page holds its own copy of this module (the
-    // route handlers' warm snapshot isn't shared), so nothing else would ever
-    // load it here: every product missing from the sitemap snapshot went to
-    // slow 1C searches on each visit. Start the (deduplicated, backed-off)
-    // scan so later visits answer from memory.
+  if (!fullCatalogState.cache) {
+    // Nothing may have loaded the snapshot yet (right after a restart), and
+    // every product missing from the sitemap snapshot would then go to slow
+    // 1C searches on each visit. Start the (deduplicated, backed-off) scan
+    // so later visits answer from memory.
     void getFullCatalogSnapshot().catch(() => undefined);
     return null;
   }
-  if (Date.now() - fullCatalogCache.fetchedAt >= FULL_CATALOG_FRESH_TTL_MS) {
+  if (Date.now() - fullCatalogState.cache.fetchedAt >= FULL_CATALOG_FRESH_TTL_MS) {
     void getFullCatalogSnapshot().catch(() => undefined);
   }
   const compact = (value: string) => value.trim().toLowerCase().replace(/[\s./_-]+/g, "");
@@ -3459,7 +3484,7 @@ export const findFullCatalogSnapshotProduct = (token: string): CatalogProduct | 
   if (wanted.length < 4) return null;
 
   let articleMatch: CatalogProduct | null = null;
-  for (const product of fullCatalogCache.products) {
+  for (const product of fullCatalogState.cache.products) {
     if (compact(product.code || "") === wanted) return product;
     if (!articleMatch && compact(product.article || "") === wanted) articleMatch = product;
   }
@@ -3476,10 +3501,10 @@ export function patchFullCatalogSnapshotProduct(code: string, patch: SnapshotPro
   const previous = snapshotPatches.get(key)?.patch;
   snapshotPatches.set(key, { patch: { ...previous, ...fields }, at: Date.now() });
 
-  if (!fullCatalogCache) return;
-  fullCatalogCache = {
-    ...fullCatalogCache,
-    products: fullCatalogCache.products.map((product) =>
+  if (!fullCatalogState.cache) return;
+  fullCatalogState.cache = {
+    ...fullCatalogState.cache,
+    products: fullCatalogState.cache.products.map((product) =>
       normalizeFacetValue(product.code) === key ? applySnapshotPatch(product, fields) : product
     ),
   };
@@ -3585,7 +3610,7 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
 // without a separate 1C description call (that one streams in later).
 const snapshotDescriptionIndex = new WeakMap<FullCatalogSnapshot, Map<string, string>>();
 export const peekSnapshotProductDescription = (code: string) => {
-  const snapshot = fullCatalogCache;
+  const snapshot = fullCatalogState.cache;
   const key = (code || "").trim().toLowerCase();
   if (!snapshot || !key) return "";
   let index = snapshotDescriptionIndex.get(snapshot);
@@ -3612,55 +3637,55 @@ const getFullCatalogSnapshot = async (): Promise<{
 }> => {
   const now = Date.now();
 
-  if (fullCatalogCache && now - fullCatalogCache.fetchedAt < FULL_CATALOG_FRESH_TTL_MS) {
-    return { snapshot: fullCatalogCache, stale: false };
+  if (fullCatalogState.cache && now - fullCatalogState.cache.fetchedAt < FULL_CATALOG_FRESH_TTL_MS) {
+    return { snapshot: fullCatalogState.cache, stale: false };
   }
 
   const refresh = () => {
     // A scan stuck past its ceiling (a 1C call that never settled) would
     // otherwise pin every later reader to the old snapshot for good.
-    if (fullCatalogRefreshPromise && now - fullCatalogRefreshStartedAt > FULL_CATALOG_SCAN_HUNG_MS) {
-      fullCatalogRefreshPromise = null;
+    if (fullCatalogState.refreshPromise && now - fullCatalogState.refreshStartedAt > FULL_CATALOG_SCAN_HUNG_MS) {
+      fullCatalogState.refreshPromise = null;
     }
-    if (!fullCatalogRefreshPromise) {
+    if (!fullCatalogState.refreshPromise) {
       // After a failed scan, wait before the next one: each attempt is ~20
       // heavy 1C calls, and every search request would otherwise start one.
-      if (fullCatalogCache && now - fullCatalogRefreshFailedAt < FULL_CATALOG_RETRY_AFTER_FAILURE_MS) {
+      if (fullCatalogState.cache && now - fullCatalogState.refreshFailedAt < FULL_CATALOG_RETRY_AFTER_FAILURE_MS) {
         return Promise.reject(new Error("Full catalog snapshot refresh is backing off"));
       }
       const scanStartedAt = Date.now();
-      const scanGeneration = fullCatalogGeneration;
-      fullCatalogRefreshStartedAt = scanStartedAt;
+      const scanGeneration = fullCatalogState.generation;
+      fullCatalogState.refreshStartedAt = scanStartedAt;
       const ownPromise: Promise<FullCatalogSnapshot> = scanFullCatalogSnapshot()
         .then((scanned) => {
           const snapshot = applySnapshotPatches(scanned, scanStartedAt);
           // Invalidated mid-scan: keep it usable but stale, so the next read
           // starts a rescan that sees the edit.
           const fetchedAt =
-            scanGeneration === fullCatalogGeneration
+            scanGeneration === fullCatalogState.generation
               ? scanStartedAt
               : scanStartedAt - FULL_CATALOG_FRESH_TTL_MS - 1000;
-          fullCatalogCache = { ...snapshot, fetchedAt };
+          fullCatalogState.cache = { ...snapshot, fetchedAt };
           return snapshot;
         })
         .catch((error: unknown) => {
-          fullCatalogRefreshFailedAt = Date.now();
+          fullCatalogState.refreshFailedAt = Date.now();
           console.warn(
             `[catalog] full snapshot refresh failed: ${error instanceof Error ? error.message : String(error)}`
           );
           throw error;
         })
         .finally(() => {
-          if (fullCatalogRefreshPromise === ownPromise) fullCatalogRefreshPromise = null;
+          if (fullCatalogState.refreshPromise === ownPromise) fullCatalogState.refreshPromise = null;
         });
-      fullCatalogRefreshPromise = ownPromise;
+      fullCatalogState.refreshPromise = ownPromise;
     }
-    return fullCatalogRefreshPromise;
+    return fullCatalogState.refreshPromise;
   };
 
-  if (fullCatalogCache && now - fullCatalogCache.fetchedAt < FULL_CATALOG_STALE_TTL_MS) {
+  if (fullCatalogState.cache && now - fullCatalogState.cache.fetchedAt < FULL_CATALOG_STALE_TTL_MS) {
     void refresh().catch(() => undefined);
-    return { snapshot: fullCatalogCache, stale: true };
+    return { snapshot: fullCatalogState.cache, stale: true };
   }
 
   const snapshot = await refresh();
@@ -3672,7 +3697,7 @@ export const fetchPromoCatalogProducts = async (): Promise<{
   stale: boolean;
 }> => {
   const { snapshot, stale } = await getFullCatalogSnapshot();
-  const promoSnapshot = { ...snapshot, fetchedAt: fullCatalogCache?.fetchedAt ?? 0 };
+  const promoSnapshot = { ...snapshot, fetchedAt: fullCatalogState.cache?.fetchedAt ?? 0 };
   const products = snapshot.products.filter((product) => {
     const key = catalogItemKey(product);
     return key ? readSnapshotPromoOffer(key, promoSnapshot, product.priceEuro).hasPromo : false;
@@ -3697,9 +3722,9 @@ export type SearchFacets = { categories: SearchFacet[]; producers: Array<{ label
 // snapshot object itself changes.
 let searchVocabulary: { snapshot: FullCatalogSnapshot; words: Map<string, number> } | null = null;
 export const getSearchVocabulary = (): Map<string, number> | null => {
-  if (!fullCatalogCache) return null;
-  if (searchVocabulary?.snapshot !== fullCatalogCache) {
-    searchVocabulary = { snapshot: fullCatalogCache, words: buildSearchVocabulary(fullCatalogCache.products) };
+  if (!fullCatalogState.cache) return null;
+  if (searchVocabulary?.snapshot !== fullCatalogState.cache) {
+    searchVocabulary = { snapshot: fullCatalogState.cache, words: buildSearchVocabulary(fullCatalogState.cache.products) };
   }
   return searchVocabulary.words;
 };
@@ -3765,7 +3790,7 @@ export const searchCatalogIndex = async (
 } | null> => {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) return null;
-  if (!fullCatalogCache) {
+  if (!fullCatalogState.cache) {
     // Cold start (no snapshot yet): don't block this request on a ~20-call
     // scan — kick it off in the background and answer this one query via the
     // live path instead. Only happens right after a restart in practice.
@@ -3917,7 +3942,7 @@ const compareCodes = (a: CatalogProduct, b: CatalogProduct) =>
 export const listCatalogFromSnapshot = async (
   query: SnapshotListingQuery
 ): Promise<{ items: CatalogProduct[]; totalCount: number; hasMore: boolean; nextOffset: number } | null> => {
-  if (!fullCatalogCache) {
+  if (!fullCatalogState.cache) {
     void getFullCatalogSnapshot().catch(() => undefined);
     return null;
   }
@@ -3925,7 +3950,7 @@ export const listCatalogFromSnapshot = async (
   if (!snapshotResult) return null;
   const { snapshot } = snapshotResult;
   // Same snapshot shape fetchPromoCatalogProducts reads promo offers with.
-  const promoSnapshot = query.promoOnly ? { ...snapshot, fetchedAt: fullCatalogCache?.fetchedAt ?? 0 } : null;
+  const promoSnapshot = query.promoOnly ? { ...snapshot, fetchedAt: fullCatalogState.cache?.fetchedAt ?? 0 } : null;
 
   let branches: CatalogHierarchyBranch[] = [];
   if (query.expandHierarchy && query.selectedCategories.length === 0 && (query.group || query.subcategory)) {
@@ -4017,16 +4042,16 @@ export const listCatalogFromSnapshot = async (
 let snapshotProductIndex: { snapshot: FullCatalogSnapshot; byKey: Map<string, CatalogProduct> } | null = null;
 
 const getSnapshotProductIndex = (): Map<string, CatalogProduct> | null => {
-  if (!fullCatalogCache) return null;
-  if (snapshotProductIndex && snapshotProductIndex.snapshot === fullCatalogCache) {
+  if (!fullCatalogState.cache) return null;
+  if (snapshotProductIndex && snapshotProductIndex.snapshot === fullCatalogState.cache) {
     return snapshotProductIndex.byKey;
   }
   const byKey = new Map<string, CatalogProduct>();
-  for (const product of fullCatalogCache.products) {
+  for (const product of fullCatalogState.cache.products) {
     const key = catalogItemKey(product);
     if (key && !byKey.has(key)) byKey.set(key, product);
   }
-  snapshotProductIndex = { snapshot: fullCatalogCache, byKey };
+  snapshotProductIndex = { snapshot: fullCatalogState.cache, byKey };
   return byKey;
 };
 
@@ -4063,7 +4088,7 @@ export const getSnapshotPriceLookup = (
 ): Record<string, SnapshotPriceEntry> => {
   const byKey = getSnapshotProductIndex();
   if (!byKey) return {};
-  const cache = fullCatalogCache as FullCatalogSnapshot & { fetchedAt: number };
+  const cache = fullCatalogState.cache as FullCatalogSnapshot & { fetchedAt: number };
   void getFullCatalogSnapshot().catch(() => undefined);
 
   const result: Record<string, SnapshotPriceEntry> = {};
@@ -4156,7 +4181,7 @@ export const fetchCatalogPriceDetailsByLookupKeys = async (
   // any given page) shouldn't still cost a live "confirm no promo" round
   // trip below. Before this, only promo hits were marked matched, so
   // liveLookupKeys below still ended up as ~every key on the page.
-  if (fullCatalogCache) {
+  if (fullCatalogState.cache) {
     const snapshotAnswers = getSnapshotPriceLookup(normalizedKeys);
     for (const key of normalizedKeys) {
       const answer = snapshotAnswers[key];

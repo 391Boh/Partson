@@ -19,7 +19,10 @@ async function loadFeed(): Promise<Feed> {
   let snapshot = prepared;
   if (!snapshot || Date.now() - snapshot.pricing.generatedAt > 60 * 60 * 1000) {
     try {
-      const fresh = await getGoogleMerchantFeedSnapshot({ siteUrl: getSiteUrl() });
+      // A legacy MERCHANT_FEED_MAX_ITEMS=1000 can still be present in the
+      // web process. Like the cron generator, public refreshes must publish
+      // the full eligible catalog, or this shared snapshot loses its tail.
+      const fresh = await getGoogleMerchantFeedSnapshot({ siteUrl: getSiteUrl(), maxItems: null });
       if (!fresh.sourceCount) throw new Error("Unconfirmed empty catalog");
       snapshot = fresh;
       await writeMerchantFeedSnapshot(fresh).catch(() => undefined);

@@ -11,7 +11,7 @@ export const suites = {
     "site-url", "euro-rate-client", "marketing-attribution", "onec-client", "onec-stock-cache",
     "partner-grants", "partner-prices-route", "partner-status-cache", "profile-appearance-api",
     "order-cancel", "admin-chat-activity", "admin-catalog-price-loading",
-    "home-blog-cache", "home-blog-cover", "product-google-pricing", "product-seo-images", "product-image-sitemap", "product-image-final-miss",
+    "home-blog-cache", "home-blog-cover", "product-google-pricing", "merchant-feed-refresh", "product-seo-images", "product-image-sitemap", "product-image-final-miss",
   ].map((name) => `scripts/test-${name}.mjs`),
   browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "recommendation-layout", "directory-hero", "navigation-progress"]
     .map((name) => `scripts/test-${name}.mjs`),

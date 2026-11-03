@@ -4,7 +4,9 @@
 // Entries are separated by "," or ";" outside parentheses; an entry that
 // starts with a brand opens that brand, otherwise it continues the previous
 // one. An engine-volume and/or date range at the end of an entry applies to
-// every model listed since the previous such tail ("10.96-" — still made).
+// every model listed since the previous such tail ("10.96-" — still made),
+// across makes: in "VOLVO C30, V50; FORD FOCUS II 1.6-2.0 10.03-" the range
+// is TecDoc's summary for the whole list, VOLVO included.
 // Models joined by "/ " ("Vectra/ Calibra") are separate models; "B3/B4" and
 // "FURGON/NADWOZIE" (no space after the slash) stay one. Cyrillic text after
 // the list (a spec row glued on without a line break, "БУ! …", a repeated
@@ -135,13 +137,21 @@ export const parseProductFitment = (line: string): ProductFitmentGroup[] | null 
   let brand = "";
   let pending: string[] = [];
   let pendingBrand = "";
+  // Groups closed by a new make before any tail: the next tail is theirs too.
+  let untailed: ProductFitmentGroup[] = [];
 
   const flush = (volume: string, period: string) => {
     if (pending.length > 0) {
       // "MAXIMA, MAXIMA / MAXIMA QX V": each model once.
-      groups.push({ brand: pendingBrand, models: Array.from(new Set(pending)), volume, period });
+      const group = { brand: pendingBrand, models: Array.from(new Set(pending)), volume, period };
+      groups.push(group);
+      if (!volume && !period) untailed.push(group);
     }
     pending = [];
+    if (volume || period) {
+      for (const group of untailed) Object.assign(group, { volume, period });
+      untailed = [];
+    }
   };
 
   for (const entry of splitEntries(line.replace(/\s+/g, " "))) {
