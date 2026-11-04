@@ -41,9 +41,13 @@ export default function robots(): MetadataRoute.Robots {
       // product render queries the single-threaded 1C — their bursts slowed
       // Googlebot's responses to 5–15 s. They honour Crawl-delay (Google
       // ignores it, so search crawling is unaffected).
+      // Catalog search results (noindex) fire several full-catalog 1C
+      // queries each; MJ12bot/DotBot walked thousands of them a day and kept
+      // every 1C worker busy. Products stay reachable through the sitemap.
       {
         userAgent: ["SemrushBot", "AhrefsBot", "DotBot", "MJ12bot", "Reflectionbot"],
-        ...publicContentRules,
+        allow: publicContentRules.allow,
+        disallow: [...publicContentRules.disallow, "/katalog?search=", "/*?*search="],
         crawlDelay: 10,
       },
     ],
