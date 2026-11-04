@@ -29,6 +29,29 @@ const CATALOG_IMAGE_BATCH_ROUTE = "/api/catalog-image-batch";
 const MAX_BATCH_ITEMS = PRODUCT_IMAGE_BATCH_MAX_ITEMS;
 const BATCH_RESPONSE_CACHE_TTL_MS = 1000 * 60 * 20;
 const BATCH_REQUEST_TIMEOUT_MS = 12000;
+// Release cached/fast thumbnails without waiting for a slow supplier lookup.
+// The limit is shared by all callers, including overlapping virtual windows.
+const IMAGE_REQUEST_CHUNK_SIZE = 4;
+const IMAGE_REQUEST_CONCURRENCY = 3;
+let activeImageRequests = 0;
+const imageRequestQueue: Array<() => void> = [];
+
+const withImageRequestSlot = async <T,>(run: () => Promise<T>): Promise<T> => {
+  await new Promise<void>((resolve) => {
+    const start = () => {
+      activeImageRequests += 1;
+      resolve();
+    };
+    if (activeImageRequests < IMAGE_REQUEST_CONCURRENCY) start();
+    else imageRequestQueue.push(start);
+  });
+  try {
+    return await run();
+  } finally {
+    activeImageRequests -= 1;
+    imageRequestQueue.shift()?.();
+  }
+};
 
 const batchResponseCache = new Map<
   string,
@@ -177,7 +200,11 @@ const normalizeBatchItems = (items: CatalogImageBatchRequestItem[]) => {
 
 export const fetchCatalogImageBatch = async (
   items: CatalogImageBatchRequestItem[],
-  options?: { deep?: boolean; signal?: AbortSignal }
+  options?: {
+    deep?: boolean;
+    signal?: AbortSignal;
+    onProgress?: (items: CatalogImageBatchResponseItem[]) => void;
+  }
 ) => {
   if (typeof window === "undefined") return [];
 
@@ -213,6 +240,13 @@ export const fetchCatalogImageBatch = async (
     missingItems.push(item);
   }
 
+  const emitProgress = (results: CatalogImageBatchResponseItem[]) => {
+    if (!options?.signal?.aborted && results.length > 0) {
+      options?.onProgress?.(results);
+    }
+  };
+  emitProgress(cachedResults);
+
   if (missingItems.length === 0) {
     return cachedResults;
   }
@@ -230,6 +264,7 @@ export const fetchCatalogImageBatch = async (
 
   const cachedBatchResponse = batchResponseCache.get(requestCacheKey);
   if (cachedBatchResponse) {
+    emitProgress(cachedBatchResponse.value);
     return [...cachedResults, ...cachedBatchResponse.value];
   }
 
@@ -258,37 +293,42 @@ export const fetchCatalogImageBatch = async (
       deferredByItemKey.set(itemKey, deferred);
     }
 
-    const freshRequestPromise =
-      newItems.length === 0
-        ? Promise.resolve([] as CatalogImageBatchResponseItem[])
-        : requestCatalogImageBatch(newItems, { deep })
-            .then((results) => {
-              const resultsByKey = new Map(
-                results.map((result) => [result.key, result])
-              );
-              const normalizedResults = newItems.map((item) => {
-                const key = buildProductImageBatchKey(item.code, item.article);
-                return resultsByKey.get(key) ?? buildMissingBatchResult(item);
-              });
-
-              for (const result of normalizedResults) {
-                deferredByItemKey.get(result.key)?.resolve(result);
-              }
-
-              return normalizedResults;
-            })
-            .catch((error) => {
-              for (const item of newItems) {
-                const key = buildProductImageBatchKey(item.code, item.article);
-                deferredByItemKey.get(key)?.reject(error);
-              }
-              throw error;
-            })
-            .finally(() => {
-              for (const flightKey of newItemFlightKeys) {
-                batchItemInFlight.delete(flightKey);
-              }
-            });
+    const chunks: CatalogImageBatchRequestItem[][] = [];
+    for (let offset = 0; offset < newItems.length; offset += IMAGE_REQUEST_CHUNK_SIZE) {
+      chunks.push(newItems.slice(offset, offset + IMAGE_REQUEST_CHUNK_SIZE));
+    }
+    const freshRequestPromise = Promise.allSettled(
+      chunks.map((chunk) => withImageRequestSlot(async () => {
+        try {
+          const results = await requestCatalogImageBatch(chunk, { deep });
+          const resultsByKey = new Map(results.map((result) => [result.key, result]));
+          const normalizedResults = chunk.map((item) => {
+            const key = buildProductImageBatchKey(item.code, item.article);
+            return resultsByKey.get(key) ?? buildMissingBatchResult(item);
+          });
+          persistBatchResults(normalizedResults, { persistMissing: deep });
+          for (const result of normalizedResults) {
+            deferredByItemKey.get(result.key)?.resolve(result);
+          }
+          return normalizedResults;
+        } catch (error) {
+          for (const item of chunk) {
+            const key = buildProductImageBatchKey(item.code, item.article);
+            deferredByItemKey.get(key)?.reject(error);
+          }
+          throw error;
+        }
+      }))
+    ).then((settled) => {
+      const ready = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+      const failed = settled.find((result) => result.status === "rejected");
+      if (ready.length === 0 && failed?.status === "rejected") throw failed.reason;
+      return ready;
+    }).finally(() => {
+      for (const flightKey of newItemFlightKeys) {
+        batchItemInFlight.delete(flightKey);
+      }
+    });
 
     requestPromise = Promise.allSettled([
       freshRequestPromise,
@@ -318,6 +358,15 @@ export const fetchCatalogImageBatch = async (
     });
 
     batchInFlight.set(requestCacheKey, requestPromise);
+  }
+
+  // Subscribe to item promises even when this caller joined an existing batch.
+  // Settled items remain available until its other chunks finish.
+  if (options?.onProgress) {
+    for (const item of missingItems) {
+      const promise = batchItemInFlight.get(buildBatchItemFlightKey(item, options.deep === true));
+      if (promise) void promise.then((result) => emitProgress([result])).catch(() => undefined);
+    }
   }
 
   const fetchedResults = await requestPromise.finally(() => {
@@ -351,5 +400,5 @@ export const fetchCatalogImageBatch = async (
 
 export const primeCatalogImageBatch = async (
   items: CatalogImageBatchRequestItem[],
-  options?: { deep?: boolean; signal?: AbortSignal }
+  options?: Parameters<typeof fetchCatalogImageBatch>[1]
 ) => fetchCatalogImageBatch(items, options);

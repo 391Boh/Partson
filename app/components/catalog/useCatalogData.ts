@@ -102,6 +102,7 @@ function useCatalogData(params: {
   withPhoto?: boolean;
   includeCostPrices?: boolean;
   includePartnerPrices?: boolean;
+  priceAccessIdentity?: string;
   getAdminAuthToken?: () => Promise<string | null>;
   initialPagePayload?: CatalogPagePayload | null;
   initialQuerySignature?: string | null;
@@ -137,6 +138,7 @@ function useCatalogData(params: {
     withPhoto = false,
     includeCostPrices = false,
     includePartnerPrices = false,
+    priceAccessIdentity = "",
     getAdminAuthToken,
     initialPagePayload,
     initialQuerySignature,
@@ -335,10 +337,11 @@ function useCatalogData(params: {
     initialPagePayload?.prices ?? {}
   );
   const costPricesRef = useRef<Record<string, number | null>>({});
-  const priceAccessScopeRef = useRef(`${includeCostPrices}:${includePartnerPrices}`);
+  const priceAccessScope = `${includeCostPrices}:${includePartnerPrices}${priceAccessIdentity ? `:${priceAccessIdentity}` : ""}`;
+  const priceAccessScopeRef = useRef(priceAccessScope);
   useIsomorphicLayoutEffect(() => {
-    priceAccessScopeRef.current = `${includeCostPrices}:${includePartnerPrices}`;
-  }, [includeCostPrices, includePartnerPrices]);
+    priceAccessScopeRef.current = priceAccessScope;
+  }, [priceAccessScope]);
   const promoPricesRef = useRef<Record<string, number | null>>({});
   const hasPromoAvailabilityRef = useRef<Record<string, boolean>>({});
   const promoPercentByKeyRef = useRef<Record<string, number | null>>({});
@@ -553,6 +556,7 @@ function useCatalogData(params: {
 
       const prefetchedPrices = options?.prefetchedPrices ?? {};
       const requestAccessScope = priceAccessScopeRef.current;
+      const requestLoadingScope = `${requestAccessScope}:${options?.querySignatureSnapshot ?? activeQuerySignatureRef.current}`;
       const allowFullLookup = options?.allowFullLookup === true;
       const nowTs = Date.now();
       const immediateUpdates: Record<string, number | null> = {};
@@ -648,7 +652,7 @@ function useCatalogData(params: {
         }
 
         if (
-          priceLoadingKeysRef.current.has(stateKey) &&
+          priceLoadingKeysRef.current.has(`${requestLoadingScope}:${stateKey}`) &&
           !needsCostPrice &&
           !needsPromoPrice
         ) continue;
@@ -722,12 +726,12 @@ function useCatalogData(params: {
       if (requestItems.length === 0) return;
 
       for (const item of requestItems) {
-        priceLoadingKeysRef.current.add(item.stateKey);
+        priceLoadingKeysRef.current.add(`${requestLoadingScope}:${item.stateKey}`);
       }
 
       const releaseRequestItems = () => {
         for (const item of requestItems) {
-          priceLoadingKeysRef.current.delete(item.stateKey);
+          priceLoadingKeysRef.current.delete(`${requestLoadingScope}:${item.stateKey}`);
         }
       };
 
@@ -866,6 +870,7 @@ function useCatalogData(params: {
         }
       };
 
+      let priceTokenPromise: Promise<string | null> | undefined;
       const postBatch = async (
         batch: typeof requestItems,
         mode: "fast" | "partner" | "full"
@@ -882,7 +887,7 @@ function useCatalogData(params: {
           } satisfies PriceBatchResult;
         }
 
-        const requestKey = buildPriceBatchRequestKey(mode, batch);
+        const requestKey = buildPriceBatchRequestKey(mode, batch, requestAccessScope);
         const existing = inFlightPriceBatchRequests.get(requestKey);
         if (existing) {
           return await awaitWithAbortSignal(existing, options?.signal);
@@ -894,17 +899,14 @@ function useCatalogData(params: {
           if (mode === "full" || mode === "partner") {
             // Both protected modes require a Firebase ID token. The server
             // independently verifies either admin or partner access.
-            const tokenStart = performance.now();
-            console.log(`[promo-timing] postBatch(${mode}) awaiting token`, Math.round(tokenStart));
-            const adminToken = await getAdminAuthToken?.().catch(() => null);
-            console.log(
-              `[promo-timing] postBatch(${mode}) got token`,
-              Math.round(performance.now()),
-              "took",
-              Math.round(performance.now() - tokenStart),
-              "ms, token present:",
-              Boolean(adminToken)
-            );
+            priceTokenPromise ??= new Promise<string | null>((resolve) => {
+              const timer = window.setTimeout(() => resolve(null), 8000);
+              void Promise.resolve().then(() => getAdminAuthToken?.()).then(
+                token => { window.clearTimeout(timer); resolve(token ?? null); },
+                () => { window.clearTimeout(timer); resolve(null); }
+              );
+            });
+            const adminToken = await priceTokenPromise;
             if (adminToken) {
               headers.Authorization = `Bearer ${adminToken}`;
               tokenAttached = true;
@@ -928,23 +930,17 @@ function useCatalogData(params: {
             } satisfies PriceBatchResult;
           }
 
-          const fetchStart = performance.now();
-          console.log(`[promo-timing] postBatch(${mode}) sending fetch`, Math.round(fetchStart));
-          const response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ items: batch }),
-            cache: "no-store",
-          });
-          console.log(
-            `[promo-timing] postBatch(${mode}) fetch resolved`,
-            Math.round(performance.now()),
-            "took",
-            Math.round(performance.now() - fetchStart),
-            "ms, status:",
-            response.status
-          );
-
+          const controller = new AbortController();
+          const timeout = window.setTimeout(() => controller.abort(), 15_000);
+          let response: Response;
+          try {
+            response = await fetch(`${CATALOG_PRICE_BATCH_ROUTE}?mode=${mode}`, {
+              method: "POST", headers, body: JSON.stringify({ items: batch }),
+              cache: "no-store", signal: controller.signal,
+            });
+          } finally {
+            window.clearTimeout(timeout);
+          }
           if (!response.ok) {
             throw new Error(`Price batch failed: ${response.status}`);
           }
@@ -981,17 +977,25 @@ function useCatalogData(params: {
         return await awaitWithAbortSignal(requestPromise, options?.signal);
       };
 
+      const protectedPriceTasks: Promise<PriceBatchResult>[] = [];
       try {
-        // Admin prices must not queue behind the public batch. Commit positive
-        // answers as soon as the authenticated request finishes, even when the
-        // public lookup is still waiting on unrelated 1C keys.
-        const adminResolvedPriceKeys = new Set<string>();
+        // Sale/promo prices must not wait for purchase-cost lookups. The light
+        // protected request and full admin details run independently.
+        const protectedResolvedPriceKeys = new Set<string>();
+        let adminDetailsCommitted = false;
+        const partnerLookupPromise =
+          (includePartnerPrices || includeCostPrices) && allowFullLookup
+            ? observeCatalogRequest(postBatch(requestItems, "partner"))
+            : null;
         const adminLookupPromise = includeCostPrices && allowFullLookup
           ? observeCatalogRequest(postBatch(requestItems, "full"))
           : null;
+        if (partnerLookupPromise) protectedPriceTasks.push(partnerLookupPromise);
         if (adminLookupPromise) {
+          protectedPriceTasks.push(adminLookupPromise);
           void adminLookupPromise.then((result) => {
-            if (!result.verified) return;
+            if (!result.verified || !result.isPartner) return;
+            adminDetailsCommitted = true;
             const regular: Record<string, number> = {};
             const cost: Record<string, number> = {};
             const promo: Record<string, number | null> = {};
@@ -1000,7 +1004,7 @@ function useCatalogData(params: {
               const costPrice = result.costPrices[item.stateKey];
               if (typeof price === "number" && Number.isFinite(price) && price > 0) {
                 regular[item.stateKey] = price;
-                adminResolvedPriceKeys.add(item.stateKey);
+                protectedResolvedPriceKeys.add(item.stateKey);
               }
               if (typeof costPrice === "number" && Number.isFinite(costPrice) && costPrice > 0) {
                 cost[item.stateKey] = costPrice;
@@ -1009,17 +1013,14 @@ function useCatalogData(params: {
                 promo[item.stateKey] = result.promoPrices[item.stateKey];
               }
             }
-            commitResolvedPrices(regular, cost, PRICE_REVALIDATE_AFTER_NULL_MS, promo, result.isPartner);
+            commitResolvedPrices(regular, cost, PRICE_REVALIDATE_AFTER_NULL_MS, promo,
+              true);
           }).catch(handleCatalogBackgroundError);
         }
         // Start the protected partner lookup alongside the public price batch.
         // Waiting for the public price first made promotional prices visibly
         // pop in several seconds later on slower mobile connections.
-        const partnerLookupPromise =
-          includePartnerPrices && !includeCostPrices && allowFullLookup
-            ? observeCatalogRequest(postBatch(requestItems, "partner"))
-            : null;
-        const protectedLookupItems = includePartnerPrices && !includeCostPrices ? requestItems : [];
+        const protectedLookupItems = includePartnerPrices || includeCostPrices ? requestItems : [];
         if (allowFullLookup && protectedLookupItems.length > 0) {
           void (partnerLookupPromise ?? postBatch(protectedLookupItems, "partner"))
             .then((partnerResult) => {
@@ -1028,7 +1029,7 @@ function useCatalogData(params: {
               // answer. Leave the existing isPartner/promoPrices state
               // untouched instead of wiping already-resolved promo prices
               // because of an unrelated, unlucky auth-timing race.
-              if (!partnerResult.verified) return;
+              if (!partnerResult.verified || adminDetailsCommitted) return;
 
               const resolvedPartnerPrices: Record<string, number | null> = {};
               const resolvedPromoPrices: Record<string, number | null> = {};
@@ -1036,12 +1037,13 @@ function useCatalogData(params: {
               for (const item of protectedLookupItems) {
                 const resolvedPrice = partnerResult.prices[item.stateKey];
                 if (
-                  !adminResolvedPriceKeys.has(item.stateKey) &&
+                  !protectedResolvedPriceKeys.has(item.stateKey) &&
                   typeof resolvedPrice === "number" &&
                   Number.isFinite(resolvedPrice) &&
                   resolvedPrice > 0
                 ) {
                   resolvedPartnerPrices[item.stateKey] = resolvedPrice;
+                  protectedResolvedPriceKeys.add(item.stateKey);
                 }
 
                 const resolvedPromoPrice = partnerResult.promoPrices[item.stateKey];
@@ -1079,12 +1081,16 @@ function useCatalogData(params: {
         for (const item of requestItems) {
           const resolvedPrice = fastResult.prices[item.stateKey];
           if (
-            !adminResolvedPriceKeys.has(item.stateKey) &&
+            !protectedResolvedPriceKeys.has(item.stateKey) &&
             typeof resolvedPrice === "number" &&
             Number.isFinite(resolvedPrice) &&
             resolvedPrice > 0
           ) {
             normalizedFastPrices[item.stateKey] = resolvedPrice;
+          }
+
+          if (!protectedResolvedPriceKeys.has(item.stateKey) && resolvedPrice === null) {
+            normalizedFastPrices[item.stateKey] = null;
           }
 
           const resolvedCostPrice = fastResult.costPrices[item.stateKey];
@@ -1142,93 +1148,21 @@ function useCatalogData(params: {
           );
         }
 
-        const unresolvedItems = requestItems.filter((item) => {
-          if (adminResolvedPriceKeys.has(item.stateKey)) return false;
-          const value = normalizedFastPrices[item.stateKey];
-          return !(typeof value === "number" && Number.isFinite(value) && value > 0);
-        });
-
-        const fullLookupItems = includeCostPrices ? requestItems : unresolvedItems;
-        if (fullLookupItems.length === 0 && protectedLookupItems.length === 0) return;
-
-        if (!allowFullLookup) {
-          for (const item of [...fullLookupItems, ...protectedLookupItems]) {
-            priceRetryCooldownUntilRef.current[item.stateKey] =
-              Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-          }
-          return;
-        }
-
-        if (fullLookupItems.length > 0) void (adminLookupPromise ?? postBatch(fullLookupItems, "full"))
-          .then((fullResult) => {
-            const unresolvedStateKeys = new Set(
-              unresolvedItems.map((item) => item.stateKey)
-            );
-            const resolvedFullPrices: Record<string, number | null> = {};
-            const resolvedFullCostPrices: Record<string, number | null> = {};
-
-            for (const item of fullLookupItems) {
-              const resolvedPrice = fullResult.prices[item.stateKey];
-              if (
-                typeof resolvedPrice === "number" &&
-                Number.isFinite(resolvedPrice) &&
-                resolvedPrice > 0
-              ) {
-                resolvedFullPrices[item.stateKey] = resolvedPrice;
-              } else if (unresolvedStateKeys.has(item.stateKey)) {
-                resolvedFullPrices[item.stateKey] = null;
-              }
-
-              const resolvedCostPrice = fullResult.costPrices[item.stateKey];
-              if (
-                typeof resolvedCostPrice === "number" &&
-                Number.isFinite(resolvedCostPrice) &&
-                resolvedCostPrice > 0
-              ) {
-                resolvedFullCostPrices[item.stateKey] = resolvedCostPrice;
-              }
-            }
-
-            if (
-              Object.keys(resolvedFullPrices).length > 0 ||
-              Object.keys(resolvedFullCostPrices).length > 0
-            ) {
-              commitResolvedPrices(
-                resolvedFullPrices,
-                resolvedFullCostPrices,
-                PRICE_REVALIDATE_AFTER_NULL_MS
-              );
-            }
-          })
-          .catch((error) => {
-            if (isAbortLikeError(error)) return;
-            if (unresolvedItems.length === 0) return;
-
-            const fallbackNulls = Object.fromEntries(
-              unresolvedItems.map((item) => [item.stateKey, null])
-            ) as Record<string, null>;
-            commitResolvedPrices(
-              fallbackNulls,
-              undefined,
-              PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS
-            );
-          });
-
-        if (unresolvedItems.length > 0) {
-          const cooldownUntil = Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
-          for (const item of unresolvedItems) {
-            priceRetryCooldownUntilRef.current[item.stateKey] = cooldownUntil;
-          }
-        }
-      } catch (error) {
-        if (!isAbortLikeError(error)) {
+        // Fast mode already resolves the public price. A guest/partner cannot
+        // gain anything from an admin-only fallback, and admin details are
+        // already running above. Retrying it here duplicated private work.
+      } catch {
+        if (!options?.signal?.aborted && requestAccessScope === priceAccessScopeRef.current) {
           const cooldownUntil = Date.now() + PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS;
           for (const item of requestItems) {
             priceRetryCooldownUntilRef.current[item.stateKey] = cooldownUntil;
           }
         }
       } finally {
-        releaseRequestItems();
+        // Keep each item in flight until its private jobs settle; public
+        // rendering and this function's caller do not wait for those jobs.
+        if (protectedPriceTasks.length) void Promise.allSettled(protectedPriceTasks).then(releaseRequestItems);
+        else releaseRequestItems();
       }
     },
     [includeCostPrices, includePartnerPrices, getAdminAuthToken]
@@ -1426,6 +1360,14 @@ function useCatalogData(params: {
       void primeCatalogImageBatch(requestItems, {
         deep: false,
         signal: options?.signal,
+        onProgress: (results) => {
+          if (options?.signal?.aborted) return;
+          if (options?.querySignatureSnapshot &&
+              activeQuerySignatureRef.current !== options.querySignatureSnapshot) return;
+          const ready = results.filter((item) => item.status === "ready" && item.src);
+          applyReadyImageEntries(ready);
+          clearPendingKeys(ready.map((item) => item.key));
+        },
       })
         .then((results) => {
           if (options?.signal?.aborted) return;
@@ -1609,14 +1551,27 @@ function useCatalogData(params: {
       writeCachedEuroRate(initialEuroRate);
       return;
     }
-    // A cached rate resolves immediately; cold callers share one request.
-    // Prices must not wait on an artificial timer after cards have mounted.
-    void loadSharedEuroRate().then((rate) => {
+    // Never turn the placeholder conversion rate into a displayed price on
+    // a failed request. Cached confirmed rates resolve immediately; transient
+    // failures retry through the same shared request without reloading cards.
+    let retryTimer: number | undefined;
+    let retryDelay = 1500;
+    const loadRate = async () => {
+      const rate = await loadSharedEuroRate();
       if (cancelled) return;
-      if (rate != null) setEuroRate((prev) => prev === rate ? prev : rate);
-      setEuroRateReady(true);
-    });
-    return () => { cancelled = true; };
+      if (rate != null) {
+        setEuroRate((prev) => prev === rate ? prev : rate);
+        setEuroRateReady(true);
+        return;
+      }
+      retryTimer = window.setTimeout(loadRate, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15_000);
+    };
+    void loadRate();
+    return () => {
+      cancelled = true;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
   }, [initialEuroRate]);
 
   const safeData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -3088,6 +3043,23 @@ function useCatalogData(params: {
     [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]
   );
 
+  const previousPriceIdentityRef = useRef(priceAccessIdentity);
+  useEffect(() => {
+    if (previousPriceIdentityRef.current === priceAccessIdentity) return;
+    previousPriceIdentityRef.current = priceAccessIdentity;
+    costPricesRef.current = {};
+    promoPricesRef.current = {};
+    setCostPrices({});
+    setPromoPrices({});
+    setResolvedPriceAccess({});
+    setIsPartner(false);
+    if (dataRef.current.length) void fetchCatalogPagePrices(dataRef.current, {
+      prefetchedPrices: pricesRef.current,
+      querySignatureSnapshot: activeQuerySignatureRef.current,
+      allowFullLookup: shouldAllowCatalogDirectPriceLookup,
+    }).catch(handleCatalogBackgroundError);
+  }, [priceAccessIdentity, fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]);
+
   const prevIncludeCostPricesRef = useRef(includeCostPrices);
   useEffect(() => {
     const justBecameTrue = includeCostPrices && !prevIncludeCostPricesRef.current;
@@ -3165,9 +3137,12 @@ function useCatalogData(params: {
       const staleNulls = dataRef.current.filter((item) => {
         const stateKey = getProductPriceStateKey(item);
         if (!stateKey) return false;
-        if (pricesRef.current[stateKey] !== null) return false;
         const cooldown = priceRetryCooldownUntilRef.current[stateKey] ?? 0;
-        return cooldown <= nowTs;
+        if (cooldown > nowTs) return false;
+        const needsPrivate = (includeCostPrices || includePartnerPrices) &&
+          resolvedPriceAccess[stateKey] !== priceAccessScopeRef.current;
+        return needsPrivate || pricesRef.current[stateKey] === null ||
+          (pricesRef.current[stateKey] === undefined && cooldown > 0);
       });
       if (staleNulls.length === 0) return;
       void fetchCatalogPagePrices(staleNulls, {
@@ -3177,7 +3152,7 @@ function useCatalogData(params: {
       }).catch(handleCatalogBackgroundError);
     }, retryIntervalMs);
     return () => window.clearInterval(timerId);
-  }, [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup]);
+  }, [fetchCatalogPagePrices, shouldAllowCatalogDirectPriceLookup, includeCostPrices, includePartnerPrices, resolvedPriceAccess]);
 
   const updateCatalogItemPrice = useCallback(
     (payload: {

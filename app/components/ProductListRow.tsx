@@ -35,6 +35,8 @@ interface Props {
     // amount stays gated behind isPartner/promoPriceUAH.
     promoPercent?: number | null;
     priceStatus: "loading" | "ready" | "request";
+    // Public prices can render before the account's final purchase price is verified.
+    priceAccessPending?: boolean;
     imageLoadingMode?: "lazy" | "eager";
     imageFetchPriority?: "high" | "low" | "auto";
     prefetchedImageSrc?: string | null;
@@ -85,6 +87,7 @@ const ProductListRow: React.FC<Props> = ({
     hasPromo = false,
     promoPercent = null,
     priceStatus,
+    priceAccessPending = false,
     imageLoadingMode = "lazy",
     imageFetchPriority = "auto",
     prefetchedImageSrc,
@@ -106,8 +109,10 @@ const ProductListRow: React.FC<Props> = ({
     const name = buildVisibleProductName(item.name);
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
+    const isPurchasePriceLoading = isPriceLoading || priceAccessPending;
     const hasPromoPrice =
         !isPriceLoading &&
+        !priceAccessPending &&
         isPartner &&
         typeof promoPriceUAH === "number" &&
         Number.isFinite(promoPriceUAH) &&
@@ -126,11 +131,11 @@ const ProductListRow: React.FC<Props> = ({
     const isRequestAction = priceStatus === "request";
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
-    const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
+    const isCartButtonDisabled = isPurchasePriceLoading ? true : hasPrice ? isAddDisabled : false;
     const canEdit = isAdmin && Boolean(onAdminEdit);
     const [showCostPrice, setShowCostPrice] = useState(false);
     const hasCostPrice =
-        isAdmin && typeof costPriceUAH === "number" && Number.isFinite(costPriceUAH) && costPriceUAH > 0;
+        isAdmin && !priceAccessPending && typeof costPriceUAH === "number" && Number.isFinite(costPriceUAH) && costPriceUAH > 0;
 
     const [editingField, setEditingField] = useState<"name" | "price" | "category" | "description" | null>(
         null
@@ -669,7 +674,7 @@ const ProductListRow: React.FC<Props> = ({
                     <button
                         type="button"
                         onClick={() => {
-                            if (isPriceLoading) return;
+                            if (isPurchasePriceLoading) return;
                             if (isRequestAction) {
                                 onRequestPrice(item);
                                 return;
@@ -678,11 +683,11 @@ const ProductListRow: React.FC<Props> = ({
                         }}
                         disabled={isCartButtonDisabled}
                         aria-label={
-                            isPriceLoading ? "Підтягуємо ціну" : isRequestAction ? "Надіслати запит у чат" : "Додати в кошик"
+                            isPurchasePriceLoading ? (priceAccessPending ? "Перевіряємо ціну для вашого профілю" : "Підтягуємо ціну") : isRequestAction ? "Надіслати запит у чат" : "Додати в кошик"
                         }
                         className={`relative flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[11px] font-extrabold transition-[background-color,border-color,color] duration-200 sm:min-w-[92px] ${
                             isCartButtonDisabled
-                                ? isPriceLoading
+                                ? isPurchasePriceLoading
                                     ? "cursor-wait border border-slate-200 bg-slate-100 text-slate-400"
                                     : "cursor-not-allowed border border-slate-200 bg-slate-200 text-slate-500"
                                 : isRequestAction
@@ -697,7 +702,7 @@ const ProductListRow: React.FC<Props> = ({
                         )}
                         <ShoppingCart size={14} />
                         <span className="hidden sm:inline">
-                            {isPriceLoading ? "Зачекайте" : isRequestAction ? "Запит" : "У кошик"}
+                            {isPurchasePriceLoading ? "Зачекайте" : isRequestAction ? "Запит" : "У кошик"}
                         </span>
                     </button>
                 </div>

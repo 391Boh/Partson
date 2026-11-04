@@ -269,7 +269,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
       void import('app/components/AutoFilterCompact');
     });
     const cancelCategory = scheduleBackgroundTask(() => {
-      void import('app/components/katkomp');
+      void import('app/components/katkomp').then((module) => module.preloadCategoryTree());
     });
     return () => {
       cancelAuto();

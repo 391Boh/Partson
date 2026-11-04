@@ -20,13 +20,13 @@ const compiled = ts.transpileModule(`exports.load = ${loader};`, {
 }).outputText;
 const tick = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 const deferred = () => {
-  let resolve;
-  const promise = new Promise(done => { resolve = done; });
-  return { promise, resolve };
+  let resolve, reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 };
 const payload = (price, costPrice = null) => ({
   prices: { code: price }, costPrices: { code: costPrice },
-  promoPrices: {}, hasPromo: {}, promoPercent: {}, isPartner: false,
+  promoPrices: {}, hasPromo: {}, promoPercent: {}, isPartner: costPrice !== null,
 });
 
 function fixture({ token = 'admin-token', admin = true, signedIn = false } = {}) {
@@ -38,20 +38,22 @@ function fixture({ token = 'admin-token', admin = true, signedIn = false } = {})
   const costs = { current: {} };
   const promos = { current: {} };
   let isPartner = false;
+  let tokenCalls = 0;
   const signature = { current: 'catalog' };
+  const cooldowns = { current: {} };
   const accessScope = { current: `${admin}:${signedIn}` };
   let resolvedAccess = {};
   const context = {
-    exports: {}, window: {}, console: { log() {} }, performance,
+    exports: {}, window: { setTimeout: () => 1, clearTimeout() {} }, AbortController, console: { log() {} }, performance,
     includeCostPrices: admin, includePartnerPrices: signedIn,
-    getAdminAuthToken: async () => token,
+    getAdminAuthToken: async () => { tokenCalls++; return token; },
     PRICE_PAGE_BATCH_SIZE: 128, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS: 12000,
     PRICE_REVALIDATE_AFTER_NULL_MS: 30000, CATALOG_PRICE_BATCH_ROUTE: '/api/catalog-prices',
     pricesRef: prices, costPricesRef: costs, promoPricesRef: promos,
     priceAccessScopeRef: accessScope,
     livePricesRef: { current: {} }, hasPromoAvailabilityRef: { current: {} },
     activeQuerySignatureRef: signature, priceLoadingKeysRef: { current: new Set() },
-    priceRetryCooldownUntilRef: { current: {} }, inFlightPriceBatchRequests: new Map(),
+    priceRetryCooldownUntilRef: cooldowns, inFlightPriceBatchRequests: new Map(),
     getProductPriceStateKey: item => item.code,
     getProductPriceLookupKeys: item => [item.code],
     readCachedPriceEntry: () => ({ hit: false }), readStalePositivePriceEntry: () => null,
@@ -73,17 +75,18 @@ function fixture({ token = 'admin-token', admin = true, signedIn = false } = {})
     },
   };
   vm.runInNewContext(compiled, context);
-  const run = () => context.exports.load([{ code: 'code', article: 'article' }], {
-    allowFullLookup: true, querySignatureSnapshot: 'catalog',
+  const run = (query = 'catalog') => context.exports.load([{ code: 'code', article: 'article' }], {
+    allowFullLookup: true, querySignatureSnapshot: query,
   });
-  return { fast, full, partner, calls, prices, costs, promos, signature, accessScope, run, get isPartner() { return isPartner; }, get resolvedAccess() { return resolvedAccess; } };
+  return { fast, full, partner, calls, prices, costs, promos, signature, cooldowns, accessScope, run, get tokenCalls() { return tokenCalls; }, get isPartner() { return isPartner; }, get resolvedAccess() { return resolvedAccess; } };
 }
 
 const admin = fixture({ signedIn: true });
 const pending = admin.run();
 await tick();
-assert.deepEqual(admin.calls.map(call => call.mode).sort(), ['fast', 'full'], 'One protected admin request supplies sale, cost and partner prices');
+assert.deepEqual(admin.calls.map(call => call.mode).sort(), ['fast', 'full', 'partner'], 'Light sale/promo prices do not wait for purchase-cost details');
 assert.equal(admin.calls.find(call => call.mode === 'full').headers.Authorization, 'Bearer admin-token');
+assert.equal(admin.tokenCalls, 1, 'Partner prices and purchase costs share one token request');
 admin.full.resolve({ ...payload(100, 60), promoPrices: { code: 80 }, isPartner: true });
 await tick();
 assert.equal(admin.prices.current.code, 100, 'Render the admin sale price while public lookup is pending');
@@ -105,6 +108,12 @@ publicFirst.fast.resolve(payload(95));
 await publicPending;
 assert.equal(publicFirst.prices.current.code, 95, 'Show public price while admin lookup is pending');
 assert.equal(publicFirst.resolvedAccess.code, undefined, 'A public reply cannot release the admin skeleton');
+publicFirst.partner.resolve({ ...payload(100), promoPrices: { code: 80 }, isPartner: true });
+await tick();
+assert.equal(publicFirst.prices.current.code, 100, 'Light verified price renders before cost lookup');
+assert.equal(publicFirst.promos.current.code, 80);
+assert.equal(publicFirst.costs.current.code, undefined, 'Purchase costs remain unresolved');
+assert.equal(publicFirst.resolvedAccess.code, 'true:false');
 publicFirst.full.resolve(payload(100, 60));
 await tick();
 assert.equal(publicFirst.prices.current.code, 100);
@@ -141,5 +150,80 @@ await previousRolePending;
 await tick();
 assert.equal(previousRole.promos.current.code, 80, 'A late pre-admin response cannot clear the admin promo');
 assert.equal(previousRole.resolvedAccess.code, undefined, 'An old role response cannot release the current skeleton');
+
+const partnerFirst = fixture({ admin: false, signedIn: true });
+const partnerFirstPending = partnerFirst.run();
+partnerFirst.partner.resolve({ ...payload(100), promoPrices: { code: 80 }, isPartner: true });
+await tick();
+partnerFirst.fast.resolve(payload(95));
+await partnerFirstPending;
+assert.equal(partnerFirst.prices.current.code, 100, 'A later public reply cannot overwrite a verified price');
+assert.equal(partnerFirst.promos.current.code, 80);
+admin.partner.resolve({ ...payload(90), promoPrices: { code: 70 }, isPartner: true });
+await tick();
+assert.equal(admin.prices.current.code, 100, 'Late snapshot response cannot overwrite full live admin details');
+assert.equal(admin.promos.current.code, 80);
+
+const pendingCost = fixture({ admin: true, signedIn: true });
+const pendingCostFirst = pendingCost.run();
+pendingCost.partner.resolve({ ...payload(100), promoPrices: { code: 80 }, isPartner: true });
+pendingCost.fast.resolve(payload(100));
+await pendingCostFirst;
+await tick();
+await pendingCost.run();
+assert.equal(pendingCost.calls.filter(call => call.mode === 'full').length, 1, 'Visible updates cannot duplicate an in-flight purchase-cost lookup');
+pendingCost.full.resolve(payload(100,60));
+await tick();
+
+const unpricedGuest = fixture({ admin: false, signedIn: false });
+const unpricedPending = unpricedGuest.run();
+unpricedGuest.fast.resolve(payload(null));
+await unpricedPending;
+assert.equal(unpricedGuest.prices.current.code, null, 'An explicit absent price ends the skeleton');
+assert.equal(unpricedGuest.tokenCalls, 0, 'A guest never restores Firebase for an admin-only fallback');
+assert.deepEqual(unpricedGuest.calls.map(call => call.mode), ['fast']);
+
+const staleAdminHint = fixture({ admin: true, signedIn: true });
+const staleAdminPending = staleAdminHint.run();
+staleAdminHint.partner.resolve({ ...payload(100), promoPrices: { code: 80 }, isPartner: true });
+await tick();
+staleAdminHint.full.resolve(payload(95));
+staleAdminHint.fast.resolve(payload(95));
+await staleAdminPending;
+await tick();
+assert.equal(staleAdminHint.promos.current.code, 80, 'A rejected admin role cannot revoke verified partner access');
+assert.equal(Object.keys(staleAdminHint.costs.current).length, 0, 'No purchase cost from an unverified admin response');
+
+const timedOutGuest = fixture({ admin: false, signedIn: false });
+const timeoutPending = timedOutGuest.run();
+timedOutGuest.fast.reject({ name: 'AbortError', message: 'Request deadline' });
+await timeoutPending;
+assert.equal(timedOutGuest.prices.current.code, undefined, 'A timeout is not an absent price');
+assert(timedOutGuest.cooldowns.current.code > Date.now(), 'A request deadline schedules a paced retry');
+
+const filtering = fixture({ admin: false, signedIn: true });
+const beforeFilter = filtering.run();
+await tick();
+filtering.signature.current = 'new-filter';
+const afterFilter = filtering.run('new-filter');
+await tick();
+filtering.partner.resolve({ ...payload(100), promoPrices: { code: 80 }, isPartner: true });
+await tick();
+assert.equal(filtering.promos.current.code, 80, 'A new filter can subscribe to in-flight prices for an overlapping product');
+filtering.fast.resolve(payload(95));
+await beforeFilter;
+await afterFilter;
+assert.equal(filtering.calls.filter(call => call.mode === 'partner').length, 1, 'Filter changes reuse the protected source request');
+
+const cacheSource = readFileSync('app/components/catalog/catalog-cache.ts', 'utf8');
+const cacheAst = ts.createSourceFile('cache.ts', cacheSource, ts.ScriptTarget.Latest, true);
+let keyBuilder;
+function readKey(node) { if (ts.isVariableDeclaration(node) && node.name.getText(cacheAst) === 'buildPriceBatchRequestKey') keyBuilder = node.initializer.getText(cacheAst); ts.forEachChild(node, readKey); }
+readKey(cacheAst);
+const keyContext={exports:{}};
+vm.runInNewContext(ts.transpileModule('exports.key='+keyBuilder,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,keyContext);
+const sameProduct=[{stateKey:'code',lookupKeys:['code']}];
+assert.notEqual(keyContext.exports.key('partner',sameProduct,'false:true:user-a'),keyContext.exports.key('partner',sameProduct,'false:true:user-b'),'Private pending responses are isolated by user');
+assert.equal(keyContext.exports.key('fast',sameProduct,'user-a'),keyContext.exports.key('fast',sameProduct,'user-b'),'Public batches remain shareable');
 
 console.log('Admin catalog prices passed: concurrent loading, immediate results, late replies, token gating and filter changes.');

@@ -20,6 +20,7 @@ import { getAdminIdToken } from "app/lib/get-admin-token";
 import { priceSortOrder } from "app/lib/catalog-sort";
 import { pushAnalyticsEvent, pushEcommerceEvent, sanitizeAnalyticsSearchTerm } from "app/lib/gtm";
 import {
+  VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE,
   ITEMS_PER_PAGE,
   VIRTUAL_ROW_ESTIMATED_HEIGHT_PX,
   getProductStableListKey,
@@ -29,6 +30,7 @@ import {
   IMAGE_EAGER_ITEMS_COUNT_LIST,
   getGridImageEagerCount,
   getCatalogGridColumnCount,
+  getCatalogGridRowHeight,
   VIRTUALIZATION_MIN_ITEMS,
   IMAGE_HIGH_PRIORITY_ITEMS_COUNT,
   VIRTUAL_OVERSCAN_ROWS,
@@ -102,7 +104,8 @@ const Data: React.FC<DataProps> = ({
   const [viewportWidth, setViewportWidth] = useState(0);
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [hasAuthenticatedUser, setHasAuthenticatedUser] = useState(false);
+  const [authenticatedUserId, setAuthenticatedUserId] = useState<string | null>(null);
+  const hasAuthenticatedUser = Boolean(authenticatedUserId);
   const [priceIdentityReady, setPriceIdentityReady] = useState(false);
   useEffect(() => {
     // Kick off the Firebase ID token fetch as soon as we know there's a
@@ -118,35 +121,20 @@ const Data: React.FC<DataProps> = ({
     // again here; the real fetch just reuses whatever this already warmed.
     const prewarmAuthToken = () => {
       try {
-        if (localStorage.getItem("user_id")) {
-          const t0 = performance.now();
-          console.log("[promo-timing] token prewarm started", Math.round(t0));
-          void getAdminIdToken()
-            .then((token) =>
-              console.log(
-                "[promo-timing] token prewarm resolved",
-                Math.round(performance.now()),
-                "took",
-                Math.round(performance.now() - t0),
-                "ms, got token:",
-                Boolean(token)
-              )
-            )
-            .catch(() => undefined);
-        }
+        if (localStorage.getItem("user_id")) void getAdminIdToken().catch(() => undefined);
       } catch {}
     };
     const syncStoredAuth = () => {
       try {
-        setHasAuthenticatedUser(Boolean(localStorage.getItem("user_id")));
+        setAuthenticatedUserId(localStorage.getItem("user_id"));
       } catch {
-        setHasAuthenticatedUser(false);
+        setAuthenticatedUserId(null);
       }
       setPriceIdentityReady(true);
     };
     const handleAuthChange = (event: Event) => {
       const detail = (event as CustomEvent<{ uid?: string | null }>).detail;
-      setHasAuthenticatedUser(Boolean(detail?.uid));
+      setAuthenticatedUserId(detail?.uid || null);
       setPriceIdentityReady(true);
       if (detail?.uid) void getAdminIdToken().catch(() => undefined);
     };
@@ -168,6 +156,7 @@ const Data: React.FC<DataProps> = ({
       return false;
     };
 
+    setIsAdmin(false);
     if (checkStoredAdminFlag()) return;
 
     // This component mounts immediately on page load, so it can mount before
@@ -179,7 +168,7 @@ const Data: React.FC<DataProps> = ({
       window.setTimeout(checkStoredAdminFlag, delay)
     );
     return () => retryTimers.forEach((id) => window.clearTimeout(id));
-  }, []);
+  }, [authenticatedUserId]);
   useEffect(() => {
     const handleAdminChange = (e: Event) => {
       const detail = (e as CustomEvent<{ isAdmin: boolean }>).detail;
@@ -189,7 +178,8 @@ const Data: React.FC<DataProps> = ({
     return () => window.removeEventListener("partson:adminStateChange", handleAdminChange);
   }, []);
 
-  const getAdminToken = useCallback((): Promise<string | null> => getAdminIdToken(), []);
+  const getAdminToken = useCallback((): Promise<string | null> =>
+    authenticatedUserId ? getAdminIdToken() : Promise.resolve(null), [authenticatedUserId]);
 
   const {
     filteredData,
@@ -260,6 +250,7 @@ const Data: React.FC<DataProps> = ({
     inStock,
     includeCostPrices: isAdmin,
     includePartnerPrices: hasAuthenticatedUser,
+    priceAccessIdentity: authenticatedUserId || "",
     getAdminAuthToken: getAdminToken,
     initialPagePayload,
     initialQuerySignature,
@@ -1115,22 +1106,6 @@ const Data: React.FC<DataProps> = ({
       .filter(Boolean);
     return new Set(keys);
   }, [catalogQuerySignature, catalogReadyQuerySignature, viewMode, viewportWidth, visibleSortedData]);
-  const visibleCatalogImageCandidates = useMemo(
-    () =>
-      catalogReadyQuerySignature === catalogQuerySignature
-        ? visibleSortedData.filter((item) => {
-            if (item.hasPhoto === false) return false;
-            const key = buildProductImageBatchKey(item.code, item.article);
-            return Boolean(key && !directCatalogImageKeys.has(key));
-          })
-        : [],
-    [
-      catalogQuerySignature,
-      catalogReadyQuerySignature,
-      directCatalogImageKeys,
-      visibleSortedData,
-    ]
-  );
   const visibleCatalogPriceCandidates = useMemo(
     () =>
       visibleSortedData.filter((item) => {
@@ -1163,14 +1138,8 @@ const Data: React.FC<DataProps> = ({
   const showEmptyState = isEmptyState && !isRefetching;
   const shouldShowCatalogGrid =
     visibleSortedData.length > 0 || shouldShowInitialSkeleton;
-  const gridColumnCount = useMemo(() => {
-    if (!isAdmin) return getCatalogGridColumnCount(viewportWidth);
-    if (viewportWidth >= 1280) return 4;
-    if (viewportWidth >= 1024) return 3;
-    if (viewportWidth >= 640) return 2;
-    return 1;
-  }, [viewportWidth, isAdmin]);
-  // List view's row height differs from the grid card's fixed 320px, and
+  const gridColumnCount = getCatalogGridColumnCount(viewportWidth);
+  // List view's row height differs from the grid card's fixed height, and
   // the virtual window's spacer math assumes that fixed height — rather than
   // re-deriving it for a second layout, list mode simply renders unwindowed
   // (its rows are much shorter than a flip-card, so more of them mounted at
@@ -1200,6 +1169,22 @@ const Data: React.FC<DataProps> = ({
   const entriesToRender = hasVirtualWindowMiss
     ? visibleSortedEntries.slice(0, Math.max(1, gridColumnCount) * (VIRTUAL_OVERSCAN_ROWS * 2 + 4))
     : virtualizedEntries;
+  const visibleCatalogImageCandidates = useMemo(
+    () =>
+      catalogReadyQuerySignature === catalogQuerySignature
+        ? entriesToRender.map((entry) => entry.item).filter((item) => {
+            if (item.hasPhoto === false) return false;
+            const key = buildProductImageBatchKey(item.code, item.article);
+            return Boolean(key && !directCatalogImageKeys.has(key));
+          })
+        : [],
+    [
+      catalogQuerySignature,
+      catalogReadyQuerySignature,
+      directCatalogImageKeys,
+      entriesToRender,
+    ]
+  );
   // A newly filtered/appended list can briefly outlive its cached range.
   // Keep a bounded first window plus the missing rows' footprint instead of
   // mounting every product for that recovery frame.
@@ -1261,7 +1246,7 @@ const Data: React.FC<DataProps> = ({
       if (pageImagePending[key]) return false;
       if (pageImageMissing[key]) return false;
       return true;
-    });
+    }).slice(0, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE);
 
     if (nextChunk.length === 0) return;
 
@@ -1359,7 +1344,7 @@ const Data: React.FC<DataProps> = ({
     if (typeof window === "undefined") return;
 
     if (!shouldUseVirtualWindow) {
-      const estimatedHeight = viewportWidth < 640 ? 332 : 338;
+      const estimatedHeight = getCatalogGridRowHeight(viewportWidth);
       setVirtualRowHeightPx(estimatedHeight);
       setVirtualWindowRange({
         startIndex: 0,
@@ -1650,7 +1635,11 @@ const Data: React.FC<DataProps> = ({
                 );
                 const priceUAH =
                   entry.priceUAH ?? getResolvedProductPriceUAH(item, prices, euroRate, priceLookupKeys);
-                const statePromoPriceEuro = isPartner
+                const priceAccessPending = !priceIdentityReady || (
+                  (isAdmin || hasAuthenticatedUser) &&
+                  resolvedPriceAccess[entry.priceKey] !== `${isAdmin}:${hasAuthenticatedUser}${authenticatedUserId ? `:${authenticatedUserId}` : ""}`
+                );
+                const statePromoPriceEuro = isPartner && !priceAccessPending
                   ? getResolvedProductPromoPriceEuro(item, promoPrices, priceLookupKeys)
                   : null;
                 const candidatePromoPriceUAH = toPriceUAH(statePromoPriceEuro, euroRate);
@@ -1706,12 +1695,10 @@ const Data: React.FC<DataProps> = ({
                         return null;
                       })();
 
-                // Until the client knows the visitor, cards show the guest
-                // prices the server rendered; the inline script on /katalog
-                // hides them for a signed-in visitor (see data-guest-price).
+                // Render known public prices immediately. Private prices and
+                // purchase actions remain gated by the current verified scope.
                 const priceStatus =
-                  !euroRateReady ||
-                  ((isAdmin || hasAuthenticatedUser) && resolvedPriceAccess[entry.priceKey] !== `${isAdmin}:${hasAuthenticatedUser}`)
+                  !euroRateReady
                     ? "loading"
                     : promoPriceUAH != null || priceUAH != null
                     ? "ready"
@@ -1771,6 +1758,7 @@ const Data: React.FC<DataProps> = ({
                         hasPromo={hasPromo}
                         promoPercent={promoPercent}
                         priceStatus={priceStatus}
+                        priceAccessPending={priceAccessPending}
                         imageLoadingMode={shouldEagerLoadImage ? "eager" : "lazy"}
                         imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
                         prefetchedImageSrc={prefetchedImageSrc}
@@ -1792,6 +1780,7 @@ const Data: React.FC<DataProps> = ({
                     ) : (
                       <ProductCard
                         item={item}
+                        isGuest={priceIdentityReady && !hasAuthenticatedUser && !isAdmin}
                         productHref={productHref}
                         qty={qty}
                         cartQty={cartQty}
@@ -1805,6 +1794,7 @@ const Data: React.FC<DataProps> = ({
                         isAdmin={isAdmin}
                         onAdminEdit={isAdmin ? (data) => handleAdminEdit(code, item.article || "", data) : undefined}
                         priceStatus={priceStatus}
+                        priceAccessPending={priceAccessPending}
                         analyticsListId={analyticsList.id}
                         analyticsListName={analyticsList.name}
                         analyticsIndex={absoluteIndex}
@@ -1839,10 +1829,12 @@ const Data: React.FC<DataProps> = ({
                   <div
                     key={`catalog-placeholder-${index}`}
                     aria-hidden="true"
-                    className={`rounded-[22px] border border-sky-100/80 bg-white/70 ${
-                      viewMode === "list" ? "h-[140px]" : "h-[380px] sm:h-[340px]"
-                    }`}
-                  />
+                    className={`catalog-result-placeholder ${viewMode === "list" ? "catalog-list-placeholder" : "catalog-grid-placeholder"}`}
+                  >
+                    <span className="catalog-placeholder-image" />
+                    <span className="catalog-placeholder-copy"><span /><span /><span /></span>
+                    <span className="catalog-placeholder-actions" />
+                  </div>
                 ))}
 
               {shouldUseVirtualWindow && effectiveVirtualBottomSpacerPx > 0 && (
@@ -1860,9 +1852,11 @@ const Data: React.FC<DataProps> = ({
           </div>
         )}
 
-        {!shouldShowInitialSkeleton && visibleSortedData.length > 0 && (
+        {(shouldShowInitialSkeleton || visibleSortedData.length > 0) && (
           <div
-            className="flex w-full flex-wrap items-center justify-center gap-3 px-1 pt-3 sm:pt-4"
+            className="catalog-results-toolbar flex w-full flex-wrap items-center justify-center gap-3 px-1 pt-3 sm:pt-4"
+            style={{ visibility: shouldShowInitialSkeleton ? "hidden" : undefined }}
+            aria-hidden={shouldShowInitialSkeleton || undefined}
             aria-live="polite"
           >
             <div className="catalog-view-controls inline-flex items-center gap-1 rounded-[16px] border border-cyan-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f0fbff_55%,#eefdf6_100%)] p-1.5 shadow-[0_10px_26px_rgba(14,165,233,0.14),inset_0_1px_0_rgba(255,255,255,0.85)]">

@@ -18,7 +18,7 @@ const bundle=await build({
       path==='next/dynamic'?'export default ()=>()=>null;':
       path.includes('get-admin-token')?'export const getAdminIdToken=async()=>null;':
       path.includes('use-live-catalog-refresh')?'export const useLiveCatalogRefresh=()=>false;':
-      path.startsWith('app/components/')?`import React from 'react';export default ({item,cartQty,onAddToCart})=><button style={{height:320,width:'100%'}} data-product={item.code} onClick={()=>onAddToCart(item)}>{item.name} Кошик: {cartQty}</button>;`:
+      path.startsWith('app/components/')?`import React from 'react';export default ({item,cartQty,onAddToCart})=><button style={{height:400,width:'100%'}} data-product={item.code} onClick={()=>onAddToCart(item)}>{item.name} Кошик: {cartQty}</button>;`:
       `import {useState,useCallback,useRef} from 'react';const noop=()=>{};const products=Array.from({length:160},(_,i)=>({code:'C'+i,article:'A'+i,name:'Товар '+i,quantity:2,priceEuro:10,producer:'TEST'}));const empty={};
       export function useCatalogData(props){window.catalogRenderCount=(window.catalogRenderCount||0)+1;
         const [long,setLong]=useState(false);window.showLongCatalog=()=>setLong(true);

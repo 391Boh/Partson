@@ -274,10 +274,12 @@ const normalizeCacheList = (values: string[]) =>
 
 const buildPriceBatchRequestKey = (
   mode: "fast" | "partner" | "full",
-  batch: Array<{ stateKey: string; lookupKeys: string[] }>
+  batch: Array<{ stateKey: string; lookupKeys: string[] }>,
+  accessScope = ""
 ) =>
   JSON.stringify({
     mode,
+    accessScope: mode === "fast" ? undefined : accessScope,
     items: batch
       .map((item) => ({
         stateKey: item.stateKey,

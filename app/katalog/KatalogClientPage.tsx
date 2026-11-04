@@ -1,7 +1,6 @@
 ﻿'use client';
 
 import { createPortal } from 'react-dom';
-import dynamic from 'next/dynamic';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
@@ -16,13 +15,14 @@ import {
   detectCatalogRestoreOverride,
 } from 'app/lib/catalog-restore-override';
 import CatalogData from 'app/components/Data';
+// A static import (was a client-only dynamic chunk): the filter bar now ships
+// in the page HTML and the page's own JS, so it shows on first paint and does
+// not blank out while a separate chunk loads when it moves into the portal.
+// Its heavy panels (Auto, Category, params) stay dynamic inside filtrtion.
+import FilterSidebar from 'app/components/filtrtion';
 
 const MemoizedCatalogData = memo(CatalogData);
 
-const FilterSidebar = dynamic(() => import('app/components/filtrtion'), {
-  ssr: false,
-  loading: () => <div className="catalog-filter-loading" aria-hidden="true" />,
-});
 
 type InitialCatalogPagePayload = {
   items: Array<{

@@ -142,13 +142,11 @@ const VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS = 60;
 
 const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 
-// Matches ProductCard's actual h-[320px] plus CATALOG_GRID_CLASS's
-// gap-3/sm:gap-5/lg:gap-4 (332 below 640px, ~336-340 at sm/lg) — kept in sync
-// with the non-virtualized fallback below (both feed virtualRowHeightPx) so
-// crossing the VIRTUALIZATION_MIN_ITEMS threshold via "load more" doesn't
-// swap from one guess to a different guess before the real ResizeObserver
-// measurement lands a frame later — that mismatch was a visible row-jump.
-const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 338;
+// Shared with --catalog-card-height. Reserve the real row before the
+// first ResizeObserver measurement so virtualization never changes its height.
+const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 456;
+const getCatalogGridRowHeight = (width: number) =>
+  (width >= 1280 ? 400 : 440) + (width < 640 ? 12 : width < 1024 ? 20 : 16);
 
 // Keep only a small, generous window mounted once the catalog grows beyond
 // three API pages. This prevents images, card effects and React reconciliation
@@ -520,8 +518,7 @@ const mergeUniqueProducts = (current: Product[], incoming: Product[]) => {
 const CATALOG_GRID_CLASS =
   "catalog-results-grid mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
 
-const CATALOG_ADMIN_GRID_CLASS =
-  "mx-auto mt-1 grid w-full grid-cols-1 gap-3 sm:mt-2 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4";
+const CATALOG_ADMIN_GRID_CLASS = CATALOG_GRID_CLASS;
 
 const CATALOG_LIST_CLASS = "mx-auto mt-1 grid w-full grid-cols-1 gap-2 sm:mt-2";
 
@@ -560,6 +557,6 @@ async function fetchImageBase64(
   return src || null;
 }
 
-export { PRICE_CACHE_PREFIX, PRICE_NEGATIVE_CACHE_TTL_MS, PRICE_CACHE_TTL_MS, PRICE_PERSISTED_CACHE_TTL_MS, PRICE_STALE_POSITIVE_CACHE_TTL_MS, getProductPriceStateKey, getProductPriceLookupKeys, toPriceUAH, PAGE_MEMORY_CACHE_MAX_ENTRIES, normalizePriceKey, ITEMS_PER_PAGE, PAGE_SESSION_CACHE_INDEX_KEY, MEMORY_CACHE_TTL_MS_NEXT_PAGES, PAGE_SESSION_CACHE_MAX_ENTRIES, normalizeProduct, DEFAULT_EURO_RATE, NEXT_PAGE_LOADER_MIN_VISIBLE_MS, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS, PRICE_PAGE_BATCH_SIZE, CATALOG_PRICE_BATCH_ROUTE, PRICE_REVALIDATE_AFTER_NULL_MS, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE, VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE, VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS, CATALOG_PAGE_ROUTE, MEMORY_CACHE_TTL_MS_FIRST_PAGE, mergeUniqueProducts, sanitizeUiErrorMessage, getProductStableListKey, IMAGE_EAGER_ITEMS_COUNT_LIST, getGridImageEagerCount, SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT, SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS, getBackgroundPagePrefetchDepth, BACKGROUND_PAGE_PREFETCH_DELAY_MS, BACKGROUND_PAGE_PREFETCH_MAX_LOAD_WAIT_MS, fetchImageBase64, VIRTUAL_ROW_ESTIMATED_HEIGHT_PX, VIRTUALIZATION_MIN_ITEMS, IMAGE_HIGH_PRIORITY_ITEMS_COUNT, VIRTUAL_OVERSCAN_ROWS, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE, VIRTUAL_WINDOW_STEP_ROWS, CATALOG_LIST_CLASS, CATALOG_ADMIN_GRID_CLASS, CATALOG_GRID_CLASS };
+export { getCatalogGridRowHeight, PRICE_CACHE_PREFIX, PRICE_NEGATIVE_CACHE_TTL_MS, PRICE_CACHE_TTL_MS, PRICE_PERSISTED_CACHE_TTL_MS, PRICE_STALE_POSITIVE_CACHE_TTL_MS, getProductPriceStateKey, getProductPriceLookupKeys, toPriceUAH, PAGE_MEMORY_CACHE_MAX_ENTRIES, normalizePriceKey, ITEMS_PER_PAGE, PAGE_SESSION_CACHE_INDEX_KEY, MEMORY_CACHE_TTL_MS_NEXT_PAGES, PAGE_SESSION_CACHE_MAX_ENTRIES, normalizeProduct, DEFAULT_EURO_RATE, NEXT_PAGE_LOADER_MIN_VISIBLE_MS, PRICE_ROUTE_NULL_REVALIDATE_AFTER_MS, PRICE_PAGE_BATCH_SIZE, CATALOG_PRICE_BATCH_ROUTE, PRICE_REVALIDATE_AFTER_NULL_MS, VISIBLE_IMAGE_PREFETCH_CHUNK_SIZE, VISIBLE_IMAGE_DEEP_RECOVERY_CHUNK_SIZE, VISIBLE_IMAGE_DEEP_RECOVERY_DELAY_MS, CATALOG_PAGE_ROUTE, MEMORY_CACHE_TTL_MS_FIRST_PAGE, mergeUniqueProducts, sanitizeUiErrorMessage, getProductStableListKey, IMAGE_EAGER_ITEMS_COUNT_LIST, getGridImageEagerCount, SERVICE_UNAVAILABLE_SOFT_RETRY_COUNT, SERVICE_UNAVAILABLE_SOFT_RETRY_DELAY_MS, getBackgroundPagePrefetchDepth, BACKGROUND_PAGE_PREFETCH_DELAY_MS, BACKGROUND_PAGE_PREFETCH_MAX_LOAD_WAIT_MS, fetchImageBase64, VIRTUAL_ROW_ESTIMATED_HEIGHT_PX, VIRTUALIZATION_MIN_ITEMS, IMAGE_HIGH_PRIORITY_ITEMS_COUNT, VIRTUAL_OVERSCAN_ROWS, VISIBLE_PRICE_PREFETCH_CHUNK_SIZE, VIRTUAL_WINDOW_STEP_ROWS, CATALOG_LIST_CLASS, CATALOG_ADMIN_GRID_CLASS, CATALOG_GRID_CLASS };
 
 export type { PageCacheEntry, CatalogPagePayload, PageSessionCacheIndexEntry, DataProps, CatalogSortedEntry };

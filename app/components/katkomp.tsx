@@ -341,6 +341,13 @@ const findPath = (nodes: ProductNode[], target: string): string[] | null => {
   return null;
 };
 
+// Warm the category tree before the tab is opened, so the first click shows
+// the list instead of "Завантажуємо категорії". Shares loadProducts' cache and
+// in-flight request with the component.
+export const preloadCategoryTree = () => {
+  void loadProducts().catch(() => undefined);
+};
+
 const Category: React.FC<CategoryProps> = ({
   selectedCategories,
   handleCategoryChange,
@@ -396,7 +403,7 @@ const Category: React.FC<CategoryProps> = ({
     let cancelled = false;
 
     const fetchData = async () => {
-      setLoading(!(cache.usable && cache.nodes.length > 0));
+      setLoading(!(cachedProducts && cachedProducts.length > 0) && !(cache.usable && cache.nodes.length > 0));
       setError(null);
 
       try {

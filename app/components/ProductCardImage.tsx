@@ -43,6 +43,7 @@ const NEAR_VIEWPORT_ROOT_MARGIN = "1200px";
 // Release it to its own direct request once this elapses instead of waiting
 // forever for the shared pipeline to finish.
 const DISABLE_DIRECT_LOAD_RELEASE_MS = 1400;
+const VISIBLE_DIRECT_LOAD_RELEASE_MS = 250;
 
 const subscribeToNothing = () => () => {};
 // false while rendering on the server and hydrating that HTML, true for any
@@ -162,6 +163,17 @@ const ProductCardImageContent: React.FC<Props> = ({
     );
   }, []);
   const [isNearViewport, setIsNearViewport] = useState(loadingMode === "eager");
+  const [isVisible, setIsVisible] = useState(loadingMode === "eager");
+
+  useEffect(() => {
+    if (isVisible || !disableDirectLoad) return;
+    const node = containerRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
+    return observeNearViewport(node, "0px", () => setIsVisible(true));
+  }, [disableDirectLoad, isVisible]);
 
   useEffect(() => {
     if (loadingMode === "eager" || isNearViewport) return;
@@ -401,10 +413,10 @@ const ProductCardImageContent: React.FC<Props> = ({
       if (statusRef.current === "loaded" || requestSrcRef.current) return;
       setRequestSrc(primarySrc);
       setStatus("retrying");
-    }, DISABLE_DIRECT_LOAD_RELEASE_MS);
+    }, isVisible ? VISIBLE_DIRECT_LOAD_RELEASE_MS : DISABLE_DIRECT_LOAD_RELEASE_MS);
 
     return () => window.clearTimeout(timeoutId);
-  }, [disableDirectLoad, hasKnownPhoto, primarySrc, requestSrc, isNearViewport, loadingMode]);
+  }, [disableDirectLoad, hasKnownPhoto, primarySrc, requestSrc, isNearViewport, loadingMode, isVisible]);
 
   const handleError = useCallback(() => {
     clearProductImageSuccess(normalizedCode, normalizedArticle || undefined);

@@ -2,7 +2,7 @@
 
 import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Info, ShoppingCart, Trash2, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent, ArrowUpRight, RotateCcw } from "lucide-react";
+import { Info, ShoppingCart, MessageCircle, Copy, Check, Pencil, ImagePlus, X, Save, Plus, Minus, BadgePercent, RotateCcw, Replace } from "lucide-react";
 import ProductCardImage from "app/components/ProductCardImage";
 import PriceLoadingSkeleton from "app/components/PriceLoadingSkeleton";
 import SmartLink from "app/components/SmartLink";
@@ -14,7 +14,8 @@ import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import { useProductDescription } from "app/lib/use-product-description";
-import ProductDescriptionContent from "app/components/ProductDescriptionContent";
+import ProductCardBackTabs from "app/components/ProductCardBackTabs";
+import ProductCardBackAnalogs from "app/components/ProductCardBackAnalogs";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
 
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
@@ -92,7 +93,10 @@ interface Props {
     costPriceUAH?: number | null;
     costPriceEuro?: number | null;
     isAdmin?: boolean;
+    isGuest?: boolean;
     priceStatus: "loading" | "ready" | "request";
+    // Public prices can render before the account's final purchase price is verified.
+    priceAccessPending?: boolean;
     analyticsListId?: string;
     analyticsListName?: string;
     analyticsIndex?: number;
@@ -128,7 +132,9 @@ const ProductCard: React.FC<Props> = ({
     costPriceUAH,
     costPriceEuro,
     isAdmin = false,
+    isGuest = false,
     priceStatus,
+    priceAccessPending = false,
     analyticsListId,
     analyticsListName,
     analyticsIndex,
@@ -227,13 +233,15 @@ const ProductCard: React.FC<Props> = ({
     );
     const isAvailable = quantity > 0;
     const isPriceLoading = priceStatus === "loading";
+    const isPurchasePriceLoading = isPriceLoading || priceAccessPending;
     const hasCostPrice =
-        isAdmin &&
+        isAdmin && !priceAccessPending &&
         typeof costPriceUAH === "number" &&
         Number.isFinite(costPriceUAH) &&
         costPriceUAH > 0;
     const hasPromoPrice =
         !isPriceLoading &&
+        !priceAccessPending &&
         isPartner &&
         typeof promoPriceUAH === "number" &&
         Number.isFinite(promoPriceUAH) &&
@@ -251,11 +259,12 @@ const ProductCard: React.FC<Props> = ({
     const showPartnerDiscountTeaser = !isPriceLoading && !hasPromoPrice && hasPromo;
     const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
     const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
-    const isCartButtonDisabled = isPriceLoading ? true : hasPrice ? isAddDisabled : false;
+    const isCartButtonDisabled = isPurchasePriceLoading ? true : hasPrice ? isAddDisabled : false;
     const isRequestAction = priceStatus === "request";
-    const isCounterDisabled = !isAvailable || !hasPrice;
+    const isCounterDisabled = !isAvailable || !hasPrice || priceAccessPending;
     const [justAdded, setJustAdded] = useState(false);
     const [showCostPrice, setShowCostPrice] = useState(false);
+    const [showBackAnalogs, setShowBackAnalogs] = useState(false);
     const prevCartQty = useRef(cartQty);
     const isFrontVisible = !isFlipped;
     const frontVisibilityClass = isFrontVisible
@@ -598,7 +607,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
     return (
         <>
         <article
-            className={`catalog-product-card relative w-full [perspective:1200px] select-none h-[320px] ${isAdmin ? "catalog-product-card--admin" : ""} ${cardMotionClass}`}
+            className={`catalog-product-card catalog-card-readable relative w-full [perspective:1200px] select-none h-[440px] ${isAdmin ? "catalog-product-card--admin" : ""} ${isGuest ? "catalog-product-card--guest" : ""} ${cardMotionClass}`}
             onMouseEnter={prepareDescriptionOnIntent}
             onMouseMove={prepareDescriptionOnIntent}
             onMouseLeave={clearHoverIntent}
@@ -635,15 +644,6 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                     aria-hidden={!isFrontVisible}
                     inert={!isFrontVisible ? true : undefined}
                 >
-                    {/* Same top-hairline + corner-glow language used on the
-                        homepage/product-page cards elsewhere on the site —
-                        this card was still the plain flat-gradient version
-                        from before that treatment existed. Small and low-
-                        opacity on purpose: this card is dense with real
-                        information (code/article/producer/price), so the
-                        accent should read as polish, not compete with it. */}
-                    <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
-                    <span className="pointer-events-none absolute -left-6 -top-6 h-20 w-20 rounded-full bg-[radial-gradient(circle,rgba(14,165,233,0.14),transparent_70%)] blur-xl" aria-hidden="true" />
                     {/* Фото + назва */}
                     <div
                         className={`
@@ -978,8 +978,8 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             )}
                             {/* Price display */}
                             <div className={`catalog-card-price-pill ml-auto flex min-h-[32px] min-w-0 max-w-full items-center gap-2 px-2.5 py-1 rounded-[13px] bg-white/95 border whitespace-nowrap overflow-hidden transition-[background-color,border-color,box-shadow] duration-300 shadow-[0_6px_16px_rgba(0,0,0,0.06)] hover:bg-white ${showCostPrice ? 'border-amber-200/80 hover:border-amber-300' : 'border-blue-200/90 hover:border-blue-300'}`}>
-                                <span hidden={isPriceLoading} className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : 'text-slate-400'}`}>
-                                    {showCostPrice ? 'Закуп:' : 'Ціна:'}
+                                <span hidden={isPriceLoading} className={`text-[10px] font-bold uppercase tracking-[0.06em] ${showCostPrice ? 'text-amber-500' : priceAccessPending ? 'text-sky-800' : 'text-slate-400'}`}>
+                                    {showCostPrice ? 'Закуп:' : priceAccessPending ? 'Базова:' : 'Ціна:'}
                                 </span>
                                 <span className="flex items-center gap-1 tabular-nums">
                                     {isPriceLoading ? <PriceLoadingSkeleton /> : showCostPrice ? (
@@ -1126,23 +1126,12 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                             )}
                         </div>
 
-                         <div className="flex shrink-0 items-center gap-1">
-                             {cartQty > 0 && (
-                                 <button
-                                     onClick={(e) => {
-                                         e.stopPropagation();
-                                         onRemoveFromCart(code);
-                                     }}
-                                     className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-[0_8px_16px_rgba(225,29,72,0.12)] transition-all duration-200 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 ${tapMotionClass}`}
-                                     aria-label="Видалити товар з кошика"
-                                 >
-                                     <Trash2 size={16} />
-                                 </button>
-                             )}
+                         <div className="catalog-card-buttons flex shrink-0 items-center gap-1">
+                             <span className="catalog-card-cart-slot relative flex">
                              <button
                                  onClick={(e) => {
                                      e.stopPropagation();
-                                     if (isPriceLoading) {
+                                     if (isPurchasePriceLoading) {
                                          return;
                                      }
                                      if (isRequestAction) {
@@ -1175,7 +1164,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                  }}
                                  disabled={isCartButtonDisabled}
                                  aria-label={
-                                     isPriceLoading
+                                     isPurchasePriceLoading
                                          ? "Підтягуємо ціну"
                                          : isRequestAction
                                              ? "Надіслати запит у чат"
@@ -1183,7 +1172,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                  }
                                  className={`catalog-card-cart-button relative flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-[background-color,border-color,box-shadow,color] duration-300 ease-out ${
                                      isCartButtonDisabled
-                                         ? isPriceLoading
+                                         ? isPurchasePriceLoading
                                              ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-wait"
                                              : "bg-slate-200 text-slate-500 cursor-not-allowed"
                                          : isRequestAction
@@ -1193,22 +1182,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                      justAdded && motionEnabled ? "scale-105" : "scale-100"
                                  }`}
                              >
-                                 {cartQty > 0 && (
-                                     <span
-                                         className={`absolute -top-1.5 -right-1.5 z-10 flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white transition-transform duration-150 ${
-                                             justAdded && motionEnabled ? "scale-125" : "scale-100"
-                                         }`}
-                                         onClick={(e) => {
-                                             e.stopPropagation();
-                                             if (typeof window !== "undefined") {
-                                                 window.dispatchEvent(new Event("openOrderModal"));
-                                             }
-                                         }}
-                                     >
-                                         {cartQty}
-                                     </span>
-                                 )}
-                                 {isPriceLoading ? (
+                                 {isPurchasePriceLoading ? (
                                      <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
                                  ) : isRequestAction ? (
                                      <MessageCircle size={18} />
@@ -1216,6 +1190,24 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                      <ShoppingCart size={18} />
                                  )}
                              </button>
+                             {/* The count badge doubles as the remove control: hover or
+                                 focus turns the number into a cross (touch shows both). */}
+                             {cartQty > 0 && (
+                                 <button
+                                     type="button"
+                                     onClick={(e) => {
+                                         e.stopPropagation();
+                                         onRemoveFromCart(code);
+                                     }}
+                                     className={`catalog-card-cart-badge ${justAdded && motionEnabled ? "catalog-card-cart-badge--bump" : ""}`}
+                                     aria-label={`Видалити товар з кошика (${cartQty} шт.)`}
+                                     title="Видалити з кошика"
+                                 >
+                                     <span className="catalog-card-cart-badge-count">{cartQty}</span>
+                                     <X size={12} strokeWidth={3} className="catalog-card-cart-badge-remove" aria-hidden="true" />
+                                 </button>
+                             )}
+                             </span>
 
                              <button
                                  onClick={(e) => {
@@ -1237,7 +1229,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
 {(isFlipped || backMounted) && (
 <div
     className={`
-        catalog-card-face absolute inset-0 w-full h-full backface-hidden overflow-hidden
+        catalog-card-face catalog-card-face-back absolute inset-0 w-full h-full backface-hidden overflow-hidden
         rounded-[1.35rem] border
         ${isAdmin ? "border-violet-200/80" : "border-slate-200"}
         bg-[linear-gradient(155deg,rgba(248,250,252,1)_0%,rgba(255,255,255,0.98)_50%,rgba(240,249,255,0.95)_100%)]
@@ -1255,7 +1247,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
     inert={isFrontVisible ? true : undefined}
 >
     {/* Header: the name links to the product page, as on the front */}
-    <div className="group/backheader flex items-start gap-2 border-b border-slate-200/80 pb-2">
+    <div className="catalog-card-back-header group/backheader flex items-start gap-2 border-b border-slate-200/80 pb-2">
         <SmartLink
             href={productHref}
             prefetchOnIntent
@@ -1277,39 +1269,6 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
             </button>
         )}
     </div>
-
-    {/* Breadcrumb pills */}
-    {!isEditMode && (item.group || item.subGroup || item.category) && (() => {
-        const cat = (item.category || "").trim();
-        const grp = (item.group || "").trim();
-        const sub = (item.subGroup || "").trim();
-        const catL = cat.toLowerCase();
-        const grpL = grp.toLowerCase();
-        const subL = sub.toLowerCase();
-        const levels: string[] = [];
-        if (cat && catL !== grpL && catL !== subL) levels.push(cat);
-        if (grp) levels.push(grp);
-        if (sub && subL !== grpL) levels.push(sub);
-        if (levels.length === 0) return null;
-        const pillStyles = [
-            "bg-teal-50 text-teal-700 border-teal-100",
-            "bg-violet-50 text-violet-700 border-violet-100",
-            "bg-sky-50 text-sky-700 border-sky-100",
-        ] as const;
-        return (
-            <div className="flex flex-wrap items-center gap-1 py-2">
-                {levels.map((value, i) => (
-                    <span
-                        key={i}
-                        className={`inline-flex items-center rounded-full border px-2 py-[2px] text-[9px] font-semibold leading-none max-w-[calc(50%-2px)] truncate ${pillStyles[i] ?? pillStyles[2]}`}
-                        title={buildVisibleProductName(value)}
-                    >
-                        {buildVisibleProductName(value)}
-                    </span>
-                ))}
-            </div>
-        );
-    })()}
 
     {/* Content: edit form or description */}
     {isAdmin && onAdminEdit && isEditMode ? (
@@ -1414,51 +1373,33 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                 </div>
             </div>
         </>
+    ) : showBackAnalogs ? (
+        <ProductCardBackAnalogs item={item} />
     ) : (
-        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-2 pr-0.5 [-webkit-overflow-scrolling:touch]">
-            {loadingDesc && (
-                <div className="space-y-2 animate-pulse">
-                    <div className="h-2 bg-slate-200 rounded w-5/6" />
-                    <div className="h-2 bg-slate-200 rounded w-full" />
-                    <div className="h-2 bg-slate-200 rounded w-4/6" />
-                    <div className="h-2 bg-slate-200 rounded w-3/5" />
-                </div>
-            )}
-            {!loadingDesc && (
-                <div className="text-[11px] sm:text-[12px] leading-relaxed text-slate-600">
-                    {description ? (
-                        <ProductDescriptionContent text={description} variant="compact" />
-                    ) : descriptionStatus === "error" ? (
-                        <p>
-                            Не вдалося завантажити опис.{" "}
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); retryDescription(); }}
-                                className="font-bold text-sky-700 underline underline-offset-2 hover:text-sky-900"
-                            >
-                                Спробувати ще раз
-                            </button>
-                        </p>
-                    ) : (
-                        <p>Опис уточнюється — напишіть нам у чат, підкажемо деталі.</p>
-                    )}
-                </div>
-            )}
-        </div>
+        <ProductCardBackTabs
+            item={item}
+            description={description}
+            loading={loadingDesc}
+            hasError={descriptionStatus === "error"}
+            onRetry={retryDescription}
+        />
     )}
 
     {/* Footer: same row as the front's actions, so the turn-back button sits
         exactly where the ⓘ button that flipped the card was. */}
-    <div className="catalog-card-actions mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
-        <SmartLink
-            href={productHref}
-            prefetchOnIntent
-            onClick={handleProductLinkClick}
-            className="inline-flex min-h-[44px] min-w-0 items-center gap-1.5 rounded-xl border border-sky-200 bg-white px-3 text-[12px] font-bold text-sky-800 no-underline transition-colors duration-200 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-900"
+    <div className="catalog-card-back-footer mt-auto flex min-w-0 items-center justify-between gap-2 border-t border-slate-200 pt-2">
+        {/* The product page stays one tap away through the name above; this
+            button swaps the information tabs for the analog list. */}
+        <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowBackAnalogs((value) => !value); }}
+            aria-pressed={showBackAnalogs}
+            disabled={isEditMode}
+            className="catalog-card-back-analogs-toggle"
         >
-            <span className="truncate">Сторінка товару</span>
-            <ArrowUpRight size={15} className="shrink-0" aria-hidden="true" />
-        </SmartLink>
+            {showBackAnalogs ? <Info size={15} aria-hidden="true" /> : <Replace size={15} aria-hidden="true" />}
+            <span className="truncate">{showBackAnalogs ? "Про товар" : "Аналоги"}</span>
+        </button>
         <button
             type="button"
             onClick={(e) => {
@@ -1470,6 +1411,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                     setSubGroupSuggestions([]);
                     setCategorySuggestions([]);
                 }
+                setShowBackAnalogs(false);
                 onFlip(code);
             }}
             className="catalog-card-details-button p-2 min-w-[44px] min-h-[44px] flex shrink-0 items-center justify-center rounded-md border border-sky-100 bg-sky-50 text-sky-700 hover:border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all duration-200"
