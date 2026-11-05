@@ -360,7 +360,7 @@ function AnalyticsConsentBanner({
             {hasStoredChoice ? "Налаштування cookies" : "Ми використовуємо cookies"}
           </p>
           <p className="mt-1 text-[13px] leading-[1.5] text-slate-600">
-            Аналітика й реклама вимкнені до вашого вибору.{" "}
+            Вони допомагають нам бачити, які розділи й товари шукають, і не показувати вам зайву рекламу. Аналітика й реклама вимкнені, доки ви не дозволите.{" "}
             <Link
               href="/inform/privacy"
               prefetch={false}
