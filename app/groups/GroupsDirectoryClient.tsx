@@ -5,15 +5,11 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronRight, FolderTree, Search, X } from "lucide-react";
 
 import { uniqueDirectoryItems } from "app/lib/directory-items";
-import DirectoryGrid from "app/components/DirectoryGrid";
 import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import {
   directoryBadgeClass,
-  directoryCardClass,
-  directoryCompactMetricClass,
   directoryDescriptionClass,
   directoryHeaderClass,
-  directoryIconTileClass,
   directoryMetricAccentClass,
   directoryMetricClass,
   directoryPanelClass,
@@ -21,7 +17,7 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
-import { buildGroupPath } from "app/lib/catalog-links";
+import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
@@ -119,6 +115,10 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   });
 };
 
+// Enough groups to recognise the system at a glance without turning a card
+// into the category page.
+const PREVIEW_GROUPS = 4;
+
 function GroupCategoryCard({
   group,
   prefetchOnViewport = false,
@@ -127,47 +127,62 @@ function GroupCategoryCard({
   prefetchOnViewport?: boolean;
 }) {
   const visibleGroupLabel = buildVisibleProductName(group.label);
+  const groupPath = buildGroupPath(group.slug);
+  const previewGroups = [...group.subgroups]
+    .sort((a, b) => b.productCount - a.productCount)
+    // "Ще 1 група" would take the row the group itself needs.
+    .slice(0, group.subgroups.length === PREVIEW_GROUPS + 1 ? PREVIEW_GROUPS + 1 : PREVIEW_GROUPS);
+  const hiddenGroups = group.subgroups.length - previewGroups.length;
 
   return (
-    <SmartLink
-      href={buildGroupPath(group.slug)}
-      prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} group flex min-h-[132px] flex-col p-3.5`}
-      itemScope
-      itemType="https://schema.org/DefinedTerm"
-      itemProp="item"
-    >
-      <meta itemProp="url" content={buildGroupPath(group.slug)} />
-      <div className="flex min-w-0 items-start gap-3">
-        <div className={directoryIconTileClass}>
+    <article className="group-category-card" itemScope itemType="https://schema.org/DefinedTerm" itemProp="item">
+      <meta itemProp="url" content={groupPath} />
+      <div className="group-category-card__head">
+        <span className="group-category-card__icon">
           <Image
             src={getCategoryIconPath(visibleGroupLabel)}
-            alt={visibleGroupLabel}
+            alt=""
             width={44}
             height={44}
             sizes="36px"
-            className="relative z-[1] h-9 w-9 object-contain"
           />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
-            {visibleGroupLabel}
-          </h3>
-        </div>
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-white text-sky-700 shadow-[0_7px_16px_rgba(14,165,233,0.1)] transition group-hover:border-sky-300 group-hover:bg-sky-50">
-          <ChevronRight size={17} strokeWidth={2.4} />
         </span>
+        <div className="group-category-card__title">
+          <h3 itemProp="name">
+            {/* The title link covers the card; group links sit above it. */}
+            <SmartLink href={groupPath} prefetchOnViewport={prefetchOnViewport} className="group-category-card__link">
+              {visibleGroupLabel}
+            </SmartLink>
+          </h3>
+          <p>
+            {group.productCount > 0 ? <span>{formatCount(group.productCount, "товар", "товари", "товарів")}</span> : null}
+            {group.subgroups.length > 0 ? <span>{formatCount(group.subgroups.length, "група", "групи", "груп")}</span> : null}
+          </p>
+        </div>
+        <ChevronRight className="group-category-card__arrow" size={18} strokeWidth={2.4} aria-hidden="true" />
       </div>
 
-      <div className="mt-auto flex flex-wrap gap-1.5 border-t border-slate-100 pt-2.5">
-        <span className={directoryCompactMetricClass}>
-            {formatCount(group.productCount, "товар", "товари", "товарів")}
-          </span>
-      </div>
-    </SmartLink>
+      {previewGroups.length > 0 ? (
+        <ul className="group-category-card__groups" aria-label={`Групи: ${visibleGroupLabel}`}>
+          {previewGroups.map((subgroup) => (
+            <li key={subgroup.slug}>
+              <SmartLink href={buildGroupItemPath(group.slug, subgroup.slug)}>
+                <span>{buildVisibleProductName(subgroup.label)}</span>
+                {subgroup.productCount > 0 ? <span className="group-category-card__count">{subgroup.productCount.toLocaleString("uk-UA")}</span> : null}
+              </SmartLink>
+            </li>
+          ))}
+          {hiddenGroups > 0 ? (
+            <li>
+              <SmartLink href={groupPath} className="group-category-card__more" aria-label={`Усі групи категорії ${visibleGroupLabel}`}>
+                Ще {formatCount(hiddenGroups, "група", "групи", "груп")}
+              </SmartLink>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </article>
   );
-
-
 }
 
 export default function GroupsDirectoryClient({
@@ -244,7 +259,7 @@ export default function GroupsDirectoryClient({
     () => filteredGroups.reduce((sum, group) => sum + group.productCount, 0),
     [filteredGroups]
   );
-  const pagination = useDirectoryPagination(filteredGroups, normalizedQuery, 6);
+  const pagination = useDirectoryPagination(filteredGroups, normalizedQuery, 24, "fixed");
 
   return (
     <section className="relative pb-2 pt-0 sm:pb-3">
@@ -264,7 +279,7 @@ export default function GroupsDirectoryClient({
                   Оберіть систему автомобіля
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Оберіть <strong className="font-bold text-slate-800">категорію запчастин</strong> — від підвіски й гальмівної системи до двигуна, охолодження та електрики — і перейдіть у каталог із готовим фільтром.
+                  На кожній картці — найбільші групи системи: відкрийте <strong className="font-bold text-slate-800">категорію цілком</strong> або одразу потрібну групу.
                 </p>
               </div>
 
@@ -342,18 +357,17 @@ export default function GroupsDirectoryClient({
             <>
               <div itemScope itemType="https://schema.org/ItemList">
                 <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
-                <DirectoryGrid
-                  page={pagination.page} pageCount={pagination.pageCount} onPageChange={pagination.onPageChange}
-                  ariaLabel="Групи та категорії каталогу" variant="groups"
-                >
+                {/* Every category fits on one screen-scroll; only a very long
+                    list (or a broad search) needs pages. */}
+                <ul className="group-category-grid" aria-label="Категорії каталогу">
                   {pagination.items.map((group, index) => (
-                    <div key={group.slug} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                    <li key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(pagination.offset + index + 1)} />
-                      <GroupCategoryCard group={group} prefetchOnViewport={index < 6} />
-                    </div>
+                      <GroupCategoryCard group={group} prefetchOnViewport={index < 4} />
+                    </li>
                   ))}
-                </DirectoryGrid>
-                <DirectoryPagination {...pagination} />
+                </ul>
+                {pagination.pageCount > 1 ? <DirectoryPagination {...pagination} /> : null}
               </div>
             </>
           ) : (

@@ -131,7 +131,7 @@ export default function AutoBrandsDirectoryClient({
                   Марки автомобілів
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Знайдіть свою марку за назвою або логотипом. Натисніть, щоб переглянути моделі.
+                  Знайдіть марку за назвою або логотипом — далі відкриється список її моделей.
                 </p>
               </div>
 
@@ -183,7 +183,7 @@ export default function AutoBrandsDirectoryClient({
                   {pagination.items.map((brand, index) => (
                     <div key={brand.id} className="directory-result" role="listitem" itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
                       <meta itemProp="position" content={String(pagination.offset + index + 1)} />
-                      <AutoBrandCard brand={brand} prefetchOnViewport={index < 10} />
+                      <AutoBrandCard brand={brand} prefetchOnViewport={index < 4} />
                     </div>
                   ))}
                 </DirectoryGrid>

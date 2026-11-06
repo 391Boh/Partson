@@ -475,12 +475,29 @@ export default function AnalyticsRuntime({
     // Google Ads model the conversions of visitors who ignored the banner.
     // Keep third party downloads behind the page's own resources; page
     // views/events remain queued in dataLayer until the loader is ready.
-    return scheduleBackgroundTask(() => {
+    const load = () => {
       loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
       if (analyticsGranted) {
         loadPlerdyScript(plerdySiteHash, plerdySuid);
       }
+    };
+    // The tag's ~350 KB of script is the largest main-thread cost of a first
+    // visit: start it a few seconds after load or at the first interaction,
+    // whichever comes first. The order page loads it at once so the purchase
+    // conversion can't be lost to a quickly closed tab.
+    const cancel = scheduleBackgroundTask(load, {
+      delayMs: window.location.pathname.startsWith("/success") ? 0 : 3_000,
     });
+    const interactionEvents = ["pointerdown", "keydown", "touchstart"] as const;
+    const loadNow = () => {
+      cancel();
+      load();
+    };
+    for (const type of interactionEvents) window.addEventListener(type, loadNow, { once: true, passive: true });
+    return () => {
+      cancel();
+      for (const type of interactionEvents) window.removeEventListener(type, loadNow);
+    };
   }, [
     enabled,
     analyticsGranted,

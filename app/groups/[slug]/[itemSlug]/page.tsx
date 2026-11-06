@@ -1,3 +1,4 @@
+import DirectoryCollection from "app/components/DirectoryCollection";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
@@ -112,6 +113,8 @@ type GroupItemPageData = {
   parentSubgroupLabel: string;
   parentSubgroupSlug?: string;
   productCount: number;
+  /** False when 1C counts were unavailable: then 0 means "unknown", not "empty". */
+  countsKnown: boolean;
   producersCount: number;
   catalogPath: string;
   producerSplit: Array<{
@@ -464,6 +467,7 @@ const getGroupItemBySlugs = cache(
       rawGroupSeoFacets,
       getAllProductSitemapEntries
     );
+    const countsKnown = seoFacets.totalProductCount > 0;
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
     );
@@ -509,6 +513,7 @@ const getGroupItemBySlugs = cache(
           expandHierarchy: true,
         }),
         producerSplit,
+        countsKnown,
         children: [],
       };
     }
@@ -518,10 +523,15 @@ const getGroupItemBySlugs = cache(
       (entry) => entry.slug === itemSlug || entry.legacySlug === itemSlug
     );
     if (subgroup) {
-      const children = subgroup.children.map((child) => ({
+      const allChildren = subgroup.children.map((child) => ({
         ...child,
         productCount: counts.childProductCounts.get(child.slug) ?? 0,
       }));
+      // With real counts, list only subgroups that hold public products; the
+      // empty ones stay reachable by URL (noindex), as on /groups.
+      const children = countsKnown
+        ? allChildren.filter((child) => child.productCount > 0)
+        : allChildren;
       const producerSplit = await resolveGroupItemProducerSplit({
         seoProducers: seoFacets.producers,
         categoryLabel: group.label,
@@ -555,6 +565,7 @@ const getGroupItemBySlugs = cache(
           expandHierarchy: true,
         }),
         producerSplit,
+        countsKnown,
         children,
       };
     }
@@ -601,6 +612,7 @@ const getGroupItemBySlugs = cache(
           expandHierarchy: true,
         }),
         producerSplit,
+        countsKnown,
         children: [],
       };
     }
@@ -647,6 +659,7 @@ const getGroupItemBySlugs = cache(
         expandHierarchy: true,
       }),
       producerSplit,
+      countsKnown,
       children: [],
     };
   }
@@ -848,9 +861,10 @@ export async function generateMetadata({ params }: GroupItemPageProps): Promise<
     // The segment's opengraph-image/twitter-image card (1200×630) supplies
     // og/twitter images; explicit ones here would override it.
     image: null,
-    // Use the parent category icon when this group has no product preview and
-    // keep the landing page available for search and navigation.
-    index: true,
+    // Use the parent category icon when this group has no product preview.
+    // A node with no public products stays navigable (noindex, follow) like an
+    // empty model page; unknown counts keep it indexable (fail open).
+    index: !(item.countsKnown && item.productCount === 0),
     follow: true,
   });
 }
@@ -1157,7 +1171,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </span>
             </div>
           </div>
-          <ul className="category-card-grid category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4">
+          <DirectoryCollection as="ul" labels={item.children.map(child => child.label)} className="category-card-grid category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4" placeholder="Знайти підгрупу">
             {item.children.map((child) => {
               const childPreview = getGroupProductPreview({
                 categoryLabel: item.groupLabel,
@@ -1206,7 +1220,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 </li>
               );
             })}
-          </ul>
+          </DirectoryCollection>
         </section>
       ) : null}
 

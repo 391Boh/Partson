@@ -20323,9 +20323,9 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
   box-shadow:inset 0 1px 0 rgb(255 255 255 / 90%);
 }
 .catalog-product-card.catalog-card-readable.catalog-product-card--guest .catalog-card-discount-icon {
-  width:16px; height:16px; background:#ffe0e9; color:#b7194b;
+  display:none;
 }
-.catalog-product-card.catalog-card-readable.catalog-product-card--guest .catalog-card-discount-copy { flex-direction:column; align-items:flex-start; gap:1px; }
+.catalog-product-card.catalog-card-readable.catalog-product-card--guest .catalog-card-discount-copy { width:100%; flex-direction:column; align-items:center; gap:1px; }
 .catalog-product-card.catalog-card-readable.catalog-product-card--guest .catalog-card-discount-value {
   font-size:12px; font-weight:750; font-variation-settings:"wght" 750; color:#b7194b;
 }
@@ -21244,3 +21244,592 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 .catalog-product-card.catalog-card-readable.catalog-product-card--admin .catalog-card-price-row--promo .catalog-card-price-pill { padding-inline:8px; }
 .catalog-product-card.catalog-card-readable.catalog-product-card--admin .catalog-card-price-row--promo .catalog-card-price-pill > span:last-child { column-gap:3px; }
 .catalog-product-card.catalog-card-readable.catalog-product-card--admin .catalog-card-price-row--promo .catalog-card-price-pill .catalog-card-price-amount { font-size:18px; }
+
+/* Directory navigation and reading rhythm: one system at every depth. */
+.directory-nav-shell { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; margin-bottom:30px; }
+.catalog-directory-page .directory-nav-shell nav.directory-section-nav { margin:0; }
+.directory-catalog-shortcut { display:inline-flex; flex:none; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 14px; color:#e4f5fa; font-size:13px; font-weight:600; border:1px solid #a3d4df40; border-radius:10px; background:#0c2c3e99; text-decoration:none; transition:background-color .16s,border-color .16s; }
+.catalog-directory-page .directory-heading-hero { letter-spacing:-.025em; text-wrap:balance; }
+.catalog-directory-page .directory-detail-hero .directory-heading-hero { font-weight:750; font-variation-settings:"wght" 750; line-height:1.12; }
+.catalog-directory-page .directory-panel { border-radius:18px; border:1px solid #d6e5ed; background:#fff; box-shadow:0 10px 30px -22px #16465c50; --tw-ring-shadow:0 0 transparent; }
+.catalog-directory-page .directory-panel-header { padding:24px; border-bottom:1px solid #e1ebf1; background:linear-gradient(120deg,#f6fbfd,#fff 70%); }
+.catalog-directory-page .directory-panel-header .directory-kicker { display:none; }
+.catalog-directory-page .directory-panel-header .directory-heading { margin-top:0; font-size:clamp(22px,2vw,29px); font-weight:720; font-variation-settings:"wght" 720; letter-spacing:-.02em; line-height:1.2; text-shadow:none; }
+.catalog-directory-page .directory-search-field { padding:14px; border-color:#c2dce7; background:#eff7fa; box-shadow:0 4px 12px -10px #16465c40; }
+.catalog-directory-page .directory-search-input { min-height:48px; border-radius:10px; color:#21465b; border-color:#c5dce7; box-shadow:none; }
+.catalog-directory-page .directory-search-input::placeholder { color:#607e8f; }
+.catalog-directory-page .directory-results { gap:12px; }
+.catalog-directory-page .directory-entry { border-radius:12px; border-color:#d8e5ec; background:linear-gradient(145deg,#fff,#f6fafc); box-shadow:0 3px 8px -5px #154b5e30; transition:border-color .16s,background-color .16s,box-shadow .16s; }
+.catalog-directory-page .directory-entry .directory-card-title { color:#173d53; font-weight:680; font-variation-settings:"wght" 680; letter-spacing:-.012em; line-height:1.35; text-shadow:none; }
+.catalog-directory-page .directory-counter { color:#08748c; background:none; -webkit-text-fill-color:currentColor; font-weight:750; }
+.catalog-directory-page .directory-entry::after { opacity:0; }
+.directory-collection { min-width:0; }
+.directory-collection-toolbar { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,400px); align-items:center; gap:16px; padding:18px 24px; border-bottom:1px solid #e1ebf1; }
+.directory-collection-toolbar > label { color:#254c61; font-size:14px; font-weight:650; }
+.directory-collection-toolbar > label > span { display:block; margin-top:4px; color:#5b7788; font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+.directory-collection-search { display:flex; align-items:center; gap:8px; min-width:0; min-height:48px; padding:0 12px; border:1px solid #bdd7e3; border-radius:10px; background:#f7fbfd; color:#08758e; }
+.directory-collection-search:focus-within { border-color:#08758e; outline:2px solid #9cd2df60; outline-offset:2px; }
+.directory-collection-search > input { flex:1; min-width:0; width:100%; padding:10px 0; border:0; background:transparent; color:#21465b; font-size:16px; outline:none; }
+.directory-collection-search > input::placeholder { color:#637f8f; }
+.directory-collection-search > input::-webkit-search-cancel-button { display:none; }
+.directory-collection-search > button { display:grid; flex:none; place-items:center; width:32px; min-width:32px; height:40px; padding:0; border:0; color:#456879; background:transparent; }
+.directory-collection > .directory-pagination { margin:0; padding:18px 24px 22px; }
+.directory-collection-empty { padding:32px 24px; text-align:center; color:#536f81; font-size:14px; }
+.directory-collection-empty button { min-height:44px; padding:8px; color:#08758e; text-decoration:underline; text-underline-offset:3px; }
+.directory-page-size { display:flex; align-items:center; gap:8px; color:#526f81; font-size:12px; }
+.directory-page-size select { min-width:64px; min-height:44px; padding:6px 10px; border:1px solid #c6dce6; border-radius:9px; color:#21465b; background:#f6fbfd; font-size:14px; font-weight:600; }
+.directory-pagination-controls { flex-wrap:wrap; justify-content:center; }
+.directory-pagination-controls button { border-radius:10px; font-weight:650; box-shadow:0 2px 5px -3px #184b6120; }
+.directory-pagination-controls button[aria-current="page"] { background:#075e72; border-color:#075e72; box-shadow:0 4px 9px -5px #075e7280; }
+.directory-page-jump { display:flex; align-items:center; gap:8px; color:#526f81; font-size:12px; }
+.directory-page-jump label { display:flex; align-items:center; gap:8px; }
+.directory-page-jump input { width:64px; min-height:44px; padding:8px; border:1px solid #c6dce6; border-radius:9px; color:#21465b; background:#fff; font-size:14px; }
+.directory-page-jump button { min-height:44px; padding:8px 12px; border:1px solid #c6dce6; border-radius:9px; color:#075e72; background:#edf7fa; font-weight:650; }
+.directory-pagination-progress { height:4px; background:#dcebf0; }
+.directory-pagination-progress > span { background:linear-gradient(90deg,#08788f,#2caeac); }
+.directory-assist-shell { padding:36px 0 48px; background:#eff5f7; }
+.directory-assist { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:clamp(28px,5vw,80px); padding:clamp(24px,4vw,56px); border-radius:20px; color:#ecf5fa; background:radial-gradient(ellipse at 100% 0%,#14627770,transparent 65%),linear-gradient(140deg,#0b2232,#0d394a); box-shadow:0 12px 30px -20px #0b283b70; }
+.directory-assist-copy { align-self:center; }
+.directory-assist h2 { max-width:19ch; margin:0; font-size:clamp(26px,3vw,42px); line-height:1.15; font-weight:720; font-variation-settings:"wght" 720; letter-spacing:-.025em; text-wrap:balance; color:#f4faff; }
+.directory-assist-copy > p { max-width:54ch; margin:18px 0 0; color:#bfd5df; font-size:15px; line-height:1.75; }
+.directory-assist-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:24px; }
+.directory-assist-actions > :is(a,button) { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:10px 14px; border:1px solid #6d9aaa60; border-radius:10px; font-size:13px; font-weight:600; color:#e3f2f7; background:#ffffff08; text-decoration:none; }
+.directory-assist-actions > a { background:#0b8194; border-color:#339cac; color:#fff; box-shadow:0 4px 10px -7px #000; }
+.directory-assist ol { display:grid; gap:0; list-style:none; padding:0; margin:0; counter-reset:directory-step; }
+.directory-assist li { position:relative; min-width:0; padding:16px 0 16px 42px; border-bottom:1px solid #79a5b535; counter-increment:directory-step; }
+.directory-assist li:first-child { padding-top:0; }
+.directory-assist li::before { content:counter(directory-step,decimal-leading-zero); position:absolute; left:0; top:17px; color:#6ec8d3; font-size:12px; font-weight:650; font-variant-numeric:tabular-nums; }
+.directory-assist li:first-child::before { top:2px; }
+.directory-assist li strong { color:#f0f8fb; font-size:15px; font-weight:650; }
+.directory-assist li p { margin:5px 0 0; color:#b5cfdc; font-size:13px; line-height:1.6; }
+.directory-assist-vin { display:flex; align-items:flex-start; gap:10px; margin:18px 0 0; color:#c2dce5; font-size:12px; line-height:1.6; }
+.directory-assist-vin svg { flex:none; color:#75d0d7; margin-top:1px; }
+:where(.directory-collection,.directory-pagination,.directory-assist,.directory-nav-shell) :is(a,button,input,select):focus-visible { outline:2px solid #21a0b8; outline-offset:3px; }
+.directory-assist ::selection { background:#a8e0e8; color:#12384a; }
+@media (hover:hover) and (pointer:fine) {
+  .directory-catalog-shortcut:hover { color:#fff; background:#1c4b5e; border-color:#80c7d580; }
+  .catalog-directory-page .directory-entry:hover { border-color:#88bdcc; background:#f2fafc; box-shadow:0 6px 14px -9px #08768e45; }
+  .directory-assist-actions > :is(a,button):hover { background:#146b80; color:#fff; }
+}
+@media (max-width:767px) {
+  .directory-nav-shell { flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+  .directory-catalog-shortcut { min-height:36px; margin-left:auto; padding:6px 10px; font-size:12px; }
+  .catalog-directory-page .directory-panel-header { padding:18px 16px; }
+  .directory-collection-toolbar { grid-template-columns:1fr; gap:10px; padding:16px; }
+  .directory-collection > .directory-pagination { padding:16px; gap:12px; }
+  .directory-page-jump { justify-content:center; }
+  .directory-assist-shell { padding:24px 0 32px; }
+  .directory-assist { grid-template-columns:1fr; gap:28px; padding:24px 20px; border-radius:16px; }
+  .directory-assist h2 { max-width:24ch; }
+  .directory-assist-copy > p { margin-top:14px; font-size:14px; }
+  .directory-assist-actions > :is(a,button) { flex:1 1 180px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .directory-pagination-progress > span,.directory-catalog-shortcut,.directory-entry { transition:none; }
+}
+/* Columns, not a grid: a group with many subgroups grows on its own and the
+   short ones stack under each other instead of leaving row-height holes. */
+.directory-collection > .cat-groups { padding:20px 24px 6px; }
+@media (max-width:767px) { .directory-collection > .cat-groups { padding:14px 14px 4px; } }
+@media (max-width:767px) { .directory-page-size select,.directory-page-jump input { font-size:16px; } }
+.directory-empty-action { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; margin-top:14px; padding:10px 16px; border-radius:10px; background:#08768d; color:#fff; font-size:13px; font-weight:650; text-decoration:none; }
+
+/* /groups category list: every system visible at once, each card naming its
+   largest groups so the right category is recognisable before the click. */
+.group-category-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:14px; margin:0; padding:16px; list-style:none; }
+.group-category-grid > li { min-width:0; }
+.group-category-card { position:relative; display:flex; flex-direction:column; height:100%; padding:16px; border:1px solid #d8e5ec; border-radius:14px; background:linear-gradient(160deg,#fff 60%,#f4f9fb); box-shadow:0 3px 10px -7px #154b5e40; transition:border-color .16s,box-shadow .16s,background-color .16s; }
+.group-category-card__head { display:grid; grid-template-columns:48px minmax(0,1fr) 20px; align-items:center; gap:14px; }
+.group-category-card__icon { display:grid; place-items:center; width:48px; height:48px; border:1px solid #d3e8ee; border-radius:12px; background:#eef7f9; }
+.group-category-card__icon img { width:34px; height:34px; object-fit:contain; }
+.group-category-card__title { min-width:0; }
+.group-category-card__title h3 { margin:0; color:#143a4f; font-size:16.5px; font-weight:720; font-variation-settings:"wght" 720; line-height:1.3; letter-spacing:-.01em; text-wrap:balance; overflow-wrap:anywhere; }
+.group-category-card__link { color:inherit; text-decoration:none; }
+.group-category-card__link::after { content:""; position:absolute; inset:0; z-index:0; border-radius:inherit; }
+.group-category-card__link:focus-visible { outline:none; }
+.group-category-card:has(.group-category-card__link:focus-visible) { outline:2px solid #087c96; outline-offset:3px; }
+.group-category-card__title p { display:flex; flex-wrap:wrap; gap:2px 0; margin:5px 0 0; color:#587585; font-size:12.5px; font-weight:560; line-height:1.4; font-variant-numeric:tabular-nums; }
+.group-category-card__title p > span + span::before { content:"·"; margin-inline:7px; color:#9fb6c2; }
+.group-category-card__arrow { color:#5d9aab; transition:transform .16s,color .16s; }
+.group-category-card__groups { position:relative; z-index:1; display:grid; gap:2px; margin:14px 0 0; padding:10px 0 0; border-top:1px solid #e3edf1; list-style:none; }
+.group-category-card__groups a { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:34px; margin-inline:-8px; padding:6px 8px; border-radius:8px; color:#2b5266; font-size:13.5px; font-weight:560; line-height:1.3; text-decoration:none; transition:background-color .14s,color .14s; }
+.group-category-card__groups a > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-category-card__count { flex:none; color:#6a8695; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+.group-category-card__groups a.group-category-card__more { justify-content:flex-start; color:#08758e; font-weight:680; }
+.group-category-card__groups a:focus-visible { outline:2px solid #087c96; outline-offset:0; }
+@media (hover:hover) and (pointer:fine) {
+  .group-category-card:hover { border-color:#8cc1cf; background:linear-gradient(160deg,#fff 40%,#eef8fa); box-shadow:0 10px 22px -14px #0b637a66; }
+  .group-category-card:hover .group-category-card__arrow { color:#08758e; transform:translateX(3px); }
+  .group-category-card:hover .group-category-card__title h3 { color:#0b5f75; }
+  .group-category-card__groups a:hover { background:#e9f5f8; color:#0b5f75; }
+  .group-category-card__groups a:hover .group-category-card__count { color:#0b6c84; }
+}
+@media (pointer:coarse) { .group-category-card__groups a { min-height:40px; } }
+@media (max-width:599px) {
+  .group-category-grid { gap:10px; padding:12px; }
+  .group-category-card { padding:14px; }
+  .group-category-card__head { grid-template-columns:44px minmax(0,1fr) 18px; gap:12px; }
+  .group-category-card__icon { width:44px; height:44px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .group-category-card,.group-category-card__arrow,.group-category-card__groups a { transition:none; }
+}
+
+/* Off-page and filtered cards stay in the HTML for crawlers, never on screen. */
+.directory-collection [hidden] { display:none !important; }
+
+/* ── Directory masthead ─────────────────────────────────────────────────────
+   One frame for /auto, /groups, /manufacturers, their detail pages and their
+   loading shells: the section nav, breadcrumb and title sit at the same
+   height everywhere, the hero keeps one height, and the search panel rises
+   into the photograph by the same amount. Moving between directories (or
+   from a loading shell to its page) therefore moves nothing. */
+.catalog-directory-page { --dir-hero-h:calc(var(--header-height,4rem) + 535px); --dir-rise:56px; }
+.catalog-directory-page .catalog-hub-stage > .directory-intro,
+:is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) .directory-detail-hero {
+  min-height:var(--dir-hero-h);
+  padding-top:calc(var(--header-height,4rem) + 32px);
+  padding-bottom:calc(var(--dir-rise) + 40px);
+  justify-content:flex-start;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell { margin-bottom:24px; }
+.catalog-directory-page .directory-intro-breadcrumb { min-height:20px; margin:0 0 16px; }
+.catalog-directory-page .directory-detail-hero > .relative.z-\[1\].mb-4 { min-height:20px; margin-bottom:16px; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] { margin:0; font-size:12px; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] ol { gap:8px; line-height:20px; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] :is(a,span) { color:#a9c4d1; font-weight:600; text-decoration:none; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] li:last-child > span:last-child { color:#e3f3f8; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] a:hover { color:#fff; }
+
+/* One title scale: hubs were 56px, details 39px. */
+.catalog-directory-page .catalog-hub-stage > .directory-intro h1,
+.catalog-directory-page .catalog-hub-stage > .directory-intro--showcase h1,
+.catalog-directory-page .directory-detail-hero .directory-detail-identity h1 {
+  max-width:24ch; margin:0; color:#f1fbff;
+  font-size:clamp(30px,3.3vw,46px); line-height:1.1; font-weight:760; font-variation-settings:"wght" 760;
+  letter-spacing:-.03em; text-wrap:balance; text-shadow:0 2px 18px #03121d40;
+}
+.catalog-directory-page .catalog-hub-stage > .directory-intro .directory-intro-copy p,
+.catalog-directory-page .directory-detail-hero .directory-detail-identity p {
+  max-width:66ch; margin-top:14px; color:#bfd6e0; font-size:15.5px; line-height:1.72; text-wrap:pretty;
+}
+.catalog-directory-page .directory-detail-hero .directory-detail-identity p + p { margin-top:6px; color:#9fbccb; font-size:14px; }
+.catalog-directory-page .catalog-hub-stage > .directory-intro--showcase .directory-intro-footer { margin-top:24px; }
+.catalog-directory-page .directory-detail-hero .directory-detail-identity .mt-4 { margin-top:24px; }
+
+/* The detail pages' sky-blue action matches the hubs' mint one. */
+.catalog-directory-page .directory-detail-hero .directory-primary-action {
+  min-height:48px; gap:12px; padding:12px 18px; border:1px solid #d7fff052; border-radius:12px;
+  color:#073b46; background:linear-gradient(125deg,#69dfd4,#a1efdf);
+  box-shadow:inset 0 1px 0 #fff6,0 10px 22px -14px #4edbce73;
+  font-size:14px; font-weight:750; transform:none; filter:none;
+}
+.catalog-directory-page .directory-detail-hero .directory-primary-action::after { content:"→"; font-weight:700; transition:translate .18s ease-out; }
+@media (hover:hover) and (pointer:fine) {
+  .catalog-directory-page .directory-detail-hero .directory-primary-action:hover { transform:none; filter:none; border-color:#e5fff8a6; box-shadow:inset 0 1px 0 #fff6,0 12px 26px -14px #4edbce99; }
+  .catalog-directory-page .directory-detail-hero .directory-primary-action:hover::after { translate:2px 0; }
+}
+
+/* The first panel rises into the hero: one surface from title to search. */
+.catalog-directory-page :is(#auto-brands-directory,#groups-directory,#manufacturers-directory.directory-panel,#auto-models-directory.directory-panel),
+:is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) > div:has(> .directory-detail-hero) + .directory-panel,
+.catalog-directory-page.directory-loading-page .directory-loading-list {
+  position:relative; z-index:2; margin-top:calc(var(--dir-rise) * -1);
+}
+.catalog-directory-page :is(#auto-brands-directory > .page-shell-inline > .directory-panel:first-child,#groups-directory > .directory-panel:first-child,#manufacturers-directory.directory-panel,#auto-models-directory.directory-panel),
+:is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) > div:has(> .directory-detail-hero) + .directory-panel {
+  border:1px solid #dce9ef; border-radius:22px; background:#fff;
+  box-shadow:0 1px 0 #ffffff inset,0 32px 64px -40px #071b28a6,0 10px 24px -18px #071b2840;
+  --tw-ring-shadow:0 0 #0000;
+}
+.catalog-directory-page :is(#auto-brands-directory,#groups-directory,#manufacturers-directory,#auto-models-directory) .directory-panel-header,
+:is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) > div:has(> .directory-detail-hero) + .directory-panel > .directory-panel-header {
+  padding:26px 28px 24px; background:linear-gradient(180deg,#fbfdfe,#fff 70%); border-bottom-color:#e6eff3;
+}
+.catalog-directory-page.directory-loading-page .directory-loading-list { padding:20px; border-radius:22px; background:#fff; box-shadow:0 32px 64px -40px #071b28a6; }
+.catalog-directory-page.directory-loading-page .directory-loading-list > span { background:linear-gradient(100deg,#eef4f7 40%,#f7fafb 50%,#eef4f7 60%) 0 0/200% 100%; }
+@media (prefers-reduced-motion:no-preference) {
+  .catalog-directory-page.directory-loading-page .directory-loading-list > span { animation:dir-shimmer 1.4s linear infinite; }
+}
+@keyframes dir-shimmer { to { background-position:-200% 0; } }
+
+/* Search: one confident field instead of a field boxed inside a tinted box. */
+.catalog-directory-page .directory-search-field { padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.catalog-directory-page .directory-search-label { margin-bottom:8px; color:#3f6779; font-size:11px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+.catalog-directory-page .directory-search-control > svg { left:16px; width:18px; height:18px; color:#0a8197; }
+.catalog-directory-page .directory-search-input,
+.catalog-directory-page .directory-collection-search {
+  min-height:54px; border:1.5px solid #c8dde5; border-radius:14px; background:#f6fafb;
+  box-shadow:inset 0 1px 2px #0b3a4c0d; transition:border-color .15s,background-color .15s,box-shadow .15s;
+}
+.catalog-directory-page .directory-search-input { padding-left:46px; color:#173b4e; font-size:15.5px; font-weight:560; }
+.catalog-directory-page .directory-search-input::placeholder,
+.catalog-directory-page .directory-collection-search > input::placeholder { color:#6a8796; font-weight:500; }
+.catalog-directory-page .directory-collection-search { padding:0 14px 0 16px; gap:10px; color:#0a8197; }
+.catalog-directory-page .directory-collection-search > input { font-size:15.5px; font-weight:560; color:#173b4e; }
+.catalog-directory-page .directory-search-input:focus,
+.catalog-directory-page .directory-collection-search:focus-within {
+  outline:none; border-color:#0a8197; background:#fff; box-shadow:0 0 0 4px #0a81971c,0 6px 16px -10px #0a819766;
+}
+@media (hover:hover) and (pointer:fine) {
+  .catalog-directory-page .directory-search-input:hover:not(:focus),
+  .catalog-directory-page .directory-collection-search:hover:not(:focus-within) { border-color:#9ec7d4; background:#fbfdfd; }
+}
+.catalog-directory-page .directory-collection-toolbar { padding:20px 28px; }
+.catalog-directory-page .directory-collection-toolbar > label { color:#173b4e; font-size:15px; font-weight:700; }
+
+/* The contextual help waits for the page: under a short loading shell it
+   would otherwise sit high and then jump down when the content arrives. */
+body:has(main[aria-busy="true"]) .directory-assist-shell { display:none; }
+
+@media (max-width:1023px) {
+  .catalog-directory-page { --dir-hero-h:calc(var(--header-height,4rem) + 470px); --dir-rise:40px; }
+}
+@media (max-width:767px) {
+  .catalog-directory-page { --dir-hero-h:0px; --dir-rise:28px; }
+  .catalog-directory-page .catalog-hub-stage > .directory-intro,
+  :is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) .directory-detail-hero { padding-top:calc(var(--header-height,4rem) + 20px); }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell { margin-bottom:18px; }
+  .catalog-directory-page .directory-intro-breadcrumb { margin-bottom:12px; }
+  .catalog-directory-page :is(#auto-brands-directory,#groups-directory,#manufacturers-directory,#auto-models-directory) .directory-panel-header,
+  :is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) > div:has(> .directory-detail-hero) + .directory-panel > .directory-panel-header { padding:20px 16px 18px; }
+  .catalog-directory-page .directory-collection-toolbar { padding:16px; }
+  .catalog-directory-page .directory-search-input,.catalog-directory-page .directory-collection-search { min-height:52px; }
+  .catalog-directory-page .directory-search-input,.catalog-directory-page .directory-collection-search > input { font-size:16px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .catalog-directory-page .directory-search-input,.catalog-directory-page .directory-collection-search { transition:none; }
+}
+/* Without stats the copy column takes the room the stats aside would use. */
+.catalog-directory-page .directory-detail-hero > .relative.grid:not(:has(> aside)) { grid-template-columns:minmax(0,1fr); max-width:860px; }
+@media (min-width:1024px) { .catalog-directory-page .directory-detail-hero .directory-detail-identity p { max-width:78ch; } }
+.catalog-directory-page section:has(> .page-shell-inline > :is(#manufacturers-directory,#auto-models-directory)) { padding-top:0; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] ol { display:flex; flex-flow:row wrap; align-items:center; justify-content:flex-start; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] li { display:inline-flex; align-items:center; gap:8px; width:auto; }
+
+/* Pages open under the fixed header, except those whose hero runs beneath
+   its transparent state (home and the directories). Decided by the page
+   that is actually rendered, so offset and content always change together. */
+.site-main { padding-top:var(--header-height,4rem); }
+.site-main:has(> .route-transition-shell :is(.home-static,.catalog-directory-page)) { padding-top:0; }
+
+/* Detail-page loading shell: same hero frame, neutral placeholders. */
+.directory-detail-loading .directory-skeleton-bar { display:block; height:12px; border-radius:6px; background:#b0cfde26; }
+.directory-detail-loading .directory-detail-hero > .relative.z-\[1\] > .directory-skeleton-bar { height:10px; margin-top:5px; }
+.directory-detail-loading .directory-skeleton-tile { width:72px; height:72px; border-radius:12px; background:#ffffff1f; }
+.directory-detail-loading .directory-skeleton-copy { display:grid; gap:14px; min-width:0; }
+.directory-detail-loading .directory-skeleton-title { display:block; width:min(30rem,100%); height:46px; border-radius:10px; background:#ffffff2e; }
+.directory-detail-loading .directory-skeleton-action { display:block; width:180px; height:48px; margin-top:10px; border-radius:12px; background:#69dfd440; }
+.directory-detail-loading .directory-skeleton-panel { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; padding:24px; }
+.directory-detail-loading .directory-skeleton-panel > span { height:84px; border-radius:14px; background:linear-gradient(100deg,#eef4f7 40%,#f7fafb 50%,#eef4f7 60%) 0 0/200% 100%; }
+@media (prefers-reduced-motion:no-preference) {
+  .directory-detail-loading .directory-skeleton-panel > span { animation:dir-shimmer 1.4s linear infinite; }
+}
+@media (max-width:767px) {
+  .directory-detail-loading .directory-skeleton-panel { grid-template-columns:1fr; padding:16px; }
+  .directory-detail-loading .directory-skeleton-tile { width:56px; height:56px; }
+}
+
+/* ── Directory hero: lit title, drafting grid, pointer light ──────────────
+   The title is visible from the first frame (gradient text, never faded in,
+   so it stays a valid LCP candidate); one light sweep crosses it on arrival.
+   The grid and light are static masks on desktop until a fine pointer moves
+   over the hero; nothing animates offscreen or loops. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero {
+  position:relative;
+  background-image:
+    linear-gradient(105deg,transparent 40%,#ffffffee 50%,transparent 60%),
+    linear-gradient(100deg,#ffffff 0%,#eaf8fb 48%,#a6efe3 100%);
+  background-size:280% 100%,100% 100%;
+  background-position:140% 0,0 0;
+  background-repeat:no-repeat;
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  text-shadow:none;
+  filter:drop-shadow(0 2px 16px #03121d59);
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero .directory-title-emphasis {
+  background-image:
+    linear-gradient(105deg,transparent 40%,#ffffffee 50%,transparent 60%),
+    linear-gradient(95deg,#8ff5e4 0%,#62dcd2 45%,#6ccaf2 100%);
+  background-size:280% 100%,100% 100%;
+  background-position:140% 0,0 0;
+  background-repeat:no-repeat;
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent; -webkit-text-fill-color:transparent;
+  font-weight:760; font-variation-settings:"wght" 760;
+}
+/* A short lit rule under the title; positioned, so it never adds height. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero::after {
+  content:""; position:absolute; left:2px; bottom:-9px; width:88px; height:3px; border-radius:3px;
+  background:linear-gradient(90deg,#7ff0df,#5fc4f0 70%,#5fc4f000);
+  box-shadow:0 0 14px #69dfd4a6; transform-origin:left center;
+}
+@media (prefers-reduced-motion:no-preference) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero,
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero .directory-title-emphasis {
+    animation:dir-title-sheen 1.7s .25s cubic-bezier(.3,.7,.3,1) 1 both;
+  }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero .directory-title-emphasis { animation-delay:.45s; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero::after {
+    animation:dir-title-rule .9s .15s cubic-bezier(.22,1,.36,1) 1 both;
+  }
+}
+@keyframes dir-title-sheen { from { background-position:140% 0,0 0; } to { background-position:-60% 0,0 0; } }
+@keyframes dir-title-rule { from { transform:scaleX(0); opacity:0; } to { transform:scaleX(1); opacity:1; } }
+@media (forced-colors:active) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero,
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero .directory-title-emphasis {
+    background:none; color:CanvasText; -webkit-text-fill-color:CanvasText; filter:none;
+  }
+}
+
+.directory-hero-grid,.directory-hero-spot { position:absolute; inset:0; pointer-events:none; }
+.directory-hero-grid {
+  background-image:linear-gradient(#a3efe41a 1px,transparent 1px),linear-gradient(90deg,#a3efe41a 1px,transparent 1px);
+  background-size:56px 56px; background-position:center;
+  -webkit-mask-image:radial-gradient(460px circle at var(--spot-x,80%) var(--spot-y,36%),#000,transparent 72%);
+  mask-image:radial-gradient(460px circle at var(--spot-x,80%) var(--spot-y,36%),#000,transparent 72%);
+  opacity:.55; transition:opacity .4s ease-out;
+}
+.directory-hero-spot {
+  background:radial-gradient(560px circle at var(--spot-x,80%) var(--spot-y,36%),#69dfd424,#5fc4f00f 38%,transparent 62%);
+  opacity:0; transition:opacity .35s ease-out;
+}
+.directory-hero-backdrop[data-spot="on"] .directory-hero-grid { opacity:1; }
+.directory-hero-backdrop[data-spot="on"] .directory-hero-spot { opacity:1; }
+@media (max-width:767px) {
+  .directory-hero-grid { opacity:.35; -webkit-mask-image:radial-gradient(300px circle at 85% 20%,#000,transparent 72%); mask-image:radial-gradient(300px circle at 85% 20%,#000,transparent 72%); }
+  .directory-hero-spot { display:none; }
+}
+@media (prefers-reduced-motion:reduce) { .directory-hero-grid,.directory-hero-spot { transition:none; } }
+
+/* Stronger hero light (second pass). */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero {
+  background-image:
+    linear-gradient(105deg,transparent 36%,#ffffff 47%,#d9fff8 50%,transparent 64%),
+    linear-gradient(100deg,#ffffff 0%,#e6f9fb 42%,#8eeedd 100%);
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) h1.directory-heading-hero::after {
+  width:120px; height:4px; bottom:-11px;
+  background:linear-gradient(90deg,#8ff5e4,#5fc4f0 65%,#5fc4f000);
+  box-shadow:0 0 18px #69dfd4cc,0 0 2px #b9fff3;
+}
+.directory-hero-grid {
+  background-image:linear-gradient(#a3efe430 1px,transparent 1px),linear-gradient(90deg,#a3efe430 1px,transparent 1px);
+  opacity:.7;
+}
+.directory-hero-spot {
+  background:
+    radial-gradient(180px circle at var(--spot-x,80%) var(--spot-y,36%),#8ff5e430,transparent 70%),
+    radial-gradient(620px circle at var(--spot-x,80%) var(--spot-y,36%),#69dfd424,#5fc4f012 40%,transparent 64%);
+}
+/* A giant outlined section word behind the photo light. */
+.directory-hero-backdrop::after {
+  position:absolute; right:max(24px,calc((100% - 1260px) / 2)); bottom:calc(var(--dir-rise,56px) + 10px);
+  font-family:inherit; font-size:clamp(84px,12.5vw,210px); font-weight:820; line-height:.8; letter-spacing:-.045em;
+  color:transparent; -webkit-text-stroke:1.5px #a3efe438;
+  -webkit-mask-image:linear-gradient(180deg,#000 10%,#0006 75%,transparent);
+  mask-image:linear-gradient(180deg,#000 10%,#0006 75%,transparent);
+  white-space:nowrap; pointer-events:none; transition:-webkit-text-stroke-color .4s ease-out;
+}
+.directory-hero-backdrop[data-tone="auto"]::after { content:"АВТО"; }
+.directory-hero-backdrop[data-tone="groups"]::after { content:"КАТЕГОРІЇ"; }
+.directory-hero-backdrop[data-tone="manufacturers"]::after { content:"БРЕНДИ"; }
+.directory-hero-backdrop[data-spot="on"]::after { -webkit-text-stroke-color:#a3efe466; }
+@media (max-width:767px) {
+  .directory-hero-backdrop::after { right:12px; bottom:calc(var(--dir-rise,28px) + 8px); font-size:64px; -webkit-text-stroke-width:1px; }
+}
+/* Detail heroes extend their backdrop 90px past the section (inset:-90px 0). */
+:is(.catalog-directory-page.directory-detail-shell,.catalog-directory-page .directory-detail-shell) .directory-detail-hero .directory-hero-backdrop::after { bottom:calc(var(--dir-rise,56px) + 100px); }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] li > a { display:inline-flex; align-items:center; min-height:32px; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav[aria-label="Навігаційні хлібні крихти"] ol { min-height:32px; }
+.catalog-directory-page .directory-intro-breadcrumb { margin-top:-6px; margin-bottom:10px; }
+@media (max-width:767px) { .catalog-directory-page .directory-intro-breadcrumb { margin-bottom:6px; } }
+.catalog-directory-page .directory-detail-hero > .relative.z-\[1\].mb-4 { min-height:32px; margin-top:-6px; margin-bottom:10px; align-items:center; }
+@media (max-width:767px) { .catalog-directory-page .directory-detail-hero > .relative.z-\[1\].mb-4 { margin-bottom:6px; } }
+
+/* ── Section navigation: one quiet glass pill, the current section in white ── */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell { display:block; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav {
+  display:inline-flex; width:auto; max-width:100%; gap:2px; margin:0; padding:4px;
+  border:1px solid #ffffff24; border-radius:999px;
+  background:#06182599; -webkit-backdrop-filter:blur(12px) saturate(140%); backdrop-filter:blur(12px) saturate(140%);
+  box-shadow:inset 0 1px 0 #ffffff12,0 10px 26px -18px #000c;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a {
+  gap:8px; min-height:44px; padding:0 18px; border:0; border-radius:999px;
+  color:#cfe2ea; background:transparent; box-shadow:none;
+  font-size:14px; font-weight:650; font-variation-settings:"wght" 650; letter-spacing:-.005em;
+  transition:background-color .18s ease-out,color .18s ease-out,box-shadow .18s ease-out;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a::before { content:none; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav .directory-section-icon {
+  width:auto; height:auto; border-radius:0; background:none; color:#8fdce2;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] {
+  color:#0b3346; background:linear-gradient(180deg,#ffffff,#e8faf6);
+  border:0; box-shadow:0 1px 0 #ffffff inset,0 8px 18px -10px #000000b3;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] .directory-section-icon { color:#0a8197; background:none; }
+@media (hover:hover) and (pointer:fine) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:not([aria-current]):hover { color:#fff; background:#ffffff14; border:0; }
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:focus-visible { outline:2px solid #a0eee4; outline-offset:2px; }
+@media (max-width:479px) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav { display:flex; width:100%; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a { flex:1 1 0; gap:6px; padding:0 8px; font-size:13px; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav .directory-section-icon svg { width:15px; height:15px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a { transition:none; }
+}
+
+/* The photograph starts a little below the site header, so the header's
+   buttons sit on a calm dark band instead of on the picture. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) > .directory-hero-backdrop {
+  top:calc(var(--header-height,4rem) + 10px);
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) > .directory-hero-backdrop::before {
+  content:""; position:absolute; inset:0 0 auto; z-index:1; height:72px; pointer-events:none;
+  background:linear-gradient(180deg,#071725 0%,#071725b3 40%,#07172500);
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) { background:#071725; }
+
+/* ── Text rhythm: hero copy and panel headings share one scale ───────────── */
+.catalog-directory-page .catalog-hub-stage > .directory-intro .directory-intro-copy p,
+.catalog-directory-page .directory-detail-hero .directory-detail-identity p:first-of-type {
+  color:#c9dde6; font-size:16px; line-height:1.7; font-weight:450;
+}
+.catalog-directory-page .directory-panel-header :is(h2,.directory-heading) {
+  margin:0; color:#0c2f42; font-size:clamp(22px,2vw,28px); line-height:1.2;
+  font-weight:760; font-variation-settings:"wght" 760; letter-spacing:-.02em; text-wrap:balance; text-shadow:none;
+}
+.catalog-directory-page .directory-panel-header :is(h2,.directory-heading) + p {
+  max-width:62ch; margin-top:8px; color:#4b6b7c; font-size:15px; line-height:1.65; text-wrap:pretty;
+}
+.catalog-directory-page .directory-panel-header :is(h2,.directory-heading) + p strong { color:#163b4f; font-weight:700; }
+@media (max-width:767px) {
+  .catalog-directory-page .catalog-hub-stage > .directory-intro .directory-intro-copy p,
+  .catalog-directory-page .directory-detail-hero .directory-detail-identity p:first-of-type { font-size:15px; }
+  .catalog-directory-page .directory-panel-header :is(h2,.directory-heading) + p { font-size:14px; }
+}
+.catalog-directory-page .catalog-hub-stage > .directory-intro .directory-intro-copy p,
+.catalog-directory-page .directory-detail-hero .directory-detail-identity p:first-of-type { margin-top:22px; }
+.catalog-directory-page .directory-detail-hero .directory-detail-identity p:first-of-type { margin-top:21px; }
+
+/* ── Section navigation = the site header's buttons ─────────────────────────
+   Same glass button (44px, 16px radius, Exo 2 13px), same sky active state,
+   same 12px rhythm — the hero reads as a continuation of the header. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav {
+  display:flex; flex-wrap:wrap; gap:12px; width:auto; padding:0; border:0; border-radius:0;
+  background:none; -webkit-backdrop-filter:none; backdrop-filter:none; box-shadow:none;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a {
+  gap:7px; min-height:44px; padding:10px 15px; border:1px solid #ffffff4d; border-radius:16px;
+  color:#fff; background:linear-gradient(150deg,#ffffff2e 0%,#ffffff0d 100%);
+  box-shadow:0 2px 10px #0000004d,inset 0 1px 0 #ffffff3d;
+  font-size:13px; font-weight:630; font-variation-settings:"wght" 630; letter-spacing:.01em;
+  text-shadow:0 1px 3px #00000073;
+  transition:border-color .2s,color .2s,box-shadow .2s,background-color .2s;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav .directory-section-icon { color:currentColor; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] {
+  color:#e0f2fe; border:1px solid #7dd3fca6;
+  background:linear-gradient(150deg,#38bdf852 0%,#38bdf81f 100%);
+  box-shadow:0 4px 14px #0ea5e947,inset 0 1px 0 #7dd3fc47;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] .directory-section-icon { color:currentColor; }
+@media (hover:hover) and (pointer:fine) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:not([aria-current]):hover {
+    color:#e0f2fe; border:1px solid #7dd3fca6; background:linear-gradient(150deg,#ffffff2e 0%,#ffffff0d 100%);
+    box-shadow:0 6px 18px #0ea5e947,0 2px 8px #00000038,inset 0 1px 0 #7dd3fc47;
+  }
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:active { box-shadow:0 1px 3px #00000038; }
+@media (max-width:639px) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; width:100%; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a { min-width:0; padding:10px 6px; gap:6px; font-size:12.5px; }
+}
+@media (max-width:359px) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav .directory-section-icon { display:none; }
+}
+/* Hubs have no action row: the title sits right under the navigation, at
+   the same height as on the detail pages. */
+.catalog-directory-page .catalog-hub-stage > .directory-intro .directory-intro-footer:empty { display:none; }
+
+/* ── Section buttons: dashboard indicators ─────────────────────────────────
+   Header-button glass, plus one signature: the current section carries a
+   gradient rim and a lit "LED" under its label that powers on once when the
+   page arrives; other buttons catch a single light sweep on hover. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a {
+  position:relative; isolation:isolate; overflow:hidden;
+  transition:border-color .2s,color .2s,box-shadow .2s,transform .12s ease-out;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a .directory-section-icon {
+  transition:transform .2s ease-out,color .2s;
+}
+/* Hover sweep: a narrow highlight crossing the glass once. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a::before {
+  content:""; position:absolute; inset:-1px auto -1px 0; z-index:-1; width:60%;
+  background:linear-gradient(100deg,transparent,#ffffff2e 45%,#bff4ff40 50%,transparent 70%);
+  transform:translateX(-120%); opacity:1; pointer-events:none;
+}
+/* Current section: gradient rim + LED. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] {
+  color:#f0f9ff; border:1px solid transparent;
+  background:
+    linear-gradient(150deg,#0c3f57e6 0%,#0a2a3ce6 100%) padding-box,
+    linear-gradient(120deg,#7dd3fc 0%,#5eead4 55%,#38bdf8 100%) border-box;
+  box-shadow:0 6px 20px -6px #22d3ee66,inset 0 1px 0 #bae6fd40;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] .directory-section-icon { color:#67e8f9; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"]::after {
+  content:""; position:absolute; left:50%; bottom:5px; width:22px; height:3px; margin-left:-11px; border-radius:3px;
+  background:linear-gradient(90deg,#5eead4,#7dd3fc);
+  box-shadow:0 0 8px #5eead4,0 0 16px #22d3ee99;
+}
+@media (prefers-reduced-motion:no-preference) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"]::after {
+    animation:dir-led-on .7s .2s cubic-bezier(.22,1,.36,1) both;
+  }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:active { transform:scale(.97); }
+}
+@keyframes dir-led-on {
+  0% { transform:scaleX(0); opacity:0; }
+  45% { transform:scaleX(1.35); opacity:1; box-shadow:0 0 12px #5eead4,0 0 26px #22d3ee; }
+  100% { transform:scaleX(1); opacity:1; }
+}
+@media (hover:hover) and (pointer:fine) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:not([aria-current]):hover .directory-section-icon { transform:translateY(-1px); color:#7dd3fc; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"]:hover { box-shadow:0 8px 24px -6px #22d3ee80,inset 0 1px 0 #bae6fd52; }
+}
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:not([aria-current]):hover::before {
+    transform:translateX(220%); transition:transform .65s cubic-bezier(.3,.7,.3,1);
+  }
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a:focus-visible { outline:2px solid #67e8f9; outline-offset:3px; }
+@media (forced-colors:active) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a[aria-current="page"] { border:2px solid Highlight; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) nav.directory-section-nav > a::after { display:none; }
+}
+
+/* Navigation strip set off by two hairlines that fade out to the right.
+   The 12px padding is taken from the surrounding margins, so the title and
+   the panel keep their positions. */
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell {
+  position:relative; padding-block:12px; margin-top:-12px; margin-bottom:12px;
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::before,
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::after {
+  content:""; position:absolute; left:0; right:0; height:1px; pointer-events:none;
+  background:linear-gradient(90deg,#a3efe459 0%,#7dd3fc2e 40%,#7dd3fc00 85%);
+}
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::before { top:0; }
+.catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::after { bottom:0; }
+@media (max-width:767px) {
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell { padding-block:10px; margin-top:-10px; margin-bottom:8px; }
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::before,
+  .catalog-directory-page :is(.directory-intro,.directory-detail-hero) .directory-nav-shell::after { background:linear-gradient(90deg,#a3efe44d,#7dd3fc29 55%,#7dd3fc00); }
+}

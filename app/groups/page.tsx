@@ -173,7 +173,7 @@ export default async function GroupsPage() {
             badge="Сітка каталогу"
             icon={Layers3}
             title="Категорії автозапчастин"
-            description={`У каталозі PartsON — ${totalGroups.toLocaleString("uk-UA")} ${pluralizeUk(totalGroups, "категорія", "категорії", "категорій")}, ${totalSubgroups.toLocaleString("uk-UA")} ${pluralizeGroups(totalSubgroups)} і ${totalThirdLevelItems.toLocaleString("uk-UA")} ${pluralizeSubgroups(totalThirdLevelItems)} автозапчастин. Оберіть систему автомобіля, потім групу та підгрупу: у кожному розділі можна порівняти виробників, ціни й наявність.`}
+            description={`${totalGroups.toLocaleString("uk-UA")} ${pluralizeUk(totalGroups, "система", "системи", "систем")} автомобіля, ${totalSubgroups.toLocaleString("uk-UA")} ${pluralizeGroups(totalSubgroups)}${totalThirdLevelItems > 0 ? ` і ${totalThirdLevelItems.toLocaleString("uk-UA")} ${pluralizeSubgroups(totalThirdLevelItems)}` : ""} запчастин. Почніть із системи — гальм, підвіски чи двигуна — і звужуйте вибір до потрібної деталі: у кожному розділі видно виробників, ціни й наявність.`}
             highlights={[
               "Навігація по групах, підгрупах і кінцевих категоріях",
               "Підбір за вузлом автомобіля, назвою, артикулом або VIN",

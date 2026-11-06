@@ -42,17 +42,29 @@ export const CRITICAL_TARGETS = {
     // The desktop filter mounts immediately after hydration, even while
     // the non-blocking full stylesheet is still arriving.
     "app/components/filtrtion.tsx",
+    "app/components/Search.tsx",
+  ],
+  // /auto, /groups, /manufacturers and their detail pages: their own subset,
+  // without the catalogue grid and filter rules none of them render.
+  directory: [
+    "app/layout.tsx",
+    "app/auto/layout.tsx",
     "app/auto/page.tsx",
     "app/auto/[brand]/page.tsx",
     "app/auto/[brand]/[model]/page.tsx",
+    "app/groups/layout.tsx",
     "app/groups/page.tsx",
     "app/groups/[slug]/page.tsx",
     "app/groups/[slug]/[itemSlug]/page.tsx",
+    "app/manufacturers/layout.tsx",
     "app/manufacturers/page.tsx",
     "app/manufacturers/[slug]/page.tsx",
     "app/components/Search.tsx",
     // Route fallbacks can be shown before the full stylesheet has arrived.
     "app/components/CatalogDirectoryLoading.tsx",
+    "app/components/DirectoryDetailLoading.tsx",
+    "app/auto/[brand]/loading.tsx",
+    "app/auto/[brand]/[model]/loading.tsx",
   ],
   inform: [
     "app/layout.tsx",

@@ -19,7 +19,7 @@ import { uniqueDirectoryItems } from "app/lib/directory-items";
 import DirectoryGrid from "app/components/DirectoryGrid";
 import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
 import SmartLink from "app/components/SmartLink";
-import { buildAutoModelPath } from "app/lib/catalog-links";
+import { buildAutoModelPath, buildCatalogCarSearchPath } from "app/lib/catalog-links";
 import type { AutoModelListEntry } from "app/lib/auto-directory-data";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
@@ -220,9 +220,9 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
                   )}
                 </span>
                 <div className="min-w-0">
-                  <h2 className={directoryTitleClass}>Список моделей {brand}</h2>
+                  <h2 className={directoryTitleClass}>Моделі {brand}</h2>
                   <p className={directoryDescriptionClass}>
-                    Скористайтеся пошуком або сортуванням за роком випуску, щоб швидко знайти потрібну модель.
+                    Шукайте за назвою або сортуйте за роком випуску, щоб швидше знайти своє покоління.
                   </p>
                 </div>
               </div>
@@ -303,7 +303,7 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
               >
                 {pagination.items.map((model, index) => (
                   <div key={model.name} className="directory-result" role="listitem">
-                    <ModelCard brand={brand} model={model} prefetchOnViewport={index < 10} />
+                    <ModelCard brand={brand} model={model} prefetchOnViewport={index < 4} />
                   </div>
                 ))}
               </DirectoryGrid>
@@ -311,7 +311,14 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
               </>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
-                За цим запитом моделей не знайдено.
+                {normalizedQuery ? "За цим запитом моделей не знайдено." : (
+                  <>
+                    <p>Список моделей зараз недоступний. Ви можете перейти до запчастин за маркою.</p>
+                    <SmartLink href={buildCatalogCarSearchPath(brand)} prefetchOnIntent className="directory-empty-action">
+                      Запчастини {brand} <ArrowRight size={16} aria-hidden="true" />
+                    </SmartLink>
+                  </>
+                )}
               </div>
             )}
           </div>

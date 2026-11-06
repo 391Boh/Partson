@@ -54,6 +54,23 @@ assert(matches('FORD GALAXY MK I 1.9D 03.95-05.06',v('FORD','Galaxy I'))&&!match
 assert(matches('CITROEN C3 I, XSARA PICASSO 1.4-2.0D 03.91-Висота [мм]\t7.0',v('CITROEN','Xsara Picasso')),'a glued spec row');
 // The car picker lists Lanos, Nexia… under CHEVROLET; TecDoc says DAEWOO.
 assert(matches('DAEWOO LANOS, NEXIA 1.5 05.97-',v('CHEVROLET','Lanos I')),'DAEWOO models are Chevrolet ones');
+// The model opens the entry; a following word makes it another model the
+// picker lists on its own, a body or trim word does not.
+const golf=v('VOLKSWAGEN','Golf V');
+assert(!matches('VW GOLF PLUS, GOLF PLUS V, SHARAN, TOURAN 03.95-06.19',golf),'Golf Plus is not Golf');
+assert(matches('VW GOLF PLUS V, GOLF V, JETTA III 1.2-3.2 05.03-07.15',golf));
+assert(matches('VW GOLF PLUS 1.4 01.05-',v('VOLKSWAGEN','Golf Plus I')),'the picker model with the word');
+assert(!matches('AUDI A4 ALLROAD B8, A4 B8, A5 1.8-4.2 06.07-05.17',v('AUDI','A4 I B5')),'a trim word does not hide the generation');
+assert(matches('AUDI A4 AVANT B5 1.6-2.8 11.94-',v('AUDI','A4 I B5')),'a body word keeps the generation');
+assert(!matches('MAZDA 6 IV, 626 V, MX-6 1.6-2.5 08.91-10.05',v('MAZDA','6 III')),'MX-6 is not Mazda 6');
+assert(!matches('FIAT CROMA, GRANDE PUNTO, PUNTO EVO 1.0-3.2 04.02-',v('FIAT','Punto II')),'Grande Punto is not Punto II');
+assert(matches('VW FOX, NEW BEETLE, POLO IV 1.2-1.9D 10.99-',v('VOLKSWAGEN','Beetle I A4')),'New Beetle is the picker Beetle I');
+assert(matches('RENAULT LOGAN/SANDERO 04-',v('RENAULT','Sandero II')),'models joined by a slash');
+assert(matches('SUZUKI BALENO, SX4 S-CROSS, VITARA 1.0-1.6D 10.10-',v('SUZUKI','SX4 II S-Cross')));
+assert(matches('MERCEDES 124 (C124), 124 (W124), E (W124) 1.8-5.7 10.88-',v('MERCEDES-BENZ','W124')),'a bracketed chassis');
+assert(matches('AUDI A3; CUPRA LEON, LEON SPORTSTOURER 1.0-2.0D 07.19-',v('SEAT','Leon IV')),'Cupra sells SEAT models');
+assert(!matches('VW GOLF IV; FSO POLONEZ 1.4-3.0 10.82-',v('VOLKSWAGEN','Polonez')),'an unknown make is not the previous one');
+assert(matches('FORD USA EXPEDITION, F-150 1.2-3.7 01.06-',v('FORD','Expedition III')));
 assert.equal(readVehicleSelection('invalid'),null);
 assert(encodeVehicleSelection(car).includes('1991'));
 

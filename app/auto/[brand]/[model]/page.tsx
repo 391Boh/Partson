@@ -1,3 +1,5 @@
+import DirectoryCollection from "app/components/DirectoryCollection";
+import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -573,6 +575,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
           <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5">
             <section className="directory-detail-hero model-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.14),transparent_37%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.13),transparent_39%),linear-gradient(138deg,rgba(255,255,255,0.995)_0%,rgba(247,251,254,0.98)_56%,rgba(241,249,247,0.95)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-6 lg:p-8">
           <DirectoryHeroBackdrop tone="auto" />
+          <CatalogSectionNav current="auto" />
 
               {renderHeroNav()}
 
@@ -720,6 +723,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
         <div key={`${brand}/${model}`} className="space-y-4 sm:space-y-5">
           <section className="directory-detail-hero model-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="auto" />
+          <CatalogSectionNav current="auto" />
 
             {renderHeroNav()}
 
@@ -782,7 +786,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             </div>
 
             {categories.length > 0 ? (
-              <div className="model-categories">
+              <DirectoryCollection labels={[...categories.map(category => [category.label, ...category.groups.map(group => group.label)].join(" ")), ...(uncategorizedGroups.length ? ["Інше " + uncategorizedGroups.map(group => group.label).join(" ")] : [])]} className="model-categories" placeholder="Пошук системи або групи запчастин">
                 {categories.map((category, categoryIndex) =>
                   renderCategoryAccordion(
                     `${category.slug}:${categoryIndex}`,
@@ -803,15 +807,15 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       false
                     )
                   : null}
-              </div>
+              </DirectoryCollection>
             ) : (
               // categories.length === 0 here always implies groups.length > 0
               // — the groups.length === 0 case returns early above.
-              <div className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:gap-4 sm:px-5 sm:py-5">
+              <DirectoryCollection labels={groups.map(group => group.label)} className="grid grid-cols-1 gap-3 px-4 py-4 sm:grid-cols-2 sm:gap-4 sm:px-5 sm:py-5" placeholder="Пошук групи запчастин">
                 {groups.map((group) =>
                   renderModelGroupCard(group, group.categoryLabel || group.filterGroup || group.label)
                 )}
-              </div>
+              </DirectoryCollection>
             )}
           </section>
 

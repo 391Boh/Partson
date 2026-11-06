@@ -19,6 +19,9 @@ export default function DirectoryHeroBackdrop({ tone = "auto" }: { tone?: Direct
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
       />
       <span className="directory-hero-shade" />
+      {/* Drafting grid and pointer light; DirectoryHeroSpotlight moves them. */}
+      <span className="directory-hero-grid" />
+      <span className="directory-hero-spot" />
     </div>
   );
 }

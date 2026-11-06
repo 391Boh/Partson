@@ -13,8 +13,8 @@ export const suites = {
     "order-cancel", "admin-chat-activity", "admin-catalog-price-loading", "catalog-euro-readiness",
     "home-blog-cache", "home-blog-cover", "product-google-pricing", "merchant-feed-refresh", "product-seo-images", "product-image-sitemap", "product-image-final-miss", "catalog-image-progress",
   ].map((name) => `scripts/test-${name}.mjs`),
-  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "catalog-price-visibility", "catalog-layout-stability", "catalog-image-paint", "product-card-responsive", "product-card-back-tabs", "recommendation-layout", "directory-hero", "navigation-progress"]
+  browser: ["home-auth-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "catalog-price-visibility", "catalog-layout-stability", "catalog-image-paint", "product-card-responsive", "product-card-back-tabs", "recommendation-layout", "directory-hero", "directory-collections", "navigation-progress"]
     .map((name) => `scripts/test-${name}.mjs`),
-  smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters", "responsive-layout", "home-mobile-pickers"]
+  smoke: ["page-navigation", "product-navigation-stability", "catalog-pagination", "catalog-filters", "responsive-layout", "home-mobile-pickers", "directory-pages"]
     .map((name) => `scripts/test-${name}.mjs`),
 };

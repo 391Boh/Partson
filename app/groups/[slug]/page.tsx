@@ -1,3 +1,4 @@
+import DirectoryCollection from "app/components/DirectoryCollection";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
@@ -74,6 +75,8 @@ type GroupPageData = {
   slug: string;
   legacySlug?: string;
   productCount: number;
+  /** False when 1C counts were unavailable: then 0 means "unknown", not "empty". */
+  countsKnown: boolean;
   subgroupsCount: number;
   subgroups: Array<{
     label: string;
@@ -111,6 +114,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
     rawSeoFacets,
     getAllProductSitemapEntries
   );
+  const countsKnown = seoFacets.totalProductCount > 0;
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
@@ -148,6 +152,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
       slug: seoGroup.slug,
       legacySlug: undefined,
       productCount: seoGroup.productCount,
+      countsKnown,
       subgroupsCount: seoGroup.subgroups.length,
       subgroups: seoGroup.subgroups.map((subgroup) => ({
         label: subgroup.label,
@@ -160,23 +165,34 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   }
 
   const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
+  const subgroups = group.subgroups.map((subgroup) => ({
+    label: subgroup.label,
+    slug: subgroup.slug,
+    productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
+    children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
+      label: child.label,
+      slug: child.slug,
+      productCount: counts.childProductCounts.get(child.slug) ?? 0,
+    })),
+  }));
+  // Same rule as the /groups directory: with real counts, list only nodes
+  // that hold public products; empty ones stay reachable by URL (noindex).
+  const listedSubgroups = countsKnown
+    ? subgroups.flatMap((subgroup) =>
+        subgroup.productCount > 0
+          ? [{ ...subgroup, children: subgroup.children.filter((child) => child.productCount > 0) }]
+          : []
+      )
+    : subgroups;
 
   return {
     label: group.label,
     slug: group.slug,
     legacySlug: group.legacySlug,
     productCount: counts.productCount,
-    subgroupsCount: counts.subgroupsCount,
-    subgroups: group.subgroups.map((subgroup) => ({
-      label: subgroup.label,
-      slug: subgroup.slug,
-      productCount: counts.subgroupProductCounts.get(subgroup.slug) ?? 0,
-      children: (Array.isArray(subgroup.children) ? subgroup.children : []).map((child) => ({
-        label: child.label,
-        slug: child.slug,
-        productCount: counts.childProductCounts.get(child.slug) ?? 0,
-      })),
-    })),
+    countsKnown,
+    subgroupsCount: countsKnown ? listedSubgroups.length : counts.subgroupsCount,
+    subgroups: listedSubgroups,
     topProducers: resolveTopProducers(group.slug, group.legacySlug),
   };
 });
@@ -372,10 +388,11 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
     // The segment's opengraph-image/twitter-image card (1200×630) supplies
     // og/twitter images; explicit ones here would override it.
     image: null,
-    // A group may legitimately have no generated product preview. Its
-    // category icon is still a valid representative image, so keep the
-    // landing page indexable instead of hiding it behind noindex.
-    index: true,
+    // A group may legitimately have no generated product preview; its
+    // category icon still represents it. A group with no public products
+    // stays navigable (noindex, follow) like an empty model page; unknown
+    // counts keep it indexable (fail open).
+    index: !(group.countsKnown && group.productCount === 0),
     follow: true,
   });
 }
@@ -588,15 +605,15 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       </div>
 
       {group.subgroups.length > 0 && (
-        <section className="mt-6 space-y-3" aria-labelledby="group-sections-title">
-          <header className="pb-2">
+        <section className="directory-panel directory-section-list mt-6" aria-labelledby="group-sections-title">
+          <header className="directory-panel-header">
             <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Групи запчастин</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">Оберіть групу, а за потреби уточніть підгрупу.</p>
           </header>
           {/* One card per group, subgroups listed inside it. Columns instead of
               a grid: a group with many subgroups grows on its own and never
               stretches the cards next to it. */}
-          <div className="cat-groups">
+          <DirectoryCollection labels={group.subgroups.map(subgroup => [subgroup.label, ...subgroup.children.map(child => child.label)].join(" "))} className="cat-groups" placeholder="Пошук групи або підгрупи" pageSize={12}>
             {group.subgroups.map((subgroup) => {
               const subgroupName = buildVisibleGroupName(subgroup.label);
               const subgroupPreview = getGroupProductPreview({
@@ -662,7 +679,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                 </article>
               );
             })}
-          </div>
+          </DirectoryCollection>
         </section>
       )}
 

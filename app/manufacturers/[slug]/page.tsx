@@ -1,3 +1,4 @@
+import DirectoryCollection from "app/components/DirectoryCollection";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
@@ -1859,7 +1860,7 @@ export default async function ManufacturerDetailPage({
           </div>
 
           {producer.topCategories?.length ? (
-            <div className="category-card-grid category-hierarchy-grid px-4 py-4 sm:px-5 sm:py-5">
+            <DirectoryCollection labels={producer.topCategories.map(category => [category.label, ...category.groups.map(group => group.label)].join(" "))} className="category-card-grid category-hierarchy-grid px-4 py-4 sm:px-5 sm:py-5" placeholder="Пошук у категоріях виробника">
               {producer.topCategories.map((category, categoryIndex) => (
                 <article
                   key={`${category.slug}:${categoryIndex}`}
@@ -1917,13 +1918,13 @@ export default async function ManufacturerDetailPage({
                   </div>
                 </article>
               ))}
-            </div>
+            </DirectoryCollection>
           ) : producer.topGroups.length > 0 ? (
-            <div className="category-card-grid grid gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5">
+            <DirectoryCollection labels={producer.topGroups.map(group => group.label)} className="category-card-grid grid gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5" placeholder="Знайти групу товарів">
               {producer.topGroups.map((group, groupIndex) =>
                 renderManufacturerGroupCard(group, groupIndex, "fallback-groups", true)
               )}
-            </div>
+            </DirectoryCollection>
           ) : (
             <div className="px-4 py-5 sm:px-5">
               <CatalogPrefetchLink

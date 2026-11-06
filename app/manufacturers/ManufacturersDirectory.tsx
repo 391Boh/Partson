@@ -237,7 +237,7 @@ export default function ManufacturersDirectory({
                     Оберіть виробника
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    Шукайте за назвою бренду. На сторінці виробника можна обрати тип деталі та порівняти товари.
+                    Шукайте за назвою бренду — на його сторінці запчастини розкладені за групами.
                   </p>
                 </div>
               </div>

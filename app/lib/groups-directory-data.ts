@@ -101,12 +101,23 @@ const buildGroupsDirectoryDataFromSeoFacets = (
   };
 };
 
+const pruneEmptyGroups = (groups: GroupsDirectoryItem[]): GroupsDirectoryItem[] =>
+  groups.flatMap((group) => {
+    if (group.productCount <= 0) return [];
+    const subgroups = group.subgroups.flatMap((subgroup) =>
+      subgroup.productCount > 0
+        ? [{ ...subgroup, children: subgroup.children.filter((child) => child.productCount > 0) }]
+        : []
+    );
+    return [{ ...group, subgroupsCount: subgroups.length, subgroups }];
+  });
+
 const buildGroupsDirectoryData = (
   dataset: ProductTreeDataset,
   seoFacets: CatalogSeoFacets
 ): GroupsDirectoryData => {
   const groupLookup = buildSeoGroupLookup(seoFacets.groups);
-  const clientGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => {
+  const treeGroups: GroupsDirectoryItem[] = dataset.groups.map((group) => {
     const counts = resolveGroupSeoCounts(group, groupLookup);
 
     return {
@@ -126,6 +137,12 @@ const buildGroupsDirectoryData = (
       })),
     };
   });
+
+  // With real counts the directory lists only nodes that hold public
+  // products, so no card leads to an empty catalog. The empty pages stay
+  // reachable by URL (noindex, follow). Without counts every node is kept.
+  const countsKnown = treeGroups.some((group) => group.productCount > 0);
+  const clientGroups = countsKnown ? pruneEmptyGroups(treeGroups) : treeGroups;
 
   const totalGroups = clientGroups.length;
   const totalSubgroups = clientGroups.reduce(

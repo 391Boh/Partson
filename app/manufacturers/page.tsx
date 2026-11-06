@@ -82,10 +82,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ManufacturersPage() {
   const siteUrl = getSiteUrl();
-  const { clientProducers, indexedBrands, indexedProducts, hasIndexedCounts } =
+  const { clientProducers, indexedProducts, hasIndexedCounts } =
     await getFullManufacturersDirectoryData();
   const totalBrandsLabel = clientProducers.length.toLocaleString("uk-UA");
-  const indexedBrandsLabel = indexedBrands.toLocaleString("uk-UA");
   const indexedProductsLabel = indexedProducts.toLocaleString("uk-UA");
   const manufacturersStructuredData = {
     "@context": "https://schema.org",
@@ -156,8 +155,8 @@ export default async function ManufacturersPage() {
             current="manufacturers"
             badge="Бренди та виробники"
             icon={Factory}
-            title="Бренди автозапчастин"
-            description={`${hasIndexedCounts && indexedProducts > 0 ? `У каталозі PartsON — ${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} автозапчастин і ${indexedProductsLabel} ${pluralizeUk(indexedProducts, "позиція", "позиції", "позицій")} від ${indexedBrandsLabel} ${pluralizeBrandsWord(indexedBrands)}. ` : `У каталозі PartsON — ${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} автозапчастин. `}Оберіть виробника, щоб переглянути його групи запчастин і доступні товари. Порівняйте артикули, характеристики та ціну — логотип сам по собі не визначає сумісність.`}
+            title="Виробники автозапчастин"
+            description={`${hasIndexedCounts && indexedProducts > 0 ? `${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} і ${indexedProductsLabel} ${pluralizeUk(indexedProducts, "позиція", "позиції", "позицій")} у каталозі. ` : `${totalBrandsLabel} ${pluralizeUk(clientProducers.length, "виробник", "виробники", "виробників")} у каталозі. `}Відкрийте бренд, щоб побачити його запчастини за групами, ціни й наявність. Сумісність визначає артикул деталі, а не логотип — звіряйте номер перед замовленням.`}
           />
 
         </div>

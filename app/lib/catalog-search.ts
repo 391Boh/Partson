@@ -32,12 +32,57 @@ export type SearchItem = {
   code: string; article: string; name: string; producer: string; description?: string; priceEuro?: number | null;
 };
 export type SearchField = "name" | "article" | "code" | "producer" | "description";
+// A part number someone types: digits, no Cyrillic, 3+ characters ("W712/95",
+// "GDB 1330", "0986494").
+const isCodeQuery = (value: string) => {
+  const key = compact(value);
+  return key.length >= 3 && /\d/.test(key) && !/\p{Script=Cyrillic}/u.test(value);
+};
+
+// The codes a name or description lists, as compact prefixes to test: each
+// word or "/"-piece joined with the next few ("OC405/3/OP570/1" holds
+// "OP5701"; "IMP 220735" holds "IMP220735").
+const codeRunsCache = new WeakMap<object, Partial<Record<SearchField, { text: string; runs: string[] }>>>();
+const codeRuns = (item: SearchItem, field: SearchField, value: string) => {
+  const byField = codeRunsCache.get(item) ?? {};
+  const cached = byField[field];
+  if (cached?.text === value) return cached.runs;
+  const pieces = value.split(/[\s()[\]{},;:/\\|]+/).map(compact).filter(Boolean);
+  const runs = pieces.map((_, index) => pieces.slice(index, index + 4).join(""));
+  byField[field] = { text: value, runs };
+  codeRunsCache.set(item, byField);
+  return runs;
+};
+
+// A part number matches where a code starts, never inside another number:
+// "712" is not part of LMI26712, "OC90" is the start of OC90 and OC90OF.
+const listsCode = (runs: string[], key: string) => runs.some((run) => run.startsWith(key));
+
 export function matchesSearchField(item: SearchItem, query: string, field: SearchField): boolean {
-  if (field === "code" || field === "article") return !!compact(query) && compact(item[field]).includes(compact(query));
+  const key = compact(query);
+  if (!key) return false;
+  if (field === "code") {
+    const code = compact(item.code);
+    return code.startsWith(key) || code.endsWith(key);
+  }
+  if (field === "article") {
+    // Prefix, or a longer piece ("633276" of KYB633276); a short number
+    // inside an article is noise.
+    const article = compact(item.article);
+    return article.startsWith(key) || (key.length >= 6 && /\d/.test(key) && article.includes(key));
+  }
   const text = item[field] || "";
   const value = normalizeSearchQuery(field === "description" ? text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ") : text).toLowerCase();
+  const codes = field === "name" || field === "description";
+  if (codes && isCodeQuery(query) && normalizeSearchQuery(query).split(" ").every((token) => /\d/.test(token) || token.length <= 3)) {
+    return listsCode(codeRuns(item, field, value), key);
+  }
   const tokens = normalizeSearchQuery(query).toLowerCase().split(" ");
-  return tokens.every((token) => value.includes(token) || compact(value).includes(compact(token)));
+  return tokens.every((token) =>
+    codes && isCodeQuery(token)
+      ? listsCode(codeRuns(item, field, value), compact(token))
+      : value.includes(token) || compact(value).includes(compact(token))
+  );
 }
 
 export type SearchPage<T> = {

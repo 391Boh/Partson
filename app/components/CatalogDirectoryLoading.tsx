@@ -3,7 +3,7 @@ import CatalogHubHero from "./CatalogHubHero";
 import type { DirectorySection } from "app/lib/directory-appearance";
 
 const labels = {
-  auto: { title: "Підбір автозапчастин за маркою і моделлю авто", status: "Завантаження автомобілів" },
+  auto: { title: "Підбір автозапчастин за маркою і моделлю", status: "Завантаження автомобілів" },
   groups: { title: "Категорії автозапчастин", status: "Завантаження категорій" },
   manufacturers: { title: "Виробники автозапчастин", status: "Завантаження виробників" },
 };
@@ -16,7 +16,7 @@ export default function CatalogDirectoryLoading({ current }: { current: Director
       <div role="status" className="sr-only">{status}</div>
       <div className="catalog-hub-stage">
         <CatalogHubHero current={current} title={title}
-          titleAccent={current === "auto" ? "за маркою і моделлю авто" : undefined}
+          titleAccent={current === "auto" ? "за маркою і моделлю" : undefined}
           description="Готуємо список. Ви можете одразу перейти до іншого розділу каталогу."
           badge="" icon={CarFront} warmNavigation={false} />
       </div>

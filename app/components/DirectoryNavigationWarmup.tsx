@@ -37,7 +37,8 @@ export default function DirectoryNavigationWarmup({ current }: { current: Direct
       }
       if (queue.length) cancellations.push(scheduleBackgroundTask(warmNext, { delayMs: 350 }));
     };
-    cancellations.push(scheduleBackgroundTask(warmNext, { delayMs: 250 }));
+    // Start after the hero photo and the first cards' own resources.
+    cancellations.push(scheduleBackgroundTask(warmNext, { delayMs: 1200 }));
     return () => {
       cancelled = true;
       cancellations.forEach(cancel => cancel());

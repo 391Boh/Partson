@@ -4,7 +4,7 @@ import { readVehicleSelection, vehicleModelQuery, matchesVehicleFitment, type Ve
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductPromoPriceOverride } from "./product-promo-overrides";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { buildAnalogIndex, findAnalogsOfMatches, type AnalogIndex } from "app/lib/catalog-analog-index";
+import { buildAnalogIndex, compactAnalogKey, findAnalogsOfMatches, type AnalogIndex } from "app/lib/catalog-analog-index";
 import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
@@ -3824,7 +3824,7 @@ export const searchCatalogIndex = async (
   const afterCode = options.afterCode || "";
   const respond = (matches: CatalogProduct[], usedQuery: string, correctedQuery?: string) => {
     // The analogs of what was found follow the matches themselves.
-    const analogs = findAnalogsOfMatches(matches, getSnapshotAnalogIndex(snapshot)).sort(compareCodes);
+    const analogs = findAnalogsOfMatches(matches, getSnapshotAnalogIndex(snapshot), usedQuery).sort(compareCodes);
     const ordered = [...(options.rank ? rankSearchMatches(matches, usedQuery) : matches), ...analogs];
     // Analogs break the plain code order, so continue right after the last
     // shown code when it is still in the list.
@@ -3974,9 +3974,11 @@ export const listCatalogFromSnapshot = async (
   // (the other filters still apply) and are listed after them.
   const analogCodes = new Set(
     searchFields.length > 0
-      ? findAnalogsOfMatches(snapshot.products.filter(matchesSearch), getSnapshotAnalogIndex(snapshot)).map(
-          (product) => product.code
-        )
+      ? findAnalogsOfMatches(
+          snapshot.products.filter(matchesSearch),
+          getSnapshotAnalogIndex(snapshot),
+          query.searchQuery
+        ).map((product) => product.code)
       : []
   );
 
@@ -4020,7 +4022,12 @@ export const listCatalogFromSnapshot = async (
     const direction = query.nameSort === "asc" ? 1 : -1;
     matches.sort((a, b) => compareProductNames(a, b, direction));
   } else if (query.searchQuery) {
-    matches.sort((a, b) => Number(analogCodes.has(a.code)) - Number(analogCodes.has(b.code)) || compareCodes(a, b));
+    // The part with exactly the typed article first, then the other matches,
+    // then their analogs.
+    const typed = compactAnalogKey(query.searchQuery);
+    const rank = (product: CatalogProduct) =>
+      analogCodes.has(product.code) ? 2 : typed && compactAnalogKey(product.article) === typed ? 0 : 1;
+    matches.sort((a, b) => rank(a) - rank(b) || compareCodes(a, b));
   } else {
     matches.sort((a, b) => {
       const aPriced = hasSnapshotSalePrice(a);

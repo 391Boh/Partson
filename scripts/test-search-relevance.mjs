@@ -44,4 +44,19 @@ assert.deepEqual(s.stemVariants("свічки"), ["свіч"]);
 assert.ok(s.stemVariants("ремен грм").includes("ремі грм"));
 assert.deepEqual(s.stemVariants("грм"), [], "Short words are left alone");
 
+// A part number matches where a code starts, not inside another number.
+const listed = item("00-1", "Наконечник TRW JTE1033 (LMI26712/ FE21493)", { article: "JTE1033" });
+const filter = item("00-2", "Масляний фільтр ASTRA 91-(OC405/3/OP570/1/LS370/W712/75)", { article: "LS370" });
+const field = (product, query) => ["name", "article", "code", "description"].some((f) => s.matchesSearchField(product, query, f));
+assert(!field(listed, "712"), "a number inside another code is not a match");
+assert(!field(listed, "W 712"), "letters and digits from different codes are not a match");
+assert(field(listed, "LMI26712") && field(listed, "lmi 26712"), "a listed code, spaced or not");
+assert(field(filter, "W 712/75") && field(filter, "W712") && field(filter, "OP570/1"), "codes with a slash");
+assert(field(filter, "фільтр OP570"), "a word plus a code");
+assert(!field(filter, "фільтр OP5709"), "every code token must be listed");
+assert(s.matchesSearchField(item("00-00002551", "x"), "2551", "code"), "the end of the 1C code");
+assert(!s.matchesSearchField(item("00-00007120", "x"), "712", "code"), "not a number inside the 1C code");
+assert(s.matchesSearchField(item("00-3", "x", { article: "KYB633276" }), "633276", "article"), "a long piece of an article");
+assert(!s.matchesSearchField(item("00-3", "x", { article: "KYB633712" }), "712", "article"), "not a short one");
+
 console.log("Search relevance passed: ranking (exact article, name start, stock/price, stems), catalog spelling, shorter articles, stem readings.");

@@ -727,7 +727,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           .slice(0, 3)
           .forEach((route) => prefetchRoute(router, route, "auto"));
       },
-      { delayMs: pathname === "/" ? 3200 : 700, idleTimeoutMs: 4000 }
+      { delayMs: pathname === "/" ? 3200 : 1500, idleTimeoutMs: 4000 }
     );
 
     return () => {
@@ -1076,11 +1076,11 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
       <main
         ref={pageContentRef}
-        className={
-          isEmbeddedProductView || hasTransparentHeaderAtTop(pathname)
-            ? "min-h-screen"
-            : "min-h-screen pt-header-offset"
-        }
+        // The header offset follows the rendered page, not the pathname: the
+        // pathname and the new content commit in different frames, so a
+        // pathname-driven offset shifted the whole page by the header height
+        // between the catalog and the hero pages (see .site-main in globals.css).
+        className={isEmbeddedProductView ? "min-h-screen" : "site-main min-h-screen"}
       >
         <PageTransition>
           {children}

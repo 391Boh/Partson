@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import DirectoryCollection from "app/components/DirectoryCollection";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -158,7 +159,7 @@ export default function GroupItemProducerList({
   }
 
   return (
-    <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
+    <DirectoryCollection labels={items.map(producer => producer.label)} className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4" placeholder="Знайти виробника в категорії" pageSize={12}>
       {items.map((producer) => {
         const shortDescription = producer.description
           ? stripLeadingBrandName(producer.label, producer.description)
@@ -257,6 +258,6 @@ export default function GroupItemProducerList({
           </article>
         );
       })}
-    </div>
+    </DirectoryCollection>
   );
 }

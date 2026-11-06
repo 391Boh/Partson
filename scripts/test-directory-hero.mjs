@@ -6,7 +6,7 @@ import { build, stop } from 'esbuild';
 import { buildCriticalCss } from './build-critical-css.mjs';
 const { chromium } = await import(process.argv[2] || 'playwright');
 const css = readFileSync('public/styles/dev-site.css');
-assert(buildCriticalCss(css.toString(),'catalog').css.includes('.directory-loading-list'),'Streamed loading shells are styled by the blocking critical stylesheet');
+assert(buildCriticalCss(css.toString(),'directory').css.includes('.directory-loading-list'),'Streamed loading shells are styled by the blocking critical stylesheet');
 const result = await build({
   stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
     import React, {useState} from 'react'; import {createRoot} from 'react-dom/client';

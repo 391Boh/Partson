@@ -34,11 +34,37 @@ const ALIASES: Record<string, string[]> = {
   // The car picker lists Lanos, Nexia, Matiz, Lacetti, Nubira… under
   // CHEVROLET only; TecDoc descriptions name them DAEWOO.
   CHEVROLET: ['CHEVROLET', 'DAEWOO'],
+  // Cupra sells SEAT models under its own name ("CUPRA LEON"); TecDoc lists
+  // the US Expedition, F-150… as "FORD USA".
+  SEAT: ['SEAT', 'CUPRA'], FORD: ['FORD', 'FORD USA'],
 };
 // All makes exposed by the car picker, including commercial vehicles.
-const BRANDS = 'AUDI|BMW|CHERY|CHEVROLET|CHRYSLER|CITROEN|CADILLAC|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|WV|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MERSEDES BENZ|MERSEDES|MB|LAND ROVER|ALFA ROMEO|ACURA|ASTON MARTIN|BENTLEY|FERRARI|GEELY|HUMMER|ISUZU|LADA|LAMBORGHINI|LINCOLN|LOTUS|MASERATI|MAYBACH|PONTIAC|ROLLS-ROYCE|MAN|RAM';
+const BRANDS = 'AUDI|BMW|CHERY|CHEVROLET|CHRYSLER|CITROEN|CADILLAC|CUPRA|DACIA|DAEWOO|DAF|DODGE|FIAT|FORD USA|FORD|HONDA|HYUNDAI|INFINITI|IVECO|JAGUAR|JEEP|KIA|LANCIA|LEXUS|MAZDA|MINI|MITSUBISHI|NISSAN|OPEL|PEUGEOT|PORSCHE|RENAULT|ROVER|SAAB|SEAT|SKODA|SMART|SSANGYONG|SUBARU|SUZUKI|TESLA|TOYOTA|VOLVO|VOLKSWAGEN|VW|WV|MERCEDES-BENZ|MERCEDES BENZ|MERCEDES|MERSEDES BENZ|MERSEDES|MB|LAND ROVER|ALFA ROMEO|ACURA|ASTON MARTIN|BENTLEY|FERRARI|GEELY|HUMMER|ISUZU|LADA|LAMBORGHINI|LINCOLN|LOTUS|MASERATI|MAYBACH|PONTIAC|ROLLS-ROYCE|MAN|RAM';
 export const brandAtStart = new RegExp(`^(${BRANDS})(?=\\s|$)`, 'i');
 const ROMAN = /^(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)$/;
+// Words after a model name that only name a body or trim of the same car
+// ("PASSAT VARIANT", "KANGOO EXPRESS", "ASTRA G CLASSIC"). Any other word
+// makes it a model the car picker lists on its own: GOLF PLUS, C4 PICASSO,
+// A4 ALLROAD, PAJERO SPORT, FOCUS C-MAX.
+const BODY_WORDS = new Set(('VARIANT AVANT KOMBI COMBI COMBO ESTATE WAGON TOURER TOURING SPORTSTOURER SPORTSWAGON ' +
+  'GRANDTOUR SEDAN SALOON LIMOUSINE HATCHBACK LIFTBACK SPORTBACK FASTBACK COUPE CABRIO CABRIOLET CONVERTIBLE ' +
+  'ROADSTER SPIDER SPYDER TARGA KOUP COMPACT VAN BOX KASTEN MINIVAN MINIBUS BUS AUTOBUS SUV MPV PICKUP PICK-UP ' +
+  'PLATFORM CHASSIS CARGO EXPRESS MIXTO TEPEE MULTISPACE VARIO MCV ST SW BREAK PRAKTIK CLASSIC ALLTRACK ' +
+  'CAMPER ENTERPRISE VARIABLE ELECTRIC HYBRID T-MODEL T-MODELL GT GTI GTD GTE GTC OPC RS AMG').split(' '));
+// Words TecDoc puts before a model that keep it the same car: "NEW BEETLE"
+// is the picker's Beetle I, "SUPER 5" its 5 II, "FOCUS C-MAX" its C-MAX I,
+// "TRANSIT CUSTOM" its Custom, "FAVORIT FORMAN" its Forman. Elsewhere the
+// model must open the entry — "MX-6" is not Mazda 6, "GRANDE PUNTO" not Punto I.
+const MODEL_PREFIXES = ['NEW', 'SUPER', 'FOCUS', 'TRANSIT', 'TOURNEO', 'CONTINENTAL', 'FAVORIT'];
+const isBodyWord = (word: string) => BODY_WORDS.has(word) || word.split('-').every(part => BODY_WORDS.has(part));
+const skipBodyWords = (value: string) => {
+  let rest = value;
+  for (;;) {
+    const word = rest.match(/^[A-Z][A-Z-]*(?=\s|$|[,(/])/)?.[0];
+    if (!word || !isBodyWord(word)) return rest;
+    rest = rest.slice(word.length).trim();
+  }
+};
 // An entry's trailing engine-volume and/or date range: " 1.6-2.0 10.03-".
 const ENTRY_TAIL = /\s(\d[.,]\d(?:\s*-.*)?[\s\S]*|(?:\d{2}\.)?\d{2,4}-[\s\S]*)$/;
 export function vehicleModelQuery(vehicle: VehicleSelection): string {
@@ -104,6 +130,28 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
     const listed = normalize(label).match(new RegExp(`(?:^|\\s)(${BRANDS})\\s[^\\p{Script=Cyrillic}]*`, 'iu'));
     return listed ? [listed[0]] : [];
   });
+  // The generations an entry names for the selected model ("" when it names
+  // none), or null when the entry is another model.
+  const namedGenerations = (name: string): string | null => {
+    // Mercedes names the chassis in brackets: "123 (W123)", "E T-MODEL (S124)".
+    if (/^[A-Z]{1,3}\d{2,3}$/.test(model) && new RegExp(`\\((?:[^)]*[\\s,])?${model}(?=[\\s,)])`).test(name)) return '';
+    const prefix = MODEL_PREFIXES.find(word => name.startsWith(`${word} `) && !model.startsWith(`${word} `));
+    const start = prefix && !name.startsWith(model) ? prefix.length + 1 : 0;
+    if (!name.startsWith(model, start) || /[A-Z0-9]/.test(name[start + model.length] || '')) return null;
+    // "GALAXY MK I": the Mark prefix before a generation numeral; body
+    // and trim words before it ("A4 AVANT B8") don't hide the generation.
+    const afterModel = skipBodyWords(name.slice(start + model.length).trim()).replace(/^MK\s*(?=[IVX]+(?:\s|$))/, '');
+    // Another word after the name is another model (GOLF PLUS, C4 CACTUS),
+    // unless the picker's own name has it ("SX4 II S-Cross").
+    const nextWord = afterModel.match(/^[A-Z][A-Z-]+(?=\s|$|[,(/])/)?.[0];
+    if (nextWord && !ROMAN.test(nextWord) && !selectedTokens.includes(nextWord)) return null;
+    // A number right after the name makes it another model: "MODEL 3"
+    // is not Model X, "IONIQ 6" not Ioniq ("SPRINTER 3,5-T" is a
+    // tonnage, "Mondeo 1993 - 2000" a year range).
+    if (/^(?!(?:19|20)\d{2}\s*-)\d+(?![.,]\d)(?=\s|$|\()/.test(afterModel)) return null;
+    const rest = nextWord && !ROMAN.test(nextWord) ? afterModel.slice(nextWord.length).trim() : afterModel;
+    return rest.match(/^(?:(?:[A-Z]{1,3}\d{1,3}|XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)(?:\/(?:[A-Z]{1,3})?\d{1,3}|\/(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I))*)(?=\s|$)/)?.[0] ?? '';
+  };
   for (const line of applicationLines) {
     let currentBrand = '';
     const normalizedLine = normalize(line);
@@ -113,11 +161,22 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
     // range. Slash-separated generations such as B3/B4 remain one entry, and
     // so does a decimal comma ("SPRINTER 3,5-T"); "80 B3, 80 B4" are two.
     const groups = application.split(';').map(raw => {
-      const group = raw.trim();
-      const named = group.match(brandAtStart);
+      let group = raw.trim();
+      let named = group.match(brandAtStart);
+      // A note can sit between ';' and the make ("41,5MM) VW CALIFORNIA").
+      if (!named) {
+        const later = group.match(new RegExp(`(?:^|\\s)(${BRANDS})(?=\\s)`, 'i'));
+        if (later && !/[A-Z]{2}/.test(group.slice(0, later.index))) {
+          group = group.slice(later.index! + later[0].length - later[1].length);
+          named = group.match(brandAtStart);
+        }
+      }
+      // Every ';' group opens with its make: one the picker doesn't know
+      // ("FSO POLONEZ", "ABARTH 124 SPIDER") is not the previous make.
+      const make = named ? named[1] : /^[A-Z][A-Z&-]+(?=\s|$)/.test(group) ? '' : null;
       const entries = group.slice(named?.[0].length || 0).trim().split(/,(?:\s+|(?=[A-Z]))/);
       const ownTail = entries.at(-1)?.match(ENTRY_TAIL)?.[0] || '';
-      return { named, entries, ownTail, sharedTail: ownTail };
+      return { make, entries, ownTail, sharedTail: ownTail };
     });
     // A tail covers every make listed since the previous tail: in "VOLVO C30,
     // V50; FORD FOCUS II 1.6-2.0 10.03-" it is TecDoc's range for the whole
@@ -125,21 +184,20 @@ export function matchesVehicleFitment(description: string | undefined, vehicle: 
     for (let index = groups.length - 2; index >= 0; index -= 1) {
       if (!groups[index].ownTail) groups[index].sharedTail = groups[index + 1].sharedTail;
     }
-    for (const { named, entries, sharedTail } of groups) {
-      if (named) currentBrand = named[1];
+    for (const { make, entries, sharedTail } of groups) {
+      if (make !== null) currentBrand = make;
       if (!aliases.includes(currentBrand)) continue;
       for (const entry of entries) {
         // The model is named before the engine/year range: Renault "10" is
         // not the month in "10.80-", Mazda "2" not the "2.0" of a volume.
-        const entryName = entry.replace(ENTRY_TAIL, '');
-        if (!contains(entryName, model)) continue;
-        // "GALAXY MK I": the Mark prefix before a generation numeral.
-        const afterModel = entryName.slice(entryName.indexOf(model) + model.length).trim().replace(/^MK\s*(?=[IVX]+(?:\s|$))/, '');
-        // A number right after the name makes it another model: "MODEL 3"
-        // is not Model X, "IONIQ 6" not Ioniq ("SPRINTER 3,5-T" is a
-        // tonnage, "Mondeo 1993 - 2000" a year range).
-        if (/^(?!(?:19|20)\d{2}\s*-)\d+(?![.,]\d)(?=\s|$|\()/.test(afterModel)) continue;
-        const listedGenerations = afterModel.match(/^(?:(?:[A-Z]{1,3}\d{1,3}|XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I)(?:\/(?:[A-Z]{1,3})?\d{1,3}|\/(?:XII|XI|IX|VIII|VII|VI|IV|III|II|V|X|I))*)(?=\s|$)/)?.[0];
+        let entryName = entry.replace(ENTRY_TAIL, '').trim();
+        // "VW GOLF V, VW JETTA III": the make repeated inside its own group.
+        const repeated = aliases.find(alias => entryName.startsWith(`${alias} `));
+        if (repeated) entryName = entryName.slice(repeated.length + 1);
+        // "LOGAN/SANDERO", "A3 / A4 / A6 / TT": one entry naming several models.
+        const names = [entryName, ...entryName.split(/\s*\/\s*/).slice(1)];
+        const listedGenerations = names.map(name => namedGenerations(name)).find(found => found !== null);
+        if (listedGenerations === undefined) continue;
         if (generation.length && listedGenerations && !generation.some(g => contains(listedGenerations, g))) continue;
         const scoped = !/\d[.,]\d|\d{2,4}\s*-/.test(entry) ? `${entry} ${sharedTail}` : entry;
         // A bare family name ("VW Passat") cannot confirm a selected

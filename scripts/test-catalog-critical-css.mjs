@@ -10,7 +10,8 @@ try {
     await page.route('**/styles/site.*.css', async route => { await gate; await route.continue(); });
     try {
       await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' });
-      assert.equal(await page.locator('link[rel=stylesheet][href*="critical-catalog."]').count(), 1);
+      const target = path === '/katalog' ? 'catalog' : 'directory';
+      assert.equal(await page.locator(`link[rel=stylesheet][href*="critical-${target}."]`).count(), 1);
       const title = page.locator('h1').first();
       await title.waitFor();
       const snapshot = () => title.evaluate(e => {

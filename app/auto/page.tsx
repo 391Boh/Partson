@@ -15,6 +15,10 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 export const revalidate = 21600;
 
 const title = "Підбір автозапчастин за маркою і моделлю авто";
+// The on-page heading drops the trailing "авто" the SEO title keeps;
+// CatalogDirectoryLoading shows the same words so nothing swaps on arrival.
+const heroTitleAccent = "за маркою і моделлю";
+const heroTitle = `Підбір автозапчастин ${heroTitleAccent}`;
 const description = appendSeoContact(
   "Оберіть марку, модель і модифікацію автомобіля, щоб перейти до відповідних груп запчастин. Перевірте сумісність деталі за VIN перед замовленням."
 );
@@ -123,9 +127,9 @@ export default function AutoPage() {
           current="auto"
           badge="Підбір по авто"
           icon={CarFront}
-          title={title}
-          titleAccent="за маркою і моделлю авто"
-          description={`У каталозі PartsON — ${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)} авто. Почніть із марки свого автомобіля, далі оберіть модель і потрібну систему — наприклад, гальма або підвіску. Рік випуску, двигун та артикул допоможуть уточнити потрібну деталь.`}
+          title={heroTitle}
+          titleAccent={heroTitleAccent}
+          description={`${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)} у каталозі. Оберіть марку, потім модель — і побачите групи запчастин, підібрані саме для неї. Остаточну сумісність звіряйте за роком випуску, двигуном або VIN.`}
           highlights={[
             `${carBrands.length.toLocaleString("uk-UA")} ${pluralizeCarBrands(carBrands.length)}`,
             "Швидкий перехід у каталог",

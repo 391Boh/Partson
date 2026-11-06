@@ -205,13 +205,12 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
 
   // When the catalog snapshot contains product counts, submit only useful
   // landing pages. Empty tree nodes remain navigable on the site with
-  // noindex/follow, but don't consume crawl budget or compete with populated
-  // categories. If counts are temporarily unavailable, keep the complete
-  // tree as a fail-open fallback rather than dropping URLs on an outage.
-  // Keep the complete group tree discoverable. Pages without a generated
-  // product preview still receive their parent category icon via
-  // buildGroupSitemapImage, so they must not disappear from the sitemap.
-  const onlyWithProducts = false;
+  // noindex/follow (see the group pages' metadata), so listing them here
+  // would submit URLs Search Console then reports as excluded. If counts are
+  // temporarily unavailable, keep the complete tree as a fail-open fallback
+  // rather than dropping URLs on an outage. Pages without a product preview
+  // still get their category icon via buildGroupSitemapImage.
+  const onlyWithProducts = directoryData.hasProductCounts;
   const sitemapGroups = directoryData.clientGroups.filter(
     (group) => !onlyWithProducts || group.productCount > 0
   );
