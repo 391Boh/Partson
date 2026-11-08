@@ -8,6 +8,17 @@ export const answerTelegramCallback = (callbackQueryId: string, text?: string) =
     ...(text ? { text: text.slice(0, 200) } : {}),
   });
 
+export const editTelegramReplyMarkup = (
+  chatId: string | number,
+  messageId: number,
+  replyMarkup: Record<string, unknown>
+) =>
+  callTelegramBotApi("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup,
+  });
+
 export const deleteTelegramMessage = (chatId: string | number, messageId: number) =>
   callTelegramBotApi("deleteMessage", { chat_id: chatId, message_id: messageId });
 

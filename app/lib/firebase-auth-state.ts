@@ -109,7 +109,7 @@ const ensureFirebaseAuthSubscription = () => {
     });
 };
 
-const hasPersistedAuthIntent = () => {
+export const hasPersistedAuthIntent = () => {
   if (typeof window === "undefined") return false;
   try {
     return Boolean(

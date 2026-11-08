@@ -33,8 +33,6 @@ type InformationSection = {
   heroKicker?: string;
   /** Service pages: the hero calls the person who handles this service. */
   heroPhone?: { raw: string; display: string; label: string };
-  /** Decorative background drawn behind the hero content. */
-  heroBackground?: string;
   /** Published services featured in the homepage article/service slider. */
   homeFeature?: { image: string; imageAlt: string };
   /** Set when this section's content changed after INFORMATION_UPDATED_AT. */
@@ -53,6 +51,18 @@ export const INFORMATION_SECTION_ACCENTS: Record<InformationSectionKey, [string,
   warranty: ["#f59e0b", "#14b8a6"],
   returns: ["#f43f5e", "#0ea5e9"],
   diagnostics: ["#0ea5e9", "#8b5cf6"],
+};
+
+// Each section has its own subject composed on a dark workshop backdrop.
+// The wide copy crops by height, so phones get their own portrait composition
+// instead of an enlarged slice of it.
+export const getInformationHeroPhoto = (key: InformationSectionKey) => {
+  const base = `/images/information/${key}-bg-v11`;
+  return {
+    src: `${base}-1440.webp`,
+    srcSet: `${base}-1440.webp 1440w, ${base}.webp 2880w`,
+    phoneSrcSet: `${base}-phone-780.webp 780w, ${base}-phone.webp 1170w`,
+  };
 };
 
 export const DEFAULT_INFORMATION_SECTION: InformationSectionKey = "delivery";
@@ -356,7 +366,6 @@ export const informationSections: InformationSection[] = [
     ),
     heroKicker: "Послуга у Львові · вул. Перфецького, 8",
     heroPhone: { raw: "+380934804261", display: "+38 (093) 480-42-61", label: "Роман, запис на діагностику" },
-    heroBackground: "/images/information/diagnostics-hero-bg.svg",
     updatedAt: "2026-10-17",
     keywords: [
       "комп'ютерна діагностика авто львів",

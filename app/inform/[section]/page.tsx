@@ -303,10 +303,10 @@ export default async function InformationSectionPage({
               },
               primaryImageOfPage: {
                 "@type": "ImageObject",
-                url: `${siteUrl}/images/information/diagnostics-hero-v1.webp`,
-                width: 1200,
-                height: 800,
-                caption: "Сканер OBD-II для комп'ютерної діагностики авто у PartsON, Львів",
+                url: `${siteUrl}/images/information/diagnostics-bg-v11-1440.webp`,
+                width: 1440,
+                height: 650,
+                caption: "Двигун автомобіля: комп'ютерна діагностика авто у PartsON, Львів",
               },
               mainEntity: {
                 "@id": `${siteUrl}/inform/diagnostics#computer-diagnostics`,

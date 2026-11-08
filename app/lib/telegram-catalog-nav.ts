@@ -79,15 +79,13 @@ export const buildTopMenu = (): NavMenu => ({
   ].join("\n"),
   imageUrl: null,
   keyboard: [
-    [{ text: "📂 Групи товарів", callback_data: "g" }],
+    [{ text: "🔎 Підбір: авто + категорія", callback_data: "f:start" }],
     [
-      { text: "🚗 Марки авто", callback_data: "a:0" },
+      { text: "📂 Групи", callback_data: "g" },
+      { text: "🚗 Марки", callback_data: "a:0" },
       { text: "🏭 Виробники", callback_data: "p:0" },
     ],
-    [
-      { text: "💬 Підтримка", callback_data: "support:start" },
-      { text: "📍 Контакти", callback_data: "contacts" },
-    ],
+    [{ text: "⌂ Меню", callback_data: "home:menu" }],
   ],
 });
 

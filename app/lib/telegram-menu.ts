@@ -1,23 +1,25 @@
-export const buildBotHomeKeyboard = (siteUrl: string) => ({
+export const buildBotHomeKeyboard = (_siteUrl: string, cartCount = 0) => ({
   inline_keyboard: [
-    [{ text: "🔎 Знайти деталь", callback_data: "home:find" }, { text: "📂 Каталог", callback_data: "m" }],
-    [{ text: "🛒 Кошик", callback_data: "cart" }, { text: "📦 Мої замовлення", callback_data: "home:orders" }],
-    [{ text: "👤 Мій профіль", callback_data: "home:profile" }, { text: "💬 Менеджер", callback_data: "support:start" }],
-    [{ text: "📍 Контакти", callback_data: "contacts" }, { text: "ℹ️ Допомога", callback_data: "home:help" }],
+    [{ text: "🔎 Підібрати деталь", callback_data: "f:start" }, { text: "📂 Каталог", callback_data: "m" }],
+    [{ text: cartCount > 0 ? `🛒 Кошик (${cartCount})` : "🛒 Кошик", callback_data: "cart" }, { text: "⋯ Ще", callback_data: "home:more" }],
+  ],
+});
+
+export const buildBotMoreKeyboard = (siteUrl: string) => ({
+  inline_keyboard: [
+    [{ text: "📦 Замовлення", callback_data: "home:orders" }, { text: "👤 Профіль", callback_data: "home:profile" }],
+    [{ text: "💬 Менеджер", callback_data: "support:start" }, { text: "📍 Контакти", callback_data: "contacts" }],
     [siteUrl.startsWith("https://")
-      ? { text: "🌐 Відкрити сайт", web_app: { url: `${siteUrl}/katalog` } }
-      : { text: "🌐 Відкрити сайт", url: `${siteUrl}/katalog` }],
+      ? { text: "🌐 Сайт", web_app: { url: `${siteUrl}/katalog` } }
+      : { text: "🌐 Сайт", url: `${siteUrl}/katalog` },
+    { text: "ℹ️ Допомога", callback_data: "home:help" }],
+    [{ text: "⬅️ Назад", callback_data: "home:back" }],
   ],
 });
 
 export const BOT_HOME_TEXT = [
-  "<b>PartsON · Автозапчастини</b>",
-  "Львів • доставка по Україні",
-  "",
-  "<b>Що шукаємо для вашого авто?</b>",
-  "Надішліть назву або артикул деталі — або оберіть дію нижче.",
-  "",
-  "<i>/menu — головне меню · /cancel — завершити поточний діалог</i>",
+  "<b>PartsON</b> · автозапчастини у Львові",
+  "Напишіть назву чи артикул або підберіть деталь за авто й категорією.",
 ].join("\n");
 
 export const parseBotCommand = (text: string) => {

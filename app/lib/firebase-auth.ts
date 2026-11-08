@@ -17,13 +17,27 @@ const hasPendingRedirect = () => {
   }
 };
 
+// Firebase opens the Google window only after its helper iframe has loaded,
+// and on phones it preloads that iframe only when given the resolver here.
+// Without it the first tap outlives the browser's popup allowance and gets
+// blocked. A guest only reaches this module by opening the sign-in form;
+// returning visitors restoring a session still skip the iframe.
+const needsPopupResolver = () => {
+  if (hasPendingRedirect()) return true;
+  try {
+    return typeof localStorage !== "undefined" && !localStorage.getItem("user_id");
+  } catch {
+    return false;
+  }
+};
+
 const initializeSessionAuth = () => {
   try {
     return initializeAuth(app, {
       // Keep Firebase's existing persistence hierarchy, including fallback
-      // when IndexedDB is blocked. Ordinary session checks need no OAuth iframe.
+      // when IndexedDB is blocked.
       persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
-      ...(hasPendingRedirect() ? { popupRedirectResolver: browserPopupRedirectResolver } : {}),
+      ...(needsPopupResolver() ? { popupRedirectResolver: browserPopupRedirectResolver } : {}),
     });
   } catch (error) {
     // A hot reload can encounter an instance created with redirect support.

@@ -203,7 +203,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
       <div className="relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_60%_74%_at_12%_0%,rgba(20,184,166,0.11),transparent_68%),radial-gradient(ellipse_58%_72%_at_88%_0%,rgba(14,165,233,0.12),transparent_68%)]" />
 
-        <div key={brand.name} className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5 animate-fadeIn">
+        <div key={brand.name} className="page-shell-inline catalog-hub-stage relative flex flex-col py-3 sm:py-4 lg:py-5">
         <CatalogHubHero
           current="auto"
           badge={`Марка: ${brand.name}`}

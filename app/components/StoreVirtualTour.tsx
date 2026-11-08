@@ -4,6 +4,8 @@ import { ArrowUpRight, Compass } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { preconnect } from "react-dom";
 
+import { whenScrollSettles } from "app/lib/when-scroll-settles";
+
 type Props = { embedUrl: string; tourUrl: string };
 
 /** Load the panorama only near its reserved frame, independently of window.load. */
@@ -40,13 +42,19 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
       }
     }, { rootMargin: "1800px 0px" });
     warmObserver.observe(frame);
+    // The panorama's scripts stall a scroll that merely passes by. The poster
+    // holds the frame until it is on screen and the page has come to rest.
+    let cancelSettle: (() => void) | undefined;
     const observer = new IntersectionObserver(([entry]) => {
+      cancelSettle?.();
       if (!entry.isIntersecting) return;
-      observer.disconnect();
-      setActive(true);
-    }, { rootMargin: conserveData ? "0px" : "1200px 0px" });
+      cancelSettle = whenScrollSettles(() => {
+        observer.disconnect();
+        setActive(true);
+      });
+    }, { threshold: 0.1 });
     observer.observe(frame);
-    return () => { observer.disconnect(); warmObserver.disconnect(); };
+    return () => { observer.disconnect(); warmObserver.disconnect(); cancelSettle?.(); };
   }, [active, embedUrl]);
 
   return (

@@ -168,7 +168,9 @@ const parseProductStaticParamsLimit = (value: string | undefined) => {
   return Math.floor(numeric);
 };
 
-export const revalidate = 300;
+// Crawlers make up about 90% of product views, and every stale hit re-queries
+// 1C. The purchase panel fetches the live price itself after hydration.
+export const revalidate = 1800;
 export const dynamicParams = true;
 
 export async function generateStaticParams() {

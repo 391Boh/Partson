@@ -99,7 +99,10 @@ const shouldUseLightNetworkWarmup = () => {
     .deviceMemory;
   const isLowMemoryDevice =
     typeof deviceMemory === "number" && deviceMemory > 0 && deviceMemory <= 4;
-  return isSlowConnection || isLowMemoryDevice;
+  // Without a hover there is no signal that the visitor will go to these
+  // routes, and each one pulls in its critical CSS and hero photo.
+  const isTouchOnly = window.matchMedia("(hover: none)").matches;
+  return isSlowConnection || isLowMemoryDevice || isTouchOnly;
 };
 
 const isNavigationClick = (event: Event) => {
@@ -155,7 +158,7 @@ function RouteViewStateSync({
 // Pages whose dark photographic hero starts under the fixed header: there the
 // header is transparent at the very top, like on the homepage.
 const hasTransparentHeaderAtTop = (pathname: string) =>
-  pathname === "/" || /^\/(?:auto|groups|manufacturers)(?:\/|$)/.test(pathname);
+  pathname === "/" || /^\/(?:auto|groups|manufacturers|inform)(?:\/|$)/.test(pathname);
 
 // Keep visibility updates local: crossing the sentinel must not render the
 // account runtime, chat controls and navigation on every page.

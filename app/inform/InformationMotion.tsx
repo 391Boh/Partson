@@ -13,21 +13,17 @@ export default function InformationMotion({ children, className }: { children: R
     const node = root.current;
     if (!node || !("IntersectionObserver" in window)) return;
     let attachedPage: HTMLElement | null = null;
-    let attachedArt: HTMLElement | null = null;
+    let attachedArticle: HTMLElement | null = null;
     let cleanup = () => {};
     const attach = () => {
       const page = node.querySelector<HTMLElement>(".info-page");
-      const art = page?.querySelector<HTMLElement>(".info-hero-art") ?? null;
-      if (page === attachedPage && art === attachedArt) return;
+      const article = page?.querySelector<HTMLElement>(".info-article") ?? null;
+      if (page === attachedPage && article === attachedArticle) return;
       cleanup();
       attachedPage = page;
-      attachedArt = art;
-      if (!page || !art) return;
+      attachedArticle = article;
+      if (!page || !article) return;
       const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const artObserver = new IntersectionObserver(([entry]) => {
-        art.classList.toggle("info-art-paused", !entry.isIntersecting);
-      });
-      artObserver.observe(art);
 
       const items = Array.from(page.querySelectorAll<HTMLElement>(revealTargets));
       const observer = new IntersectionObserver((entries) => {
@@ -54,18 +50,35 @@ export default function InformationMotion({ children, className }: { children: R
           observer.unobserve(item);
         }
       };
+      // The sticky contents rail on phones follows the section being read.
+      const rail = page.querySelector<HTMLElement>(".info-toc-rail");
+      const markCurrent = (id: string) => {
+        rail?.querySelectorAll<HTMLAnchorElement>("a").forEach((link) => {
+          if (link.hash.slice(1) !== id) {
+            link.removeAttribute("aria-current");
+            return;
+          }
+          link.setAttribute("aria-current", "location");
+          rail.scrollTo({ left: link.offsetLeft - 16, behavior: motion.matches ? "auto" : "smooth" });
+        });
+      };
+      const spy = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) markCurrent(entry.target.id);
+        });
+      }, { rootMargin: "-30% 0px -60% 0px", threshold: 0 });
+      article.querySelectorAll<HTMLElement>("section[id]").forEach((section) => spy.observe(section));
       motion.addEventListener("change", showAll);
       node.addEventListener("focusin", focus);
       cleanup = () => {
-        artObserver.disconnect();
         observer.disconnect();
-        art.classList.remove("info-art-paused");
+        spy.disconnect();
         motion.removeEventListener("change", showAll);
         node.removeEventListener("focusin", focus);
         items.forEach((item) => item.classList.remove("info-motion-pending", "info-motion-enter"));
       };
     };
-    // Layout can hydrate before its streamed page, and transitions replace art.
+    // Layout can hydrate before its streamed page, and transitions replace the article.
     const observer = new MutationObserver(attach);
     observer.observe(node, { childList: true, subtree: true });
     attach();

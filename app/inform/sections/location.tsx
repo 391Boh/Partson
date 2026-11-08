@@ -40,7 +40,7 @@ export default function LocationSection() {
           <iframe
             title="Карта: магазин PartsON у Львові, вул. Перфецького, 8"
             src={MAPS_EMBED_URL}
-            className="block h-[340px] w-full border-0 sm:h-[440px]"
+            className="info-map-frame block h-[340px] w-full border-0 sm:h-[440px]"
             loading="lazy"
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"
@@ -70,7 +70,7 @@ export default function LocationSection() {
               {HOURS.map((row) => (
                 <div key={row.day} className="flex items-center justify-between gap-4 py-2.5">
                   <dt className="font-semibold text-slate-700">{row.day}</dt>
-                  <dd className="font-bold tabular-nums text-slate-900">{row.time}</dd>
+                  <dd className="shrink-0 whitespace-nowrap font-bold tabular-nums text-slate-900">{row.time}</dd>
                 </div>
               ))}
             </dl>

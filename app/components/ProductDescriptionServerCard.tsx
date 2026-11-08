@@ -12,10 +12,12 @@ import { buildFitmentModelLinks } from "app/lib/product-fitment-links";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 
 // 1C description lookups measure 1.9-3.7s live (see /api/product-description);
-// the per-key budget matches that route, the outer one caps how long this
-// Suspense boundary can hold the streamed HTML.
+// the per-key budget matches that route. An uncached page is only sent once
+// this boundary resolves, so the outer cap is its first byte: 4.5s put a
+// tenth of product views past 4s. A late lookup keeps running and fills the
+// 1C response cache for the next render; the client card retries meanwhile.
 const DESCRIPTION_LOOKUP_TIMEOUT_MS = 4000;
-const DESCRIPTION_SSR_TIMEOUT_MS = 4500;
+const DESCRIPTION_SSR_TIMEOUT_MS = 1200;
 const DESCRIPTION_LOOKUP_LIMIT = 4;
 
 type ProductDescriptionServerCardProps = ComponentProps<typeof ProductDescriptionClientCard> & {

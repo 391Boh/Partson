@@ -22,6 +22,7 @@ const SCROLL_SETTLE_RETRY_MS = 80;
 // sibling sections spreads that unavoidable paint cost over more frames
 // instead of letting it land in one burst.
 const MIN_SECTION_MOUNT_STAGGER_MS = 220;
+const OFFSCREEN_IDLE_MOUNT_DELAY_MS = 2_500;
 let lastSectionMountAt = 0;
 
 const loadProductSection = () => import("./tovar");
@@ -214,13 +215,21 @@ function DeferredHomeSection({
     // every offscreen section or racing the hero image on a cold connection.
     if (!conserveData) {
       cancelPreparation = scheduleBackgroundTask(() => {
-        if (!nearViewport) return;
-        // Warm nearby code without constructing an offscreen catalogue tree.
+        // Warm code without constructing an offscreen catalogue tree yet.
         // On phones the hero and blog push Auto below the first viewport;
         // committing it during a first login tap creates a needless long task.
         // Actual scroll/anchor intent above still mounts promptly.
-        if (section.getBoundingClientRect().top < window.innerHeight) requestMount();
-        else void preload().catch(() => undefined);
+        if (nearViewport && section.getBoundingClientRect().top < window.innerHeight) {
+          requestMount();
+          return;
+        }
+        void preload().catch(() => undefined);
+        // A section committed while the page is at rest costs the scroll
+        // gesture nothing. Wait out the window of a likely first tap.
+        cancelPreparation = scheduleBackgroundTask(requestMount, {
+          delayMs: OFFSCREEN_IDLE_MOUNT_DELAY_MS,
+          waitForLoad: false,
+        });
       }, { delayMs: 900 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500), waitForLoad: false });
     }
     return cleanup;

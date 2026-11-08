@@ -544,9 +544,9 @@ const INFORMATION_SECTION_STORE_PHOTOS: Partial<
   })),
   diagnostics: [
     {
-      loc: "/images/information/diagnostics-hero-v1.webp",
+      loc: "/images/information/diagnostics-bg-v11-1440.webp",
       title: "Комп'ютерна діагностика авто у Львові",
-      caption: "Сканер OBD-II для комп'ютерної діагностики авто у PartsON, Львів",
+      caption: "Двигун автомобіля: комп'ютерна діагностика авто у PartsON, Львів",
     },
   ],
 };

@@ -1671,7 +1671,7 @@ export default async function ManufacturerDetailPage({
   return (
     <main className={`${catalogPageBackgroundClass} directory-detail-page min-h-screen py-5 sm:py-7`}>
       <div className="directory-detail-shell">
-      <div key={producer.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
+      <div key={producer.slug} className="space-y-4 sm:space-y-5">
         <section className="manufacturer-hero-section directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_5%_0%,rgba(14,165,233,0.13),transparent_36%),radial-gradient(circle_at_95%_4%,rgba(20,184,166,0.12),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(242,249,248,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(14,165,233,0.055)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="manufacturers" />
           <CatalogSectionNav current="manufacturers" />

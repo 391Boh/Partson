@@ -1,6 +1,5 @@
 import { ViewTransition, type CSSProperties } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   ArrowRight,
   Award,
@@ -19,6 +18,7 @@ import {
 import {
   INFORMATION_SECTION_ACCENTS,
   INFORMATION_UPDATED_AT,
+  getInformationHeroPhoto,
   getInformationPath,
   informationSections,
   type InformationSectionKey,
@@ -27,17 +27,22 @@ import { sectionContent } from './sections';
 import { PHONE_DISPLAY, PHONE_RAW } from './ui';
 import OpenChatButton from 'app/components/OpenChatButton';
 import InformationSectionsPrefetch from './InformationSectionsPrefetch';
-import { directoryPanelClass } from 'app/components/catalog-directory-styles';
+import {
+  directoryActionIconClass,
+  directoryIconTileClass,
+  directoryListCardClass,
+  directoryPanelClass,
+} from 'app/components/catalog-directory-styles';
 
-const HERO_IMAGE_ALT: Record<InformationSectionKey, string> = {
-  delivery: 'Доставка автозапчастин: автомобіль і пакунок із гальмівним диском',
-  payment: 'Оплата замовлення: банківська картка та платіжний термінал',
-  about: 'Добірка автозапчастин: гальмівний диск, фільтр, свічка та ремінь',
-  location: 'Стилізована карта з позначкою магазину автозапчастин',
-  privacy: 'Захист персональних даних: щит і замок',
-  warranty: 'Гарантія якості: гальмівний диск і щит із позначкою перевірки',
-  returns: 'Повернення та обмін: пакунок із фільтром і стрілки обміну',
-  diagnostics: 'Автомобільний діагностичний сканер із кабелем OBD',
+const HERO_PHOTO_ALT: Record<InformationSectionKey, string> = {
+  delivery: 'Посилки з автозапчастинами у фургоні перед доставкою',
+  payment: 'Платіжний термінал і банківська картка',
+  about: 'Фасад магазину автозапчастин PartsON у Львові',
+  location: 'Навігатор в автомобілі з маршрутом на карті',
+  privacy: 'Навісний замок із ключем',
+  warranty: 'Гальмівний диск у автосервісі',
+  returns: 'Картонні коробки для повернення й обміну товару',
+  diagnostics: 'Двигун автомобіля зблизька',
 };
 
 type InformationPageClientProps = {
@@ -71,103 +76,91 @@ export default function InformationPageClient({ initialSectionKey }: Information
   const toc = [...sectionToc, { id: 'faq', label: 'Часті запитання' }];
   const related = section.related.map((key) => informationSections.find((s) => s.key === key)!).filter(Boolean);
   const ActiveIcon = SECTION_ICONS[section.key];
+  const photo = getInformationHeroPhoto(section.key);
 
   return (
     <div
-      className="info-page relative min-h-screen py-5 text-slate-900 sm:py-7"
+      className="info-page relative min-h-screen pb-8 text-slate-900 sm:pb-12"
       style={{ '--info-a': accentA, '--info-b': accentB } as CSSProperties}
     >
       <InformationSectionsPrefetch paths={informationSections.map((s) => getInformationPath(s.key))} />
-      <div className="page-shell-inline space-y-5 sm:space-y-6">
-        {/* Хлібні крихти */}
-        <nav aria-label="Навігаційні хлібні крихти">
-          <ol className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-500">
-            <li><Link href="/" className="transition hover:text-slate-900">Головна</Link></li>
-            <li aria-hidden="true"><ChevronRight size={12} /></li>
-            <li><Link href="/inform/delivery" className="transition hover:text-slate-900">Інформація</Link></li>
-            <li aria-hidden="true"><ChevronRight size={12} /></li>
-            <li aria-current="page" className="font-semibold text-slate-800">{section.title}</li>
-          </ol>
-        </nav>
+      <link rel="preload" as="image" media="(max-width: 767px)" imageSrcSet={photo.phoneSrcSet} imageSizes="100vw" fetchPriority="high" />
+      <link rel="preload" as="image" media="(min-width: 768px)" imageSrcSet={photo.srcSet} imageSizes="(min-width: 1440px) 100vw, 1440px" fetchPriority="high" />
+      {/* Hero */}
+      <section className="info-hero relative isolate overflow-hidden">
+        <ViewTransition key={section.key} name="info-hero" share="info-hero" enter="info-hero" exit="info-hero" default="none">
+          <div className="info-hero-stage relative">
+            <div className="info-hero-media">
+              <picture>
+                <source media="(max-width: 767px)" srcSet={photo.phoneSrcSet} sizes="100vw" />
+                <img
+                  src={photo.src}
+                  srcSet={photo.srcSet}
+                  sizes="(min-width: 1440px) 100vw, 1440px"
+                  alt={HERO_PHOTO_ALT[section.key]}
+                  fetchPriority="high"
+                  decoding="async"
+                  className="info-hero-photo"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </picture>
+              <span className="info-hero-shade" aria-hidden="true" />
+            </div>
 
-        {/* Hero */}
-        <section className="info-hero relative isolate overflow-hidden rounded-[28px] border border-white bg-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.07)] ring-1 ring-[#d9e3ec]/70">
-          <span className="info-hero-sheen pointer-events-none absolute inset-x-10 top-0 h-[2px] rounded-full opacity-80" aria-hidden="true" />
-          {section.heroBackground ? (
-            <span
-              className="info-hero-backdrop pointer-events-none absolute inset-0 -z-10"
-              style={{ backgroundImage: `url("${section.heroBackground}")` }}
-              aria-hidden="true"
-            />
-          ) : null}
+            <div className="page-shell-inline info-hero-content">
+              <nav aria-label="Навігаційні хлібні крихти">
+                <ol className="info-hero-crumbs flex flex-wrap items-center gap-1.5 text-xs font-medium">
+                  <li><Link href="/">Головна</Link></li>
+                  <li aria-hidden="true"><ChevronRight size={12} /></li>
+                  <li><Link href="/inform/delivery">Інформація</Link></li>
+                  <li aria-hidden="true"><ChevronRight size={12} /></li>
+                  <li aria-current="page">{section.title}</li>
+                </ol>
+              </nav>
 
-          <ViewTransition key={section.key} name="info-hero" share="info-hero" enter="info-hero" exit="info-hero" default="none">
-            <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-10 lg:p-10">
-              <div className="min-w-0">
-                <p className="info-in info-read flex items-center gap-2.5 text-[14px] info-read-accent">
-                  <span className="info-accent-bg inline-flex h-9 w-9 items-center justify-center rounded-[12px] text-white">
+              <div className="info-hero-copy">
+                <p className="info-in info-read info-hero-kicker flex items-center gap-2.5">
+                  <span className="info-accent-bg inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-white">
                     <ActiveIcon size={18} strokeWidth={1.9} aria-hidden="true" />
                   </span>
                   {section.heroKicker ?? 'Інформація для клієнтів'}
                 </p>
 
-                <h1 className="info-hero-title mt-5 max-w-3xl text-[1.9rem] leading-[1.08] text-[#13202f] sm:text-[2.6rem] lg:text-[3rem]">
-                  {section.pageHeading}
-                </h1>
-                <p
-                  className="info-in info-read mt-4 max-w-[38rem] text-[16.5px] leading-[1.7] sm:text-[18px]"
-                  style={{ '--i': 2 } as CSSProperties}
-                >
+                <h1 className="info-hero-title">{section.pageHeading}</h1>
+                <p className="info-in info-read info-hero-lead" style={{ '--i': 2 } as CSSProperties}>
                   {section.contentLead || section.intro}
                 </p>
 
-                <div className="info-in info-read info-read-muted mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13.5px]" style={{ '--i': 3 } as CSSProperties}>
+                <div className="info-in info-read info-hero-meta flex flex-wrap items-center gap-x-5 gap-y-2" style={{ '--i': 3 } as CSSProperties}>
                   <a
                     href={`tel:${section.heroPhone?.raw ?? PHONE_RAW}`}
                     aria-label={section.heroPhone ? `${section.heroPhone.label}: ${section.heroPhone.display}` : undefined}
-                    className="inline-flex items-center gap-1.5 font-medium text-[#13202f] transition hover:text-sky-700"
+                    className="info-hero-phone inline-flex items-center gap-2"
                   >
-                    <Phone size={14} strokeWidth={2} aria-hidden="true" />
+                    <Phone size={15} strokeWidth={2} aria-hidden="true" />
                     {section.heroPhone ? `${section.heroPhone.label}: ${section.heroPhone.display}` : PHONE_DISPLAY}
                   </a>
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-2">
                     <span className="info-accent-dot h-1.5 w-1.5 rounded-full" aria-hidden="true" />
                     Оновлено <time dateTime={section.updatedAt ?? INFORMATION_UPDATED_AT}>{formatUpdatedAt(section.updatedAt ?? INFORMATION_UPDATED_AT)}</time>
                   </span>
                 </div>
               </div>
 
-              <div className="info-hero-art relative mx-auto w-full max-w-[560px]">
-                <div className="info-hero-art-orbit" aria-hidden="true" />
-                <div className="info-hero-art-frame relative aspect-[3/2] overflow-hidden rounded-[24px] border border-white/90 bg-[#edf6fb] shadow-[0_24px_60px_rgba(15,23,42,0.1)] sm:rounded-[32px]">
-                  <Image
-                    src={`/images/information/${section.key}-hero-v1.webp`}
-                    alt={HERO_IMAGE_ALT[section.key]}
-                    fill
-                    sizes="(max-width: 639px) calc(100vw - 64px), (max-width: 1023px) 560px, 540px"
-                    priority
-                    className="object-cover"
-                  />
-                  <div className="info-hero-art-glint" aria-hidden="true" />
-                </div>
-                <span style={{ '--i': 6 } as CSSProperties} className="info-in absolute -bottom-3 right-4 inline-flex items-center gap-2 rounded-full border border-white bg-white/95 px-4 py-2 text-[12px] font-semibold text-slate-700 shadow-sm sm:right-6">
-                  <ActiveIcon size={15} className="info-read-accent" aria-hidden="true" />
-                  {section.title} · PartsON
-                </span>
-              </div>
-
-              <dl className="info-facts relative grid grid-cols-1 gap-3 pt-5 min-[480px]:grid-cols-3 lg:col-span-2">
+              <dl className="info-facts relative grid">
                 {section.facts.map((fact) => (
-                  <div key={fact.label} className="flex items-center justify-between gap-3 rounded-[16px] border border-white/90 bg-white/65 px-4 py-3 min-[480px]:block">
-                    <dt className="info-read info-read-muted text-[13px] leading-snug">{fact.label}</dt>
-                    <dd className="info-accent-text directory-heading info-fact-value text-[20px] leading-tight min-[480px]:mt-1 sm:text-[23px]">{fact.value}</dd>
+                  <div key={fact.label} className="info-fact">
+                    <dd className="directory-heading info-fact-value">{fact.value}</dd>
+                    <dt className="info-read info-fact-label">{fact.label}</dt>
                   </div>
                 ))}
               </dl>
             </div>
-          </ViewTransition>
-        </section>
+          </div>
+        </ViewTransition>
+      </section>
 
+      <div className="page-shell-inline info-body relative z-[1]">
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10">
           {/* Бічна панель: розділи + зміст */}
           <aside className="info-in-side min-w-0 space-y-4 lg:sticky lg:top-24">
@@ -238,7 +231,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
           <div className="min-w-0 select-text">
             <ViewTransition key={section.key} name="info-content" share="info-content" enter="info-content" exit="info-content" default="none">
               <div>
-                <nav aria-label="Зміст сторінки" className="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden">
+                <nav aria-label="Зміст сторінки" className="info-toc-rail -mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden">
                   {toc.map((item) => (
                     <a
                       key={item.id}
@@ -250,7 +243,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                   ))}
                 </nav>
 
-                <article className="info-article space-y-14 sm:space-y-16">
+                <article className="info-article">
                   <Content />
 
                   {/* FAQ */}
@@ -261,7 +254,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
                       </h2>
                       <div className="space-y-3">
                         {section.faqs.map((faq, index) => (
-                          <details key={faq.question} open={index === 0} className="info-faq group rounded-[16px] border border-slate-200/80 bg-white/85 px-4 transition-colors open:border-sky-200 open:bg-sky-50/50 sm:px-5">
+                          <details key={faq.question} open={index === 0} className="info-faq group rounded-[14px] border border-slate-200/90 bg-white px-4 transition-colors sm:px-5">
                             <summary className="flex cursor-pointer list-none items-start gap-4 rounded-xl py-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-500 [&::-webkit-details-marker]:hidden">
                               <h3 className="flex-1 text-[16.5px] leading-[1.45] text-[#13202f] transition-colors group-hover:text-sky-800">{faq.question}</h3>
                               <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition-[transform,color] duration-300 group-open:rotate-90 group-open:text-sky-700">
@@ -277,30 +270,36 @@ export default function InformationPageClient({ initialSectionKey }: Information
 
                   {/* Пов'язані розділи */}
                   <section aria-labelledby="information-related-title" className="info-text-section">
-                    <h2 id="information-related-title" className="mb-3 text-[19px] text-[#13202f] sm:text-[21px]">
-                      Корисно також знати
-                    </h2>
-                    <ul className="divide-y divide-[#d9e3ec] overflow-hidden rounded-[18px] border border-[#d9e3ec] bg-white/80">
-                      {related.map((item) => {
-                        const Icon = SECTION_ICONS[item.key];
-                        return (
-                          <li key={item.key}>
-                            <Link
-                              href={getInformationPath(item.key)}
-                              transitionTypes={NAV_TRANSITION}
-                              className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-sky-50/60 focus-visible:bg-sky-50 focus-visible:outline-none sm:px-5"
-                            >
-                              <Icon size={20} strokeWidth={1.8} className="shrink-0 text-sky-600" aria-hidden="true" />
-                              <span className="min-w-0 flex-1">
-                                <span className="directory-card-title block text-[16px] text-[#13202f]">{item.title}</span>
-                                <span className="info-read info-read-muted mt-0.5 block text-[14.5px] leading-[1.55]">{item.intro}</span>
-                              </span>
-                              <ArrowRight size={18} className="shrink-0 text-slate-300 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-sky-600" aria-hidden="true" />
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <div className="info-section-body min-w-0">
+                      <h2 id="information-related-title" className="mb-4 text-[19px] text-[#13202f] sm:text-[21px]">
+                        Корисно також знати
+                      </h2>
+                      <ul className="info-related-grid grid gap-3">
+                        {related.map((item) => {
+                          const Icon = SECTION_ICONS[item.key];
+                          return (
+                            <li key={item.key}>
+                              <Link
+                                href={getInformationPath(item.key)}
+                                transitionTypes={NAV_TRANSITION}
+                                className={`${directoryListCardClass} info-related-link group`}
+                              >
+                                <span className={directoryIconTileClass}>
+                                  <Icon size={20} strokeWidth={1.8} className="text-sky-700" aria-hidden="true" />
+                                </span>
+                                <span className="info-related-text min-w-0">
+                                  <span className="directory-card-title block text-[16px] text-[#13202f]">{item.title}</span>
+                                  <span className="info-read info-read-muted mt-1 block text-[14.5px] leading-[1.55]">{item.intro}</span>
+                                </span>
+                                <span className={`${directoryActionIconClass} info-related-arrow`}>
+                                  <ArrowRight size={15} aria-hidden="true" />
+                                </span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
                   </section>
                 </article>
               </div>
@@ -309,8 +308,19 @@ export default function InformationPageClient({ initialSectionKey }: Information
             {/* CTA */}
             <aside
               aria-label="Допомога з вибором автозапчастин"
-              className="info-cta relative isolate mt-14 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#0b1220_0%,#0f2537_55%,#0b2a2a_100%)] p-6 text-white shadow-[0_28px_60px_rgba(15,23,42,0.28)] sm:p-8"
+              className="info-cta relative isolate mt-6 overflow-hidden rounded-[22px] p-6 text-white sm:p-8"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element -- decorative static photo below the fold */}
+              <img
+                src="/images/directories/parts-workbench-v1-960.webp"
+                srcSet="/images/directories/parts-workbench-v1-960.webp 960w, /images/directories/parts-workbench-v1.webp 1920w"
+                sizes="(max-width: 1023px) 100vw, 960px"
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                decoding="async"
+                className="info-cta-photo"
+              />
               <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="max-w-2xl">
                   <h2 className="text-[22px] text-white [text-shadow:none] sm:text-[26px]">

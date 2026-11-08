@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { subscribeUserProfile as subscribeSharedUserProfile, updateUserProfileCache } from "app/lib/user-profile-store";
 import { preloadAuthModal } from "app/lib/auth-modal-loader";
-import { scheduleIdle } from "app/lib/schedule-idle";
 import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { FIRST_ORDER_DISCOUNT_PERCENT } from "app/lib/first-order-discount";
 import { PARTNER_DISCOUNT_PERCENT } from "app/lib/partnership-discount";
@@ -261,25 +260,6 @@ export default function HeroAccountClient({
     [uid]
   );
   const router = useRouter();
-
-  useEffect(() => {
-    if (!isAuthReady || user) return;
-    const connection = (navigator as Navigator & {
-      connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
-    let cancelIdle: (() => void) | undefined;
-    // The first paint and initial image requests keep priority. Preparing the
-    // guest form later avoids evaluating its chunk during the first tap.
-    const prepare = () => { cancelIdle = scheduleIdle(preloadAuthModal, 1800); };
-    if (document.readyState === "complete") prepare();
-    else window.addEventListener("load", prepare, { once: true });
-    return () => {
-      window.removeEventListener("load", prepare);
-      cancelIdle?.();
-    };
-  }, [isAuthReady, user]);
-
 
   useEffect(() => {
     if ((variant !== "benefits" && variant !== "panel") || !isAuthReady || !user) {

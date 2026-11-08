@@ -14,7 +14,6 @@ import {
   linkWithPopup,
   sendPasswordResetEmail,
   signInWithPopup,
-  signInWithRedirect,
   getRedirectResult,
   getAdditionalUserInfo,
   updatePassword,
@@ -329,17 +328,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
       if (code === "auth/popup-closed-by-user") {
         setSocialAuthError("Вхід через Google скасовано.");
       } else if (code === "auth/popup-blocked") {
-        try {
-          await setPersistence(auth, browserLocalPersistence);
-          const provider = new GoogleAuthProvider();
-          provider.setCustomParameters({ prompt: "select_account" });
-          sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
-          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
-          return;
-        } catch {
-          sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
-          setSocialAuthError("Браузер заблокував Google-вікно. Дозвольте popup і спробуйте ще раз.");
-        }
+        // The redirect flow loses its result on browsers that partition
+        // third-party storage. Firebase's iframe is loaded by now, so the
+        // next tap opens the window straight away.
+        setSocialAuthError("Браузер не відкрив вікно Google. Натисніть кнопку ще раз.");
       } else if (code === "auth/account-exists-with-different-credential") {
         setSocialAuthError(
           "Для цього email вже є акаунт з паролем. Введіть email і пароль у поля нижче, тоді натисніть Google ще раз, щоб прив'язати обидва способи входу."

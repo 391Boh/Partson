@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Check, Search } from 'lucide-react';
-import { db } from '../../firebase';
+import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
 import { carBrands, type CarBrand } from 'app/components/carBrands';
 import CarModels from 'app/components/CarModels';
 import SavedVehicleList from './SavedVehicleList';
@@ -13,6 +11,13 @@ import type { PersistedCarSelection } from 'app/components/Auto';
 import HorizontalDirectoryRail from 'app/components/HorizontalDirectoryRail';
 
 type StepId = 'brand' | 'model' | 'engine';
+
+// The saved-VIN list only exists for signed-in visitors; guests never need
+// the Firestore SDK that a static import put in the catalog's filter chunk.
+const loadVinFirebaseDeps = () =>
+  Promise.all([import('firebase/firestore'), import('../../firebase')]).then(
+    ([{ doc, onSnapshot, setDoc }, { db }]) => ({ db, doc, onSnapshot, setDoc })
+  );
 
 interface ModDetails {
   volume: string | null;
@@ -162,27 +167,31 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
     selectionHydratedRef.current = incomingLabel ?? '__loaded__';
   }, [initialSelection]);
 
+  const { user: firebaseUser } = useFirebaseAuthState();
+  const firebaseUid = firebaseUser?.uid ?? null;
+
   useEffect(() => {
-    const auth = getAuth();
+    if (!firebaseUid) {
+      setProfileVins([]);
+      setVinLoading(false);
+      return;
+    }
+
     let cancelled = false;
     let unsubscribeProfile: (() => void) | null = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-        unsubscribeProfile = null;
+    const failVinLoad = (error: unknown) => {
+      console.error('Failed to load VIN codes:', error);
+      if (!cancelled) {
+        setProfileVins([]);
+        setVinLoading(false);
       }
+    };
 
-      if (!user) {
-        if (!cancelled) setProfileVins([]);
-        if (!cancelled) setVinLoading(false);
-        return;
-      }
-
-      const docRef = doc(db, 'users', user.uid);
-      if (!cancelled) setVinLoading(true);
+    setVinLoading(true);
+    void loadVinFirebaseDeps().then(({ db, doc, onSnapshot }) => {
+      if (cancelled) return;
       unsubscribeProfile = onSnapshot(
-        docRef,
+        doc(db, 'users', firebaseUid),
         (snap) => {
           if (cancelled) return;
           const data = snap.exists() ? snap.data() : null;
@@ -196,22 +205,15 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
           setProfileVins(uniqueVins);
           setVinLoading(false);
         },
-        (error) => {
-          console.error('Failed to load VIN codes:', error);
-          if (!cancelled) {
-            setProfileVins([]);
-            setVinLoading(false);
-          }
-        }
+        failVinLoad
       );
-    });
+    }).catch(failVinLoad);
 
     return () => {
       cancelled = true;
       if (unsubscribeProfile) unsubscribeProfile();
-      unsubscribeAuth();
     };
-  }, []);
+  }, [firebaseUid]);
 
   useEffect(() => {
     const incoming = (selectedVinProp ?? '').trim();
@@ -443,14 +445,12 @@ const AutoFilterCompact: React.FC<AutoFilterCompactProps> = ({
   };
 
   const handleRemoveVin = async (vin: string) => {
-    const auth = getAuth();
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!firebaseUid) return;
     setVinLoading(true);
     try {
       const nextVins = vinRows.filter((item) => item !== vin);
-      const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, { vins: nextVins }, { merge: true });
+      const { db, doc, setDoc } = await loadVinFirebaseDeps();
+      await setDoc(doc(db, 'users', firebaseUid), { vins: nextVins }, { merge: true });
       setProfileVins(nextVins);
       setSelectedVin((prev) => {
         if (prev !== vin) return prev;

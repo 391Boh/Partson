@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { whenScrollSettles } from "app/lib/when-scroll-settles";
+
 type Props = { src: string };
 
 /** Native lazy iframes can fetch thousands of pixels ahead of the viewport,
- * competing with the homepage hero and the panorama. Keep a tighter boundary. */
+ * competing with the homepage hero and the panorama. Google's scripts also
+ * stall a scroll that merely passes by, so wait until the frame is on screen
+ * and the page has come to rest. */
 export default function StoreLocationMap({ src }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [nearby, setNearby] = useState(false);
@@ -17,13 +21,20 @@ export default function StoreLocationMap({ src }: Props) {
       setNearby(true);
       return;
     }
+    let cancelSettle: (() => void) | undefined;
     const observer = new IntersectionObserver(([entry]) => {
+      cancelSettle?.();
       if (!entry?.isIntersecting) return;
-      observer.disconnect();
-      setNearby(true);
-    }, { rootMargin: "200px 0px" });
+      cancelSettle = whenScrollSettles(() => {
+        observer.disconnect();
+        setNearby(true);
+      });
+    }, { threshold: 0.1 });
     observer.observe(frame);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelSettle?.();
+    };
   }, []);
 
   return (

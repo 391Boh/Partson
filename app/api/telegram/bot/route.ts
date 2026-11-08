@@ -21,13 +21,34 @@ import {
   type OrderFields,
 } from "app/lib/telegram-order-message";
 import { getSiteUrl } from "app/lib/site-url";
-import { fetchCatalogProductsByQuery, fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
-import { sendProductResults } from "app/lib/telegram-product-message";
+import { fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
+import { buildProductKeyboard, buildProductImageUrl, formatProductCaption } from "app/lib/telegram-product-message";
+import {
+  buildBrandPicker,
+  buildCardNavRows,
+  buildChildPicker,
+  buildGroupPicker,
+  buildListingComposer,
+  buildListingView,
+  buildModelPicker,
+  buildSubgroupPicker,
+  createListing,
+  fetchListingPage,
+  hasListingFilters,
+  loadListing,
+  readSavedVehicle,
+  resolveCategoryFilter,
+  resolveModelVehicle,
+  saveListing,
+  type BotListing,
+  type TelegramView,
+} from "app/lib/telegram-listing";
 import {
   answerTelegramCallback,
   deleteTelegramMessage,
   editTelegramMessageMedia,
   editTelegramMessageText,
+  editTelegramReplyMarkup,
 } from "app/lib/telegram-callback";
 import {
   buildBrandListMenu,
@@ -42,7 +63,6 @@ import {
   buildTopMenu,
   resolveBrandModels,
   resolveGroupProductFilter,
-  resolveModelProductQuery,
   resolveProducerProductFilter,
   type NavButton,
   type NavMenu,
@@ -69,7 +89,7 @@ import {
 } from "app/lib/telegram-checkout";
 import { recordTelegramBotEvent } from "app/lib/telegram-analytics";
 
-import { BOT_HOME_TEXT, buildBotHomeKeyboard, parseBotCommand } from "app/lib/telegram-menu";
+import { BOT_HOME_TEXT, buildBotHomeKeyboard, buildBotMoreKeyboard, parseBotCommand } from "app/lib/telegram-menu";
 
 export const runtime = "nodejs";
 
@@ -172,9 +192,17 @@ const getTelegramUserPatch = (from: TelegramUser, chatId: string) => ({
   telegramId: normalizeId(from.id),
   telegramChatId: chatId,
   telegramUsername: normalizeText(from.username, 120),
-  name: getDisplayName(from),
-  authProvider: "telegram",
   updatedAt: new Date().toISOString(),
+});
+
+// A linked account belongs to the site: its name and sign-in method only get
+// a Telegram value while they are empty.
+const getTelegramProfileDefaults = (
+  from: TelegramUser,
+  data: Record<string, unknown> | null | undefined
+) => ({
+  ...(normalizeText(data?.name, 120) ? {} : { name: getDisplayName(from) }),
+  ...(normalizeText(data?.authProvider, 40) ? {} : { authProvider: "telegram" }),
 });
 
 const readNpDescription = (raw: unknown) => {
@@ -265,11 +293,11 @@ const resolveSavedCarLabel = (data: Record<string, unknown> | null | undefined):
   const avto =
     data.avto && typeof data.avto === "object" ? (data.avto as Record<string, unknown>) : null;
   const selection =
-    (data.selectedCarSelection && typeof data.selectedCarSelection === "object"
-      ? (data.selectedCarSelection as Record<string, unknown>)
-      : null) ||
     (avto?.selection && typeof avto.selection === "object"
       ? (avto.selection as Record<string, unknown>)
+      : null) ||
+    (data.selectedCarSelection && typeof data.selectedCarSelection === "object"
+      ? (data.selectedCarSelection as Record<string, unknown>)
       : null);
   if (selection) {
     const label = normalizeText(selection.label, 140);
@@ -322,6 +350,11 @@ const hasCompleteSavedDelivery = (data: Record<string, unknown> | null | undefin
   }
   return false;
 };
+
+const countCartItems = (data: Record<string, unknown> | null | undefined) =>
+  Array.isArray(data?.telegramCart)
+    ? (data.telegramCart as { quantity?: number }[]).reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
+    : 0;
 
 const findUserByTelegramId = async (telegramId: string) => {
   const db = getFirebaseAdminDb();
@@ -433,39 +466,20 @@ const sendWelcomeBack = async (
   chatId: string | number,
   from: TelegramUser,
   savedCar?: string | null,
-  savedDelivery?: string | null
+  savedDelivery?: string | null,
+  cartCount = 0
 ) => {
   const siteUrl = getSiteUrl();
   const text = [
     `<b>Привіт, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
-    "Я допоможу знайти й замовити автозапчастини без зайвих кроків.",
+    savedCar ? `🚗 ${escapeTelegramHtml(savedCar)}` : null,
+    savedDelivery ? `🚚 ${escapeTelegramHtml(savedDelivery)}` : null,
     "",
-    savedCar
-      ? `🚗 Ваше авто: <b>${escapeTelegramHtml(savedCar)}</b>`
-      : null,
-    savedDelivery
-      ? `🚚 Доставка: <b>${escapeTelegramHtml(savedDelivery)}</b>`
-      : null,
-    savedCar || savedDelivery ? "" : null,
-    "🔎 Напишіть назву або артикул — знайду товар.",
-    "📂 Або відкрийте каталог за категорією, авто чи виробником.",
-    "🛒 Додавайте позиції в кошик та оформлюйте замовлення прямо тут.",
-    "",
-    "Усі команди доступні в кнопці <b>Меню</b> біля поля введення.",
+    "Напишіть назву чи артикул або підберіть деталь за авто й категорією.",
   ]
     .filter((line) => line !== null)
     .join("\n");
-  const replyMarkup = savedCar
-    ? {
-        inline_keyboard: [
-          [
-            { text: "🔁 Змінити авто", callback_data: "a:0" },
-            { text: "❌ Скинути авто", callback_data: "carreset" },
-          ],
-          ...buildCatalogKeyboard(siteUrl).inline_keyboard,
-        ],
-      }
-    : buildCatalogKeyboard(siteUrl);
+  const replyMarkup = buildCatalogKeyboard(siteUrl, cartCount);
 
   const photoResult = await sendTelegramPhoto(chatId, `${siteUrl}/telegram/bot-welcome.png`, text, {
     parseMode: "HTML",
@@ -480,12 +494,9 @@ const sendGuestWelcome = async (chatId: string | number, from: TelegramUser) => 
   const siteUrl = getSiteUrl();
   const text = [
     `<b>Вітаємо в PartsON, ${escapeTelegramHtml(getDisplayName(from))}! 👋</b>`,
-    "Знайти запчастину можна одразу — реєстрація для пошуку не потрібна.",
+    "Шукайте запчастини одразу, реєстрація не потрібна.",
     "",
-    "🔎 Просто напишіть назву або артикул товару.",
-    "📂 Або скористайтеся каталогом за категорією, авто чи виробником.",
-    "",
-    "Профіль знадобиться лише для кошика, замовлень і зв’язку з менеджером.",
+    "Напишіть назву чи артикул або підберіть деталь за авто й категорією.",
   ].join("\n");
   const replyMarkup = buildCatalogKeyboard(siteUrl);
   const photoResult = await sendTelegramPhoto(
@@ -528,12 +539,16 @@ const handleStart = async (
   const alreadyComplete = Boolean(existingData?.phone && existingData?.email);
 
   if (alreadyComplete && !token) {
-    await userRef.set(getTelegramUserPatch(from, chatId), { merge: true });
+    await userRef.set(
+      { ...getTelegramUserPatch(from, chatId), ...getTelegramProfileDefaults(from, existingData) },
+      { merge: true }
+    );
     await sendWelcomeBack(
       message.chat?.id || chatId,
       from,
       resolveSavedCarLabel(existingData),
-      resolveSavedDeliveryLabel(existingData)
+      resolveSavedDeliveryLabel(existingData),
+      countCartItems(existingData)
     );
     return;
   }
@@ -541,6 +556,7 @@ const handleStart = async (
   await userRef.set(
     {
       ...getTelegramUserPatch(from, chatId),
+      ...getTelegramProfileDefaults(from, existingData),
       telegramProfileToken: FieldValue.delete(),
       telegramProfileTokenExpiresAt: FieldValue.delete(),
       telegramProfileStep: "awaiting_phone",
@@ -655,26 +671,9 @@ const handleProfile = async (from: TelegramUser, chatId: string) => {
   );
 };
 
-const FIND_RESULT_LIMIT = 5;
 const FIND_CALLBACK_PREFIX = "fp:";
 
-// callback_data has a hard 64-byte cap, and unlike the gp:/pp:/mp: catalog
-// callbacks (which only ever need to carry short slugs/indices re-resolved
-// server-side), a /find search has no slug to fall back on — the query text
-// itself has to travel in the button. Truncated to whatever fits after the
-// "fp:<page>:" prefix; a truncated re-search on page 2+ is a acceptable
-// edge case for unusually long queries, not a correctness issue for the
-// overwhelming majority of real searches (article codes, short phrases).
-const encodeFindCallback = (page: number, query: string) => {
-  const prefix = `${FIND_CALLBACK_PREFIX}${page}:`;
-  const maxQueryBytes = Math.max(0, 64 - Buffer.byteLength(prefix, "utf8"));
-  let truncated = query;
-  while (Buffer.byteLength(truncated, "utf8") > maxQueryBytes && truncated.length > 0) {
-    truncated = truncated.slice(0, -1);
-  }
-  return `${prefix}${truncated}`;
-};
-
+// Only for "fp:" buttons on messages sent before the single-message listing.
 const decodeFindCallback = (data: string): { page: number; query: string } | null => {
   const rest = data.slice(FIND_CALLBACK_PREFIX.length);
   const separatorIndex = rest.indexOf(":");
@@ -685,9 +684,48 @@ const decodeFindCallback = (data: string): { page: number; query: string } | nul
   return { page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1, query };
 };
 
+const sendView = (chatId: string, view: TelegramView) =>
+  sendTelegramMessage(chatId, view.text, {
+    parseMode: "HTML",
+    replyMarkup: { inline_keyboard: view.keyboard },
+  });
+
+// Telegram cannot turn a photo message into a text one, so a photo is replaced.
+const showView = async (chatId: string, view: TelegramView, message?: TelegramMessage) => {
+  const messageId = message?.message_id;
+  if (messageId && !message?.photo?.length) {
+    const result = await editTelegramMessageText(chatId, messageId, view.text, {
+      parseMode: "HTML",
+      replyMarkup: { inline_keyboard: view.keyboard },
+    });
+    if (result.ok || result.error?.includes("message is not modified")) return;
+  }
+  if (messageId) await deleteTelegramMessage(chatId, messageId).catch(() => undefined);
+  await sendView(chatId, view);
+};
+
+const showListing = async (chatId: string, listing: BotListing, message?: TelegramMessage) => {
+  await saveListing(chatId, listing).catch((error) => {
+    console.error("Failed to save Telegram listing:", error);
+  });
+  if (!hasListingFilters(listing)) {
+    await showView(chatId, buildListingComposer(listing), message);
+    return;
+  }
+
+  void sendTelegramChatAction(chatId).catch(() => undefined);
+  const page = await fetchListingPage(listing);
+  if (!page) {
+    await sendTelegramMessage(chatId, "⚠️ Пошук тимчасово недоступний. Спробуйте ще раз або зверніться до менеджера.", {
+      replyMarkup: { inline_keyboard: [[{ text: "💬 Менеджер", callback_data: "support:start" }]] },
+    });
+    return;
+  }
+  await showView(chatId, buildListingView(listing, page), message);
+};
+
 const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
   const query = normalizeText(rawQuery, 200);
-  const siteUrl = getSiteUrl();
 
   if (!query) {
     await sendTelegramMessage(
@@ -695,60 +733,13 @@ const handleFind = async (chatId: string, rawQuery: string, page = 1) => {
       "🔍 Напишіть, що шукаємо — наприклад: <code>/find гальмівні колодки</code> або <code>/find AD030213</code>.",
       {
         parseMode: "HTML",
-        replyMarkup: { inline_keyboard: [[{ text: "📂 Каталог", callback_data: "m" }]] },
+        replyMarkup: { inline_keyboard: [[{ text: "🔎 Підбір за авто", callback_data: "f:start" }]] },
       }
     );
     return;
   }
 
-  void sendTelegramChatAction(chatId).catch(() => undefined);
-
-  const [result, euroRate] = await Promise.all([
-    fetchCatalogProductsByQuery({
-      page,
-      limit: FIND_RESULT_LIMIT,
-      searchQuery: query,
-      searchFilter: "all",
-      sortOrder: "none",
-      forceAllgoodsSource: true,
-      includePriceEnrichment: false,
-      preferLegacySource: false,
-      timeoutMs: 4500,
-      retries: 1,
-      retryDelayMs: 200,
-      cacheTtlMs: 1000 * 60 * 5,
-    }).catch(() => null),
-    fetchEuroRate().catch(() => null),
-  ]);
-
-  if (!result) {
-    await sendTelegramMessage(chatId, "⚠️ Пошук тимчасово недоступний. Спробуйте ще раз або зверніться до менеджера.", { replyMarkup: buildCatalogKeyboard(siteUrl) });
-    return;
-  }
-
-  if (result.items.length === 0) {
-    await sendTelegramMessage(
-      chatId,
-      page > 1
-        ? "😕 Більше товарів немає."
-        : `😕 Нічого не знайдено за запитом «<b>${escapeTelegramHtml(query)}</b>». Спробуйте іншу назву або артикул.`,
-      { parseMode: "HTML", replyMarkup: buildCatalogKeyboard(siteUrl) }
-    );
-    return;
-  }
-
-  await sendTelegramMessage(
-    chatId,
-    page > 1
-      ? `🔍 Сторінка <b>${page}</b> за запитом «${escapeTelegramHtml(query)}»:`
-      : `🔍 Знайдено за запитом «${escapeTelegramHtml(query)}»:`,
-    { parseMode: "HTML" }
-  );
-  await sendProductResults(chatId, result.items, euroRate, siteUrl, {
-    page,
-    hasMore: result.hasMore,
-    buildCallbackData: (nextPage) => encodeFindCallback(nextPage, query),
-  });
+  await showListing(chatId, createListing({ query, page }));
 };
 
 const handleHelp = (chatId: string) =>
@@ -910,78 +901,161 @@ const resolveNavMenu = async (siteUrl: string, data: string): Promise<NavMenu | 
   return null;
 };
 
-const PRODUCTS_CALLBACK_LIMIT = 5;
-
-// "gp:"/"pp:"/"mp:" don't resolve to a NavMenu edit like the browse levels
-// do — they trigger a fresh batch of product cards (same rendering as
-// /find, via the shared sendProductResults helper) sent below the leaf card.
-// The page number always rides as the last callback_data segment (appended
-// after whatever slugs/indices that prefix already carries), so parsing
-// pops it off first and applies the existing per-prefix logic to what's left.
+// "gp:"/"pp:"/"mp:" open a listing for that catalog leaf. The page number
+// always rides as the last callback_data segment.
 const handleProductsCallback = async (chatId: string, data: string) => {
-  void sendTelegramChatAction(chatId).catch(() => undefined);
-  const siteUrl = getSiteUrl();
   const [prefix, ...rest] = data.split(":");
   const page = Math.max(1, Number(rest[rest.length - 1]) || 1);
   const params = rest.slice(0, -1);
 
-  let query: { searchQuery?: string; group?: string; subcategory?: string; producer?: string } | null = null;
+  let listing: BotListing | null = null;
   if (prefix === "gp") {
     const childIndex = params.length > 2 ? Number(params[2]) : undefined;
-    query = await resolveGroupProductFilter(params[0], Number(params[1]), childIndex);
+    const filter = await resolveGroupProductFilter(params[0], Number(params[1]), childIndex);
+    if (filter) {
+      listing = createListing({ ...filter, categoryLabel: filter.subcategory, expandHierarchy: true, page });
+    }
   } else if (prefix === "pp") {
-    query = await resolveProducerProductFilter(params[0]);
+    const filter = await resolveProducerProductFilter(params[0]);
+    if (filter) listing = createListing({ producer: filter.producer, page });
   } else if (prefix === "mp") {
-    query = await resolveModelProductQuery(params[0], Number(params[1]));
+    const car = await resolveModelVehicle(params[0], Number(params[1]));
+    if (car) listing = createListing({ vehicle: car.vehicle, vehicleLabel: car.label, page });
   }
 
-  if (!query) {
+  if (!listing) {
     await sendTelegramMessage(chatId, "⚠️ Не вдалося знайти товари для цього розділу.");
     return;
   }
+  await showListing(chatId, listing);
+};
 
-  const [result, euroRate] = await Promise.all([
-    fetchCatalogProductsByQuery({
-      page,
-      limit: PRODUCTS_CALLBACK_LIMIT,
-      searchQuery: query.searchQuery,
-      searchFilter: query.searchQuery ? "description" : "all",
-      group: query.group ?? null,
-      subcategory: query.subcategory ?? null,
-      producer: query.producer ?? null,
-      expandHierarchy: true,
-      forceAllgoodsSource: true,
-      sortOrder: "none",
-      includePriceEnrichment: false,
-      preferLegacySource: false,
-      timeoutMs: 4500,
-      retries: 1,
-      retryDelayMs: 200,
-      cacheTtlMs: 1000 * 60 * 5,
-    }).catch(() => ({ items: [], hasMore: false, nextCursor: "", cursorField: null })),
-    fetchEuroRate().catch(() => null),
-  ]);
+const showListingCard = async (
+  chatId: string,
+  listing: BotListing,
+  index: number,
+  message?: TelegramMessage
+) => {
+  const page = await fetchListingPage(listing);
+  const product = page?.items[index];
+  if (!page || !product) {
+    await sendTelegramMessage(chatId, "⚠️ Цей товар зараз недоступний. Поверніться до списку й спробуйте ще раз.");
+    return;
+  }
 
-  if (result.items.length === 0) {
-    await sendTelegramMessage(
+  const siteUrl = getSiteUrl();
+  const priceUah = page.euroRate != null ? toPriceUah(product.priceEuro ?? null, page.euroRate) : null;
+  const caption = formatProductCaption(product, priceUah);
+  const imageUrl = buildProductImageUrl(siteUrl, product);
+  const keyboard = buildProductKeyboard(siteUrl, product, priceUah);
+  const replyMarkup = {
+    inline_keyboard: [...keyboard.inline_keyboard, ...buildCardNavRows(listing, index, page.items.length)],
+  };
+
+  const messageId = message?.message_id;
+  if (messageId && message?.photo?.length) {
+    const edited = await editTelegramMessageMedia(chatId, messageId, imageUrl, caption, {
+      parseMode: "HTML",
+      replyMarkup,
+    });
+    if (edited.ok || edited.error?.includes("message is not modified")) return;
+  }
+  if (messageId) await deleteTelegramMessage(chatId, messageId).catch(() => undefined);
+  const sent = await sendTelegramPhoto(chatId, imageUrl, caption, { parseMode: "HTML", replyMarkup });
+  if (!sent.ok) await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup });
+};
+
+const NEXT_LISTING_SORT = { none: "asc", asc: "desc", desc: "none" } as const;
+
+const handleListingCallback = async (callback: TelegramCallbackQuery, chatId: string) => {
+  const [, id, action, argument] = (callback.data || "").split(":");
+  const listing = await loadListing(chatId);
+  if (!listing || listing.id !== id) {
+    await answerTelegramCallback(callback.id, "Цей список застарів. Почніть новий підбір.").catch(() => undefined);
+    return;
+  }
+  await answerTelegramCallback(callback.id).catch(() => undefined);
+
+  if (action === "o") {
+    await showListingCard(chatId, listing, Number(argument) || 0, callback.message);
+    return;
+  }
+  if (action === "x") {
+    await showListing(chatId, createListing({ id: listing.id }), callback.message);
+    return;
+  }
+  if (action === "p") listing.page = Math.max(1, Number(argument) || 1);
+  if (action === "s") {
+    listing.inStock = !listing.inStock;
+    listing.page = 1;
+  }
+  if (action === "r") {
+    listing.sort = NEXT_LISTING_SORT[listing.sort];
+    listing.page = 1;
+  }
+  await showListing(chatId, listing, callback.message);
+};
+
+const readSavedVehicleForUser = async (from?: TelegramUser) => {
+  if (!from) return null;
+  const userRef = await findUserByTelegramId(normalizeId(from.id)).catch(() => null);
+  const snap = userRef ? await userRef.get().catch(() => null) : null;
+  return snap?.exists ? readSavedVehicle(snap.data()) : null;
+};
+
+const handleFilterCallback = async (callback: TelegramCallbackQuery, chatId: string) => {
+  await answerTelegramCallback(callback.id).catch(() => undefined);
+  const [, action, first, second, third] = (callback.data || "").split(":");
+  const message = callback.message;
+
+  if (action === "start") {
+    const saved = await readSavedVehicleForUser(callback.from);
+    await showListing(
       chatId,
-      page > 1 ? "😕 Більше товарів немає." : "😕 Товарів у цьому розділі поки не знайдено."
+      createListing(saved ? { vehicle: saved.vehicle, vehicleLabel: saved.label } : {}),
+      message
     );
     return;
   }
 
-  await sendTelegramMessage(
-    chatId,
-    page > 1
-      ? `🛒 Сторінка <b>${page}</b>:`
-      : `🛒 Знайдено <b>${result.items.length}</b> ${result.items.length === 1 ? "товар" : "товари"}:`,
-    { parseMode: "HTML" }
-  );
-  await sendProductResults(chatId, result.items, euroRate, siteUrl, {
-    page,
-    hasMore: result.hasMore,
-    buildCallbackData: (nextPage) => `${prefix}:${params.join(":")}:${nextPage}`,
-  });
+  const listing = (await loadListing(chatId)) ?? createListing();
+  const applyAndShow = (fields: Partial<BotListing>) =>
+    showListing(chatId, { ...listing, ...fields, page: 1 }, message);
+
+  if (action === "l") {
+    await showListing(chatId, listing, message);
+  } else if (action === "a") {
+    const saved = await readSavedVehicleForUser(callback.from);
+    await showView(chatId, buildBrandPicker(Number(first) || 0, listing, saved?.label ?? null), message);
+  } else if (action === "ab") {
+    const view = await buildModelPicker(first, Number(second) || 0);
+    if (view) await showView(chatId, view, message);
+  } else if (action === "am") {
+    const car = await resolveModelVehicle(first, Number(second));
+    if (car) await applyAndShow({ vehicle: car.vehicle, vehicleLabel: car.label });
+  } else if (action === "me") {
+    const saved = await readSavedVehicleForUser(callback.from);
+    if (saved) await applyAndShow({ vehicle: saved.vehicle, vehicleLabel: saved.label });
+  } else if (action === "xv") {
+    await applyAndShow({ vehicle: null, vehicleLabel: "" });
+  } else if (action === "g") {
+    await showView(chatId, await buildGroupPicker(listing), message);
+  } else if (action === "gd") {
+    const view = await buildSubgroupPicker(first);
+    if (view) await showView(chatId, view, message);
+  } else if (action === "gs") {
+    const view = await buildChildPicker(first, Number(second));
+    if (view) await showView(chatId, view, message);
+  } else if (action === "c") {
+    const filter = await resolveCategoryFilter(
+      first,
+      second === undefined ? undefined : Number(second),
+      third === undefined ? undefined : Number(third)
+    );
+    if (filter) await applyAndShow(filter);
+  } else if (action === "xc") {
+    await applyAndShow({ group: "", subcategory: "", categoryLabel: "", expandHierarchy: false });
+  }
 };
 
 // Gated behind onboarding, same as /orders and /support — the watch has to
@@ -1133,25 +1207,31 @@ const handleSetBotCar = async (
   }
 
   const carLabel = `${resolved.brand.name} ${model.name}`;
+  const snap = await userRef.get();
+  const data = snap.exists ? snap.data() : null;
+  const savedCars = resolveSavedCarLabels(data);
+  const nextCars = savedCars.includes(carLabel) ? savedCars : [...savedCars, carLabel];
+  // The bot's car flow only collects brand + model, so the engine-level
+  // fields stay null (the site UI treats that as a model-level pick).
+  const selection = {
+    brand: resolved.brand.name,
+    model: model.name,
+    label: carLabel,
+    year: null,
+    volume: null,
+    power: null,
+    gearbox: null,
+    drive: null,
+  };
+  // The site reads avto.* before the legacy top-level fields, so both must
+  // agree or a car chosen here never shows up there.
   await userRef.set(
     {
       botSelectedCarBrand: resolved.brand.name,
       botSelectedCarModel: model.name,
-      // Sync to the website's fuller car-selection shape so the same car is
-      // active in the web catalog filter and the homepage Hero. The bot's
-      // car flow only collects brand + model, so the engine-level fields
-      // stay null (the site UI treats that as a model-level pick).
-      selectedCarSelection: {
-        brand: resolved.brand.name,
-        model: model.name,
-        label: carLabel,
-        year: null,
-        volume: null,
-        power: null,
-        gearbox: null,
-        drive: null,
-      },
-      selectedCars: FieldValue.arrayUnion(carLabel),
+      selectedCarSelection: selection,
+      selectedCars: nextCars,
+      avto: { cars: nextCars, selection },
     },
     { merge: true }
   );
@@ -1162,7 +1242,10 @@ const handleSetBotCar = async (
     {
       parseMode: "HTML",
       replyMarkup: {
-        inline_keyboard: [[{ text: "❌ Скинути авто", callback_data: "carreset" }]],
+        inline_keyboard: [
+          [{ text: "🔎 Підібрати деталь", callback_data: "f:start" }],
+          [{ text: "❌ Скинути авто", callback_data: "carreset" }],
+        ],
       },
     }
   );
@@ -1187,14 +1270,14 @@ const handleResetBotCar = async (chatId: string, from?: TelegramUser) => {
   };
   if (botBrand && botModel) {
     const carLabel = `${botBrand} ${botModel}`;
-    const selection = data?.selectedCarSelection as Record<string, unknown> | null | undefined;
+    const nextCars = resolveSavedCarLabels(data).filter((label) => label !== carLabel);
     // Only clear the synced site selection if it's the one this bot car set
     // (a bot-created model-level pick); never wipe a richer engine-level
     // selection the user built on the website.
-    if (selection && normalizeText(selection.label, 140) === carLabel) {
-      patch.selectedCarSelection = FieldValue.delete();
-    }
-    patch.selectedCars = FieldValue.arrayRemove(carLabel);
+    const clearsSelection = resolveSavedCarLabel(data) === carLabel;
+    patch.selectedCars = nextCars;
+    patch.avto = clearsSelection ? { cars: nextCars, selection: null } : { cars: nextCars };
+    if (clearsSelection) patch.selectedCarSelection = null;
   }
   await userRef.set(patch, { merge: true });
 
@@ -1670,9 +1753,18 @@ const leaveBotDialog = async (from: TelegramUser) => {
   if (ref) await ref.set({ ...CHECKOUT_SCRATCH_FIELDS, supportMode: false }, { merge: true });
 };
 
-const sendHomeMenu = (chatId: string) => sendTelegramMessage(chatId, BOT_HOME_TEXT, {
-  parseMode: "HTML", replyMarkup: buildCatalogKeyboard(getSiteUrl()),
-});
+const readCartCount = async (from?: TelegramUser) => {
+  if (!from) return 0;
+  const userRef = await findUserByTelegramId(normalizeId(from.id)).catch(() => null);
+  const snap = userRef ? await userRef.get().catch(() => null) : null;
+  return snap?.exists ? countCartItems(snap.data()) : 0;
+};
+
+const sendHomeMenu = async (chatId: string, from?: TelegramUser) =>
+  sendTelegramMessage(chatId, BOT_HOME_TEXT, {
+    parseMode: "HTML",
+    replyMarkup: buildCatalogKeyboard(getSiteUrl(), await readCartCount(from)),
+  });
 
 const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
   const data = (callback.data || "").trim();
@@ -1685,6 +1777,25 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     return;
   }
 
+  if (data.startsWith("l:") || data.startsWith("f:")) {
+    await (data.startsWith("l:") ? handleListingCallback(callback, chatId) : handleFilterCallback(callback, chatId))
+      .catch((error) => {
+        console.error("Telegram listing callback failed:", error);
+      });
+    return;
+  }
+
+  if (data === "home:more" || data === "home:back") {
+    await answerTelegramCallback(callback.id).catch(() => undefined);
+    if (messageId) {
+      const keyboard = data === "home:more"
+        ? buildBotMoreKeyboard(getSiteUrl())
+        : buildCatalogKeyboard(getSiteUrl(), await readCartCount(callback.from));
+      await editTelegramReplyMarkup(chatId, messageId, keyboard).catch(() => undefined);
+    }
+    return;
+  }
+
   if (["home:menu", "home:find", "home:orders", "home:profile", "home:help"].includes(data)) {
     await answerTelegramCallback(callback.id);
     if (!callback.from) return;
@@ -1693,7 +1804,7 @@ const handleCallbackQuery = async (callback: TelegramCallbackQuery) => {
     else if (data === "home:orders") await handleOrders(callback.from, chatId);
     else if (data === "home:profile") await handleProfile(callback.from, chatId);
     else if (data === "home:help") await handleHelp(chatId);
-    else await sendHomeMenu(chatId);
+    else await sendHomeMenu(chatId, callback.from);
     return;
   }
 
@@ -2235,7 +2346,8 @@ const classifyTelegramUpdate = (update: TelegramUpdate) => {
     if (callbackData === "ccheckout") return "checkout_start";
     if (callbackData === "cconfirm") return "checkout_confirm";
     if (callbackData.startsWith("watch:")) return "stock_watch";
-    if (callbackData.startsWith(FIND_CALLBACK_PREFIX)) return "search_pagination";
+    if (callbackData.startsWith(FIND_CALLBACK_PREFIX) || callbackData.startsWith("l:")) return "search_pagination";
+    if (callbackData.startsWith("f:")) return "listing_filter";
     if (callbackData === "support:start") return "support_start";
     if (callbackData === "areply") return "admin_reply_start";
     if (callbackData === "areply_cancel") return "admin_reply_cancel";
@@ -2296,7 +2408,7 @@ const processUpdate = async (update: TelegramUpdate) => {
   }
   if (command?.name === "menu" || command?.name === "cancel") {
     if (command.name === "cancel") await sendTelegramMessage(chatId, "Поточний діалог завершено. Кошик збережено.", { replyMarkup: removeKeyboard() });
-    await sendHomeMenu(chatId);
+    await sendHomeMenu(chatId, from);
     return;
   }
 

@@ -519,7 +519,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
   return (
     <main className="catalog-directory-page directory-detail-page directory-detail-shell py-5 sm:py-7">
-      <div key={group.slug} className="space-y-4 sm:space-y-5 animate-fadeIn">
+      <div key={group.slug} className="space-y-4 sm:space-y-5">
         <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="groups" />
           <CatalogSectionNav current="groups" />

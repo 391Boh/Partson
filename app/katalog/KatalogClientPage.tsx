@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { User } from 'firebase/auth';
 import type { PersistedCarSelection } from 'app/components/Auto';
 import { encodeVehicleSelection, readVehicleSelection } from 'app/lib/vehicle-fitment';
+import { hasPersistedAuthIntent, useFirebaseAuthState } from 'app/lib/firebase-auth-state';
 import { cleanCarModelForSearch } from 'app/lib/car-model-search';
 import { isCatalogSortOrder, priceSortOrder, type CatalogSortOrder } from 'app/lib/catalog-sort';
 import {
@@ -570,7 +571,19 @@ const Katalog: React.FC<KatalogProps> = ({
     return () => window.removeEventListener('partson:authStateChange', handleAuthStateChange);
   }, []);
 
+  const { user: sharedAuthUser } = useFirebaseAuthState();
+  const hasAccountIntent = Boolean(sharedAuthUser) || hasPersistedAuthIntent();
+
   useEffect(() => {
+    // A guest has no saved cars to restore, so skip the Firebase download.
+    // Signing in sets the shared user, which re-runs this effect.
+    if (!hasAccountIntent) {
+      setFirebaseUser(null);
+      setAuthReady(true);
+      setCarsLoaded(true);
+      return;
+    }
+
     let cancelled = false;
     let unsubscribe: (() => void) | null = null;
 
@@ -695,7 +708,7 @@ const Katalog: React.FC<KatalogProps> = ({
       cancelIdleLoad();
       unsubscribe?.();
     };
-  }, []);
+  }, [hasAccountIntent]);
 
   useEffect(() => {
     if (!firebaseUser || !carsLoaded) return;
