@@ -9,6 +9,7 @@
   "scripts": {
     "clean:next": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev']) fs.rmSync(dir, { recursive: true, force: true })\"",
     "dev": "concurrently -k -n next,css \"NEXT_DIST_DIR=.next-dev next dev --turbopack\" \"npm run build:css:watch\"",
+    "onec:tunnel": "bash scripts/onec-dev-tunnel.sh",
     "dev:clean": "npm run clean:next && npm run dev",
     "dev:webpack": "concurrently -k -n next,css \"NEXT_DIST_DIR=.next-dev next dev --webpack\" \"npm run build:css:watch\"",
     "dev:poll": "concurrently -k -n next,css \"NEXT_DIST_DIR=.next-dev FORCE_DEV_POLLING=1 WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack\" \"npm run build:css:watch\"",

@@ -45,11 +45,24 @@ const keepCase = (source: string, replacement: string) =>
     ? replacement[0].toLocaleUpperCase("uk-UA") + replacement.slice(1)
     : replacement;
 
+// And the reverse: a model, engine or belt mark typed with Cyrillic twins
+// ("А4", "С180", "6РК1705") reads the same but never matches a search for
+// "A4". Only marks with a digit or a Latin letter ("АВS") whose Cyrillic
+// letters are all capital twins;
+// "4л", "2шт" and plain words stay as they are.
+const CYRILLIC_TWINS: Record<string, string> = Object.fromEntries(
+  Object.entries(LATIN_TWINS).filter(([latin]) => latin === latin.toUpperCase()).map(([latin, cyrillic]) => [cyrillic, latin])
+);
+const isCyrillicModelMark = (token: string) =>
+  /[\dA-Za-z]/.test(token) && CYRILLIC.test(token) && Array.from(token).every((char) => !CYRILLIC.test(char) || char in CYRILLIC_TWINS);
+
 const fixMixedScriptWords = (text: string) =>
   text.replace(/[\p{L}]+/gu, (word) => {
     if (LATIN_ONLY.test(word) || !CYRILLIC.test(word)) return word;
     return word.replace(/[A-Za-z]/g, (letter) => LATIN_TWINS[letter] ?? letter);
-  });
+  }).replace(/[\p{L}\p{N}]+/gu, (token) =>
+    isCyrillicModelMark(token) ? Array.from(token, (char) => CYRILLIC_TWINS[char] ?? char).join("") : token
+  );
 
 /** Spelling fixes for any 1C text shown to people (names, labels). */
 export const fixCatalogSpelling = (value: string) => {

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Info, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowRight, ChevronRight, Factory as ManufacturersIcon, Search, ShoppingBag, X } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import SectionPagination from "./SectionPagination";
 import HomePickerHeading from "./HomePickerHeading";
@@ -282,12 +282,8 @@ function BrandTile({
   );
 }
 
-// Detail panel to the right of the tile grid — shows the selected brand's
-// logo, description, and stats, with a CTA into its catalog. Mirrors the
-// "Швидкий пошук" card's rounded/border/shadow language above.
-// Only ever mounted with a real brand now — the grid/detail swap in
-// BrandCarousel below owns the "nothing selected yet" state instead of this
-// component rendering an empty placeholder card for it.
+// Selection replaces the tile grid; keep identity, assortment and actions
+// together without repeating the introduction rail's visual weight.
 function BrandInfoPanel({
   brand,
   onClose,
@@ -296,107 +292,91 @@ function BrandInfoPanel({
   onClose: () => void;
 }) {
   const manufacturerSlug = buildSeoSlug(brand.name);
+  const shouldReduceMotion = useReducedMotion() ?? false;
+  const hasProducts = typeof brand.productCount === "number" && brand.productCount > 0;
+  const hasGroups = typeof brand.groupsCount === "number" && brand.groupsCount > 0;
 
   return (
-    <div className="relative flex min-h-[220px] flex-col overflow-hidden rounded-[20px] border border-blue-100 bg-[linear-gradient(165deg,rgba(255,255,255,0.95)_0%,rgba(240,249,255,0.88)_60%,rgba(224,242,254,0.84)_100%)] p-4 shadow-[0_18px_44px_-22px_rgba(30,64,175,0.28),inset_0_1px_0_#fff] sm:p-5">
-      {/* Same soft top hairline + corner glow language as the intro card
-          this panel sits beside, so the swap between grid/detail states
-          reads as one coherent surface instead of two different card
-          styles. */}
-      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
-      <span className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(20,184,166,0.18),transparent_70%)] blur-2xl" aria-hidden="true" />
+    <section className="home-brand-detail" aria-label={`Виробник ${brand.name}`}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={brand.name}
-          initial={{ opacity: 0, y: 8 }}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="relative flex h-full flex-col"
+          exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: -6 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="home-brand-detail-content"
         >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-blue-100/80 bg-white shadow-[0_6px_16px_-6px_rgba(30,64,175,0.22),inset_0_1px_0_rgba(255,255,255,1)]">
-                {brand.logo ? (
-                  <Image
-                    src={brand.logo}
-                    alt={`Логотип виробника автозапчастин ${brand.name}`}
-                    width={64}
-                    height={48}
-                    quality={85}
-                    unoptimized={brand.logo.endsWith(".svg")}
-                    className="h-10 w-10 object-contain"
-                    onError={handleBrandLogoLoadError}
-                  />
-                ) : (
-                  <span className="text-[13px] font-black text-slate-600 tracking-tight">
-                    {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <h3 className="text-[17px] font-extrabold leading-tight text-slate-900 sm:text-[19px]">
+          <div className="home-brand-detail-header">
+            <span className="home-brand-detail-logo">
+              {brand.logo ? (
+                <Image
+                  src={brand.logo}
+                  alt={`Логотип виробника автозапчастин ${brand.name}`}
+                  width={72}
+                  height={56}
+                  quality={85}
+                  unoptimized={brand.logo.endsWith(".svg")}
+                  className="home-brand-detail-logo-image"
+                  onError={handleBrandLogoLoadError}
+                />
+              ) : (
+                <span className="home-brand-detail-initials">
+                  {brand.name.split(" ").map((w) => w[0]).join("").slice(0, 3).toUpperCase()}
+                </span>
+              )}
+            </span>
+            <div className="home-brand-detail-identity">
+              <h3 className="home-brand-detail-title">
                 {brand.name}
               </h3>
+              {hasProducts || hasGroups ? (
+                <ul className="home-brand-detail-stats" aria-label="Асортимент виробника">
+                  {hasProducts ? (
+                    <li><strong>{brand.productCount!.toLocaleString("uk-UA")}</strong> {pluralizeProductCount(brand.productCount!)}</li>
+                  ) : null}
+                  {hasGroups ? (
+                    <li><strong>{brand.groupsCount!.toLocaleString("uk-UA")}</strong> {pluralizeUk(brand.groupsCount!, "група", "групи", "груп")}</li>
+                  ) : null}
+                </ul>
+              ) : null}
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Закрити деталі виробника"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              className="home-brand-detail-close"
             >
-              <X size={16} />
+              <X size={19} strokeWidth={1.8} aria-hidden />
             </button>
           </div>
 
-          <p className="home-description mt-3 flex-1 text-[13px] leading-[1.65] text-slate-600 sm:text-[14px]">
+          <p className="home-brand-detail-description">
             {brand.description}
           </p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] font-semibold text-slate-500">
-            {typeof brand.productCount === "number" && brand.productCount > 0 ? (
-              <span className="tabular-nums">
-                {brand.productCount.toLocaleString("uk-UA")} {pluralizeProductCount(brand.productCount)}
-              </span>
-            ) : null}
-            {typeof brand.groupsCount === "number" && brand.groupsCount > 0 ? (
-              <span className="tabular-nums">
-                {brand.groupsCount.toLocaleString("uk-UA")} {pluralizeUk(brand.groupsCount, "група", "групи", "груп")}
-              </span>
-            ) : null}
-          </div>
-
-          {/* Two distinct actions instead of one ambiguously-labeled CTA:
-              the catalog filtered to this producer's products (primary,
-              filled — matches the tile grid's teal/sky accent) and the
-              manufacturer's own SEO landing page (secondary, outlined —
-              same visual weight relationship as directoryPrimaryButtonClass/
-              directorySecondaryButtonClass on the /manufacturers pages). */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="home-brand-detail-actions">
             <SmartLink
               href={buildCatalogProducerPath(brand.name)}
               prefetchOnIntent
-              className="group/cta inline-flex flex-1 basis-[160px] items-center justify-center gap-1.5 rounded-[13px] bg-[linear-gradient(135deg,#0d9488,#0284c7)] px-4 py-2.5 text-[13px] font-bold text-white shadow-[0_10px_24px_-10px_rgba(8,145,178,0.55)] transition-transform duration-300 hover:-translate-y-0.5 active:translate-y-0"
+              className="home-brand-detail-primary"
             >
-              <ShoppingBag size={15} strokeWidth={2.4} aria-hidden />
-              Товари виробника
-              <ArrowRight
-                size={15}
-                strokeWidth={2.6}
-                className="transition-transform duration-300 group-hover/cta:translate-x-0.5"
-              />
+              <ShoppingBag size={17} strokeWidth={1.8} aria-hidden />
+              <span>Товари виробника</span>
+              <ArrowRight size={17} strokeWidth={1.8} aria-hidden />
             </SmartLink>
             <SmartLink
               href={buildManufacturerPath(manufacturerSlug)}
               prefetchOnIntent
-              className="group/cta2 inline-flex flex-1 basis-[130px] items-center justify-center gap-1.5 rounded-[13px] border border-blue-200 bg-white/80 px-4 py-2.5 text-[13px] font-bold text-blue-700 shadow-[0_6px_16px_-10px_rgba(30,64,175,0.3)] transition-colors duration-300 hover:border-blue-300 hover:bg-blue-50 active:translate-y-0"
+              className="home-brand-detail-secondary"
             >
-              <Info size={15} strokeWidth={2.4} aria-hidden />
               Детальніше
+              <ChevronRight size={16} strokeWidth={1.8} aria-hidden />
             </SmartLink>
           </div>
         </motion.div>
       </AnimatePresence>
-    </div>
+    </section>
   );
 }
 
@@ -887,10 +867,10 @@ export default function BrandCarousel({
               {selectedBrand ? (
                 <motion.div
                   key="detail"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                  exit={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <BrandInfoPanel brand={selectedBrand} onClose={() => setSelectedBrand(null)} />
                 </motion.div>

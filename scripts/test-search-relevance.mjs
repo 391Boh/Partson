@@ -59,4 +59,24 @@ assert(!s.matchesSearchField(item("00-00007120", "x"), "712", "code"), "not a nu
 assert(s.matchesSearchField(item("00-3", "x", { article: "KYB633276" }), "633276", "article"), "a long piece of an article");
 assert(!s.matchesSearchField(item("00-3", "x", { article: "KYB633712" }), "712", "article"), "not a short one");
 
+// A manufacturer's letter prefix is optional when searching the number.
+for (const [searchField, product] of [
+  ["article", item("NUM-A", "Деталь", { article: "FE30970" })],
+  ["name", item("NUM-N", "Деталь (FE30970)")],
+  ["description", item("NUM-D", "Деталь", { description: "Аналог FE30970" })],
+]) {
+  assert(s.matchesSearchField(product, "30970", searchField), `Numeric article in ${searchField}`);
+  assert(s.matchesSearchField(product, "3097", searchField), `Numeric prefix in ${searchField}`);
+  assert(!s.matchesSearchField(product, "970", searchField), `Not inside digits in ${searchField}`);
+}
+assert(!field(item("NOISE", "Деталь FE130970", { article: "FE130970" }), "30970"));
+assert(!field(item("SLASH", "Деталь FE30970/1", { article: "FE30970/1" }), "30970"));
+assert(s.matchesSearchField(item("SEP", "Деталь", { article: "FE-30970" }), "30 970", "article"));
+assert.deepEqual(s.rankSearchMatches([
+  item("NAME", "Деталь FE30970"),
+  item("PREFIX", "Деталь", { article: "FE309701" }),
+  item("NUMBER", "Деталь", { article: "FE30970" }),
+  item("EXACT", "Деталь", { article: "30970" }),
+], "30970").map((product) => product.code), ["EXACT", "NUMBER", "PREFIX", "NAME"]);
+
 console.log("Search relevance passed: ranking (exact article, name start, stock/price, stems), catalog spelling, shorter articles, stem readings.");

@@ -10,7 +10,7 @@ import {
   searchCatalogIndex,
 } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
-import { decodeSearchCursor, encodeSearchCursor, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
+import { decodeSearchCursor, encodeSearchCursor, isSearchArticleAllowed, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import { buildCatalogCategoryPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 
 // Snapshot listings page by position in the filtered snapshot.
@@ -105,7 +105,7 @@ const buildRouteCacheKey = (body: Record<string, unknown>) => {
   const rawSearch = toTrimmedString(body.searchQuery);
   const effectiveSearch = normalizeSearchQuery(rawSearch);
   return JSON.stringify({
-    source: "catalog-page:v42-photo-paging",
+    source: "catalog-page:v44-numeric-article-prefixes",
     vehicle: readVehicleSelection(body.vehicle),
     // Suggestions are ranked by relevance; the catalog's own first page keeps
     // code order (its next page continues after the last code).
@@ -319,7 +319,11 @@ export async function POST(request: Request) {
       // No snapshot yet (cold start): the precomputed promo list as before.
       const { products: promoProducts, stale } = await fetchPromoCatalogProducts();
       const vehicle = readVehicleSelection(body.vehicle);
-      const products = promoProducts.filter(item => (!vehicle || matchesVehicleFitment(item.description, vehicle)) && (body.withPhoto !== true || item.hasPhoto === true));
+      const products = promoProducts.filter(item =>
+        isSearchArticleAllowed(item, toTrimmedString(body.searchQuery)) &&
+        (!vehicle || matchesVehicleFitment(item.description, vehicle)) &&
+        (body.withPhoto !== true || item.hasPhoto === true)
+      );
       const page = toPositiveInt(body.page, 1);
       const limit = toPositiveInt(body.limit, 10);
       const start = body.directPage === true ? Math.floor(toNonNegativeNumber(body.offset) ?? 0) : (page - 1) * limit;
@@ -524,6 +528,7 @@ export async function POST(request: Request) {
     if (canUseSearchIndex && searchIndexFilter) {
       const indexResult = await searchCatalogIndex(rankCursor?.query ?? searchCursor?.query ?? normalizedSearchQuery, {
         filter: searchIndexFilter,
+        articleQuery: normalizedSearchQuery,
         limit: queryBase.limit,
         afterCode: searchCursor?.cursor,
         rank: isSuggestions,

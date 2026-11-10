@@ -9,6 +9,7 @@ import ProductCompactRecommendationCard from "app/components/ProductCompactRecom
 import { fetchCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey } from "app/lib/product-image-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
 
 type RelatedItem = {
   code: string;
@@ -719,7 +720,9 @@ export default function ProductRelatedItemsClientSection({
 
   const hasTabs = hasAnalogs && hasSimilar;
   const currentTab: RecommendationTab = hasAnalogs ? (hasTabs ? activeTab : "analogs") : "similar";
-  const groupLabel = buildVisibleProductName(product.subGroup || product.group || "");
+  // buildVisibleProductName("") is the "Товар" placeholder, not a group.
+  const rawGroupLabel = (product.subGroup || product.group || "").trim();
+  const groupLabel = rawGroupLabel ? formatCatalogLabel(buildVisibleProductName(rawGroupLabel)) : "";
   type TabSpec = { id: RecommendationTab; label: string; detail: string; items: RelatedItem[] };
   const tabs = ([
     { id: "analogs", label: "Аналоги", detail: "", items: visibleRelatedItems },

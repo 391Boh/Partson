@@ -5,6 +5,8 @@ import { Component, type ReactNode } from "react";
 type SectionBoundaryProps = {
   children: ReactNode;
   title?: string;
+  onError?: () => void;
+  loadError?: unknown;
 };
 
 type SectionBoundaryState = {
@@ -18,10 +20,12 @@ class SectionBoundary extends Component<SectionBoundaryProps, SectionBoundarySta
     return { hasError: true };
   }
 
-  componentDidCatch() {}
+  componentDidCatch() {
+    this.props.onError?.();
+  }
 
   render() {
-    if (!this.state.hasError) {
+    if (!this.state.hasError && !this.props.loadError) {
       return this.props.children;
     }
 

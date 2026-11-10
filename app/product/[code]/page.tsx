@@ -22,6 +22,7 @@ import {
   fetchConfirmedEuroRate,
   fetchPromoAvailabilityByLookupKeys,
   findCatalogProductByCode,
+  getFreshSnapshotProduct,
   findFullCatalogSnapshotProduct,
   confirmCatalogProductsMissing,
   fetchExactCatalogProductByLookup,
@@ -871,6 +872,9 @@ const DEEP_PRODUCT_CATALOG_LOOKUP_OPTIONS = {
   cacheTtlMs: 1000 * 60 * 10,
 };
 const getCatalogProductUncached = async (code: string) => {
+  const snapshotProduct = getFreshSnapshotProduct(code);
+  if (snapshotProduct) return snapshotProduct;
+
   const initialMatch = await getFirstResolvedNonNull([
     findCatalogProductByCode(code, FAST_PRODUCT_CATALOG_LOOKUP_OPTIONS).catch(
       () => null

@@ -9,6 +9,7 @@ import SmartLink from "app/components/SmartLink";
 import { brands } from "app/components/brandsData";
 import { buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import { pushEcommerceEvent } from "app/lib/gtm";
 import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 import { useProductAdminImageUpload } from "app/lib/use-product-admin-image-upload";
@@ -168,9 +169,11 @@ const ProductCard: React.FC<Props> = ({
 
     const code = item.code ?? "";
     const [quantity, setQuantity] = useProductQuantity(code, item.quantity ?? 0);
-    const name = buildVisibleProductName(
+    // Display spelling only ("Трос щеплення" → "Трос зчеплення", "А4" → "A4");
+    // admin editing starts from the raw item.name.
+    const name = fixCatalogSpelling(buildVisibleProductName(
         item.name || "\u041D\u0430\u0437\u0432\u0430 \u0442\u043E\u0432\u0430\u0440\u0443 \u0432\u0456\u0434\u0441\u0443\u0442\u043D\u044F"
-    );
+    ));
     const article = item.article || "-";
     const producer = item.producer || "-";
     const producerPath = useMemo(() => {

@@ -3,9 +3,10 @@ import { readVehicleSelection, vehicleModelQuery, matchesVehicleFitment, type Ve
 
 import { oneCRequest } from "app/api/_lib/oneC";
 import { getProductPromoPriceOverride } from "./product-promo-overrides";
+import { isPublicCatalogProduct } from "./public-catalog-product";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildAnalogIndex, compactAnalogKey, findAnalogsOfMatches, type AnalogIndex } from "app/lib/catalog-analog-index";
-import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
+import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, isSearchArticleAllowed, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -440,6 +441,10 @@ const isExactCatalogLookupMatch = (
   );
 };
 
+// 1C's own product codes: "00-00000466", or "РТ-00001873" for products
+// created on the site.
+const ONEC_CODE_SHAPE = /^(?:\d{2}|[А-ЯҐЄІЇ]{2})-\d{8}$/u;
+
 const fetchAllgoodsResponsesByExactLookup = async (
   lookupValue: string,
   options?: {
@@ -452,7 +457,7 @@ const fetchAllgoodsResponsesByExactLookup = async (
     includeCostPrice?: boolean;
     lookupFields?: string[];
   }
-) => {
+): Promise<Awaited<ReturnType<typeof oneCRequest>>[]> => {
   const normalized = (lookupValue || "").trim();
   if (!normalized) return [] as Awaited<ReturnType<typeof oneCRequest>>[];
 
@@ -468,6 +473,25 @@ const fetchAllgoodsResponsesByExactLookup = async (
     options?.lookupFields && options.lookupFields.length > 0
       ? options.lookupFields
       : [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD];
+  // A 1C code is asked as a code first; the two catalog-number queries only
+  // follow when that names no such product. Their answers are returned
+  // together, so confirmCatalogProductsMissing still sees all three.
+  if (!options?.lookupFields?.length && ONEC_CODE_SHAPE.test(normalized)) {
+    const byCode = await fetchAllgoodsResponsesByExactLookup(normalized, {
+      ...options,
+      lookupFields: [ALLGOODS_CODE_FIELD],
+    });
+    const target = normalizeFacetValue(normalized);
+    const found = byCode.some((response) =>
+      parseAllgoodsPayload(response.text).items.some((item) => normalizeFacetValue(item.code) === target)
+    );
+    if (found) return byCode;
+    const byArticle = await fetchAllgoodsResponsesByExactLookup(normalized, {
+      ...options,
+      lookupFields: [ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD],
+    });
+    return [...byCode, ...byArticle];
+  }
   const requestBodies: Array<Record<string, unknown>> = lookupFields.map((field) => ({
     [ALLGOODS_LIMIT_FIELD]: limit,
     [field]: normalized,
@@ -654,6 +678,9 @@ export const fetchExactCatalogProductByLookup = async (
   return exactMatches.find((item) => isExactCatalogLookupMatch(item, normalized)) ?? null;
 };
 
+/** True once a 1C answer showed it ignores Коди (an older module). */
+export const isAllgoodsCodesBatchUnsupported = () => Date.now() < allgoodsCodesUnsupportedUntil;
+
 /**
  * Products by exact 1C code in one request (catalog-live's card refresh).
  * Null when 1C cannot answer this way — the request failed or the module
@@ -693,6 +720,72 @@ export const fetchCatalogProductsByCodes = async (
       return null;
     }
     found.set(key, item);
+  }
+  return found;
+};
+
+/**
+ * Descriptions by exact 1C code in one request: the catalog asks once for all
+ * the cards on screen instead of three lookups per card. Null when 1C cannot
+ * answer this way; a code absent from the map has no description in allgoods.
+ */
+export const fetchProductDescriptionsByCodes = async (
+  codes: string[],
+  options?: { timeoutMs?: number; cacheTtlMs?: number }
+): Promise<Map<string, string> | null> => {
+  const unique = [...new Set(codes.map((code) => code.trim()).filter(Boolean))].sort();
+  if (unique.length === 0) return new Map();
+  if (unique.length > ALLGOODS_CODES_MAX) return null;
+
+  // Cards already in the fresh snapshot carry their allgoods description;
+  // only the rest (new products, a cold or just-edited snapshot) go to 1C.
+  const fromSnapshot = new Map<string, string>();
+  const requested: string[] = [];
+  for (const code of unique) {
+    const product = getFreshSnapshotProduct(code);
+    if (!product) requested.push(code);
+    else if (product.description?.trim()) fromSnapshot.set(code.toLowerCase(), product.description.trim());
+  }
+  if (requested.length === 0) return fromSnapshot;
+  if (Date.now() < allgoodsCodesUnsupportedUntil) return null;
+
+  const body = {
+    [ALLGOODS_CODES_FIELD]: requested,
+    [ALLGOODS_LIMIT_FIELD]: requested.length,
+    [ALLGOODS_INCLUDE_DESCRIPTION_FIELD]: true,
+    [ALLGOODS_INCLUDE_PHOTO_BASE64_FIELD]: false,
+  };
+  const response = await oneCRequest("allgoods", {
+    method: "POST",
+    body,
+    timeoutMs: options?.timeoutMs,
+    retries: 0,
+    cacheTtlMs: options?.cacheTtlMs ?? 1000 * 60 * 5,
+    cacheKey: JSON.stringify({ endpoint: "allgoods", body }),
+  });
+  if (response.status < 200 || response.status >= 300) return null;
+
+  let records: unknown[];
+  try {
+    const parsed = JSON.parse(response.text) as { success?: unknown; items?: unknown };
+    if (parsed?.success === false || !Array.isArray(parsed?.items)) return null;
+    records = parsed.items;
+  } catch {
+    return null;
+  }
+
+  const wanted = new Set(requested.map((code) => code.toLowerCase()));
+  const found = new Map<string, string>(fromSnapshot);
+  for (const entry of records) {
+    const record = asRecord(entry);
+    if (!record) continue;
+    const key = readFirstString(record, CODE_FIELDS).trim().toLowerCase();
+    if (!wanted.has(key)) {
+      allgoodsCodesUnsupportedUntil = Date.now() + 1000 * 60 * 10;
+      return null;
+    }
+    const description = readDescriptionFromRecord(record);
+    if (description) found.set(key, description);
   }
   return found;
 };
@@ -1973,6 +2066,8 @@ const fetchCatalogProductsByQueryInner = async (options: {
   selectedCars?: string[];
   selectedCategories?: string[];
   searchQuery?: string;
+  /** Preserve the user's slash choice through corrections and cursor paging. */
+  articleQuery?: string;
   searchFilter?: CatalogSearchFilter;
   group?: string | null;
   subcategory?: string | null;
@@ -2014,6 +2109,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
   const searchFilter = options.searchFilter || "all";
   const rawSearchQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
   const searchQuery = rawSearchQuery.toLocaleLowerCase("uk-UA");
+  const articleQuery = options.articleQuery ?? rawSearchQuery;
   const group = (options.group || "").trim();
   const subcategory = (options.subcategory || "").trim();
   const producer = (options.producer || "").trim();
@@ -2289,17 +2385,13 @@ const fetchCatalogProductsByQueryInner = async (options: {
     };
 
     if (options.directOffset !== undefined) {
-      // 1C ignores Смещение for Поиск requests, and a price-sorted search is
-      // ordered by searchProductFields — a direct page here could not match
-      // the cursor-paged listing. The client falls back to cursor paging.
-      if (searchQuery && searchSort !== "none") {
+      // Search results need local matching and article filtering before
+      // paging. Upstream offsets/counts describe the unfiltered set, so the
+      // client must use the cursor-paged searchProductFields path instead.
+      if (searchQuery) {
         throw new Error("DIRECT_PAGINATION_UNSUPPORTED");
       }
       const body = { ...allgoodsBaseBody };
-      if (searchQuery) {
-        body.Поиск = searchQuery;
-        body.ПолеПоиска = searchFilter;
-      }
       return fetchAllgoodsProductsPageDetailed({
         page, limit, body, directOffset: options.directOffset,
         timeoutMs: options.timeoutMs, retries: 0, cacheTtlMs: options.cacheTtlMs,
@@ -2320,7 +2412,7 @@ const fetchCatalogProductsByQueryInner = async (options: {
           ? ["name", "article", "code", "producer", "description"]
           : [searchFilter as SearchField];
         const runSearchPage = (after: string) => searchProductFields<CatalogProduct>({
-          query: searchQuery, fields, limit, cursor: after, sort: searchSort,
+          query: searchQuery, articleQuery, fields, limit, cursor: after, sort: searchSort,
           matches: options.vehicle ? item => matchesVehicleFitment(item.description, options.vehicle!) : undefined,
           fetchPage: (field, sourceCursor, batchLimit) => {
             const body = { ...allgoodsBaseBody, [fieldKeys[field]]:
@@ -2485,10 +2577,9 @@ const fetchCatalogProductsByQueryInner = async (options: {
       );
     }
     const batchItems = parseItemsFromText(response.text);
-    const matchedItems =
-      options.pricedItemsOnly || options.withPhotoOnly || options.priceFrom != null || options.priceTo != null
-        ? batchItems.filter(matchesPriceOptions)
-        : batchItems;
+    const matchedItems = batchItems.filter((item) =>
+      isSearchArticleAllowed(item, articleQuery) && matchesPriceOptions(item)
+    );
     const pageItems = matchedItems.slice(windowStart, windowStart + limit);
     const items = shouldEnrichInlinePrices
       ? await enrichProductsWithAllgoodsPrices(pageItems, {
@@ -2538,6 +2629,7 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
     const continuation = decodeSearchCursor(options.cursor || "");
     const result = await fetchCatalogProductsByQueryInner({
       ...options, vehicle, selectedCars: [], searchQuery: query, searchFilter: "description",
+      articleQuery: options.articleQuery ?? options.searchQuery ?? "",
       cursor: continuation?.cursor ?? options.cursor,
       forceAllgoodsSource: true, includeDescription: true, preferLegacySource: false,
     });
@@ -2552,10 +2644,11 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
     return fetchCatalogProductsByQueryInner({ ...options, forceAllgoodsSource: true });
   }
   const originalQuery = (options.searchQuery || "").replace(/\s+/g, " ").trim();
+  const articleQuery = options.articleQuery ?? originalQuery;
   const continuation = decodeSearchCursor(options.cursor || "");
   const resolvedOptions = continuation
-    ? { ...options, searchQuery: continuation.query, cursor: continuation.cursor }
-    : options;
+    ? { ...options, articleQuery, searchQuery: continuation.query, cursor: continuation.cursor }
+    : { ...options, articleQuery };
   const result = await fetchCatalogProductsByQueryInner(resolvedOptions);
   const wrapSearchResult = (value: CatalogQueryPageResult, query: string): CatalogQueryPageResult => ({
     ...value,
@@ -2571,7 +2664,7 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
       firstPage && !result.hasMore && result.items.length > 0 && result.items.length <= WEAK_LITERAL_HITS;
     const layoutCandidates = weakLiteral ? layoutAlternatives(originalQuery) : [];
     if (layoutCandidates.length) {
-      const corrected = await fetchCatalogProductsByQueryInner({ ...options, searchQuery: layoutCandidates[0] })
+      const corrected = await fetchCatalogProductsByQueryInner({ ...options, articleQuery, searchQuery: layoutCandidates[0] })
         .catch(() => null);
       if (corrected && corrected.items.length > result.items.length) {
         return wrapSearchResult(corrected, layoutCandidates[0]);
@@ -2591,7 +2684,7 @@ export const fetchCatalogProductsByQuery: typeof fetchCatalogProductsByQueryInne
       // Start alternatives together, but return the preferred correction as
       // soon as it succeeds instead of waiting for unrelated slower variants.
       const pendingAttempts = alternatives.map((searchQuery) =>
-        fetchCatalogProductsByQueryInner({ ...options, searchQuery }).then(
+        fetchCatalogProductsByQueryInner({ ...options, articleQuery, searchQuery }).then(
           (value) => ({ status: "fulfilled" as const, value }),
           (reason: unknown) => ({ status: "rejected" as const, reason })
         )
@@ -3780,6 +3873,8 @@ export const searchCatalogIndex = async (
     offset?: number;
     /** Catalog search page 2+: continue after this code (code order). */
     afterCode?: string;
+    /** Original input when a cursor resumes a corrected matching query. */
+    articleQuery?: string;
   }
 ): Promise<{
   items: CatalogProduct[];
@@ -3789,6 +3884,7 @@ export const searchCatalogIndex = async (
   facets?: SearchFacets;
 } | null> => {
   const trimmedQuery = query.trim();
+  const articleQuery = options.articleQuery ?? trimmedQuery;
   if (!trimmedQuery) return null;
   if (!fullCatalogState.cache) {
     // Cold start (no snapshot yet): don't block this request on a ~20-call
@@ -3810,7 +3906,7 @@ export const searchCatalogIndex = async (
 
   const matchAgainst = (searchQuery: string) => {
     const matches = snapshot.products.filter((product) =>
-      fields.some((field) => matchesSearchField(product, searchQuery, field))
+      fields.some((field) => matchesSearchField(product, searchQuery, field, articleQuery))
     );
     // Same tie-break searchProductFields itself falls back to when sortOrder
     // is "none" (alphabetical by code) — keeps result order identical
@@ -3824,7 +3920,9 @@ export const searchCatalogIndex = async (
   const afterCode = options.afterCode || "";
   const respond = (matches: CatalogProduct[], usedQuery: string, correctedQuery?: string) => {
     // The analogs of what was found follow the matches themselves.
-    const analogs = findAnalogsOfMatches(matches, getSnapshotAnalogIndex(snapshot), usedQuery).sort(compareCodes);
+    const analogs = findAnalogsOfMatches(matches, getSnapshotAnalogIndex(snapshot), usedQuery)
+      .filter((product) => isSearchArticleAllowed(product, articleQuery))
+      .sort(compareCodes);
     const ordered = [...(options.rank ? rankSearchMatches(matches, usedQuery) : matches), ...analogs];
     // Analogs break the plain code order, so continue right after the last
     // shown code when it is still in the list.
@@ -3983,6 +4081,7 @@ export const listCatalogFromSnapshot = async (
   );
 
   const matches = snapshot.products.filter((product) => {
+    if (!isSearchArticleAllowed(product, query.searchQuery)) return false;
     if (branches.length > 0) {
       const raw = readSnapshotRawFacets(snapshot, product);
       const inBranch = branches.some(
@@ -4060,6 +4159,18 @@ const getSnapshotProductIndex = (): Map<string, CatalogProduct> | null => {
   }
   snapshotProductIndex = { snapshot: fullCatalogState.cache, byKey };
   return byKey;
+};
+
+// A product (with its description) from the snapshot while it is fresh: no
+// older than the product page's own ISR window. Crawlers render thousands
+// of distinct product pages a day and each one used to cost ~9 1C calls.
+// Null when cold, unknown, or right after an admin edit (the rewind in
+// invalidateFullCatalogSnapshot puts it past fresh) — callers then ask 1C.
+export const getFreshSnapshotProduct = (codeOrArticle: string): CatalogProduct | null => {
+  const snapshot = fullCatalogState.cache;
+  if (!snapshot || Date.now() - snapshot.fetchedAt >= FULL_CATALOG_FRESH_TTL_MS) return null;
+  const key = normalizeFacetValue(codeOrArticle);
+  return key ? getSnapshotProductIndex()?.get(key) ?? null : null;
 };
 
 function readSnapshotPromoOffer(key: string, snapshot: FullCatalogSnapshot & { fetchedAt: number }, regularPrice?: number | null): PromoOffer {
@@ -4350,6 +4461,15 @@ const lookupDescriptionByIdentifiers = async (
   const article = (identifiers.article || "").trim();
   if (!code && !article) return { description: null, answered: false };
 
+  // Same allgoods text the first lookup below would return. A product without
+  // one still asks 1C: getinfo can have a description allgoods lacks.
+  const snapshotProduct = code ? getFreshSnapshotProduct(code) : null;
+  const snapshotDescription = snapshotProduct?.description?.trim();
+  if (snapshotDescription) return { description: snapshotDescription, answered: true };
+  // The snapshot already holds this product's allgoods record without a
+  // description: only getinfo, a separate source, is still worth asking.
+  const allgoodsAnswered = Boolean(snapshotProduct);
+
   const timeoutMs = options?.timeoutMs;
   const retries = options?.retries ?? 1;
   const retryDelayMs = options?.retryDelayMs ?? 200;
@@ -4443,7 +4563,7 @@ const lookupDescriptionByIdentifiers = async (
   // quickly on its own.
   const skipped = Promise.resolve<string | null | undefined>(undefined);
   const lookups = [
-    code
+    code && !allgoodsAnswered
       ? runAllgoodsLookup(
           {
             [ALLGOODS_LIMIT_FIELD]: 1,
@@ -4453,7 +4573,7 @@ const lookupDescriptionByIdentifiers = async (
           code
         )
       : skipped,
-    article
+    article && !allgoodsAnswered
       ? runAllgoodsLookup(
           {
             [ALLGOODS_LIMIT_FIELD]: 1,
@@ -4478,7 +4598,7 @@ const lookupDescriptionByIdentifiers = async (
   }
   return {
     description: null,
-    answered: results.some((value) => value !== undefined),
+    answered: allgoodsAnswered || results.some((value) => value !== undefined),
   };
 };
 
@@ -4591,6 +4711,13 @@ export const findSimilarProductsBySubgroup = async (
       .slice(0, limit)
       .map((entry) => entry.item);
   };
+
+  // The warm snapshot holds the whole catalog: rank it in memory instead of
+  // asking 1C for a group page (and two catalog pages when that misses).
+  // Public products only, since the caller drops the rest after this cut.
+  if (fullCatalogState.cache && isFullCatalogSnapshotWarm()) {
+    return rankProducts(fullCatalogState.cache.products.filter(isPublicCatalogProduct));
+  }
 
   const directBatch = await fetchCatalogProductsByFacet({
     group: product.group || product.category,

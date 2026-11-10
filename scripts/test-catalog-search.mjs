@@ -165,3 +165,38 @@ assert.deepEqual(calls.map(body => JSON.stringify(body)).sort(), suggestionReque
 assert.equal(suggestionPage.items.length, 8);
 assert.equal(catalogPage.items.length, 16);
 console.log("Search batch reuse passed for suggestions and catalog.");
+
+// The reported FE30970/30970 case: article-only, name-only and description-only
+// hits work through live paging, the warm index and ranked quick suggestions.
+products = [
+  product("001", "Деталь FEBI", "FE30970"),
+  product("002", "Деталь (FE30970)", "ALT-REF"),
+  { ...product("003", "Деталь", "OTHER-REF"), Описание: "Аналог FE30970" },
+  product("004", "Інша деталь FE130970", "FE130970"),
+  product("005", "Деталь FE30970/1", "FE30970/1"),
+  product("006", "Деталь", "30970"),
+  product("007", "Деталь", "FE309701"),
+];
+const numericCodes = ["001", "002", "003", "006", "007"];
+assert.deepEqual(await collect("fe30970"), ["001", "002", "003", "007"]);
+assert.deepEqual(await collect("30970"), numericCodes);
+assert.deepEqual(await collect("3097"), numericCodes);
+assert.deepEqual(await collect("30970", { searchFilter: "article" }), ["001", "006", "007"]);
+assert.deepEqual(await collect("30970", { searchFilter: "name" }), ["002"]);
+assert.deepEqual(await collect("30970", { searchFilter: "description" }), ["003"]);
+assert.deepEqual(await collect("30970", { sortOrder: "asc" }), numericCodes);
+assert.equal((await search("30970")).totalCount, numericCodes.length);
+const numericIndex = loadCatalogSearch(transport);
+await numericIndex.fetchPromoCatalogProducts();
+for (const rank of [false, true]) {
+  const first = await numericIndex.searchCatalogIndex("30970", { filter: "all", limit: 2, rank });
+  assert.equal(first.totalCount, numericCodes.length);
+  assert.equal(first.hasMore, true);
+  const next = await numericIndex.searchCatalogIndex("30970", {
+    filter: "all", limit: 10, rank, offset: 2, afterCode: rank ? undefined : first.items.at(-1).code,
+  });
+  const found = Array.from([...first.items, ...next.items], (product) => product.code);
+  assert.deepEqual([...found].sort(), numericCodes);
+  if (rank) assert.deepEqual(found.slice(0, 2), ["006", "001"], "Exact numeric articles lead suggestions");
+}
+console.log("Numeric article regression passed: 30970 finds FE30970 in articles/names/descriptions, with paging, ranking and slash exclusion.");

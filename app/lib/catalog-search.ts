@@ -32,6 +32,13 @@ export type SearchItem = {
   code: string; article: string; name: string; producer: string; description?: string; priceEuro?: number | null;
 };
 export type SearchField = "name" | "article" | "code" | "producer" | "description";
+
+// A slash denotes a distinct article variant. Only show these products when
+// the original query explicitly includes one; browsing without a query is unrestricted.
+export function isSearchArticleAllowed(item: { article?: string }, query: string): boolean {
+  return !query.trim() || /[/\\]/.test(query) || !/[/\\]/.test(item.article || "");
+}
+
 // A part number someone types: digits, no Cyrillic, 3+ characters ("W712/95",
 // "GDB 1330", "0986494").
 const isCodeQuery = (value: string) => {
@@ -54,11 +61,16 @@ const codeRuns = (item: SearchItem, field: SearchField, value: string) => {
   return runs;
 };
 
-// A part number matches where a code starts, never inside another number:
-// "712" is not part of LMI26712, "OC90" is the start of OC90 and OC90OF.
-const listsCode = (runs: string[], key: string) => runs.some((run) => run.startsWith(key));
+const isNumericCodeQuery = (key: string) => /^\d{3,}$/.test(key);
+const withoutLetterPrefix = (value: string) => value.replace(/^\p{L}+/u, "");
+// Also accept the number after a letter prefix: "30970" finds FE30970,
+// while "712" still cannot match inside LMI26712's numeric portion.
+const matchesCodePrefix = (value: string, key: string) =>
+  value.startsWith(key) || (isNumericCodeQuery(key) && withoutLetterPrefix(value).startsWith(key));
+const listsCode = (runs: string[], key: string) => runs.some((run) => matchesCodePrefix(run, key));
 
-export function matchesSearchField(item: SearchItem, query: string, field: SearchField): boolean {
+export function matchesSearchField(item: SearchItem, query: string, field: SearchField, articleQuery = query): boolean {
+  if (!isSearchArticleAllowed(item, articleQuery)) return false;
   const key = compact(query);
   if (!key) return false;
   if (field === "code") {
@@ -66,10 +78,10 @@ export function matchesSearchField(item: SearchItem, query: string, field: Searc
     return code.startsWith(key) || code.endsWith(key);
   }
   if (field === "article") {
-    // Prefix, or a longer piece ("633276" of KYB633276); a short number
-    // inside an article is noise.
+    // Prefix (including the number after letters), or a longer piece
+    // ("633276" of KYB633276); a short number inside digits is noise.
     const article = compact(item.article);
-    return article.startsWith(key) || (key.length >= 6 && /\d/.test(key) && article.includes(key));
+    return matchesCodePrefix(article, key) || (key.length >= 6 && /\d/.test(key) && article.includes(key));
   }
   const text = item[field] || "";
   const value = normalizeSearchQuery(field === "description" ? text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ") : text).toLowerCase();
@@ -151,6 +163,8 @@ const MAX_SORTED_SCAN_BATCHES = 12;
 
 export async function searchProductFields<T extends SearchItem>(options: {
   query: string;
+  /** Original input, retained when the matching query is corrected or shortened. */
+  articleQuery?: string;
   fields: SearchField[];
   limit: number;
   cursor: string;
@@ -177,7 +191,7 @@ export async function searchProductFields<T extends SearchItem>(options: {
     while (more && (scanAll ? batches < MAX_SORTED_SCAN_BATCHES : matches.length <= options.limit)) {
       const page = await options.fetchPage(field, cursor, batchSize);
       batches += 1;
-      matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field) && (!options.matches || options.matches(item))));
+      matches.push(...page.items.filter((item) => matchesSearchField(item, options.query, field, options.articleQuery) && (!options.matches || options.matches(item))));
       more = page.hasMore;
       if (more && (!page.items.length || !page.nextCursor || seenCursors.has(page.nextCursor))) {
         throw new Error("Search source returned a non-advancing cursor");
@@ -258,7 +272,8 @@ export function scoreSearchMatch(item: RankableItem, query: string): number {
   const code = compact(item.code || "");
   let score = 0;
   if (article === whole || code === whole) score += 1000;
-  else if (whole.length >= 3 && (article.startsWith(whole) || code.startsWith(whole))) score += 400;
+  else if (isNumericCodeQuery(whole) && withoutLetterPrefix(article) === whole) score += 900;
+  else if (whole.length >= 3 && (matchesCodePrefix(article, whole) || code.startsWith(whole))) score += 400;
   // A word also counts by its stem and е/о → і form ("свічки" ~ "Свіча",
   // "ремен" ~ "Ремінь"), as stemVariants searches.
   const forms = tokens.map((token) => {

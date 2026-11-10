@@ -17,11 +17,15 @@ interface CatalogHubHeroProps {
   highlights?: string[];
   breadcrumb?: ReactNode;
   warmNavigation?: boolean;
+  /** The loading placeholder streams into the same HTML as the page, so it
+   * must not add a second h1 ahead of the real one. */
+  placeholder?: boolean;
 }
 
 const sectionLabels: Record<CatalogSectionId, string> = { auto: "Підбір по авто", groups: "Категорії", manufacturers: "Виробники" };
 
-export default function CatalogHubHero({ current, title, titleAccent, description, stats = [], quickLinks = [], breadcrumb, warmNavigation = true }: CatalogHubHeroProps) {
+export default function CatalogHubHero({ current, title, titleAccent, description, stats = [], quickLinks = [], breadcrumb, warmNavigation = true, placeholder = false }: CatalogHubHeroProps) {
+  const Title = placeholder ? "div" : "h1";
   const uniqueLinks = quickLinks.filter((link, index, links) => link.href.startsWith("#") && links.findIndex(item => item.href === link.href) === index);
   const factualStats = stats.filter(stat => !["Наступний крок", "Результат", "Марка"].includes(stat.label));
   const accent = titleAccent && title.endsWith(titleAccent) ? titleAccent : null;
@@ -44,9 +48,9 @@ export default function CatalogHubHero({ current, title, titleAccent, descriptio
       <div className="directory-intro-body">
         <div className="directory-intro-copy">
           <div>
-            <h1 className="directory-heading-hero">
+            <Title className="directory-heading-hero">
               {accent ? <><span className="directory-title-lead">{title.slice(0, -accent.length).trimEnd()}</span>{" "}<span className="directory-title-emphasis">{accent}</span></> : title}
-            </h1>
+            </Title>
             <p>{description}</p>
           </div>
         </div>

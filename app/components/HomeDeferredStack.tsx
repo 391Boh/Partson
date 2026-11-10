@@ -22,7 +22,6 @@ const SCROLL_SETTLE_RETRY_MS = 80;
 // sibling sections spreads that unavoidable paint cost over more frames
 // instead of letting it land in one burst.
 const MIN_SECTION_MOUNT_STAGGER_MS = 220;
-const OFFSCREEN_IDLE_MOUNT_DELAY_MS = 2_500;
 let lastSectionMountAt = 0;
 
 const loadProductSection = () => import("./tovar");
@@ -47,7 +46,7 @@ const BrandCarousel = dynamic(loadBrandsSection, {
 });
 
 type DeferredHomeSectionProps = {
-  children: (onReady: () => void) => ReactNode;
+  children: (onReady: () => void, loadError: unknown) => ReactNode;
   className: string;
   /** Anchor the hero's part-finder buttons scroll to. */
   id?: string;
@@ -67,6 +66,7 @@ function DeferredHomeSection({
   const sectionRef = useRef<HTMLElement>(null);
   const [shouldMount, setShouldMount] = useState(false);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const markReady = useCallback(() => setReady(true), []);
 
   useEffect(() => {
@@ -130,10 +130,18 @@ function DeferredHomeSection({
       // Decoration downloads run alongside the code, but never gate a usable
       // catalogue (a slow backdrop used to hold mounting for up to 1800ms).
       void prepareHomeBackdrop(tone);
-      void Promise.all([preload().catch(() => undefined), whenFullStylesheetReady()]).then(() => {
+      void Promise.all([
+        preload().catch(() => undefined),
+        whenFullStylesheetReady({ priority: window.scrollY > 0 ? "high" : "low" }),
+      ]).then(() => {
         if (cancelled) return;
         mountRequestedAt = performance.now();
         mountWhenScrollSettles();
+      }).catch((error: unknown) => {
+        if (cancelled) return;
+        setLoadError(error);
+        setShouldMount(true);
+        setReady(true);
       });
     };
 
@@ -215,6 +223,10 @@ function DeferredHomeSection({
     // every offscreen section or racing the hero image on a cold connection.
     if (!conserveData) {
       cancelPreparation = scheduleBackgroundTask(() => {
+        // Every slot owns an idle callback, including those thousands of
+        // pixels below the viewport. Warming/mounting all of them here used
+        // to bypass the proximity observer and compete with the first tap.
+        if (!nearViewport) return;
         // Warm code without constructing an offscreen catalogue tree yet.
         // On phones the hero and blog push Auto below the first viewport;
         // committing it during a first login tap creates a needless long task.
@@ -224,12 +236,6 @@ function DeferredHomeSection({
           return;
         }
         void preload().catch(() => undefined);
-        // A section committed while the page is at rest costs the scroll
-        // gesture nothing. Wait out the window of a likely first tap.
-        cancelPreparation = scheduleBackgroundTask(requestMount, {
-          delayMs: OFFSCREEN_IDLE_MOUNT_DELAY_MS,
-          waitForLoad: false,
-        });
       }, { delayMs: 900 + (tone === "auto" ? 0 : tone === "product" ? 250 : 500), waitForLoad: false });
     }
     return cleanup;
@@ -256,7 +262,7 @@ function DeferredHomeSection({
       <span className="home-scroll-seam" aria-hidden="true" />
       {shouldMount ? (
         <div className={`home-deferred-content ${ready ? "is-ready" : ""}`}>
-          {children(markReady)}
+          {children(markReady, loadError)}
         </div>
       ) : null}
       <div
@@ -286,8 +292,8 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
         preload={loadAutoSection}
         tone="auto"
       >
-        {(onReady) => (
-          <SectionBoundary title="Модуль підбору авто тимчасово недоступний">
+        {(onReady, error) => (
+          <SectionBoundary title="Модуль підбору авто тимчасово недоступний" onError={onReady} loadError={error}>
             <Auto playEntranceAnimations={false} showSummary onReady={onReady} />
           </SectionBoundary>
         )}
@@ -300,8 +306,8 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
         preload={loadProductSection}
         tone="product"
       >
-        {(onReady) => (
-          <SectionBoundary title="Модуль товарів тимчасово недоступний">
+        {(onReady, error) => (
+          <SectionBoundary title="Модуль товарів тимчасово недоступний" onError={onReady} loadError={error}>
             <ProductFetcher playEntranceAnimations={false} onReady={onReady} />
           </SectionBoundary>
         )}
@@ -313,8 +319,8 @@ export default function HomeDeferredStack(_legacyInitialData: LegacyInitialDataP
         preload={preloadBrandsSection}
         tone="brands"
       >
-        {(onReady) => (
-          <SectionBoundary title="Модуль брендів тимчасово недоступний">
+        {(onReady, error) => (
+          <SectionBoundary title="Модуль брендів тимчасово недоступний" onError={onReady} loadError={error}>
             <BrandCarousel playEntranceAnimations={false} onReady={onReady} />
           </SectionBoundary>
         )}

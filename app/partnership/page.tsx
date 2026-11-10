@@ -63,7 +63,7 @@ export default function PartnershipPage() {
         <div className="page-shell-inline partner-hero-content">
           <nav aria-label="Навігаційний шлях" className="partner-breadcrumbs"><Link href="/">Головна</Link><span>/</span><span aria-current="page">Партнерська програма</span></nav>
           <span className="partner-eyebrow"><span /> PARTSON ДЛЯ БІЗНЕСУ</span>
-          <h1 id="partner-title">Автозапчастини для СТО.<br /><em>Більше вигоди для вашої справи.</em></h1>
+          <h1 id="partner-title">Автозапчастини для СТО.<br />{" "}<em>Більше вигоди для вашої справи.</em></h1>
           <p className="partner-hero-description">Ваші закупівлі працюють на вас. Для СТО, автомагазинів і механіків — <strong className="partner-inline-accent">постійна знижка {PARTNER_DISCOUNT_PERCENT}%</strong> на наступні замовлення після покупок на <strong>{threshold} грн.</strong></p>
           <div className="partner-hero-actions"><PartnershipCtaClient /><a className="partner-how-link" href="#how-it-works">Як це працює <ArrowDown size={16} /></a></div>
           <div className="partner-hero-proof"><span><BadgeCheck size={16} /> Без внесків</span><span><BadgeCheck size={16} /> Автоматична активація</span><span><BadgeCheck size={16} /> Доставка по Україні</span></div>
@@ -80,7 +80,7 @@ export default function PartnershipPage() {
       <PartnershipScrollNav />
 
       <section id="benefits" className="partner-section page-shell-inline">
-        <div className="partner-section-heading"><div><span className="partner-kicker">01 / ДЛЯ ВАШОЇ СПРАВИ</span><h2>Ваша справа — автомобілі.<br /><em>Наша — потрібні запчастини.</em></h2></div><p><strong>Один постачальник. Більше можливостей.</strong> Запчастини для щоденної роботи, підбір за VIN і партнерські ціни — у Львові та з доставкою по Україні.</p></div>
+        <div className="partner-section-heading"><div><span className="partner-kicker">01 / ДЛЯ ВАШОЇ СПРАВИ</span><h2>Ваша справа — автомобілі.<br />{" "}<em>Наша — потрібні запчастини.</em></h2></div><p><strong>Один постачальник. Більше можливостей.</strong> Запчастини для щоденної роботи, підбір за VIN і партнерські ціни — у Львові та з доставкою по Україні.</p></div>
         <PartsGraphic />
         <div className="partner-audience-grid">{audiences.map(({ icon: Icon, number, title: name, lead, text }) => <article key={number} className="partner-audience-card" data-partner-drift={number === "02" ? "-0.035" : "0.035"}><div className="partner-card-top"><Icon size={26} strokeWidth={1.5} /><span>{number}</span></div><h3>{name}</h3><p className="partner-card-lead">{lead}</p><p>{text}</p></article>)}</div>
         <div className="partner-service-line"><span><ScanLine size={20} /> Підбір за VIN та артикулом</span><span><Package size={20} /> Наявність у каталозі</span><span><BadgePercent size={20} /> Спеціальні пропозиції партнерам</span></div>
@@ -89,7 +89,7 @@ export default function PartnershipPage() {
       <section id="how-it-works" className="partner-process">
         <div className="page-shell-inline partner-section">
           <div className="partner-process-intro">
-          <div className="partner-section-heading"><div><span className="partner-kicker">02 / ПРОСТИЙ СТАРТ</span><h2>Три кроки.<br /><em>Постійна вигода.</em></h2></div><p><strong>Без заявок, внесків і промокодів.</strong> Замовляйте з одного акаунта — партнерський статус активується автоматично.</p></div>
+          <div className="partner-section-heading"><div><span className="partner-kicker">02 / ПРОСТИЙ СТАРТ</span><h2>Три кроки.<br />{" "}<em>Постійна вигода.</em></h2></div><p><strong>Без заявок, внесків і промокодів.</strong> Замовляйте з одного акаунта — партнерський статус активується автоматично.</p></div>
             <MembershipGraphic />
           </div>
           <ol className="partner-step-grid">
@@ -102,13 +102,13 @@ export default function PartnershipPage() {
       </section>
 
       <section id="savings" className="partner-section page-shell-inline partner-savings-section">
-        <div><span className="partner-kicker">03 / ВИГОДА В ЦИФРАХ</span><h2>Менше витрат.<br /><em>Більше для бізнесу.</em></h2><p className="partner-section-copy"><strong>{PARTNER_DISCOUNT_PERCENT}% економії — на вашу користь.</strong> Оберіть суму закупівель і побачте, скільки залишиться для інструментів, обладнання чи розвитку бізнесу.</p><div className="partner-promo-note"><BadgePercent size={24} /><div><h3>А ще — спеціальні ціни</h3><p>Окремі товари мають спеціальні партнерські пропозиції. Увійдіть в активний партнерський акаунт і перевірте актуальну ціну в каталозі.</p></div></div></div>
+        <div><span className="partner-kicker">03 / ВИГОДА В ЦИФРАХ</span><h2>Менше витрат.<br />{" "}<em>Більше для бізнесу.</em></h2><p className="partner-section-copy"><strong>{PARTNER_DISCOUNT_PERCENT}% економії — на вашу користь.</strong> Оберіть суму закупівель і побачте, скільки залишиться для інструментів, обладнання чи розвитку бізнесу.</p><div className="partner-promo-note"><BadgePercent size={24} /><div><h3>А ще — спеціальні ціни</h3><p>Окремі товари мають спеціальні партнерські пропозиції. Увійдіть в активний партнерський акаунт і перевірте актуальну ціну в каталозі.</p></div></div></div>
         <div className="partner-savings-drift" data-partner-drift="-0.045"><PartnershipSavings /></div>
       </section>
 
       <section id="delivery" className="partner-delivery">
         <div className="page-shell-inline partner-section">
-          <div className="partner-section-heading"><div><span className="partner-kicker">04 / ПОРУЧ ІЗ ВАМИ</span><h2>Запчастини там,<br /><em>де вони потрібні.</em></h2></div><Link href="/contact" className="partner-text-link">Зв’язатися з PartsON <ArrowUpRight size={18} /></Link></div>
+          <div className="partner-section-heading"><div><span className="partner-kicker">04 / ПОРУЧ ІЗ ВАМИ</span><h2>Запчастини там,<br />{" "}<em>де вони потрібні.</em></h2></div><Link href="/inform/location" className="partner-text-link">Зв’язатися з PartsON <ArrowUpRight size={18} /></Link></div>
           <DeliveryGraphic />
           <div className="partner-delivery-grid"><article data-partner-drift="0.03"><Truck size={28} /><span className="partner-delivery-tag">ЛЬВІВ</span><h3>Доставка PartsON</h3><p><strong>Прямо до вашої майстерні.</strong> Доставляємо запчастини до СТО чи магазину у Львові. Умови узгодимо під час замовлення.</p></article><article data-partner-drift="-0.03"><Package size={28} /><span className="partner-delivery-tag">УКРАЇНА</span><h3>Нова пошта</h3><p><strong>У ваше місто по Україні.</strong> Відділення, поштомат або кур’єр — обирайте зручне отримання під час замовлення.</p></article><article data-partner-drift="0.03"><MapPin size={28} /><span className="partner-delivery-tag">САМОВИВІЗ</span><h3>Заберіть особисто</h3><p><strong>Зручно, якщо ви поруч.</strong> {STORE_ADDRESS}. Готовність замовлення уточнюйте: <a href={`tel:${STORE_PHONE_TEL}`}>{STORE_PHONE_DISPLAY}</a>.</p></article></div>
           <div className="partner-delivery-settings"><PartnershipDeliveryClient /></div>
@@ -116,11 +116,11 @@ export default function PartnershipPage() {
       </section>
 
       <section id="faq" className="partner-section page-shell-inline partner-faq-section">
-        <div><span className="partner-kicker">05 / УСЕ ЗРОЗУМІЛО</span><h2>Відповіді перед<br /><em>першим замовленням.</em></h2><p className="partner-section-copy">Залишилися запитання про закупівлю автозапчастин для вашого бізнесу? <a href={`tel:${STORE_PHONE_TEL}`}>Зателефонуйте нам.</a></p></div>
+        <div><span className="partner-kicker">05 / УСЕ ЗРОЗУМІЛО</span><h2>Відповіді перед<br />{" "}<em>першим замовленням.</em></h2><p className="partner-section-copy">Залишилися запитання про закупівлю автозапчастин для вашого бізнесу? <a href={`tel:${STORE_PHONE_TEL}`}>Зателефонуйте нам.</a></p></div>
         <div className="partner-faq-list">{faqs.map(({ question, answer }) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div>
       </section>
 
-      <section className="partner-final"><div className="page-shell-inline"><span className="partner-kicker">PARTSON / ВАШ НАСТУПНИЙ КРОК</span><h2>Працюйте з автозапчастинами.<br /><em>Заробляйте з перевагою.</em></h2><p>Почніть із реєстрації. Замовлення на <strong>{threshold} грн</strong> відкривають <strong>постійну знижку {PARTNER_DISCOUNT_PERCENT}%</strong> для наступних покупок.</p><PartnershipCtaClient /><Link href="/katalog" className="partner-final-catalog">Переглянути каталог автозапчастин <ArrowUpRight size={17} /></Link></div></section>
+      <section className="partner-final"><div className="page-shell-inline"><span className="partner-kicker">PARTSON / ВАШ НАСТУПНИЙ КРОК</span><h2>Працюйте з автозапчастинами.<br />{" "}<em>Заробляйте з перевагою.</em></h2><p>Почніть із реєстрації. Замовлення на <strong>{threshold} грн</strong> відкривають <strong>постійну знижку {PARTNER_DISCOUNT_PERCENT}%</strong> для наступних покупок.</p><PartnershipCtaClient /><Link href="/katalog" className="partner-final-catalog">Переглянути каталог автозапчастин <ArrowUpRight size={17} /></Link></div></section>
     </PartnershipReveal>
   );
 }

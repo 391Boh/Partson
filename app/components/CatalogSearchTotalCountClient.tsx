@@ -1,6 +1,7 @@
 "use client";
 
 import { fetchCatalogCount } from "app/lib/catalog-count-client";
+import CatalogCountDigits from "app/components/CatalogCountDigits";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -12,25 +13,6 @@ type CatalogSearchTotalCountClientProps = {
   // /katalog): the SSR facet aggregate is already the exact catalog-wide
   // total there, so there's nothing for the live endpoint to improve on.
   initialFallbackCount?: number | null;
-};
-
-const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
-
-const getCatalogProductWord = (count: number) => {
-  const abs = Math.abs(count);
-  const lastTwo = abs % 100;
-  const last = abs % 10;
-
-  if (lastTwo >= 11 && lastTwo <= 14) return "товарів";
-  if (last === 1) return "товар";
-  if (last >= 2 && last <= 4) return "товари";
-  return "товарів";
-};
-
-const formatCount = (count: number, exact = true) => {
-  const safeCount = Math.max(0, count);
-  const prefix = exact ? "" : "понад ";
-  return `${prefix}${formatCatalogCount(safeCount)} ${getCatalogProductWord(safeCount)}`;
 };
 
 export default function CatalogSearchTotalCountClient({
@@ -230,9 +212,25 @@ export default function CatalogSearchTotalCountClient({
   const isCounting =
     isLoading && filterTotal == null;
 
+  // The roll is reserved for real changes, not for the first paint.
+  const [shownCount, setShownCount] = useState(resolvedCount);
+  const [previousCount, setPreviousCount] = useState<number | null>(null);
+  if (resolvedCount !== shownCount) {
+    setShownCount(resolvedCount);
+    setPreviousCount(shownCount);
+  }
+
   return (
     <span className={className}>
-      {isCounting ? "рахую..." : formatCount(resolvedCount, filterTotal !== null || isExact)}
+      {isCounting ? (
+        <span className="catalog-count-pending">рахую...</span>
+      ) : (
+        <CatalogCountDigits
+          count={resolvedCount}
+          exact={filterTotal !== null || isExact}
+          previousCount={previousCount}
+        />
+      )}
     </span>
   );
 }

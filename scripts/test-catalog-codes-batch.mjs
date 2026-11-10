@@ -35,4 +35,36 @@ assert.equal(olderCalls.length, 1, "The miss is remembered; no second probe");
 const failing = loadCatalogSearch(async () => ({ status: 500, text: "{}" }));
 assert.equal(await failing.fetchCatalogProductsByCodes(["00-1"]), null);
 
+// Descriptions for every card on screen come from the same single call.
+const describedCalls = [];
+const described = loadCatalogSearch(async (endpoint, options) => {
+  describedCalls.push({ endpoint, body: options.body });
+  return {
+    status: 200,
+    text: JSON.stringify({
+      success: true,
+      items: [
+        { Код: "00-1", Описание: "Трос зчеплення" },
+        { Код: "00-2", Описание: "   " },
+      ],
+    }),
+  };
+});
+const descriptions = await described.fetchProductDescriptionsByCodes(["00-2", "00-1", "00-1", "00-3"]);
+assert.equal(describedCalls.length, 1, "One 1C call for all descriptions");
+assert.equal(describedCalls[0].endpoint, "allgoods");
+assert.deepEqual([...describedCalls[0].body.Коди], ["00-1", "00-2", "00-3"]);
+assert.equal(describedCalls[0].body.ВключатьОписание, true);
+assert.equal(descriptions.get("00-1"), "Трос зчеплення");
+assert.equal(descriptions.has("00-2"), false, "A blank description is no description");
+assert.equal(descriptions.has("00-3"), false, "A product 1C did not return is absent");
+assert.equal((await described.fetchProductDescriptionsByCodes([])).size, 0);
+
+const olderDescribed = loadCatalogSearch(async () => answer(["00-0"]));
+assert.equal(await olderDescribed.fetchProductDescriptionsByCodes(["00-1"]), null, "An older 1C falls back");
+const forbidden = loadCatalogSearch(async () => ({ status: 403, text: "" }));
+assert.equal(await forbidden.fetchProductDescriptionsByCodes(["00-1"]), null, "A refused batch falls back");
+const brokenBody = loadCatalogSearch(async () => ({ status: 200, text: "<html>" }));
+assert.equal(await brokenBody.fetchProductDescriptionsByCodes(["00-1"]), null, "An unreadable answer falls back");
+
 console.log("Catalog codes batch passed: one call per batch, older 1C detected and remembered, failures fall back.");

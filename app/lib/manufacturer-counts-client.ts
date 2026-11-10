@@ -21,18 +21,37 @@ export type ManufacturerCountsApiPayload = {
 };
 
 let pending: Promise<ManufacturerCountsApiPayload | null> | null = null;
+const REQUEST_TIMEOUT_MS = 6000;
 
-const startFetch = (): Promise<ManufacturerCountsApiPayload | null> =>
-  fetch("/api/manufacturer-counts", { headers: { Accept: "application/json" } })
-    .then((response) => (response.ok ? response.json() : null))
-    .catch(() => null);
+const startFetch = async (): Promise<ManufacturerCountsApiPayload | null> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch("/api/manufacturer-counts", {
+      headers: { Accept: "application/json" }, signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as ManufacturerCountsApiPayload;
+    return Array.isArray(payload?.clientProducers) ? payload : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
-export const prefetchManufacturerCounts = () => {
-  if (!pending) pending = startFetch();
+const requestManufacturerCounts = () => {
+  if (!pending) {
+    const request = startFetch().then((payload) => {
+      // A failed speculative request must not poison every later visit to
+      // the manufacturer picker for the rest of this tab's lifetime.
+      if (!payload && pending === request) pending = null;
+      return payload;
+    });
+    pending = request;
+  }
   return pending;
 };
 
-export const getManufacturerCounts = () => {
-  if (!pending) pending = startFetch();
-  return pending;
-};
+export const prefetchManufacturerCounts = requestManufacturerCounts;
+export const getManufacturerCounts = requestManufacturerCounts;

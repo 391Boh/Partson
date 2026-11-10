@@ -74,6 +74,93 @@ const writeCachedDescription = (requestUrl: string, value: string | null) => {
   }
 };
 
+// The first hover or flip asks 1C once for every card on screen, so the rest
+// of them open instantly. Nothing is requested until someone shows interest.
+const DESCRIPTION_BATCH_ROUTE = "/api/product-descriptions";
+const DESCRIPTION_BATCH_MAX_CODES = 50;
+const DESCRIPTION_BATCH_PAUSE_MS = 60_000;
+
+type MountedDescriptionCard = { code: string; requestUrl: string; count: number };
+const mountedDescriptionCards = new Map<string, MountedDescriptionCard>();
+const descriptionBatchInFlight = new Map<string, Promise<string | undefined>>();
+// Answered without text: the per-product lookup also tries getinfo for these.
+const descriptionBatchAnswered = new Set<string>();
+let descriptionBatchPausedUntil = 0;
+
+const normalizeDescriptionCode = (code: string) => {
+  const normalized = code.trim().toLowerCase();
+  return normalized === "-" ? "" : normalized;
+};
+
+const fetchDescriptionBatch = async (codes: string[]) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DESCRIPTION_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(DESCRIPTION_BATCH_ROUTE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ codes }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`product-descriptions ${res.status}`);
+    const data = (await res.json()) as { descriptions?: Record<string, string> };
+    return data.descriptions ?? {};
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
+// Undefined means "no text from the batch": the caller's own lookup decides.
+// Deliberately not abortable by one card: the request is shared by all of them.
+const requestDescriptionBatch = (code: string, requestUrl: string) => {
+  const key = normalizeDescriptionCode(code);
+  if (!key || descriptionBatchAnswered.has(key) || Date.now() < descriptionBatchPausedUntil) {
+    return Promise.resolve(undefined);
+  }
+  const pending = descriptionBatchInFlight.get(key);
+  if (pending) return pending;
+
+  const cards = [
+    { key, code: code.trim(), requestUrl },
+    ...[...mountedDescriptionCards.entries()]
+      .filter(
+        ([otherKey, card]) =>
+          otherKey !== key &&
+          !descriptionBatchAnswered.has(otherKey) &&
+          !descriptionBatchInFlight.has(otherKey) &&
+          !readCachedDescription(card.requestUrl)
+      )
+      .map(([otherKey, card]) => ({ key: otherKey, code: card.code, requestUrl: card.requestUrl })),
+  ].slice(0, DESCRIPTION_BATCH_MAX_CODES);
+  // One product alone (the product page, the edit modal) gains nothing from
+  // a batch: its own lookup also asks getinfo.
+  if (cards.length < 2) return Promise.resolve(undefined);
+
+  const request = fetchDescriptionBatch(cards.map((card) => card.code))
+    .then((descriptions) => {
+      for (const card of cards) {
+        const text = descriptions[card.key]?.trim();
+        if (text) writeCachedDescription(card.requestUrl, text);
+        descriptionBatchAnswered.add(card.key);
+      }
+      return descriptions;
+    })
+    .catch(() => {
+      descriptionBatchPausedUntil = Date.now() + DESCRIPTION_BATCH_PAUSE_MS;
+      return {} as Record<string, string>;
+    })
+    .finally(() => {
+      for (const card of cards) descriptionBatchInFlight.delete(card.key);
+    });
+  for (const card of cards) {
+    descriptionBatchInFlight.set(
+      card.key,
+      request.then((descriptions) => descriptions[card.key]?.trim() || undefined)
+    );
+  }
+  return descriptionBatchInFlight.get(key) as Promise<string | undefined>;
+};
+
 // Lazy description fetch shared by the catalog grid card (flip) and the list
 // view row (expand), plus the hover prefetch: one session/local-storage
 // cache, one retry. "missing" (1C answered, no description) and "error" (1C
@@ -94,6 +181,20 @@ export const useProductDescription = (
   const loadedRef = useRef(false);
   const loadedForUrlRef = useRef("");
   const editRevision = useRef(0);
+
+  useEffect(() => {
+    const key = normalizeDescriptionCode(code);
+    if (!key || !requestUrl) return;
+    const mounted = mountedDescriptionCards.get(key);
+    if (mounted) mounted.count += 1;
+    else mountedDescriptionCards.set(key, { code: code.trim(), requestUrl, count: 1 });
+    return () => {
+      const card = mountedDescriptionCards.get(key);
+      if (!card) return;
+      card.count -= 1;
+      if (card.count <= 0) mountedDescriptionCards.delete(key);
+    };
+  }, [code, requestUrl]);
 
   useEffect(() => {
     // The product changed (e.g. an admin edited its catalog number) — the
@@ -142,12 +243,15 @@ export const useProductDescription = (
     const loadDescription = async () => {
       setStatus("loading");
       try {
-        let rawDesc: string | null;
-        try {
-          rawDesc = await attemptFetch();
-        } catch {
-          if (cancelled || revision !== editRevision.current) return;
-          rawDesc = await attemptFetch();
+        let rawDesc: string | null = (await requestDescriptionBatch(code, requestUrl)) ?? null;
+        if (cancelled || revision !== editRevision.current) return;
+        if (!rawDesc) {
+          try {
+            rawDesc = await attemptFetch();
+          } catch {
+            if (cancelled || revision !== editRevision.current) return;
+            rawDesc = await attemptFetch();
+          }
         }
         if (cancelled || revision !== editRevision.current) return;
 
@@ -167,7 +271,7 @@ export const useProductDescription = (
       cancelled = true;
       activeController?.abort();
     };
-  }, [requestUrl, active, retryToken]);
+  }, [code, requestUrl, active, retryToken]);
 
   const retry = useCallback(() => {
     loadedRef.current = false;

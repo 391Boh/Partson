@@ -2,23 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import { formatCatalogCount, getCatalogProductWord } from "app/components/CatalogCountDigits";
+
 type CatalogShownCountClientProps = {
   className?: string;
   initialCount: number;
   eventName?: "visible" | "filtered" | "none";
-};
-
-const formatCatalogCount = (count: number) => count.toLocaleString("uk-UA");
-
-const getCatalogProductWord = (count: number) => {
-  const abs = Math.abs(count);
-  const lastTwo = abs % 100;
-  const last = abs % 10;
-
-  if (lastTwo >= 11 && lastTwo <= 14) return "товарів";
-  if (last === 1) return "товар";
-  if (last >= 2 && last <= 4) return "товари";
-  return "товарів";
 };
 
 const formatShownCount = (count: number) =>

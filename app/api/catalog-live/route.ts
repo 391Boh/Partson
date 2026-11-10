@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CATALOG_CODE_LOOKUP_FIELDS, fetchCatalogPriceDetailsByLookupKeys, fetchCatalogProductsByCodes, fetchExactCatalogProductByLookup } from 'app/lib/catalog-server';
+import { CATALOG_CODE_LOOKUP_FIELDS, fetchCatalogPriceDetailsByLookupKeys, fetchCatalogProductsByCodes, fetchExactCatalogProductByLookup, isAllgoodsCodesBatchUnsupported } from 'app/lib/catalog-server';
 import { getProductEditOverride } from 'app/lib/product-edit-overrides';
 import { verifyAdminRequest } from 'app/api/_lib/admin-auth';
 import { verifyPartnerRequest } from 'app/api/_lib/partner-auth';
@@ -31,6 +31,10 @@ export async function POST(request: NextRequest) {
     // lookup per code instead, by code only — these are 1C codes, so the
     // article lookups only cost two extra calls each.
     const batch = await fetchCatalogProductsByCodes(codes, { timeoutMs: 4000, cacheTtlMs: LIVE_CACHE_TTL_MS }).catch(() => null);
+    // A batch that failed on a 1C that knows Коди means 1C is overloaded:
+    // 16 single lookups on top would only deepen it. The cards keep their
+    // data and the next minute's refresh tries again.
+    if (!batch && !isAllgoodsCodesBatchUnsupported()) return json({ error: 'Не вдалося оновити товари' }, 503);
     const lookup = (code: string) => batch
       ? Promise.resolve(batch.get(code.toLowerCase()) ?? null)
       : fetchExactCatalogProductByLookup(code, { timeoutMs: 1800, retries: 0, cacheTtlMs: LIVE_CACHE_TTL_MS, includeCostPrice: false, includeDescription: false, lookupFields: CATALOG_CODE_LOOKUP_FIELDS }).catch(() => null);

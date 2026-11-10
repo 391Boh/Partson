@@ -144,9 +144,9 @@ const NEXT_PAGE_LOADER_MIN_VISIBLE_MS = 40;
 
 // Shared with --catalog-card-height. Reserve the real row before the
 // first ResizeObserver measurement so virtualization never changes its height.
-const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 456;
+const VIRTUAL_ROW_ESTIMATED_HEIGHT_PX = 436;
 const getCatalogGridRowHeight = (width: number) =>
-  (width >= 1280 ? 400 : 440) + (width < 640 ? 12 : width < 1024 ? 20 : 16);
+  420 + (width < 640 ? 12 : width < 1024 ? 20 : 16);
 
 // Keep only a small, generous window mounted once the catalog grows beyond
 // three API pages. This prevents images, card effects and React reconciliation

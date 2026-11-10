@@ -1596,10 +1596,7 @@ const Data: React.FC<DataProps> = ({
               // Zero-height sticky row: the label floats over the grid
               // without moving it (no layout shift when it appears).
               <div className="pointer-events-none sticky top-[calc(var(--header-height,4rem)+5.5rem)] z-20 flex h-0 items-start justify-center">
-                <span
-                  role="status"
-                  className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/95 px-3.5 py-1.5 text-[12.5px] font-bold text-sky-800 shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
-                >
+                <span role="status" className="catalog-refresh-pill">
                   <span className="catalog-filter-loading-spinner" aria-hidden="true" />
                   Оновлюємо товари…
                 </span>
@@ -1833,6 +1830,8 @@ const Data: React.FC<DataProps> = ({
                   >
                     <span className="catalog-placeholder-image" />
                     <span className="catalog-placeholder-copy"><span /><span /><span /></span>
+                    <span className="catalog-placeholder-meta"><span /><span /><span /></span>
+                    <span className="catalog-placeholder-price" />
                     <span className="catalog-placeholder-actions" />
                   </div>
                 ))}
@@ -1978,11 +1977,12 @@ const Data: React.FC<DataProps> = ({
                 type="button"
                 onClick={handleLoadMoreItemsClick}
                 disabled={loading || isLoadingNextPage}
-                className="inline-flex min-h-11 w-auto min-w-[200px] max-w-full items-center justify-center gap-2 rounded-[15px] border border-cyan-200/70 bg-[linear-gradient(135deg,#0284c7_0%,#0d9488_100%)] px-5 py-2.5 text-[13px] font-black text-white shadow-[0_10px_26px_rgba(2,132,199,0.32)] transition-[filter,box-shadow] duration-200 hover:brightness-110 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-300/40 disabled:cursor-wait disabled:opacity-60 sm:min-w-[220px] sm:text-sm"
+                className="catalog-load-more"
               >
                 {isLoadingNextPage ? (
                   <>
-                    <span>Більше товарів</span>
+                    <span className="catalog-filter-loading-spinner" aria-hidden="true" />
+                    <span>Завантажуємо…</span>
                   </>
                 ) : (
                   <>

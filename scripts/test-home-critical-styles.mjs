@@ -7,7 +7,7 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     let release;
     const gate = new Promise(resolve => { release = resolve; });
-    await page.route(/\/styles\/(site\.[^/]+|dev)\.css/, async route => { await gate; await route.continue(); });
+    await page.route(/\/styles\/(site\.[^/]+|dev-site|dev)\.css/, async route => { await gate; await route.continue(); });
     try {
       const response = await page.goto(origin, { waitUntil: 'domcontentloaded' });
       assert(!/<link[^>]+rel="preload"[^>]+href="\/styles\/site\./.test(await response.text()), 'React must not hoist full CSS preload from the noscript fallback');

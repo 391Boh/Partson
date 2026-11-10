@@ -86,7 +86,7 @@ export const resolveCatalogSeoState = (
   const pagePath = pageQuery.size ? `/katalog?${pageQuery}` : "/katalog";
 
   let canonicalPath = "/katalog";
-  let title = "Каталог автозапчастин у Львові";
+  let title = "Каталог автозапчастин у Львові: ціни й наявність";
   let description = appendSeoContact(
     "Каталог PartsON: автозапчастини за артикулом, кодом, виробником і категорією, актуальна наявність, ціни онлайн, VIN-підбір і доставка по Україні."
   );

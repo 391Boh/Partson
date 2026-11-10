@@ -20,6 +20,8 @@ export default function DeferredFooter() {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [FooterComponent, setFooterComponent] =
     useState<ComponentType | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     const anchor = anchorRef.current;
@@ -52,7 +54,10 @@ export default function DeferredFooter() {
       if (cancelled || requested) return;
       requested = true;
       attempts += 1;
-      void Promise.all([import("./footer"), whenFullStylesheetReady()]).then(([module]) => {
+      void Promise.all([
+        import("./footer"),
+        whenFullStylesheetReady({ priority: nearViewport ? "high" : "low" }),
+      ]).then(([module]) => {
         if (cancelled) return;
         loadedFooter = module.default;
         // Near the viewport the bounded path owns the commit. Do not put it
@@ -65,6 +70,8 @@ export default function DeferredFooter() {
         requested = false;
         if (!cancelled && nearViewport && attempts < 2) {
           settleTimer = window.setTimeout(loadFooter, 500);
+        } else if (!cancelled && nearViewport) {
+          setLoadFailed(true);
         }
       });
     };
@@ -104,15 +111,26 @@ export default function DeferredFooter() {
       observer?.disconnect();
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };
-  }, [FooterComponent, isHome]);
+  }, [FooterComponent, isHome, retryToken]);
 
   if (FooterComponent) {
     return <div data-deferred-footer className="footer-frame"><FooterComponent /></div>;
   }
 
   return (
-    <div data-deferred-footer ref={anchorRef} className="footer-frame footer-placeholder" aria-hidden="true">
-      <div className="page-shell-inline">
+    <div data-deferred-footer ref={anchorRef} className="footer-frame footer-placeholder" aria-hidden={loadFailed ? undefined : true}>
+      {loadFailed ? (
+        <div className="footer-load-error" role="status">
+          <p>Не вдалося завантажити контакти та посилання.</p>
+          <button type="button" onClick={() => {
+            setLoadFailed(false);
+            setRetryToken((value) => value + 1);
+          }} aria-label="Повторити завантаження підвалу">
+            Повторити завантаження
+          </button>
+        </div>
+      ) : null}
+      <div className="page-shell-inline" aria-hidden="true">
         <div className="footer-placeholder-intro">
           <div><div className="footer-skeleton-block" /><div className="footer-skeleton-block" /></div>
           <div className="footer-skeleton-block" />

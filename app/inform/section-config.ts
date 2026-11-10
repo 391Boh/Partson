@@ -195,9 +195,11 @@ export const informationSections: InformationSection[] = [
     subtitle: "Адреса, карта і самовивіз",
     intro: "Адреса магазину PartsON у Львові, актуальний графік, карта проїзду та інформація про самовивіз.",
     pageHeading: "Як знайти магазин PartsON у Львові",
-    seoTitle: "Адреса магазину автозапчастин у Львові",
+    // The snippet answers what this page is searched for: the address and
+    // the hours ("перфецького 8", "графік роботи"), not a list of sections.
+    seoTitle: "Магазин автозапчастин на Перфецького, 8 у Львові",
     seoDescription: appendSeoContact(
-      "Локація PartsON у Львові: адреса магазину, карта проїзду, маршрут, графік роботи, контакти для зв'язку та умови самовивозу замовлень."
+      "PartsON у Львові: вул. Перфецького, 8. Працюємо без вихідних: Пн–Сб 08:00–18:00, Нд 08:00–16:00. Карта проїзду, маршрут і самовивіз замовлень."
     ),
     keywords: [
       "контакти PartsON",

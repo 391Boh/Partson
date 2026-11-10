@@ -16,7 +16,9 @@ try {
       return { scrollWidth: rail.scrollWidth, width: rail.clientWidth, transform: getComputedStyle(e).transform };
     });
     assert(geometry.scrollWidth <= geometry.width + 1, 'All mobile tabs fit; no horizontal scrolling layer');
-    assert.equal(geometry.transform, 'none', 'Sticky wrapper has no transformed containing block');
+    // An identity translate3d is deliberate (globals.css): it gives the bar
+    // its own layer so iOS does not paint it a frame behind the header.
+    assert.ok(['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(geometry.transform), `Sticky wrapper is not moved: ${geometry.transform}`);
     for (const height of [844, 790, 736, 814]) {
       await page.setViewportSize({ width, height });
       const samples = await page.evaluate(() => new Promise(resolve => {
@@ -26,13 +28,15 @@ try {
         const step = () => {
           const target = frame < 25 ? 400 + frame * 25 : 1000 - (frame - 25) * 20;
           scrollTo({ top: target, behavior: 'instant' });
-          samples.push({ y: controls.getBoundingClientRect().top, x: rail.scrollLeft, scroll: scrollY });
+          samples.push({ y: controls.getBoundingClientRect().top, pin: parseFloat(getComputedStyle(controls).top), x: rail.scrollLeft, scroll: scrollY });
           if (++frame < 50) requestAnimationFrame(step); else resolve(samples);
         };
         requestAnimationFrame(step);
       }));
       for (const s of samples) {
-        assert(Math.abs(s.y - 64) <= 1, `${engine} ${width}x${height}: pinned top ${s.y}`);
+        // Right under the header: 64px, or 112px where 320px phones give the
+        // search its own header row (--header-height).
+        assert(Math.abs(s.y - s.pin) <= 1, `${engine} ${width}x${height}: pinned top ${s.y}, header ${s.pin}`);
         assert.equal(s.x, 0, 'Scroll spy never starts horizontal movement on mobile');
       }
     }

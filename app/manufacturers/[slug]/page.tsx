@@ -55,7 +55,7 @@ import {
   getAllProductSitemapSnapshotEntries,
   type ProductSitemapEntry,
 } from "app/lib/product-sitemap";
-import { fixCatalogSpelling } from "app/lib/catalog-label-format";
+import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-format";
 import { getFullManufacturersDirectoryData } from "app/lib/manufacturers-directory-data";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { shortenRevalidateForIncompleteRender } from "app/lib/isr-retry";
@@ -343,7 +343,7 @@ const rankManufacturerSeoGroups = (groups: ManufacturerSeoGroup[]) =>
         .filter((group) => group.productCount > 0)
         .sort((a, b) => b.productCount - a.productCount)
         .map((group) => {
-          const visible = lowerFirstSeoWord(buildVisibleProductName(normalizeValue(group.label)));
+          const visible = lowerFirstSeoWord(formatCatalogLabel(buildVisibleProductName(normalizeValue(group.label))));
           return [visible.toLocaleLowerCase("uk-UA"), visible] as const;
         })
         .filter(([key]) => Boolean(key))
@@ -1539,7 +1539,7 @@ export default async function ManufacturerDetailPage({
     const groupThumb = groupSamples[0]
       ? { src: groupSamples[0].imageSrc, alt: `Фото ${buildVisibleProductName(groupSamples[0].name)}` }
       : groupPreview
-        ? { src: groupPreview.url, alt: categoryFilterValue ? groupPreview.alt : `Товар групи «${normalizeValue(group.label)}»` }
+        ? { src: groupPreview.url, alt: categoryFilterValue ? groupPreview.alt : `Товар групи «${formatCatalogLabel(normalizeValue(group.label))}»` }
         : null;
     const groupLabelKey = normalizeValue(group.label).toLowerCase();
     const visibleSubgroups = group.subgroups.filter(
@@ -1591,7 +1591,7 @@ export default async function ManufacturerDetailPage({
               prefetchCatalogOnViewport
               className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-teal-700"
             >
-              {normalizeValue(group.label)}
+              {formatCatalogLabel(normalizeValue(group.label))}
             </CatalogPrefetchLink>
           </div>
 
@@ -1633,7 +1633,7 @@ export default async function ManufacturerDetailPage({
               href={groupCatalogPath}
               prefetchCatalogOnViewport
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              aria-label={`Відкрити групу ${normalizeValue(group.label)}`}
+              aria-label={`Відкрити групу ${formatCatalogLabel(normalizeValue(group.label))}`}
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="m9 18 6-6-6-6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1656,7 +1656,7 @@ export default async function ManufacturerDetailPage({
                 prefetchCatalogOnViewport
                 className="group/sub inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-2.5 py-1 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
               >
-                {normalizeValue(subgroup.label)}
+                {formatCatalogLabel(normalizeValue(subgroup.label))}
                 <span className="whitespace-nowrap rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 transition-colors duration-200 group-hover/sub:text-sky-600">
                   {formatCountedWord(subgroup.productCount, "товар", "товари", "товарів")}
                 </span>

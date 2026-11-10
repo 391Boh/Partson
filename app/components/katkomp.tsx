@@ -905,7 +905,6 @@ const Category: React.FC<CategoryProps> = ({
 
       <div
         ref={listRef}
-        // No box of its own: the cards sit on the filter panel, like the car tab.
         className="flex-1 overflow-auto"
       >
         {loading && (
@@ -919,7 +918,8 @@ const Category: React.FC<CategoryProps> = ({
         )}
 
         {!loading && !error && (
-          <div className="p-2">
+          // The same list frame as the car and producer tabs.
+          <div className="catalog-filter-rail-shell rounded-[18px] border border-sky-100 bg-[linear-gradient(145deg,#ffffff,#f0f9ff)] p-2 shadow-inner">
             {isSearchMode && (
               <HorizontalDirectoryRail
                 mobileList

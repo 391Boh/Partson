@@ -74,9 +74,10 @@ function useDeferredNearViewport<T extends HTMLElement>(
 export default function DeferredSeoPhotosBackdrop() {
   const { ref, ready } = useDeferredNearViewport<HTMLDivElement>("900px 0px");
 
-  // Warm the compressed photo bytes in an idle slot, before the dynamic
-  // backdrop mounts near the section.
+  // Fetch decoration only when its section is near. An unconditional idle
+  // prefetch downloaded all three photos during the homepage's first paint.
   useEffect(() => {
+    if (!ready || conservesData()) return;
     const win = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (handle: number) => void;
@@ -94,7 +95,7 @@ export default function DeferredSeoPhotosBackdrop() {
     }
     const timer = window.setTimeout(prefetch, 2000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [ready]);
 
   return (
     <div ref={ref} aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">

@@ -18,7 +18,7 @@ export default function CatalogDirectoryLoading({ current }: { current: Director
         <CatalogHubHero current={current} title={title}
           titleAccent={current === "auto" ? "за маркою і моделлю" : undefined}
           description="Готуємо список. Ви можете одразу перейти до іншого розділу каталогу."
-          badge="" icon={CarFront} warmNavigation={false} />
+          badge="" icon={CarFront} warmNavigation={false} placeholder />
       </div>
       <div className="page-shell-inline directory-loading-list" aria-hidden="true">
         {Array.from({ length: 8 }, (_, index) => <span key={index} />)}

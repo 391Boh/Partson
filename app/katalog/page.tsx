@@ -16,6 +16,7 @@ import {
   Tags,
   Truck,
 } from "lucide-react";
+import CatalogCountDigits from "app/components/CatalogCountDigits";
 import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
@@ -93,15 +94,6 @@ const CATALOG_PRODUCT_TREE_TIMEOUT_MS = 200;
 const MANUFACTURERS_DIRECTORY_TIMEOUT_MS = 300;
 const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
-
-// Shared across "Популярні моделі авто" / "Категорії товарів" / "Виробники" —
-// one consistent header + "Усі ..." CTA style instead of each section having
-// its own (previously the model-list CTA was a bordered pill while the
-// group/producer CTAs were bare text links).
-const CATALOG_SEO_SECTION_HEADING_CLASS =
-  "inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500";
-const CATALOG_SEO_SECTION_CTA_CLASS =
-  "inline-flex h-8 items-center gap-1.5 rounded-[11px] border border-sky-200 bg-sky-50 px-3 text-[12px] font-extrabold text-sky-700 shadow-sm transition-[border-color,color,background-color,box-shadow] duration-200 hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800 hover:shadow-[0_6px_14px_rgba(14,165,233,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70";
 
 type InitialCatalogPagePayload = {
   items: Array<{
@@ -632,17 +624,16 @@ const CatalogSeoSnapshot = async ({
       ? "Знайдено"
       : "Усього товарів";
 
-  const renderTotalCount = (className = "text-slate-900") => (
+  const renderTotalCount = () => (
     // useSearchParams() inside CatalogSearchTotalCountClient forces a dynamic
     // bailout all the way up to the nearest Suspense boundary — without one
     // here, that bailout hits this page's `revalidate` (ISR) config and
     // throws DYNAMIC_SERVER_USAGE. The fallback is the plain SSR number so
     // there's no visible flash before the client value hydrates in.
-    <Suspense fallback={<span className={className}>{initialFilteredCount.toLocaleString("uk-UA")}</span>}>
+    <Suspense fallback={<CatalogCountDigits count={initialFilteredCount} />}>
       <CatalogSearchTotalCountClient
         initialOpenCount={visibleItemsCount}
         initialFallbackCount={initialFilteredCount}
-        className={className}
       />
     </Suspense>
   );
@@ -780,39 +771,26 @@ const CatalogSeoSnapshot = async ({
               </div>
             </div>
 
-            {/* ── Лічильник — світлий варіант ─────────────────────────── */}
+            {/* ── Лічильник ─────────────────────────────────────────────── */}
             <div
-              className="catalog-seo-counter order-2 relative overflow-hidden rounded-[20px] border border-sky-300/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.96),rgba(235,248,255,0.94))] p-4 ring-1 ring-white/90 lg:col-start-2 lg:row-start-1"
+              className="catalog-seo-counter order-2 lg:col-start-2 lg:row-start-1"
               data-nosnippet
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[9.5px] font-black uppercase tracking-[0.16em] text-sky-700">
-                    {countLabel}
-                  </p>
-                  <p className="catalog-seo-counter-number mt-1 font-black">
-                    {renderTotalCount("text-slate-900 tabular-nums")}
-                  </p>
-                </div>
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-sky-500 to-cyan-500 text-white shadow-[0_8px_18px_rgba(14,165,233,0.24)] ring-1 ring-white/80">
-                  <Tags size={17} aria-hidden />
-                </span>
+              <div className="min-w-0">
+                <p className="catalog-seo-counter-label">{countLabel}</p>
+                <p className="catalog-seo-counter-number">{renderTotalCount()}</p>
               </div>
 
-              <div className="catalog-seo-counter-status mt-3.5 rounded-[14px] border border-white bg-white/80 px-3 py-2.5 shadow-[0_5px_15px_rgba(15,23,42,0.05)]">
-                <p className="text-[12px] font-semibold leading-[1.6] text-slate-600">
+              <div className="catalog-seo-counter-status">
+                <p>
                   Завантажено зараз:{" "}
-                  <span className="font-black text-sky-700">
-                    {renderShownCount("text-sky-700")}
-                  </span>
+                  {renderShownCount("font-extrabold text-[#0f2c3d]")}
                 </p>
                 {hasMore && !hasExactCount ? (
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    список оновлюється під час перегляду
-                  </p>
+                  <p>список оновлюється під час перегляду</p>
                 ) : (
-                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
-                    <BadgeCheck size={11} aria-hidden />
+                  <p className="catalog-seo-counter-fresh">
+                    <BadgeCheck size={12} aria-hidden />
                     дані актуальні
                   </p>
                 )}
@@ -821,146 +799,125 @@ const CatalogSeoSnapshot = async ({
           </div>
         </div>
 
-        {/* ── Популярні моделі авто для SEO-навігації ───────────────────── */}
-        {popularModels.length > 0 && (
-          <div className="catalog-seo-products bg-[linear-gradient(180deg,#ffffff,#fbfdff)] px-4 py-6 sm:px-7">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
-                <Car size={12} aria-hidden />
-                Популярні моделі авто
-              </h3>
-              <Link href="/auto" className={CATALOG_SEO_SECTION_CTA_CLASS}>
-                Усі марки
-                <ArrowUpRight size={12} aria-hidden />
-              </Link>
-            </div>
-            <ul className="catalog-seo-model-list" role="list">
-              {popularModels.map(({ brand, model, logo }) => (
-                  <li key={`${brand}-${model}`}>
-                    <Link
-                      href={buildAutoModelPath(brand, model)}
-                      className="catalog-seo-model-link group"
-                      aria-label={`Запчастини для ${brand} ${model}`}
-                    >
-                      <span className="catalog-seo-model-logo">
+        {/* ── Навігація: моделі, групи та виробники ────────────────────── */}
+        {(popularModels.length > 0 || showDiscovery) && (
+          <nav aria-label="Розділи каталогу" className="catalog-seo-navigation">
+            {popularModels.length > 0 && (
+              <div className="catalog-seo-rail">
+                <div className="catalog-seo-rail-head">
+                  <h3 className="catalog-seo-rail-title">
+                    <Car size={14} aria-hidden />
+                    Популярні моделі авто
+                  </h3>
+                  <Link href="/auto" className="catalog-seo-rail-all">
+                    Усі марки
+                    <ArrowUpRight size={12} aria-hidden />
+                  </Link>
+                </div>
+                <ul className="catalog-seo-chips" role="list">
+                  {popularModels.map(({ brand, model, logo }) => (
+                    <li key={`${brand}-${model}`}>
+                      <Link
+                        href={buildAutoModelPath(brand, model)}
+                        className="catalog-seo-chip"
+                        aria-label={`Запчастини для ${brand} ${model}`}
+                      >
                         {logo ? (
                           <Image
                             src={logo}
                             alt=""
                             width={28}
                             height={28}
-                            sizes="22px"
+                            sizes="18px"
                             loading="lazy"
                             unoptimized={logo.endsWith(".svg")}
-                            className="h-[18px] w-[18px] object-contain"
+                            className="catalog-seo-chip-icon"
                           />
                         ) : (
-                          <Car size={13} aria-hidden />
+                          <Car className="catalog-seo-chip-icon" size={14} aria-hidden />
                         )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[11.5px] font-extrabold text-slate-800 group-hover:text-sky-700">
-                          {brand} {model}
-                        </span>
-                        <span className="block text-[9.5px] font-semibold text-slate-400">Підібрати запчастини</span>
-                      </span>
-                      <ArrowUpRight className="shrink-0 text-sky-500" size={12} aria-hidden />
-                    </Link>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Навігація: групи та виробники ────────────────────────────── */}
-        {showDiscovery && (
-          <nav
-            aria-label="Розділи каталогу"
-            className="catalog-seo-navigation border-t border-sky-100 bg-[linear-gradient(145deg,#f8fbff,#eef8ff_55%,#f8fcff)] px-4 py-6 sm:px-7"
-          >
-            <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
-              {topGroups.length > 0 && (
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
-                      <ListTree size={12} aria-hidden />
-                      Категорії товарів
-                    </h3>
-                    <Link href="/groups" className={CATALOG_SEO_SECTION_CTA_CLASS}>
-                      Усі категорії
-                      <ArrowUpRight size={12} aria-hidden />
-                    </Link>
-                  </div>
-                  <ul className="catalog-seo-link-list" role="list">
-                    {topGroups.map((group) => (
-                      <li key={`group-${group.slug}`}>
-                        <a
-                          href={group.href}
-                          aria-label={`Категорія товарів: ${group.label}`}
-                          className="catalog-seo-facet-link"
-                        >
-                          <span className="catalog-seo-facet-icon">
-                            <Image
-                              src={getCategoryIconPath(inferCategoryForGroupLabel(group.label) || group.label)}
-                              alt={`Іконка категорії ${group.label}`}
-                              width={28}
-                              height={28}
-                              sizes="28px"
-                              loading="lazy"
-                              className="h-5 w-5 object-contain"
-                            />
-                          </span>
-                          <span className="min-w-0 line-clamp-2">{group.label}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                        <span className="catalog-seo-chip-label">{brand} {model}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {topGroups.length > 0 && (
+              <div className="catalog-seo-rail">
+                <div className="catalog-seo-rail-head">
+                  <h3 className="catalog-seo-rail-title">
+                    <ListTree size={14} aria-hidden />
+                    Категорії товарів
+                  </h3>
+                  <Link href="/groups" className="catalog-seo-rail-all">
+                    Усі категорії
+                    <ArrowUpRight size={12} aria-hidden />
+                  </Link>
                 </div>
-              )}
-              {topProducers.length > 0 && (
-                <div className="sm:border-l sm:border-slate-200/70 sm:pl-8">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className={CATALOG_SEO_SECTION_HEADING_CLASS}>
-                      <Tags size={12} aria-hidden />
-                      Виробники
-                    </h3>
-                    <Link href="/manufacturers" className={CATALOG_SEO_SECTION_CTA_CLASS}>
-                      Усі виробники
-                      <ArrowUpRight size={12} aria-hidden />
-                    </Link>
-                  </div>
-                  <ul className="catalog-seo-link-list" role="list">
-                    {topProducers.map((producer) => (
-                      <li key={`producer-${producer.slug}`}>
-                        <a
-                          href={buildManufacturerPath(producer.slug)}
-                          aria-label={`Виробник автозапчастин: ${producer.label}`}
-                          className="catalog-seo-facet-link"
-                        >
-                          <span className="catalog-seo-brand-logo">
-                            {producer.logoPath ? (
-                              <Image
-                                src={producer.logoPath}
-                                alt={`Логотип виробника ${producer.label}`}
-                                width={56}
-                                height={28}
-                                sizes="46px"
-                                loading="lazy"
-                                unoptimized={producer.logoPath.endsWith(".svg")}
-                                className="h-5 w-10 object-contain"
-                              />
-                            ) : (
-                              <span>{producer.label.slice(0, 2).toUpperCase()}</span>
-                            )}
-                          </span>
-                          <span className="min-w-0 truncate">{producer.label}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                <ul className="catalog-seo-chips" role="list">
+                  {topGroups.map((group) => (
+                    <li key={`group-${group.slug}`}>
+                      <a
+                        href={group.href}
+                        aria-label={`Категорія товарів: ${group.label}`}
+                        className="catalog-seo-chip"
+                      >
+                        <Image
+                          src={getCategoryIconPath(inferCategoryForGroupLabel(group.label) || group.label)}
+                          alt={`Іконка категорії ${group.label}`}
+                          width={28}
+                          height={28}
+                          sizes="18px"
+                          loading="lazy"
+                          className="catalog-seo-chip-icon"
+                        />
+                        <span className="catalog-seo-chip-label">{group.label}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {topProducers.length > 0 && (
+              <div className="catalog-seo-rail">
+                <div className="catalog-seo-rail-head">
+                  <h3 className="catalog-seo-rail-title">
+                    <Tags size={14} aria-hidden />
+                    Виробники
+                  </h3>
+                  <Link href="/manufacturers" className="catalog-seo-rail-all">
+                    Усі виробники
+                    <ArrowUpRight size={12} aria-hidden />
+                  </Link>
                 </div>
-              )}
-            </div>
+                <ul className="catalog-seo-chips" role="list">
+                  {topProducers.map((producer) => (
+                    <li key={`producer-${producer.slug}`}>
+                      <a
+                        href={buildManufacturerPath(producer.slug)}
+                        aria-label={`Виробник автозапчастин: ${producer.label}`}
+                        className="catalog-seo-chip"
+                      >
+                        {producer.logoPath && (
+                          <Image
+                            src={producer.logoPath}
+                            alt={`Логотип виробника ${producer.label}`}
+                            width={56}
+                            height={28}
+                            sizes="36px"
+                            loading="lazy"
+                            unoptimized={producer.logoPath.endsWith(".svg")}
+                            className="catalog-seo-chip-logo"
+                          />
+                        )}
+                        <span className="catalog-seo-chip-label">{producer.label}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </nav>
         )}
       </div>

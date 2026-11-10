@@ -79,35 +79,51 @@ const FITMENT_BUDGET_TAIL = " та інших";
 // `budget` chars, whole models only. Makes come first: one model of each
 // make, then the rest in order — a search for any of the makes should find
 // it in the snippet.
-const fitmentList = (groups: ProductFitmentGroup[], budget: number) => {
+//
+// The cars the product name itself names go first: 1C lists makes
+// alphabetically, so a "Комплект ГРМ T5 TOURAN GOLF PASSAT" snippet used to
+// open with "Audi A1, A3…; Seat Alhambra" — not the cars searched for.
+const nameWords = (name: string) =>
+  new Set(name.toLocaleLowerCase("uk-UA").split(/[^\p{L}\p{N}]+/u).filter(word => word.length >= 2 && /\p{L}/u.test(word)));
+const namedFirst = <T,>(items: T[], isNamed: (item: T) => boolean) =>
+  [...items.filter(isNamed), ...items.filter(item => !isNamed(item))];
+
+const fitmentList = (groups: ProductFitmentGroup[], budget: number, productName = "") => {
+  const words = nameWords(productName);
+  const isNamedModel = (model: string) => Array.from(nameWords(model)).some(word => words.has(word));
   const byBrand = new Map<string, string[]>();
   for (const group of groups) {
     const models = byBrand.get(group.brand) ?? [];
     for (const model of group.models) if (!models.includes(model)) models.push(model);
     byBrand.set(group.brand, models);
   }
+  if (words.size > 0) {
+    const brands = namedFirst(Array.from(byBrand), ([brand, models]) =>
+      Array.from(nameWords(brand)).some(word => words.has(word)) || models.some(isNamedModel));
+    byBrand.clear();
+    for (const [brand, models] of brands) byBrand.set(brand, namedFirst(models, isNamedModel));
+  }
   const kept = new Map<string, string[]>(Array.from(byBrand.keys(), brand => [brand, []]));
   const render = () => Array.from(kept)
     .filter(([, models]) => models.length)
     .map(([brand, models]) => `${readableVehicle(brand)} ${models.map(readableVehicle).join(", ")}`)
     .join("; ");
-  const total = Array.from(byBrand.values()).reduce((sum, models) => sum + models.length, 0);
-  let added = 0;
-  for (let round = 0; added < total; round += 1) {
-    let progressed = false;
-    for (const [brand, models] of byBrand) {
-      const model = models[round];
-      if (!model) continue;
-      kept.get(brand)!.push(model);
-      if (render().length + FITMENT_BUDGET_TAIL.length > budget) {
-        kept.get(brand)!.pop();
-        const text = render();
-        return text ? `${text}${FITMENT_BUDGET_TAIL}` : "";
-      }
-      added += 1;
-      progressed = true;
+  // Every named model first, then one model of each make per round.
+  const order: Array<[string, string]> = [];
+  for (const [brand, models] of byBrand) {
+    for (const model of models) if (isNamedModel(model)) order.push([brand, model]);
+  }
+  const rest = new Map(Array.from(byBrand, ([brand, models]) => [brand, models.filter(model => !isNamedModel(model))]));
+  for (let round = 0; Array.from(rest.values()).some(models => round < models.length); round += 1) {
+    for (const [brand, models] of rest) if (models[round]) order.push([brand, models[round]]);
+  }
+  for (const [brand, model] of order) {
+    kept.get(brand)!.push(model);
+    if (render().length + FITMENT_BUDGET_TAIL.length > budget) {
+      kept.get(brand)!.pop();
+      const text = render();
+      return text ? `${text}${FITMENT_BUDGET_TAIL}` : "";
     }
-    if (!progressed) break;
   }
   return render();
 };
@@ -131,10 +147,10 @@ const nameVehicle = (name: string, kind: string) => {
 };
 
 /** Readable vehicle list from a 1C fitment line, within `budget` chars, or "". */
-export const buildFitmentSummary = (fitmentLine: string | undefined, budget: number) => {
+export const buildFitmentSummary = (fitmentLine: string | undefined, budget: number, productName = "") => {
   const line = clean((fitmentLine || "").split(/\r?\n/)[0]);
   const fitment = line ? splitProductFitmentLine(line) : null;
-  return fitment ? fitmentList(fitment.groups, budget) : "";
+  return fitment ? fitmentList(fitment.groups, budget, productName) : "";
 };
 
 // "Комплекти та ремені ГРМ" → "комплекти та ремені ГРМ": abbreviations keep their case.
@@ -165,7 +181,15 @@ export function buildProductMetaDescription(options: ProductDescriptionInput) {
   // recrawls.
   const budget = DESCRIPTION_MAX_LENGTH - DESCRIPTION_ENDING.length - subject.length - " для .".length;
   const fallbackVehicle = nameVehicle(name, kind);
-  const vehicles = (fitment ? fitmentList(fitment.groups, budget) : "")
+  // 1C's fitment line is sometimes cut short and misses the very cars the
+  // name lists ("…T5 TOURAN GOLF PASSAT" fitted to Audi and Seat only): the
+  // named cars lead, the fitment list fills the rest.
+  const words = nameWords(name);
+  const fitmentNamesCar = Boolean(fitment?.groups.some(group =>
+    [group.brand, ...group.models].some(text => Array.from(nameWords(text)).some(word => words.has(word)))));
+  const leadVehicle = fitment && !fitmentNamesCar && fallbackVehicle && fallbackVehicle.length < budget - 12 ? fallbackVehicle : "";
+  const listed = fitment ? fitmentList(fitment.groups, leadVehicle ? budget - leadVehicle.length - 2 : budget, name) : "";
+  const vehicles = (leadVehicle ? [leadVehicle, listed].filter(Boolean).join("; ") : listed)
     || (fallbackVehicle.length <= budget ? fallbackVehicle : "");
   // "Паливний фільтр" already says "Фільтр палива": compare word stems.
   const stems = (text: string) => new Set(text.toLocaleLowerCase("uk-UA").split(/[^\p{L}]+/u).filter(word => word.length >= 4).map(word => word.slice(0, 5)));

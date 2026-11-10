@@ -128,6 +128,16 @@ const IMAGE_BATCH_ENDPOINT_RETRY_TTL_MS = 1000 * 60 * 5;
 const IMAGE_BATCH_ENDPOINT_PROBE_CONCURRENCY = 3;
 let resolvedImageBatchEndpoint: string | null | undefined =
   PREFERRED_IMAGE_BATCH_ENDPOINT;
+// Candidates 1C answered 404 for: the HTTP service has no such URL. Without
+// this, every getimages timeout walked all the others again (~12k 404s a day
+// in the live 1C log, each one holding a 1C worker).
+const missingImageEndpoints = new Set<string>();
+const rememberMissingImageEndpoint = (endpoint: string, status: number) => {
+  if (status === 404 && endpoint !== PREFERRED_IMAGE_BATCH_ENDPOINT) {
+    missingImageEndpoints.add(endpoint);
+  }
+};
+const isImageEndpointAvailable = (endpoint: string) => !missingImageEndpoints.has(endpoint);
 let lastImageBatchEndpointProbeAt = 0;
 
 const safeDecode = (value: string) => {
@@ -602,6 +612,7 @@ const fetchProductImageBase64BatchFromEndpoint = async (
       cacheKey: JSON.stringify({ endpoint, timeoutMs, retries, retryDelayMs, body }),
     }).catch(() => null);
 
+    if (response) rememberMissingImageEndpoint(endpoint, response.status);
     if (!response || response.status < 200 || response.status >= 300) return null;
 
     let payload: unknown;
@@ -698,7 +709,7 @@ const fetchProductImageBase64BatchFromEndpoint = async (
   // landing on the right one. Probe with bounded concurrency instead so the
   // first catalog page after a deploy isn't stuck behind a long serial chain.
   const remainingCandidates = IMAGE_BATCH_ENDPOINT_CANDIDATES.filter(
-    (endpoint) => endpoint !== knownEndpoint
+    (endpoint) => endpoint !== knownEndpoint && isImageEndpointAvailable(endpoint)
   );
   const attempts: Array<{ endpoint: string; body: Record<string, unknown> }> = [];
   for (const endpoint of remainingCandidates) {
@@ -714,6 +725,7 @@ const fetchProductImageBase64BatchFromEndpoint = async (
     while (!winner && cursor < attempts.length) {
       const attempt = attempts[cursor];
       cursor += 1;
+      if (!isImageEndpointAvailable(attempt.endpoint)) continue;
       const result = await tryEndpointBody(attempt.endpoint, attempt.body);
       if (result && !winner) {
         winner = result;
@@ -823,6 +835,7 @@ export const fetchProductImageBase64 = async (
         retryDelayMs,
       }),
     });
+    rememberMissingImageEndpoint(endpoint, response.status);
     if (response.status < 200 || response.status >= 300) return null;
 
     const text = safeTrim(response.text || "");
@@ -894,6 +907,7 @@ export const fetchProductImageBase64 = async (
 
     lookup: for (const endpoint of endpoints) {
       for (const body of queryBodies) {
+        if (!isImageEndpointAvailable(endpoint)) continue lookup;
         const resolved = await loadFromBody(endpoint, body).catch(() => null);
         if (resolved === IMAGE_LOOKUP_FINAL_MISS) break lookup;
         if (typeof resolved === "string" && resolved) {

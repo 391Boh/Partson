@@ -20,7 +20,12 @@ import SmartLink from "app/components/SmartLink";
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
 import { buildVisibleProductName } from "app/lib/product-url";
+import { formatCatalogLabel } from "app/lib/catalog-label-format";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
+
+// 1C labels as people read them ("Комплекти/ Ремені ГРМ" → "Комплекти та
+// ремені ГРМ"); the raw label stays in links and in the search text.
+const visibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
 
 export type GroupsDirectoryItem = {
   label: string;
@@ -64,19 +69,19 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
 
   return groups.flatMap((group) => {
     const rawGroupLabel = group.label;
-    const groupLabel = buildVisibleProductName(group.label);
+    const groupLabel = visibleGroupName(group.label);
     const groupMatches = normalize(`${groupLabel} ${rawGroupLabel}`).includes(query);
 
     const matchedSubgroups = group.subgroups.flatMap((subgroup) => {
       const rawSubgroupLabel = subgroup.label;
-      const subgroupLabel = buildVisibleProductName(subgroup.label);
+      const subgroupLabel = visibleGroupName(subgroup.label);
       const subgroupMatches = normalize(
         `${groupLabel} ${rawGroupLabel} ${subgroupLabel} ${rawSubgroupLabel}`
       ).includes(query);
 
       const matchedChildren = subgroup.children.filter((child) =>
         normalize(
-          `${groupLabel} ${rawGroupLabel} ${subgroupLabel} ${rawSubgroupLabel} ${buildVisibleProductName(
+          `${groupLabel} ${rawGroupLabel} ${subgroupLabel} ${rawSubgroupLabel} ${visibleGroupName(
             child.label
           )} ${child.label}`
         ).includes(query)
@@ -126,7 +131,7 @@ function GroupCategoryCard({
   group: GroupsDirectoryItem;
   prefetchOnViewport?: boolean;
 }) {
-  const visibleGroupLabel = buildVisibleProductName(group.label);
+  const visibleGroupLabel = visibleGroupName(group.label);
   const groupPath = buildGroupPath(group.slug);
   const previewGroups = [...group.subgroups]
     .sort((a, b) => b.productCount - a.productCount)
@@ -167,7 +172,7 @@ function GroupCategoryCard({
           {previewGroups.map((subgroup) => (
             <li key={subgroup.slug}>
               <SmartLink href={buildGroupItemPath(group.slug, subgroup.slug)}>
-                <span>{buildVisibleProductName(subgroup.label)}</span>
+                <span>{visibleGroupName(subgroup.label)}</span>
                 {subgroup.productCount > 0 ? <span className="group-category-card__count">{subgroup.productCount.toLocaleString("uk-UA")}</span> : null}
               </SmartLink>
             </li>

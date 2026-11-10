@@ -155,7 +155,7 @@ const buildProductDescription = (entry: ProductSitemapEntry) => {
     (entry.category || "").trim() ||
     "автозапчастини"
   );
-  const vehicles = buildFitmentSummary(entry.fitment, 400);
+  const vehicles = buildFitmentSummary(entry.fitment, 400, visibleName);
   const availabilityLabel =
     entry.quantity > 0
       ? `В наявності ${entry.quantity} шт.`

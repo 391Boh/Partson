@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { lookupProductDescription } from "app/lib/catalog-server";
+import { lookupProductDescription, lookupProductDescriptionForProduct } from "app/lib/catalog-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,16 +38,20 @@ export async function GET(request: Request) {
   // again. A short server-side cache makes repeat views of the same product
   // (very common — popular parts, re-flipping a card) return instantly,
   // while staying fresh enough after an admin edits a description.
-  const results = await Promise.all(
-    lookupKeys.map((lookupKey) =>
-      lookupProductDescription(lookupKey, {
-        timeoutMs: 1800,
-        retries: 0,
-        retryDelayMs: 150,
-        cacheTtlMs: 1000 * 60 * 5,
-      }).catch(() => ({ description: null, answered: false }))
-    )
-  );
+  //
+  // The timeout sits above 1C's usual ~2s and below the client's 4.5s per
+  // attempt: at 1.8s it landed on 1C's typical latency and failed at random.
+  const lookupOptions = { timeoutMs: 4000, retries: 0, retryDelayMs: 150, cacheTtlMs: 1000 * 60 * 5 };
+  const failedLookup = { description: null, answered: false };
+  // Every caller sends the code first, then the catalog number: 3 targeted
+  // 1C calls instead of 6 role-agnostic ones.
+  const results = lookupKeys.length === 2
+    ? [await lookupProductDescriptionForProduct(lookupKeys[0], lookupKeys[1], lookupOptions).catch(() => failedLookup)]
+    : await Promise.all(
+        lookupKeys.map((lookupKey) =>
+          lookupProductDescription(lookupKey, lookupOptions).catch(() => failedLookup)
+        )
+      );
   // Keys are tried in the caller's order (code first) — the first one with a
   // description wins, so the unique 1C code beats a possibly shared article.
   const description = results.find((result) => Boolean(result.description))?.description ?? null;

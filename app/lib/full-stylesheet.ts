@@ -8,14 +8,21 @@ const FULL_STYLESHEET_MAX_WAIT_MS = 10_000;
 declare global {
   interface Window {
     __partsonCssReady?: Promise<void>;
+    __partsonEnsureCss?: () => void;
   }
 }
 
-export const whenFullStylesheetReady = (): Promise<void> => {
+export const whenFullStylesheetReady = (options?: { priority?: "high" | "low" }): Promise<void> => {
   if (typeof window === "undefined" || !window.__partsonCssReady) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timeout = window.setTimeout(resolve, FULL_STYLESHEET_MAX_WAIT_MS);
-    const done = () => { window.clearTimeout(timeout); resolve(); };
-    window.__partsonCssReady!.then(done, done);
+  // A clicked window or a scrolled-to section should not wait behind an
+  // optional, low-priority stylesheet download. The loader deduplicates this
+  // with its DOMContentLoaded start and keeps the elevated priority on retry.
+  if (options?.priority !== "low") window.__partsonEnsureCss?.();
+  return new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("Не вдалося завантажити оформлення сторінки")), FULL_STYLESHEET_MAX_WAIT_MS);
+    window.__partsonCssReady!.then(
+      () => { window.clearTimeout(timeout); resolve(); },
+      (error: unknown) => { window.clearTimeout(timeout); reject(error); },
+    );
   });
 };
