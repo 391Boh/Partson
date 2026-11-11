@@ -34,7 +34,7 @@ entries.push({ code: 'NO-PHOTO', name: 'Без фото', priceEuro: 10, hasPhot
 entries.push({ code: 'NO-PRICE', name: 'Без ціни', priceEuro: 0, hasPhoto: true });
 const feed = load('app/lib/google-merchant-feed.ts', {
   'server-only': {}, 'app/lib/catalog-server': catalog,
-  'app/lib/product-image-path': { buildProductSeoImagePath: code => `/product-image/${code}` },
+  'app/lib/product-image-variant-path': { buildProductPhotoPath: ({ code }) => `/product-image/${code}/photo/${code}.webp` },
   'app/lib/product-sitemap': { getAllProductSitemapEntries: async () => entries },
   'app/lib/catalog-label-format': { fixCatalogSpelling: value => value, formatCatalogLabel: value => value },
   'app/lib/product-seo-copy': { buildFitmentSummary: () => '' },

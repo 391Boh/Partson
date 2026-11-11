@@ -8,7 +8,9 @@ export default function ProductGalleryThumbnail({ src, alt }: { src: string; alt
   const [attempt, setAttempt] = useState<'preview' | 'original' | 'missing'>('preview');
   const isProductImage = src.startsWith('/product-image/');
   let previewSrc = src;
-  if (isProductImage) {
+  // A stable /product-image/<code>/photo/… URL is the main photo the page
+  // already loaded; reusing it costs nothing and keeps one URL per photo.
+  if (isProductImage && !src.includes('/photo/')) {
     const url = new URL(src, 'http://localhost');
     url.searchParams.set('catalog', '1');
     previewSrc = `${url.pathname}${url.search}`;

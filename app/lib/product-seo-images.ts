@@ -1,12 +1,14 @@
-import { buildProductSeoImagePath } from "./product-image-path";
-import { buildProductImageVariantPath } from "./product-image-variant-path";
+import { buildProductImageVariantPath, buildProductPhotoPath } from "./product-image-variant-path";
+import type { ProductPathInput } from "./product-url";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "./product-image-constants";
 
 export function buildProductSeoImages(options: {
-  siteUrl: string; code: string; article?: string; label: string;
+  siteUrl: string; product: ProductPathInput; label: string;
   hasCatalogPhoto: boolean; gallery?: string[];
 }) {
-  const { siteUrl, code, article, label, hasCatalogPhoto, gallery = [] } = options;
+  const { siteUrl, product, label, hasCatalogPhoto, gallery = [] } = options;
+  const code = (product.code || "").trim();
+  const article = product.article;
   const absolute = (value: string) => {
     try {
       if (!value || value.startsWith("//") || (!value.startsWith("/") && !/^https?:\/\//i.test(value))) return "";
@@ -17,7 +19,7 @@ export function buildProductSeoImages(options: {
     } catch { return ""; }
   };
   const catalog = hasCatalogPhoto && code ? [
-    buildProductSeoImagePath(code, article),
+    buildProductPhotoPath(product),
     ...(["1x1", "4x3", "16x9"] as const).map(ratio => buildProductImageVariantPath(code, ratio, label, article)),
   ] : [];
   const images = [...new Set([...catalog, ...gallery].map(absolute).filter(Boolean))].slice(0, 16);

@@ -33,7 +33,7 @@ import {
 import ProductImageWithFallback from "app/components/ProductImageWithFallback";
 import ProductGallery from "app/components/ProductGallery";
 import { fixCatalogSpelling } from "app/lib/catalog-label-format";
-import { buildProductImageVariantPath } from "app/lib/product-image-variant-path";
+import { buildProductImageVariantPath, buildProductPhotoPath } from "app/lib/product-image-variant-path";
 import { getProductSnapshotFitment } from "app/lib/product-sitemap";
 import ProductIdentitySticky from "app/components/ProductIdentitySticky";
 import ProductSectionNav from "app/components/ProductSectionNav";
@@ -53,9 +53,6 @@ import {
 } from "app/lib/catalog-links";
 import { PRODUCT_IMAGE_FALLBACK_PATH } from "app/lib/product-image-constants";
 import { GOOGLE_MOTOR_VEHICLE_PARTS_CATEGORY } from "app/lib/google-merchant-feed";
-import {
-  buildProductSeoImagePath,
-} from "app/lib/product-image-path";
 import {
   buildLegacyProductNameSlug,
   buildProductPath,
@@ -1054,27 +1051,30 @@ const resolveProductPromoTeaser = cache(
   }
 );
 
-const buildCanonicalProductPath = (
-  product: {
-    code: string;
-    article: string;
-    name: string;
-    producer: string;
-    group?: string;
-    subGroup?: string;
-    category?: string;
-  },
-  fallbackCode: string
-) =>
-  buildProductPath({
-    code: product.code || fallbackCode,
-    article: product.article,
-    name: product.name,
-    producer: product.producer,
-    group: product.group,
-    subGroup: product.subGroup,
-    category: product.category,
-  });
+type CanonicalProductFields = {
+  code: string;
+  article: string;
+  name: string;
+  producer: string;
+  group?: string;
+  subGroup?: string;
+  category?: string;
+};
+
+// The fields that name the product's page; its stable photo URL is named
+// from the same ones, so both always carry the same slug.
+const toCanonicalProductInput = (product: CanonicalProductFields, fallbackCode: string) => ({
+  code: product.code || fallbackCode,
+  article: product.article,
+  name: product.name,
+  producer: product.producer,
+  group: product.group,
+  subGroup: product.subGroup,
+  category: product.category,
+});
+
+const buildCanonicalProductPath = (product: CanonicalProductFields, fallbackCode: string) =>
+  buildProductPath(toCanonicalProductInput(product, fallbackCode));
 
 const extractLookupTokensFromSeoNameSlug = (rawNameSlug: string) => {
   const normalized = safeDecodeURIComponent(rawNameSlug || "").trim().toLowerCase();
@@ -1826,7 +1826,11 @@ export async function generateMetadata({
   const metadataGallery = routeProduct && routeProduct.hasPhoto !== true && (!presence || presence.gallery.has(resolvedCode))
     ? await loadProductPageGallery(resolvedCode) : [];
   const metadataImages = buildProductSeoImages({
-    siteUrl, code: routeProduct?.code || resolvedCode, article: productArticle, label: productImageAlt,
+    siteUrl,
+    product: routeProduct
+      ? toCanonicalProductInput(routeProduct, resolvedCode || fallbackCode)
+      : { code: resolvedCode, article: productArticle },
+    label: productImageAlt,
     hasCatalogPhoto: routeProduct?.hasPhoto === true, gallery: metadataGallery ?? [],
   });
   const productImageUrl = metadataImages.primary || `${siteUrl}${PRODUCT_IMAGE_FALLBACK_PATH}`;
@@ -2299,7 +2303,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // product image in Product/ItemPage structured data.
   const productHasCatalogPhoto = product.hasPhoto === true;
   const productSeoImagePath = productHasCatalogPhoto
-    ? buildProductSeoImagePath(product.code || resolvedCode, product.article)
+    ? buildProductPhotoPath(toCanonicalProductInput(product, resolvedCode))
     : PRODUCT_IMAGE_FALLBACK_PATH;
   const [[reviewStats, initialReviews], galleryResult] = await Promise.all([
     reviewsPromise,
@@ -2308,7 +2312,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // null means unknown (timeout/failure); [] is a confirmed empty gallery.
   const galleryImageUrls = galleryResult ?? [];
   const seoImages = buildProductSeoImages({
-    siteUrl, code: product.code || resolvedCode, article: product.article,
+    siteUrl, product: toCanonicalProductInput(product, resolvedCode),
     label: buildProductImageAlt({ productName: visibleProductName, producer: product.producer, article: product.article }),
     hasCatalogPhoto: productHasCatalogPhoto, gallery: galleryImageUrls,
   });
@@ -2556,6 +2560,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         productCode={product.code || resolvedCode}
                         articleHint={product.article}
                         hasKnownPhoto={productHasCatalogPhoto}
+                        stableSrc={productHasCatalogPhoto ? productSeoImagePath : undefined}
                         fallbackSrc={!productHasCatalogPhoto ? seoImages.primary : undefined}
                         preferCachedPreview
                         syncWithProductGallery

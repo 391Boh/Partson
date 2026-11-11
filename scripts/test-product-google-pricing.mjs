@@ -50,7 +50,7 @@ assert.equal((await stat(path.join(root,'google-merchant-feed.xml'))).mode & 0o7
 const index=JSON.parse(await readFile(path.join(root,'product-sitemap-entries.json'),'utf8'));assert.equal(index.count,1);assert.equal(index.entries[0].priceEuro,6.93,'Feed and product page snapshots are published together');
 await writeFile(path.join(root,'google-merchant-feed.xml'),xml+'broken');assert.equal(await store.readMerchantFeedSnapshot(root),null,'Partial/concurrent writes never expose mismatched prices');
 
-let lastmodTime=Date.parse('2026-11-02T12:00:00Z');
+let lastmodTime=Date.parse('2026-11-12T12:00:00Z');
 class LastmodDate extends Date{constructor(...args){super(args.length?args[0]:lastmodTime);}static now(){return lastmodTime;}}
 const lastmod=load('app/lib/product-sitemap-lastmod.ts',{
   'server-only':{},'node:path':path,'node:fs/promises':{readFile:async()=>{throw new Error('empty test store');},mkdir:async()=>{},writeFile:async()=>{}},

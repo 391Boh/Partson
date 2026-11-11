@@ -2,7 +2,7 @@ import "server-only";
 
 import type { CatalogProduct } from "app/lib/catalog-server";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { escapeTelegramHtml, formatOrderMoney } from "app/lib/telegram-order-message";
 
 // Same in-stock/on-order language the catalog product card
@@ -23,7 +23,7 @@ export const buildProductUrl = (siteUrl: string, product: CatalogProduct) =>
   })}`;
 
 export const buildProductImageUrl = (siteUrl: string, product: CatalogProduct) =>
-  `${siteUrl}${buildProductSeoImagePath(product.code, product.article)}`;
+  `${siteUrl}${buildProductImagePath(product.code, product.article, { noFallback: true })}`;
 
 export const formatProductCaption = (
   product: CatalogProduct,

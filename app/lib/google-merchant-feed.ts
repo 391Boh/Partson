@@ -5,7 +5,7 @@ import {
   fetchPriceEuroMapByLookupKeys,
   toPriceUah,
 } from "app/lib/catalog-server";
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
+import { buildProductPhotoPath } from "app/lib/product-image-variant-path";
 import {
   getAllProductSitemapEntries,
   type ProductSitemapEntry,
@@ -426,10 +426,18 @@ const toGoogleMerchantFeedItem = (
   if (entry.hasPhoto !== true) return null;
 
   const article = (entry.article || "").trim() || undefined;
+  const productInput = {
+    code,
+    article,
+    name: entry.name,
+    producer: entry.producer,
+    group: entry.group,
+    subGroup: entry.subGroup,
+    category: entry.category,
+  };
   // Same stable URL as the product's JSON-LD, og:image and image sitemap, so
-  // Merchant Center and Search see one URL per photo (a `retry` variant only
-  // bypassed the route's disk cache and split the image into two URLs).
-  const imagePath = buildProductSeoImagePath(code, article);
+  // Merchant Center and Search see one URL per photo.
+  const imagePath = buildProductPhotoPath(productInput);
 
   // Brand + article first: buyers on Shopping search by exactly that
   // ("bosch 0986424815"), and Google's own matching against its GTIN/MPN
@@ -444,15 +452,7 @@ const toGoogleMerchantFeedItem = (
     id: code,
     title,
     description: buildProductDescription(entry),
-    link: `${siteUrl}${buildProductPath({
-      code,
-      article,
-      name: entry.name,
-      producer: entry.producer,
-      group: entry.group,
-      subGroup: entry.subGroup,
-      category: entry.category,
-    })}`,
+    link: `${siteUrl}${buildProductPath(productInput)}`,
     imageLink: `${siteUrl}${imagePath}`,
     additionalImageLinks: (galleryImages.get(code) ?? [])
       .map((url) =>

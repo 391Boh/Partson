@@ -16,7 +16,8 @@ const LASTMOD_PATH = path.join(process.cwd(), ".cache/product-sitemap-lastmod.js
 // Bump when the product page's markup changes for every product at once
 // (e.g. new structured data): no product's lastmod is older than this.
 // 2026-11-02: consistent public prices and real product/gallery image schema.
-const PRODUCT_PAGE_REVISED_AT = "2026-11-02T00:00:00.000Z";
+// 2026-11-11: one stable, named photo URL in the page, JSON-LD and og:image.
+const PRODUCT_PAGE_REVISED_AT = "2026-11-11T00:00:00.000Z";
 
 type LastmodRecord = { f: string; d: string; priceUah?: number | null };
 

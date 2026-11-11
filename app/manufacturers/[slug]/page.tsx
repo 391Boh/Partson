@@ -63,8 +63,8 @@ import { fetchProductImageBase64Batch } from "app/lib/product-image";
 import {
   buildProductImageBatchKey,
   buildProductImagePath,
-  buildProductSeoImagePath,
 } from "app/lib/product-image-path";
+import { buildProductPhotoPath } from "app/lib/product-image-variant-path";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getProducerSeoCopy, isIndexableManufacturerPage } from "app/lib/seo-copy";
@@ -1289,7 +1289,7 @@ export async function generateMetadata({
     resolveProducerSocialImage(producer.label, producer.logoPath) ??
     (productPhoto
       ? {
-          url: buildProductSeoImagePath(productPhoto.code, productPhoto.article),
+          url: buildProductPhotoPath(productPhoto),
           alt: `${buildVisibleProductName(productPhoto.name)} — ${producer.label}`,
         }
       : null);

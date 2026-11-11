@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
+import { buildProductImagePath } from "app/lib/product-image-path";
 
 // Mirrors the read/shipped/completed boolean model Order.tsx and
 // AdminChatPanel.tsx already use for orders — there is no separate status
@@ -108,7 +108,7 @@ export const formatOrderItemsList = (
 export const getOrderPrimaryImageUrl = (order: OrderFields, siteUrl: string) => {
   const firstItem = order.cartItems?.[0];
   if (!firstItem?.code) return null;
-  return `${siteUrl}${buildProductSeoImagePath(firstItem.code, firstItem.article)}`;
+  return `${siteUrl}${buildProductImagePath(firstItem.code, firstItem.article, { noFallback: true })}`;
 };
 
 // Used both by /orders (a list of these, one per order) and by the

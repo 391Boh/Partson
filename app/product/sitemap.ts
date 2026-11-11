@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { fetchConfirmedEuroRate } from "app/lib/catalog-server";
 
 import { getMerchantGalleryImages } from "app/lib/google-merchant-feed";
-import { buildProductSeoImagePath } from "app/lib/product-image-path";
+import { buildProductPhotoPath } from "app/lib/product-image-variant-path";
 import { buildProductPath } from "app/lib/product-url";
 import {
   getPricedProductEntriesBySitemapId,
@@ -77,7 +77,7 @@ export default async function sitemap(props: {
         return null;
       }
 
-      const productPath = buildProductPath({
+      const productInput = {
         code: normalizedCode,
         article: entry.article ?? undefined,
         name: entry.name ?? undefined,
@@ -85,7 +85,8 @@ export default async function sitemap(props: {
         group: entry.group ?? undefined,
         subGroup: entry.subGroup ?? undefined,
         category: entry.category ?? undefined,
-      });
+      };
+      const productPath = buildProductPath(productInput);
       // Same order as the page: the primary photo, then the gallery ones.
       const galleryUrls = (galleryImages.get(normalizedCode) ?? [])
         .map((url) =>
@@ -98,10 +99,7 @@ export default async function sitemap(props: {
           ? undefined
           : [
               escapeXmlUrl(
-                `${siteUrl}${buildProductSeoImagePath(
-                  normalizedCode,
-                  entry.article ?? undefined
-                )}`
+                `${siteUrl}${buildProductPhotoPath(productInput)}`
               ),
               ...galleryUrls,
             ];

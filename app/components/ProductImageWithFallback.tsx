@@ -34,6 +34,8 @@ interface ProductImageWithFallbackProps {
   productCode?: string;
   articleHint?: string;
   hasKnownPhoto?: boolean;
+  // The photo's stable, crawlable URL; used until an admin replaces the photo.
+  stableSrc?: string;
   fallbackSrc?: string;
   preferCachedPreview?: boolean;
   variant?: "full" | "catalog";
@@ -69,6 +71,7 @@ export default function ProductImageWithFallback({
   productCode,
   articleHint,
   hasKnownPhoto = true,
+  stableSrc = "",
   fallbackSrc = "",
   preferCachedPreview = true,
   variant = "full",
@@ -85,14 +88,16 @@ export default function ProductImageWithFallback({
 
   const primarySrc = useMemo(
     () =>
-      (hasKnownPhoto || cacheBustToken) && normalizedProductCode
+      stableSrc && !cacheBustToken
+        ? stableSrc
+        : (hasKnownPhoto || cacheBustToken) && normalizedProductCode
         ? buildProductImagePath(normalizedProductCode, normalizedArticleHint || undefined, {
             catalog: variant === "catalog",
             noFallback: true,
             cacheBust: cacheBustToken || undefined,
           })
         : fallbackSrc,
-    [cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant, fallbackSrc]
+    [stableSrc, cacheBustToken, hasKnownPhoto, normalizedProductCode, normalizedArticleHint, variant, fallbackSrc]
   );
   const recoverySrc = useMemo(
     () =>
