@@ -5,17 +5,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
-import {
-  ArrowUpRight,
-  BadgeCheck,
-  Car,
-  CreditCard,
-  ListTree,
-  MapPin,
-  Phone,
-  Tags,
-  Truck,
-} from "lucide-react";
+import { ArrowUpRight, BadgeCheck, Car, ListTree, MapPin, Phone, Tags, Truck } from "lucide-react";
 import CatalogCountDigits from "app/components/CatalogCountDigits";
 import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import VinOpenButton from "app/katalog/VinOpenButton";
@@ -600,10 +590,8 @@ const CatalogSeoSnapshot = async ({
               ? `${state.group}: пошук запчастин за артикулом, кодом та виробником, перевірка сумісності за VIN, оригінали й аналоги у наявності, актуальні ціни в PartsON.`
               : `Каталог автозапчастин PartsON: пошук за артикулом, кодом OEM, назвою та виробником. Оригінальні та аналогові деталі від перевірених постачальників. Підбір за VIN-номером, перевірка сумісності, актуальні ціни та наявність онлайн.`;
 
-  // Address/phone are already real links in the .catalog-seo-contacts row
-  // below, so this block covers what isn't shown there — payment and
-  // fulfilment — as its own real links (see catalogSeoServiceLinks) instead
-  // of restating the same address/hours copy as plain text a second time.
+  // Address, phone and delivery are real links in the .catalog-seo-contacts
+  // row below, so this text does not restate them.
   const seoText2 = state.searchQuery
     ? `PartsON — магазин автозапчастин у Львові: консультація спеціалістів, широкий асортимент оригінальних і аналогових деталей, швидке оформлення замовлення.`
     : state.producer
@@ -611,12 +599,6 @@ const CatalogSeoSnapshot = async ({
       : state.group
         ? `Консультація з підбору «${state.group}», допомога у визначенні артикулу та допомога з оформленням замовлення.`
         : `PartsON — магазин автозапчастин у Львові. Консультація спеціалістів з підбору деталей та допомога з визначенням артикулу чи OEM-коду.`;
-
-  const catalogSeoServiceLinks: Array<{ href: string; label: string; icon: typeof MapPin }> = [
-    { href: "/inform/location", label: "Самовивіз у Львові", icon: MapPin },
-    { href: "/inform/delivery", label: "Доставка Новою Поштою", icon: Truck },
-    { href: "/inform/payment", label: "Оплата та розрахунок", icon: CreditCard },
-  ];
 
   const countLabel = hasExactCount
     ? "Усього за фільтром"
@@ -706,16 +688,6 @@ const CatalogSeoSnapshot = async ({
                     Магазин та доставка
                   </h2>
                   <p>{seoText2}</p>
-                  <ul className="catalog-seo-copy-links">
-                    {catalogSeoServiceLinks.map(({ href, label, icon: LinkIcon }) => (
-                      <li key={href}>
-                        <Link href={href}>
-                          <LinkIcon size={12} aria-hidden />
-                          {label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
                 </section>
               </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import Image from "next/image";
 import { ArrowRight, Calendar, Car, Loader2, SlidersHorizontal, Search, X } from "lucide-react";
 
@@ -79,7 +80,7 @@ const ModelCard = memo(function ModelCard({
   return (
     <SmartLink
       href={modelHref}
-      aria-label={`Відкрити групи запчастин для ${brand} ${model.name}`}
+      aria-label={`Відкрити групи запчастин для ${brand} ${fixCatalogSpelling(model.name)}`}
       prefetchOnViewport={prefetchOnViewport}
       className={`${directoryCardClass} min-h-[100px]`}
     >
@@ -95,7 +96,7 @@ const ModelCard = memo(function ModelCard({
 
         <div className="min-w-0 flex-1">
           <p className="directory-card-title line-clamp-2 break-words text-[16px] leading-snug text-slate-900">
-            {model.name}
+            {fixCatalogSpelling(model.name)}
           </p>
           <span className="directory-model-year">
           {yearLabel ? (
@@ -177,7 +178,7 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
   const filteredModels = useMemo(
     () =>
       normalizedQuery
-        ? modelsWithYears.filter((model) => normalize(model.name).includes(normalizedQuery))
+        ? modelsWithYears.filter((model) => normalize(`${model.name} ${fixCatalogSpelling(model.name)}`).includes(normalizedQuery))
         : modelsWithYears,
     [modelsWithYears, normalizedQuery]
   );

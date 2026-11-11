@@ -1304,7 +1304,7 @@ const AutoSection: React.FC<AutoProps> = ({
           an overflow:auto ancestor. This outer hidden box is the guaranteed
           backstop so the glow never visibly escapes the brand list. */}
       {filteredBrands.length === 0 ? (
-        <div className="mt-4 py-8 text-center text-sm text-slate-400">
+        <div className="home-picker-track-shell home-picker-empty" role="status">
           За цим запитом марок не знайдено.
         </div>
       ) : (
@@ -1531,20 +1531,14 @@ const AutoSection: React.FC<AutoProps> = ({
                     unit={pluralWord(filteredBrands.length, "марка", "марки", "марок")}
                     tone="indigo"
                   >
-                  <AnimatePresence key={selectedBrand?.name ?? "brands"} mode="wait" initial={false}>
+                  <div key={selectedBrand?.name ?? "brands"}>
                     {!isSearchOpen ? (
                       // "Усі марки автомобілів" used to sit right beside this
                       // trigger as a second button — moved down next to the
                       // brand grid's own pager instead (see useFixedBrandTable
                       // near the SectionPagination below), since that's the
                       // control it's actually paired with.
-                      <motion.div
-                        key="buttons"
-                        initial={shouldReduceMotion ? false : { opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-                        transition={{ duration: shouldReduceMotion ? 0 : 0.14, ease: [0.16, 1, 0.3, 1] }}
-                      >
+                      <div key="buttons">
                         <button
                           type="button"
                           onClick={(event) => {
@@ -1570,15 +1564,9 @@ const AutoSection: React.FC<AutoProps> = ({
                             className="shrink-0 text-indigo-400 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                           />
                         </button>
-                      </motion.div>
+                      </div>
                     ) : (
-                      <motion.div
-                        key="field"
-                        initial={shouldReduceMotion ? false : { opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-                        transition={{ duration: shouldReduceMotion ? 0 : 0.14, ease: [0.16, 1, 0.3, 1] }}
-                      >
+                      <div key="field">
                         <AutoBrandSearchInput
                           key={selectedBrand ? "model" : "brand"}
                           defaultValue={selectedBrand ? modelSearchTerm : searchTerm}
@@ -1600,9 +1588,9 @@ const AutoSection: React.FC<AutoProps> = ({
                           }
                           onCollapse={() => setIsSearchOpen(false)}
                         />
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
+                  </div>
                   </HomePickerSearchControl>}
                   </div>
                 <motion.div

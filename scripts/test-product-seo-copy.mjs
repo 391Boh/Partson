@@ -28,6 +28,8 @@ const spelled = {
   'Масло 5W-30 4л': 'Масло 5W-30 4л',
   'Сайлентблок В 2шт': 'Сайлентблок В 2шт',
   'Шрус ВАЗ 2108': 'Шрус ВАЗ 2108',
+  'A1 I Рестайлинг': 'A1 I Рестайлінг',
+  'C30 I рестайлинг 2': 'C30 I рестайлінг 2',
 };
 for (const [input, expected] of Object.entries(spelled)) assert.equal(fixCatalogSpelling(input), expected, input);
 

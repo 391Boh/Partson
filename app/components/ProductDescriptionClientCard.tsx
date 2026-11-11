@@ -12,7 +12,6 @@ type ProductDescriptionClientCardProps = {
   descriptionTextClass: string;
   chatButton?: ReactNode;
   enableClientLookup?: boolean;
-  fitmentText?: string;
   // Model pages for the fitment chips (server-resolved).
   modelLinks?: Record<string, string>;
   // The server already looked the description up in 1C and found none.
@@ -43,7 +42,6 @@ export default function ProductDescriptionClientCard({
   descriptionTextClass,
   chatButton,
   enableClientLookup = true,
-  fitmentText = "",
   modelLinks,
   serverChecked = false,
 }: ProductDescriptionClientCardProps) {
@@ -310,16 +308,6 @@ export default function ProductDescriptionClientCard({
           </p>
         )}
       </div>
-      {fitmentText ? (
-        <div className="mt-4 rounded-[14px] border border-[#e1edf1] bg-[#f6fafb] px-4 py-3">
-          <h3 className="text-[14px] font-bold text-slate-900">
-            Підбір і сумісність
-          </h3>
-          <p className="mt-1.5 text-[13.5px] font-medium leading-[1.62] text-slate-700 sm:text-sm">
-            {fitmentText}
-          </p>
-        </div>
-      ) : null}
     </section>
   );
 }

@@ -815,15 +815,9 @@ export default function BrandCarousel({
                 unit={pluralizeManufacturers(filteredBrands.length)}
                 tone="blue"
               >
-              <AnimatePresence mode="wait" initial={false}>
+              <div>
                 {!isSearchOpen ? (
-                  <motion.div
-                    key="buttons"
-                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                  >
+                  <div key="buttons">
                     <button
                       type="button"
                       onClick={(event) => {
@@ -847,19 +841,13 @@ export default function BrandCarousel({
                         className="shrink-0 text-blue-400 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                       />
                     </button>
-                  </motion.div>
+                  </div>
                 ) : (
-                  <motion.div
-                    key="field"
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                  >
+                  <div key="field">
                     <BrandSearchInput defaultValue={search} onChange={setSearch} onCollapse={() => setIsSearchOpen(false)} />
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
+              </div>
               </HomePickerSearchControl>
               </div>
             </div>
@@ -873,17 +861,6 @@ export default function BrandCarousel({
                   transition={{ duration: shouldReduceMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <BrandInfoPanel brand={selectedBrand} onClose={() => setSelectedBrand(null)} />
-                </motion.div>
-              ) : filteredBrands.length === 0 ? (
-                <motion.div
-                  key="empty-search"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex min-h-[200px] items-center justify-center text-center text-sm text-slate-600"
-                >
-                  {"За цим запитом виробників не знайдено."}
                 </motion.div>
               ) : (
                 <motion.div
@@ -934,7 +911,12 @@ export default function BrandCarousel({
                     </SmartLink>
                   </div>
 
-                  <div className="home-picker-track-shell">
+                  <div className="home-picker-track-shell relative">
+                  {filteredBrands.length === 0 && (
+                    <div className="home-picker-empty" role="status">
+                      За цим запитом виробників не знайдено.
+                    </div>
+                  )}
                   <div
                     ref={attachBrandPages}
                     onScroll={handleBrandPagesScroll}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
@@ -181,7 +182,7 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
       itemListElement: models.slice(0, 200).map((model, index) => ({
         "@type": "ListItem",
         position: index + 1,
-        name: model.name,
+        name: fixCatalogSpelling(model.name),
         url: `${siteUrl}${buildAutoModelPath(brand.name, model.name)}`,
       })),
     },

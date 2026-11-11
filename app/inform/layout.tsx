@@ -46,7 +46,9 @@ export const metadata: Metadata = {
 // 'self' still holds).
 const readingFont = Onest({
   subsets: ["cyrillic", "latin"],
-  display: "swap",
+  // A slow reading-font download must not rewrap an article after paint.
+  // The preloaded face is used on fast loads; a slow visit keeps its fallback.
+  display: "optional",
   variable: "--font-reading",
 });
 

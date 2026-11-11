@@ -90,7 +90,7 @@ export default function ProductCompactRecommendationCard({
           <span className="block truncate text-[11px] font-extrabold uppercase leading-4 tracking-[0.06em] text-slate-500">
             {item.producer || "Товар"}
           </span>
-          <p title={item.article || item.code} className="mt-0.5 truncate text-[11px] font-medium leading-4 text-slate-400">{item.article || item.code}</p>
+          <p title={item.article || item.code} className="mt-0.5 truncate text-[11px] font-medium leading-4 text-slate-500">{item.article || item.code}</p>
           <p
             title={stockLabel(item.quantity)}
             className={`mt-1 flex min-w-0 items-center gap-1.5 text-[12px] font-semibold leading-4 ${

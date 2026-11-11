@@ -698,7 +698,7 @@ export default function ProductPurchasePanelClient(
                   <span className="font-bold tabular-nums text-emerald-700"> · {quantity} шт.</span>
                 ) : null}
               </span>
-              <span className={`product-purchase-stock-note block font-medium ${isInStock ? "text-emerald-800/80" : "text-amber-800/80"}`}>
+              <span className={`product-purchase-stock-note block font-medium ${isInStock ? "text-emerald-800" : "text-amber-800"}`}>
                 {isInStock ? "Відправимо після підтвердження" : "Уточнимо термін постачання"}
               </span>
             </span>

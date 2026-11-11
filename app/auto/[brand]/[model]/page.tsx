@@ -1,4 +1,5 @@
 import DirectoryCollection from "app/components/DirectoryCollection";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import type { Metadata } from "next";
@@ -141,17 +142,25 @@ const formatSystems = (systems: string[], limit = 3) => {
 
 // Title: the query ("запчастини opel astra h") first, then years and the
 // count that makes the result worth clicking.
+// The car list comes from 1C in Russian spelling ("Рестайлинг"); names stay
+// as keys for URLs and searches, only the text people read is Ukrainian.
+const displayModel = (model: string) => fixCatalogSpelling(model);
+
+// " | PartsON" is appended by the layout; Google cuts titles past ~65 chars,
+// so the count and then "ціни" give way before the model and years do.
+const MODEL_TITLE_MAX_LENGTH = 65 - " | PartsON".length;
 const buildModelTitle = (brand: string, model: string, facts: ModelSeoFacts) => {
   const years = formatModelYears(facts.years);
-  const name = `Запчастини ${brand} ${model}${years ? ` ${years}` : ""}`;
-  return facts.products > 0
-    ? `${name}: ціни, ${formatCount(facts.products)} ${pluralize(facts.products, "товар", "товари", "товарів")}`
-    : `${name}: підбір і ціни`;
+  const name = `Запчастини ${brand} ${displayModel(model)}${years ? ` ${years}` : ""}`;
+  const candidates = facts.products > 0
+    ? [`${name}: ціни, ${formatCount(facts.products)} ${pluralize(facts.products, "товар", "товари", "товарів")}`, `${name}: ціни`, name]
+    : [`${name}: підбір і ціни`, name];
+  return candidates.find((title) => title.length <= MODEL_TITLE_MAX_LENGTH) ?? name;
 };
 
 const buildModelGroupsDescription = (brand: string, model: string, facts: ModelSeoFacts) => {
   const years = formatModelYears(facts.years);
-  const car = `${formatCarBrandWithCyrillic(brand)} ${model}${years ? ` (${years})` : ""}`;
+  const car = `${formatCarBrandWithCyrillic(brand)} ${displayModel(model)}${years ? ` (${years})` : ""}`;
   if (facts.products === 0) {
     return `Запчастини для ${car}: підбір деталей за моделлю та VIN, оригінали й аналоги з цінами в каталозі PartsON. Доставка по Україні, самовивіз у Львові.`;
   }
@@ -483,7 +492,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
   const modelPath = buildAutoModelPath(brand, model);
   const allProductsPath = buildCatalogCarSearchPath(searchTerm);
   // Matches the query shape ("запчастини audi a4"), same as the empty-state heading.
-  const title = `Запчастини ${brand} ${model}`;
+  const title = `Запчастини ${brand} ${displayModel(model)}`;
   const yearsText = formatModelYears(years);
   const pageDescription = buildModelGroupsDescription(brand, model, {
     years,
@@ -510,7 +519,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             <ChevronRight size={14} aria-hidden="true" />
           </li>
           <li>
-            <span aria-current="page">{model}</span>
+            <span aria-current="page">{displayModel(model)}</span>
           </li>
         </ol>
       </nav>
@@ -597,7 +606,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
                     <div className="min-w-0">
                       <h1 className="directory-heading-hero text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
-                        Запчастини для {brand} {model}
+                        Запчастини для {brand} {displayModel(model)}
                       </h1>
                       <p className="model-hero-lead mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600 sm:text-[15px]">
                         {breakdownStatus === "unavailable"
@@ -615,8 +624,8 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                           Відкрити каталог
                         </SmartLink>
                         <OpenChatButton
-                          message={`Добрий день! Допоможіть підібрати запчастини для ${brand} ${model}.`}
-                          title={`Написати в чат щодо ${brand} ${model}`}
+                          message={`Добрий день! Допоможіть підібрати запчастини для ${brand} ${displayModel(model)}.`}
+                          title={`Написати в чат щодо ${brand} ${displayModel(model)}`}
                           label="Написати в чат"
                           className={directorySecondaryButtonClass}
                         />
@@ -691,11 +700,11 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
       url: `${siteUrl}${modelPath}/opengraph-image/card`,
       width: 1200,
       height: 630,
-      caption: `Запчастини ${brand} ${model}`,
+      caption: `Запчастини ${brand} ${displayModel(model)}`,
     },
     mainEntity: {
       "@type": "ItemList",
-      name: `Групи запчастин для ${brand} ${model}`,
+      name: `Групи запчастин для ${brand} ${displayModel(model)}`,
       numberOfItems: groups.length,
       itemListElement: groups.map((group, index) => ({
         "@type": "ListItem",
@@ -748,7 +757,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     {yearsText ? <span className="model-hero-years"> {yearsText}</span> : null}
                   </h1>
                   <p className="model-hero-lead mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
-                    У каталозі PartsON для {formatCarBrandWithCyrillic(brand)} {model} —{" "}
+                    У каталозі PartsON для {formatCarBrandWithCyrillic(brand)} {displayModel(model)} —{" "}
                     <strong>
                       {formatCount(totalProducts)} {pluralize(totalProducts, "товар", "товари", "товарів")}
                     </strong>{" "}
@@ -761,7 +770,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                       <>
                         {" "}
                         <strong>{formatCount(fitmentProducts.total)}</strong>{" "}
-                        {pluralize(fitmentProducts.total, "деталь має", "деталі мають", "деталей мають")} сумісність із {model},
+                        {pluralize(fitmentProducts.total, "деталь має", "деталі мають", "деталей мають")} сумісність із {displayModel(model)},
                         підтверджену в описі.
                       </>
                     ) : null}{" "}
@@ -777,10 +786,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
             <div className={directoryHeaderClass}>
               <div className="max-w-4xl">
                 <h2 id="auto-model-groups-title" className={directoryTitleClass}>
-                  Каталог запчастин {brand} {model} за системами авто
+                  Каталог запчастин {brand} {displayModel(model)} за системами авто
                 </h2>
                 <p className={directoryDescriptionClass}>
-                  Відкрийте систему авто й оберіть групу — каталог одразу відфільтрується під {model}.
+                  Відкрийте систему авто й оберіть групу — каталог одразу відфільтрується під {displayModel(model)}.
                 </p>
               </div>
             </div>
@@ -824,10 +833,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               <div className={directoryHeaderClass}>
                 <div className="max-w-4xl">
                   <h2 id="auto-model-fitment-title" className={directoryTitleClass}>
-                    Деталі з підтвердженою сумісністю для {brand} {model}
+                    Деталі з підтвердженою сумісністю для {brand} {displayModel(model)}
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    У застосуванні цих деталей вказано {brand} {model}
+                    У застосуванні цих деталей вказано {brand} {displayModel(model)}
                     {fitmentProducts.total > fitmentProducts.items.length
                       ? ` — показано ${fitmentProducts.items.length} з ${formatCount(fitmentProducts.total)}`
                       : ""}
@@ -849,7 +858,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                   </h2>
                   <p className={directoryDescriptionClass}>
                     Це пошукові збіги за назвою моделі, а не перевірена сумісність із {brand}{" "}
-                    {model}: у назві може бути інше покоління чи модифікація. Перед
+                    {displayModel(model)}: у назві може бути інше покоління чи модифікація. Перед
                     замовленням звірте деталь за артикулом або VIN.
                   </p>
                 </div>
@@ -860,9 +869,9 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
           <CatalogSeoTextSection
             contained={false}
-            badge={`Підбір для ${brand} ${model}`}
-            title={`Запчастини для ${brand} ${model}: від групи до точної деталі`}
-            lead={`Для ${brand} ${model} знайдено ${formatCount(totalProducts)} товарів у ${formatCount(groups.length)} групах. Оберіть систему автомобіля, щоб відкрити вже звужений каталог.`}
+            badge={`Підбір для ${brand} ${displayModel(model)}`}
+            title={`Запчастини для ${brand} ${displayModel(model)}: від групи до точної деталі`}
+            lead={`Для ${brand} ${displayModel(model)} знайдено ${formatCount(totalProducts)} товарів у ${formatCount(groups.length)} групах. Оберіть систему автомобіля, щоб відкрити вже звужений каталог.`}
             topics={[
               {
                 title: "Групи для моделі",
@@ -881,11 +890,11 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
               },
             ]}
             paragraphs={[
-              `Каталог для ${brand} ${model} побудований від загальних систем автомобіля до конкретних підгруп. Така структура допомагає швидше перейти до гальмівної системи, деталей двигуна, підвіски, електрики чи іншого потрібного розділу.`,
+              `Каталог для ${brand} ${displayModel(model)} побудований від загальних систем автомобіля до конкретних підгруп. Така структура допомагає швидше перейти до гальмівної системи, деталей двигуна, підвіски, електрики чи іншого потрібного розділу.`,
               "Кількість знайдених товарів показує поточне наповнення каталогу. Перед оформленням замовлення звірте OEM-номер, технічні параметри та застосовність деталі до конкретної модифікації автомобіля.",
             ]}
             links={[
-              { href: allProductsPath, label: `Усі товари для ${model}` },
+              { href: allProductsPath, label: `Усі товари для ${displayModel(model)}` },
               { href: brandPath, label: `Інші моделі ${brand}` },
               { href: "/groups", label: "Усі групи запчастин" },
             ]}

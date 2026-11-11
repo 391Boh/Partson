@@ -36,3 +36,6 @@ public/group-previews/
 build.log
 *.swp
 *.swo
+
+# Local test screenshots and audits
+/output/

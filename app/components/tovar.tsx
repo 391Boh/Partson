@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from "react"
 import Image from "next/image";
 import Link from "next/link";
 import { fetchCatalogTree } from "app/lib/onec-proxy-client";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { ProductNode } from "./FlipCard";
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { useSectionReveal } from "app/lib/use-section-reveal";
@@ -1096,15 +1096,9 @@ const ProductFetcher: React.FC<Props> = ({
                     : pluralWord(browseNodes.length, "категорія", "категорії", "категорій")}
                   tone="sky"
                 >
-                <AnimatePresence mode="wait" initial={false}>
+                <div>
                   {!isSearchOpen ? (
-                    <motion.div
-                      key="buttons"
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    >
+                    <div key="buttons">
                       <button
                         type="button"
                         onClick={(event) => {
@@ -1128,27 +1122,21 @@ const ProductFetcher: React.FC<Props> = ({
                           className="shrink-0 text-sky-500 transition-transform duration-200 ease-out group-hover/trigger:translate-x-1"
                         />
                       </button>
-                    </motion.div>
+                    </div>
                   ) : (
-                    <motion.div
-                      key="field"
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
-                    >
+                    <div key="field">
                       <ProductSearchInput
                         searchTerm={searchTerm}
                         onSearchChange={setSearchTerm}
                         suggestions={searchSuggestions}
                         onCollapse={() => setIsSearchOpen(false)}
                       />
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
+                </div>
                 </HomePickerSearchControl>
               </div>
-        {filteredGroups.length > 0 ? (
+        {filteredGroups.length > 0 || (!showSkeleton && !productLoadError) ? (
           <div className="home-picker-carousel home-category-cards relative px-1 pb-4 pt-2 sm:px-2 sm:pb-5 sm:pt-2.5">
 <SectionPagination
               page={page}

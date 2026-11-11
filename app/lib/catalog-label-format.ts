@@ -24,6 +24,8 @@ const STEM_FIXES: Array<[RegExp, string]> = [
   [/(?<![\p{L}])катушк/giu, "котушк"],
   [/(?<![\p{L}])сайлент\s+блок/giu, "сайлентблок"],
   [/(?<![\p{L}])гідро\s+підсилювач/giu, "гідропідсилювач"],
+  // The 1C car list spells facelifts the Russian way.
+  [/(?<![\p{L}])рестайлинг(?![\p{L}])/giu, "рестайлінг"],
 ];
 
 // Whole labels whose wording, not just spelling, needs fixing.

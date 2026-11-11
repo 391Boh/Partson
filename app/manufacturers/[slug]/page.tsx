@@ -358,10 +358,13 @@ const rankManufacturerSeoGroups = (groups: ManufacturerSeoGroup[]) =>
 const buildManufacturerTitle = (label: string, groups: ManufacturerSeoGroup[] = []) => {
   const name = normalizeValue(label);
   const [first, second] = rankManufacturerSeoGroups(groups);
+  // Brand searches read "caffaro каталог", "continental інтернет магазин":
+  // the word "каталог" leads, the biggest groups follow when they fit.
   const tails = [
-    ...(first && second ? [`: ${first}, ${second} — ціни`, `: ${first}, ${second}`] : []),
-    ...(first ? [`: ${first} — купити, ціни`, `: ${first} — ціни`, `: ${first}`] : []),
-    " — запчастини у Львові",
+    ...(first && second ? [` — каталог: ${first}, ${second}`] : []),
+    ...(first ? [` — каталог запчастин: ${first}`, ` — каталог: ${first}`] : []),
+    " — каталог запчастин, ціни у Львові",
+    " — каталог запчастин",
   ];
   return buildFirstFittingSeoTitle(name, tails);
 };

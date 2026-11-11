@@ -2,7 +2,6 @@ import { ArrowRight, MapPin, MessageCircle, Star } from "lucide-react";
 import StoreVirtualTour from "./StoreVirtualTour";
 import StoreLocationMap from "./StoreLocationMap";
 import { STORE_TOUR_EMBED_URL, STORE_TOUR_URL } from "app/lib/store-virtual-tour";
-import OpenChatButton from "./OpenChatButton";
 import SectionRevealAdvantages from "./SectionRevealAdvantages";
 import StoreOpenStatus from "./StoreOpenStatus";
 import Link from "next/link";
@@ -80,10 +79,10 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
             {/* eslint-disable-next-line @next/next/no-img-element -- decorative, lazy-loaded background exclusive to the homepage FAQ */}
             <img src="/images/home/faq-parts-still-life-v1.webp" width="2160" height="720" alt="" loading="lazy" decoding="async" />
           </div>
+          {/* The chat bubble and the footer's call-to-action already ask the
+              visitor to write or call; this block only answers questions. */}
           <div className="home-store-help-copy">
-            <h3 id="parts-help-title">Допоможемо обрати{" "}<br />й замовити</h3>
-            <p>Не впевнені, яка деталь підійде? Напишіть менеджеру марку й модель авто або артикул. VIN-код допоможе перевірити сумісність.</p>
-            <OpenChatButton message="Допоможіть підібрати деталь для мого авто." label="Запитати менеджера" title="Написати менеджеру для підбору запчастини" className="parts-help-button" />
+            <h3 id="parts-help-title">Часті запитання</h3>
           </div>
           <HomeStoreFaq />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(HOME_FAQ_JSON_LD) }} />

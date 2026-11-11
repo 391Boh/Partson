@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, MapPin, Phone } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { buildProductFaqItems } from "app/lib/product-faq";
 
@@ -11,9 +11,6 @@ type ProductFaqSectionProps = {
   subGroup: string;
   hasPrice: boolean;
   quantity: number;
-  contactPhone?: string;
-  contactPhoneTel?: string;
-  contactAddress?: string;
 };
 
 export default function ProductFaqSection({
@@ -23,9 +20,6 @@ export default function ProductFaqSection({
   subGroup,
   hasPrice,
   quantity,
-  contactPhone = "",
-  contactPhoneTel = "",
-  contactAddress = "",
 }: ProductFaqSectionProps) {
   const items = buildProductFaqItems({ name, producer, group, subGroup, hasPrice, quantity });
 
@@ -54,40 +48,6 @@ export default function ProductFaqSection({
           </details>
         ))}
       </div>
-
-      {contactPhone || contactAddress ? (
-        <div className="product-faq-contacts">
-          {contactPhone ? (
-            <a
-              href={`tel:${contactPhoneTel || contactPhone.replace(/[^\d+]/g, "")}`}
-              className="product-faq-contact"
-            >
-              <span className="product-faq-contact-icon" data-tone="phone">
-                <Phone size={15} aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="product-faq-contact-label">Телефон</span>
-                <span className="product-faq-contact-value">
-                  {contactPhone}
-                </span>
-              </span>
-            </a>
-          ) : null}
-          {contactAddress ? (
-            <div className="product-faq-contact">
-              <span className="product-faq-contact-icon">
-                <MapPin size={15} aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="product-faq-contact-label">Адреса</span>
-                <span className="product-faq-contact-value">
-                  {contactAddress}
-                </span>
-              </span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

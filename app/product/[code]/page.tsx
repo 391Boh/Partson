@@ -158,9 +158,7 @@ const loadProductPageGallery = cache((code: string) =>
     null,
     PRODUCT_PAGE_GALLERY_TIMEOUT_MS
   ));
-const STORE_PHONE_DISPLAY = "+38 (063) 421-18-51";
 const STORE_PHONE_TEL = "+380634211851";
-const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 const shouldPreferSitemapProductLookup = true;
 
 const parseProductStaticParamsLimit = (value: string | undefined) => {
@@ -2435,8 +2433,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         (code) => code.toLowerCase() !== normalizedProductArticle.toLowerCase()
       )
     : [];
-  const productFitmentText =
-    "Не впевнені у сумісності? Надішліть VIN або дані автомобіля в чат — менеджер перевірить деталь і за потреби запропонує аналог.";
   // The category eyebrow above the H1 used to say "Деталь для автомобіля"
   // unconditionally — true of every row in the catalog, so it told the
   // visitor nothing they didn't already know from being on a product page.
@@ -2617,7 +2613,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     </div>
 
                   <div className="product-summary-details">
-                    <dl className="product-specs">
+                    <div className="product-specs">
                       {product.producer ? (
                         <div className="product-spec">
                           <span className="product-spec-media" data-logo={producerLogoPath ? "true" : undefined}>
@@ -2633,7 +2629,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                               <BadgeCheck size={18} aria-hidden="true" />
                             )}
                           </span>
-                          <div className="product-spec-text">
+                          <dl className="product-spec-text">
                             <dt>Виробник</dt>
                             <dd>
                               {producerLandingPath ? (
@@ -2642,7 +2638,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                 product.producer
                               )}
                             </dd>
-                          </div>
+                          </dl>
                         </div>
                       ) : null}
                       {hasProductIdentifier ? (
@@ -2650,10 +2646,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                           <span className="product-spec-media">
                             <Hash size={17} aria-hidden="true" />
                           </span>
-                          <div className="product-spec-text">
+                          <dl className="product-spec-text">
                             <dt>{productIdentifierLabel}</dt>
                             <dd className="product-spec-code">{productIdentifierValue}</dd>
-                          </div>
+                          </dl>
                         </div>
                       ) : null}
                       {visibleProductSubgroup || visibleProductGroup ? (
@@ -2661,15 +2657,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                           <span className="product-spec-media">
                             <PackageSearch size={18} aria-hidden="true" />
                           </span>
-                          <div className="product-spec-text">
+                          <dl className="product-spec-text">
                             <dt>Категорія</dt>
                             <dd>
                               <Link href={categoryLandingHref}>{visibleProductSubgroup || visibleProductGroup}</Link>
                             </dd>
-                          </div>
+                          </dl>
                         </div>
                       ) : null}
-                    </dl>
+                    </div>
                   </div>
 
                     <div className="product-summary-highlights mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 px-1 text-xs font-medium text-slate-600">
@@ -2718,7 +2714,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                               isModalView={isModalView}
                               descriptionTextClass={descriptionTextClass}
                               enableClientLookup
-                              fitmentText={productFitmentText}
                             />
                           }
                         >
@@ -2729,7 +2724,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             isModalView={isModalView}
                             descriptionTextClass={descriptionTextClass}
                             enableClientLookup
-                            fitmentText={productFitmentText}
                             chatButton={
                               <OpenChatButton
                                 message={chatPrefillMessage}
@@ -2815,9 +2809,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         subGroup={visibleProductSubgroup}
                         hasPrice={initialPriceUah != null}
                         quantity={product.quantity}
-                        contactPhone={STORE_PHONE_DISPLAY}
-                        contactPhoneTel={STORE_PHONE_TEL}
-                        contactAddress={STORE_ADDRESS}
                       />
                     </div>
                   )}
