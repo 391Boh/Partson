@@ -1,5 +1,6 @@
 import "server-only";
 import { CATALOG_IMAGE_VARIANT } from "app/lib/catalog-image-optimize";
+import { purgeNginxProductImageCache } from "app/lib/nginx-image-cache";
 
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -539,6 +540,8 @@ export const clearRouteImageCacheForProduct = async (
 
   try {
     await clearPersistentRouteImageCacheForProduct(code, article);
+    // Last, once nothing here can refill nginx with the previous photo.
+    await purgeNginxProductImageCache([code, article]).catch(() => 0);
   } finally {
     for (const key of invalidationKeys) {
       const nextCount = (invalidatingProductKeys.get(key) || 1) - 1;

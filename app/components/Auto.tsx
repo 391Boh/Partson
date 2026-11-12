@@ -642,16 +642,25 @@ const AutoSection: React.FC<AutoProps> = ({
   // multiple of the active column count so it always fills exactly 2 rows
   // instead of leaving a ragged half-empty row on desktop.
   const [isWideBrandGrid, setIsWideBrandGrid] = useState(false);
+  // globals.css switches the homepage brand table to 3 columns at <=480px,
+  // where 8 brands per page left one empty cell; use a 3x3 page there.
+  const [isNarrowBrandGrid, setIsNarrowBrandGrid] = useState(false);
   const [brandLayoutReady, setBrandLayoutReady] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
+    const narrowMq = window.matchMedia("(max-width: 480px)");
     const update = () => {
       setIsWideBrandGrid(mq.matches);
+      setIsNarrowBrandGrid(narrowMq.matches);
       setBrandLayoutReady(true);
     };
     update();
     mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
+    narrowMq.addEventListener("change", update);
+    return () => {
+      mq.removeEventListener("change", update);
+      narrowMq.removeEventListener("change", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -668,7 +677,7 @@ const AutoSection: React.FC<AutoProps> = ({
   const brandsPerPage = showAllBrands
     ? Math.max(filteredBrands.length, 1)
     : useFixedBrandTable
-    ? 8
+    ? (isNarrowBrandGrid ? 9 : 8)
     : isCompact
     ? 6
     : isWideBrandGrid
@@ -1279,13 +1288,12 @@ const AutoSection: React.FC<AutoProps> = ({
         {useFixedBrandTable && !showAllBrands && !selectedBrand && (
           <Link
             href="/auto"
-            aria-label="Переглянути всі марки автомобілів"
             onClick={(event) => event.currentTarget.blur()}
             onMouseLeave={(event) => event.currentTarget.blur()}
             className="group/allbrands inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-indigo-700 transition-colors duration-200 hover:bg-indigo-50 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
           >
             <Car size={13} strokeWidth={2.6} aria-hidden />
-            <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{filteredBrands.length} {pluralWord(filteredBrands.length, "марка", "марки", "марок")}</strong><span className="sr-only"> · Усі марки</span></span>
+            <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Усі </span><strong>{filteredBrands.length} {pluralWord(filteredBrands.length, "марка", "марки", "марок")}</strong></span>
             <ChevronRight
               size={13}
               strokeWidth={3}
@@ -1325,7 +1333,7 @@ const AutoSection: React.FC<AutoProps> = ({
                 // stays visually aligned to the grid instead of looking cut
                 // off. Only applies to the fixed 4-col homepage table; the
                 // responsive filter/compact variant keeps its old behavior.
-                const columns = 4;
+                const columns = isNarrowBrandGrid ? 3 : 4;
                 const remainderCount = useFixedBrandTable ? page.length % columns : 0;
                 const fullItems = remainderCount > 0 ? page.slice(0, page.length - remainderCount) : page;
                 const remainderItems = remainderCount > 0 ? page.slice(page.length - remainderCount) : [];
@@ -1365,7 +1373,11 @@ const AutoSection: React.FC<AutoProps> = ({
                             {remainderItems.map((brand, remainderIndex) => (
                               <div
                                 key={brand.id}
-                                className="shrink-0 grow-0 basis-[calc((100%_-_3*0.625rem)/4)] sm:basis-[calc((100%_-_3*0.75rem)/4)]"
+                                className={`shrink-0 grow-0 ${
+                                  isNarrowBrandGrid
+                                    ? "basis-[calc((100%_-_2*0.625rem)/3)]"
+                                    : "basis-[calc((100%_-_3*0.625rem)/4)] sm:basis-[calc((100%_-_3*0.75rem)/4)]"
+                                }`}
                               >
                                 <CarBrandButton
                                   brand={brand}

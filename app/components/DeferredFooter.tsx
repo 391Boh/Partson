@@ -78,11 +78,11 @@ export default function DeferredFooter() {
 
     // Warm after the initial DOM/paint, independent of slow images/iframes.
     // A long page's footer should already be available before it is reached.
-    // The long homepage has no footer in its initial viewport. Proximity
-    // already warms it 1600px ahead; an unconditional timer only competes
-    // with the first account interaction and catalogue preparation.
+    // The homepage has no footer in its initial viewport, so it warms later,
+    // after load and the first interactions — proximity alone (1600px ahead)
+    // still lost to a fast mobile fling, which showed the skeleton.
     const cancelPreparation = isHome
-      ? () => {}
+      ? scheduleBackgroundTask(loadFooter, { delayMs: 2500, idleTimeoutMs: 1500 })
       : scheduleBackgroundTask(loadFooter, { delayMs: 500, idleTimeoutMs: 250, waitForLoad: false });
     const requestVisibleFooter = () => {
       if (cancelled || nearViewport) return;

@@ -851,7 +851,7 @@ const extractErrorMessage = (text: string) => {
                 {onYearMetaChange && <span className="home-model-available-source hidden">Доступно <strong>{filteredModels.length} {pluralizeModels(filteredModels.length)}</strong></span>}
                 {onYearMetaChange && (
                   <Link href={buildAutoBrandPath(selectedBrand)} className="home-model-all-link hidden">
-                    <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{filteredModels.length} {pluralizeModels(filteredModels.length)}</strong><span className="sr-only"> · Усі моделі</span></span> <ChevronRight size={13} strokeWidth={2.6} aria-hidden />
+                    <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Усі </span><strong>{filteredModels.length} {pluralizeModels(filteredModels.length)}</strong></span> <ChevronRight size={13} strokeWidth={2.6} aria-hidden />
                   </Link>
                 )}
               </div>

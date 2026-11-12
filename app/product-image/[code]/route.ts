@@ -608,21 +608,31 @@ const pruneCatalogBackgroundMisses = () => {
   }
 };
 
+// Browsers keep a photo briefly and revalidate by ETag (a 304 from nginx's
+// cache, not a new download); nginx holds it for days because a photo upload
+// purges its entries (purgeNginxProductImageCache).
+const PRODUCT_IMAGE_CACHE_CONTROL =
+  "public, max-age=600, s-maxage=2592000, stale-while-revalidate=604800";
+
 const respondWithImage = (
   value: { buffer: Buffer; contentType: string },
-  options: { cacheBust: boolean }
-) =>
-  new NextResponse(new Uint8Array(value.buffer), {
-    status: 200,
-    headers: {
-      "content-type": value.contentType,
-      "cache-control": options.cacheBust
-        ? "no-store"
-        : "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
-      "x-robots-tag": "all",
-      "vary": "Accept",
-    },
-  });
+  options: { cacheBust: boolean },
+  request: Request
+) => {
+  const etag = `"${createHash("sha1").update(value.buffer).digest("base64url")}"`;
+  const headers = {
+    "content-type": value.contentType,
+    "cache-control": options.cacheBust ? "no-store" : PRODUCT_IMAGE_CACHE_CONTROL,
+    etag,
+    "x-robots-tag": "all",
+    "vary": "Accept",
+  };
+  const ifNoneMatch = request.headers.get("if-none-match") || "";
+  if (!options.cacheBust && ifNoneMatch.split(",").some((tag) => tag.trim().replace(/^W\//, "") === etag)) {
+    return new NextResponse(null, { status: 304, headers });
+  }
+  return new NextResponse(new Uint8Array(value.buffer), { status: 200, headers });
+};
 
 export async function GET(request: Request, context: ProductImageRouteContext) {
   const requestUrl = new URL(request.url);
@@ -764,21 +774,21 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
 
   const cachedHit = routeImageHitCache.get(routeHitCacheKey);
   if (cachedHit && cachedHit.expiresAt > Date.now()) {
-    return respondWithImage(cachedHit.value, { cacheBust: false });
+    return respondWithImage(cachedHit.value, { cacheBust: false }, request);
   }
 
   if (catalogMode && !strictMode) {
     if (retryAttempt > 0) {
       const baseHit = routeImageHitCache.get(buildCatalogBaseHitKey(normalizedCode, articleHint));
       if (baseHit && baseHit.expiresAt > Date.now()) {
-        return respondWithImage(baseHit.value, { cacheBust: false });
+        return respondWithImage(baseHit.value, { cacheBust: false }, request);
       }
     }
     const backgroundFetch = getCatalogBackgroundFetch(normalizedCode, articleHint);
     if (backgroundFetch) {
       const backgroundImage = await withTimeoutFallback(backgroundFetch, CATALOG_BACKGROUND_WAIT_MS, null);
       if (backgroundImage) {
-        return respondWithImage(backgroundImage, { cacheBust: false });
+        return respondWithImage(backgroundImage, { cacheBust: false }, request);
       }
     }
   }
@@ -787,7 +797,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   if (existingInFlight) {
     const optimizedImage = await existingInFlight.catch(() => null);
     if (optimizedImage) {
-      return respondWithImage(optimizedImage, { cacheBust: false });
+      return respondWithImage(optimizedImage, { cacheBust: false }, request);
     }
 
     if (!hasCacheBust && (routeMissCache.get(routeMissCacheKey) || 0) > Date.now()) {
@@ -819,7 +829,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
         expiresAt: Date.now() + ROUTE_IMAGE_HIT_CACHE_TTL_MS,
         value: persistentHit,
       });
-      return respondWithImage(persistentHit, { cacheBust: false });
+      return respondWithImage(persistentHit, { cacheBust: false }, request);
     }
   }
 
@@ -974,7 +984,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
   });
 
   if (optimizedImage) {
-    return respondWithImage(optimizedImage, { cacheBust: false });
+    return respondWithImage(optimizedImage, { cacheBust: false }, request);
   }
 
   // Google-facing URLs: a 1C timeout is a temporary failure, not a missing

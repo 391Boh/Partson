@@ -6488,6 +6488,20 @@ svg.catalog-filter-search-icon {
   .site-header-search > button.nav-action { width:100%; gap:8px; }
   .site-header-row .site-header-search > button.nav-action > span { display:inline; font-size:13px; }
 }
+/* Phones: logo + six 44px actions with 4px gaps left the row edge to edge, and
+   the open search button's wide glow spilled onto its neighbours. Slightly
+   smaller actions buy even 6px gaps; the glow stays inside the gap. */
+@media (min-width:375px) and (max-width:479px) {
+  .site-header-row { gap:6px; }
+  .site-header-row > div:first-child,
+  .site-header-row > div:first-child nav > ul,
+  .site-header-row > div:last-child { gap:6px; }
+  .site-header-row .site-header-search { padding-inline:0; }
+  .site-header-row .nav-action { width:40px; height:40px; min-width:40px; min-height:40px; border-radius:12px; }
+}
+@media (max-width:1023px) {
+  .site-header-search > button.nav-action[aria-expanded="true"] { box-shadow:0 3px 10px rgba(56,189,248,.26),inset 0 1px 0 rgba(255,255,255,.3) !important; }
+}
 @media (min-width:1800px) {
   .catalog-results-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
 }
@@ -16165,6 +16179,17 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
   opacity: calc(var(--po, .1) * 3.4) !important;
   mask-image: linear-gradient(135deg, rgb(0 0 0 / 40%), #000 45%, rgb(0 0 0 / 65%));
 }
+/* Watermarks stay atmospheric: at the strengths above, marks such as
+   CHEVROLET or Delphi competed with headings and card labels. On phones the
+   single column puts text over every mark, so go fainter still. */
+.home-static .home-glow-section-auto .auto-logos-mark { opacity: calc(var(--mo, .18) * 1) !important; }
+.home-static .home-glow-section-brands .brands-logos-mark { opacity: calc(var(--mo, .15) * 1.1) !important; }
+.home-static .home-glow-section-sky .tovar-part { opacity: calc(var(--po, .1) * 2.3) !important; }
+@media (max-width: 767px) {
+  .home-static .home-glow-section-auto .auto-logos-mark { opacity: calc(var(--mo, .18) * .8) !important; }
+  .home-static .home-glow-section-brands .brands-logos-mark { opacity: calc(var(--mo, .15) * .9) !important; }
+  .home-static .home-glow-section-sky .tovar-part { opacity: calc(var(--po, .1) * 1.5) !important; }
+}
 .home-static .home-picker-layout { gap: 24px; align-items: center; }
 .home-static .home-picker-rail { align-self: center; }
 .home-static .home-picker-title { margin-bottom: 16px; font-size: clamp(26px, 2.3vw, 32px); }
@@ -17670,7 +17695,12 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 .home-static .home-store-directories a:hover { text-decoration:underline; }
 .home-static .home-story-map { align-self:start; }
 .home-static .home-store-map-frame { position:relative; height:390px; flex:none; background:#e0ebed; }
-.home-static .home-store-map-frame iframe { display:block; width:100%; height:100%; border:0; }
+.home-static .home-store-map-frame iframe { position:relative; z-index:1; display:block; width:100%; height:100%; border:0; }
+/* Until the map iframe mounts (it waits for the frame to be on screen and the
+   scroll to settle), show a quiet map-like placeholder with the store pin
+   instead of an empty grey block. The iframe paints over it. */
+.home-static .home-store-map-frame { background:radial-gradient(circle at 50% 44%,#0b7d8c 0 6px,#0b7d8c33 7px 20px,transparent 21px),linear-gradient(#c3d8dc80 1px,transparent 1px) 0 0/32px 32px,linear-gradient(90deg,#c3d8dc80 1px,transparent 1px) 0 0/32px 32px,#e6f0f2; }
+.home-static .home-store-map-frame::after { content:"Львів, вул. Перфецького, 8"; position:absolute; left:50%; top:calc(44% + 30px); transform:translateX(-50%); padding:4px 10px; border-radius:999px; background:#ffffffd9; color:#24505c; font-size:12px; font-weight:700; white-space:nowrap; }
 .home-static .home-story-map .home-store-route { display:flex; align-items:center; gap:12px; padding:16px; color:#174d60; background:#f5fbfc; }
 .home-static .home-store-route > span { flex:1; }
 .home-static .home-store-route strong { display:block; font-size:13px; }
@@ -17947,6 +17977,11 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 @media(prefers-reduced-motion:reduce) { .home-static .home-store-editorial > .home-store-photo-background img { transition:none; } }
 .home-static .home-store-editorial > .home-store-photo-background img { mask-image:linear-gradient(90deg,transparent,#000 22%),linear-gradient(180deg,#000 62%,transparent 100%); mask-composite:intersect; }
 @media(max-width:1023px) { .home-static .home-store-editorial > .home-store-photo-background img { mask-image:linear-gradient(180deg,#000 55%,transparent 100%); mask-composite:add; } }
+/* Readability: the copy and its catalog links sit over the busiest part of the
+   shop photo, so keep a near-solid wash there and don't brighten it on hover. */
+.home-static .home-store-editorial > .home-store-photo-background::after { background:linear-gradient(90deg,#eef7f8 22%,#eef7f8f2 53%,#eef7f8e6),linear-gradient(0deg,#eef7f8 12%,#eef7f800 70%); }
+@media(hover:hover) and (pointer:fine) { .home-static .home-store-editorial:hover > .home-store-photo-background img { opacity:.8; } }
+@media(max-width:1023px) { .home-static .home-store-editorial > .home-store-photo-background::after { background:linear-gradient(90deg,#eef7f8f5,#eef7f8e6),linear-gradient(0deg,#eef7f8 35%,#eef7f800 85%); } }
 /* Depth from light and contact shadows, without extra card surfaces. */
 .home-static .home-store-editorial { box-shadow:inset 0 1px 0 #ffffffc7,inset 0 -1px 0 #b4d4dc66; }
 .home-static .home-store-editorial > .home-store-photo-background::before { display:block; opacity:1; background:radial-gradient(ellipse at 12% 8%,#ffffffb3,transparent 58%),linear-gradient(180deg,transparent 65%,#c5e0e533); }
@@ -18462,6 +18497,40 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
   }
   .home-static .home-picker-section .vehicle-models .vehicle-model-choice > .vehicle-model-name { font-size:15px; line-height:1.3; }
   .home-static .home-picker-section .vehicle-models .vehicle-model-choice > .vehicle-model-period { margin-top:4px; font-size:12px; line-height:1.3; font-variant-numeric:tabular-nums; }
+}
+
+/* Phone model and configuration steps: the 860px reserve only protects the
+   first (brand) paint from layout shift; once a make is chosen the section
+   hugs its list instead of trailing an empty block. Pages always fill their
+   last row — an odd card spans both columns, years sit on a six-track grid so
+   a short last row splits the width (4 years read as 2×2). */
+@media (max-width:767px) {
+  .home-static .home-slot-auto:has(:is(.vehicle-models,.vehicle-modifications)) { --picker-reserved-height:0px; }
+  .home-static .home-picker-section .vehicle-models .vehicle-model-grid > :last-child:nth-child(odd) { grid-column:1 / -1; }
+  .home-static .vehicle-mod-options { padding-inline:0; }
+  .home-static .vehicle-mod-options:has(> button) { padding-bottom:60px; }
+  .home-static .vehicle-mod-options > button {
+    top:auto; bottom:0; transform:none; translate:none; width:52px; height:48px; border-radius:14px;
+    background:rgb(255 255 255 / 72%); border:1px solid rgb(13 108 130 / 18%); box-shadow:0 6px 14px -10px rgb(20 72 90 / 40%);
+  }
+  .home-static .vehicle-mod-options > button:first-child { left:calc(50% - 60px); }
+  .home-static .vehicle-mod-options > button:last-child { right:calc(50% - 60px); }
+  .home-static .vehicle-mod-options [data-option-page] > .grid > .vehicle-mod-choice:not([data-kind="year"]):last-child:nth-child(odd) { grid-column:1 / -1; }
+  .home-static .home-slot-auto .vehicle-mod-choice:not([data-kind="year"]) {
+    flex-direction:row; align-items:center; justify-content:flex-start; gap:10px; min-height:64px; padding:10px 12px; text-align:left;
+  }
+  .home-static .home-slot-auto .vehicle-mod-choice:not([data-kind="year"]) > span:has(> svg) { width:32px; height:32px; margin:0; border-radius:9px; }
+  .home-static .home-slot-auto .vehicle-mod-choice:not([data-kind="year"]) > span:last-child { width:auto; min-width:0; font-size:16px; line-height:1.25; overflow-wrap:normal; }
+}
+/* Below 390px a half-width card cannot fit the icon beside a long value
+   ("Автоматична" was clipped); the step heading already carries the icon. */
+@media (max-width:389px) {
+  .home-static .home-slot-auto .vehicle-mod-choice:not([data-kind="year"]) > span:has(> svg) { display:none; }
+  .home-static .home-slot-auto .vehicle-mod-options [data-option-page] > .grid:has(> [data-kind="year"]) { grid-template-columns:repeat(6,minmax(0,1fr)); }
+  .home-static .home-slot-auto .vehicle-mod-options [data-option-page] > .grid > [data-kind="year"] { grid-column:span 2; }
+  .home-static .home-slot-auto .vehicle-mod-options [data-option-page] > .grid > [data-kind="year"]:last-child:nth-child(3n+1) { grid-column:1 / -1; }
+  .home-static .home-slot-auto .vehicle-mod-options [data-option-page] > .grid > [data-kind="year"]:is(:nth-last-child(2):nth-child(3n+1),:last-child:nth-child(3n+2)),
+  .home-static .home-slot-auto .vehicle-mod-options [data-option-page] > .grid:has(> [data-kind="year"]:nth-child(4):last-child) > [data-kind="year"] { grid-column:span 3; }
 }
 
 /* Homepage closing editorial: one rhythm between the store card, the 360°

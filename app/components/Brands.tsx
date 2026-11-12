@@ -901,7 +901,7 @@ export default function BrandCarousel({
                       className="group/allbrands inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold text-blue-700 transition-colors duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/60"
                     >
                       <ManufacturersIcon size={13} strokeWidth={2.6} aria-hidden />
-                      <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Доступно </span><strong>{filteredBrands.length} {pluralizeManufacturers(filteredBrands.length)}</strong><span className="sr-only"> · Усі виробники</span></span>
+                      <span className="home-picker-all-label home-picker-directory-summary"><span className="home-picker-summary-prefix">Усі </span><strong>{filteredBrands.length} {pluralizeManufacturers(filteredBrands.length)}</strong></span>
                       <ChevronRight
                         size={13}
                         strokeWidth={3}

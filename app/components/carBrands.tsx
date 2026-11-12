@@ -6,7 +6,7 @@ export interface CarBrand {
   models?: string[]; // При бажанні одразу додати моделі
 }
 
-export const carBrands: CarBrand[] = [
+const carBrandList: CarBrand[] = [
   { id: 1, name: "AUDI", logo: "/Carlogo/Audi.svg" },
   { id: 2, name: "BMW", logo: "/Carlogo/BMW.svg" },
   { id: 3, name: "CHERY", logo: "/Carlogo/Chery.svg" },
@@ -70,3 +70,7 @@ export const carBrands: CarBrand[] = [
   { id: 61, name: "ASTON MARTIN", logo: "/Carlogo/Astonmartin.webp" },
   { id: 62, name: "BENTLEY", logo: "/Carlogo/optimized/Bentley.webp" },
 ];
+
+// Every brand list (homepage picker, /auto, filters) reads alphabetically;
+// the source list above grew by appending, so sort once here.
+export const carBrands: CarBrand[] = [...carBrandList].sort((a, b) => a.name.localeCompare(b.name, "en"));
