@@ -201,10 +201,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Static files only: /product-image/<code>/<kind>/<name>.webp is a
-        // route whose photo can be replaced under the same URL, so it keeps
-        // the route's own short Cache-Control instead of a year-long one.
-        source: "/:file((?!_next|product-image/)[^?#]*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
+        // Static files only: /product-image/<code>/<kind>/<name>.webp and
+        // /price-photo/<code>/<n>.jpg are routes whose photo can be replaced
+        // under the same URL, so they keep the route's own short
+        // Cache-Control instead of a year-long one.
+        source: "/:file((?!_next|product-image/|price-photo/)[^?#]*\\.(?:png|jpg|jpeg|webp|avif|svg|ico|webmanifest))",
         headers: [
           ...securityHeaders,
           {

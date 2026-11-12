@@ -3798,6 +3798,11 @@ export const fetchPromoCatalogProducts = async (): Promise<{
   return { products, stale };
 };
 
+// The whole catalog with current stock, from the same snapshot (stale while
+// it refreshes): marketplace price exports need every product at once.
+export const fetchFullCatalogProducts = async (): Promise<CatalogProduct[]> =>
+  (await getFullCatalogSnapshot()).snapshot.products;
+
 // Instant, in-memory text search over the same full-catalog snapshot the
 // promo filter already maintains — this is what makes typing in the header
 // search box feel immediate instead of waiting on a live 1C round trip
