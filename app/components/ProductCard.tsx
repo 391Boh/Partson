@@ -966,7 +966,7 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     href="/partnership"
                                     className="catalog-card-discount-teaser"
                                     onClick={(event) => event.stopPropagation()}
-                                    aria-label="Дізнатися про знижки для партнерів"
+                                    aria-label={`${typeof promoPercent === "number" && promoPercent > 0 ? `−${promoPercent}%` : "Знижка"} партнерам — умови знижок`}
                                 >
                                     <span className="catalog-card-discount-icon" aria-hidden="true"><BadgePercent size={12} strokeWidth={2.4} /></span>
                                     <span className="catalog-card-discount-copy">

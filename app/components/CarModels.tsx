@@ -6,6 +6,7 @@ import VehicleYearRail from "./VehicleYearRail";
 import Link from "next/link";
 import { buildAutoBrandPath } from "app/lib/catalog-links";
 import { pluralizeModels } from "app/lib/pluralize-uk";
+import { formatCarModelName } from "app/lib/catalog-label-format";
 import { fetchAutoDirectory } from "app/lib/onec-proxy-client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
@@ -735,14 +736,14 @@ const extractErrorMessage = (text: string) => {
                             type="button"
                             onClick={() => onModelSelect(model)}
                             aria-pressed={selectedModel === model}
-                            title={model}
+                            title={formatCarModelName(model)}
                             className={`vehicle-model-choice catalog-filter-choice-card flex h-[72px] items-center justify-center rounded-[14px] border px-2 text-center text-[10px] font-bold uppercase tracking-[0.03em] leading-tight transition-[border-color,background-color,box-shadow,color] duration-300 ease-out ${
                               isActive
                                 ? "border-sky-400/50 bg-sky-500 text-white shadow-[0_3px_10px_rgba(14,165,233,0.25)]"
                                 : "border-sky-200/95 bg-white text-slate-600 shadow-[0_2px_6px_rgba(15,23,42,0.06)] hover:border-sky-500 hover:bg-sky-50/70 hover:text-sky-900 hover:shadow-[0_6px_16px_rgba(2,132,199,0.16)]"
                             }`}
                           >
-                            <span className="line-clamp-2">{model}</span>
+                            <span className="line-clamp-2">{formatCarModelName(model)}</span>
                           </button>
                         );
                       })}
@@ -897,7 +898,7 @@ const extractErrorMessage = (text: string) => {
                     type="button"
                     onClick={() => onModelSelect(model)}
                     aria-pressed={selectedModel === model}
-                    title={yearLabel ? `${model} (${yearLabel})` : model}
+                    title={yearLabel ? `${formatCarModelName(model)} (${yearLabel})` : formatCarModelName(model)}
                     className={`vehicle-model-choice group/category relative flex min-h-[72px] flex-col items-center justify-center overflow-hidden rounded-[16px] border px-3 py-2.5 text-center transition-[border-color,background-color,box-shadow] duration-500 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 sm:min-h-[86px] ${
                       isActive
                         ? "border-sky-400/60 bg-sky-500 text-white shadow-[0_6px_22px_rgba(14,165,233,0.38)] ring-1 ring-sky-300/60"
@@ -905,7 +906,7 @@ const extractErrorMessage = (text: string) => {
                     }`}
                   >
                     <span className="pointer-events-none absolute inset-0 shadow-[inset_0_2px_6px_rgba(15,23,42,0.06)] transition-shadow duration-500 ease-out group-hover/category:shadow-[inset_0_3px_10px_rgba(15,23,42,0.10),inset_0_0_0_1px_rgba(2,132,199,0.06)]" />
-                    <span className={`vehicle-model-name relative line-clamp-2 w-full text-[14px] font-semibold leading-tight tracking-[0.02em] transition-colors duration-300 ease-out sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover/category:text-sky-900"}`}>{model}</span>
+                    <span className={`vehicle-model-name relative line-clamp-2 w-full text-[14px] font-semibold leading-tight tracking-[0.02em] transition-colors duration-300 ease-out sm:text-[15px] ${isActive ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.18)]" : "text-slate-800 group-hover/category:text-sky-900"}`}>{formatCarModelName(model)}</span>
                     {yearLabel && (
                       <span className={`vehicle-model-period relative mt-1 text-[11px] font-semibold leading-none tracking-[0.03em] transition-colors duration-300 ease-out ${isActive ? "text-sky-100" : "text-slate-400 group-hover/category:text-sky-600/80"}`}>
                         {yearLabel}

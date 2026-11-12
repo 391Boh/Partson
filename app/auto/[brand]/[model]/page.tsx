@@ -1,5 +1,5 @@
 import DirectoryCollection from "app/components/DirectoryCollection";
-import { fixCatalogSpelling } from "app/lib/catalog-label-format";
+import { formatCarModelName } from "app/lib/catalog-label-format";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import type { Metadata } from "next";
@@ -144,7 +144,7 @@ const formatSystems = (systems: string[], limit = 3) => {
 // count that makes the result worth clicking.
 // The car list comes from 1C in Russian spelling ("Рестайлинг"); names stay
 // as keys for URLs and searches, only the text people read is Ukrainian.
-const displayModel = (model: string) => fixCatalogSpelling(model);
+const displayModel = (model: string) => formatCarModelName(model);
 
 // " | PartsON" is appended by the layout; Google cuts titles past ~65 chars,
 // so the count and then "ціни" give way before the model and years do.

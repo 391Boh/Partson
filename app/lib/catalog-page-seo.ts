@@ -173,6 +173,10 @@ export const resolveCatalogSeoState = (
     description = appendSeoContact(
       `Пошук "${searchQuery}" у каталозі PartsON: перевірте автозапчастини за артикулом, назвою, виробником або кодом товару.`
     );
+    // Search results are their own content, not a duplicate of /auto or a
+    // landing page: a canonical pointing elsewhere next to noindex sends
+    // Google two conflicting signals, so a search page points at itself.
+    canonicalPath = pagePath;
   }
 
   // Only the unfiltered catalog (including attribution-only URLs) is indexable.

@@ -2,6 +2,7 @@ import "server-only";
 
 import { findCarBrandBySlug, findCarModelInBrand } from "app/lib/auto-directory-data";
 import { resolveCarBrandSocialImage } from "app/lib/car-brand-social-image";
+import { formatCarModelName } from "app/lib/catalog-label-format";
 import { loadOgProductImage, renderOgCard } from "app/lib/og-card";
 
 // OG cards for /auto/[brand] and /auto/[brand]/[model]: the bare car logos
@@ -18,7 +19,7 @@ export async function resolveAutoOgLabels(brandSlug: string, modelSlug?: string)
   const brand = findCarBrandBySlug(brandSlug);
   if (!brand) return null;
   const model = modelSlug ? await findCarModelInBrand(brand.name, modelSlug).catch(() => null) : null;
-  return { brand, model };
+  return { brand, model: model ? formatCarModelName(model) : null };
 }
 
 export async function renderAutoOgImage(brandSlug: string, modelSlug?: string) {

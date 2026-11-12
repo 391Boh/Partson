@@ -6,6 +6,7 @@ import { ArrowUpRight, Clock3, Mail, MapPin, Phone } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 import { observeViewportEntrance } from "app/lib/viewport-entrance";
+import { SELLER_NAME, SELLER_TAX_ID } from "app/lib/seo-metadata";
 import { SiTelegram, SiViber } from "./FooterSocialIcons";
 
 const telegramBotName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot").replace(/^@/u, "").trim();
@@ -146,17 +147,18 @@ export default function Footer() {
 
         <div className="site-footer-bottom">
           <div className="site-footer-utility">
-            <SmartLink href="/inform/payment" className="site-footer-payment" aria-label="Онлайн-оплата через LiqPay — умови оплати">
+            <SmartLink href="/inform/payment" className="site-footer-payment" aria-label="Оплата карткою через LiqPay — умови оплати">
               <span><Image src="/liqpay-logo.svg" alt="LiqPay" width={500} height={104} sizes="86px" /></span>
               <span>Оплата карткою через LiqPay</span>
             </SmartLink>
             <nav className="site-footer-legal" aria-label="Правила та налаштування сайту">
               <SmartLink href="/inform/privacy">Конфіденційність</SmartLink>
+              <SmartLink href="/oferta">Публічна оферта</SmartLink>
               <SmartLink href="/editorial-policy">Редакційна політика</SmartLink>
               <AnalyticsConsentSettingsButton />
             </nav>
           </div>
-          <p className="site-footer-copyright">© {new Date().getFullYear()} PartsON. Усі права захищено.</p>
+          <p className="site-footer-copyright">© {new Date().getFullYear()} PartsON. Усі права захищено. Продавець: {SELLER_NAME}, РНОКПП {SELLER_TAX_ID}.</p>
         </div>
       </div>
     </footer>

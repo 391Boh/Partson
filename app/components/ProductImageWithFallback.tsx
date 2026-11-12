@@ -477,7 +477,7 @@ export default function ProductImageWithFallback({
               event.stopPropagation();
               openLightbox();
             }}
-            aria-label={`${openPhotoTitle}: ${alt}`}
+            aria-label={`${photoLabel}: ${alt} — відкрити`}
             className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
             title={openPhotoTitle}
           >

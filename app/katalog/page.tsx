@@ -702,7 +702,7 @@ const CatalogSeoSnapshot = async ({
               <div className="catalog-seo-contacts mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <a
                   href="tel:+380634211851"
-                  aria-label={`Подзвонити в магазин PartsON: ${STORE_PHONE_DISPLAY}`}
+                  aria-label={`Консультація ${STORE_PHONE_DISPLAY} — подзвонити в магазин PartsON`}
                   className="group inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-sky-100 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-sky-100 text-sky-600">
@@ -715,7 +715,7 @@ const CatalogSeoSnapshot = async ({
                 </a>
                 <Link
                   href="/inform/location"
-                  aria-label={`Адреса магазину PartsON: ${STORE_ADDRESS}`}
+                  aria-label={`Магазин ${STORE_ADDRESS} — як нас знайти`}
                   className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-slate-100 text-sky-700">
@@ -728,7 +728,7 @@ const CatalogSeoSnapshot = async ({
                 </Link>
                 <Link
                   href="/inform/delivery"
-                  aria-label="Доставка автозапчастин — умови та тарифи"
+                  aria-label="Доставка Нова Пошта — умови та тарифи"
                   className="inline-flex min-h-11 items-center gap-2 rounded-[13px] border border-slate-200 bg-white px-3 text-[12px] font-bold text-sky-900 shadow-sm transition-[border-color,background-color,color] duration-200 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70"
                 >
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-emerald-50 text-emerald-600">

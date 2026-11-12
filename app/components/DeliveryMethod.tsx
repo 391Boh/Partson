@@ -249,56 +249,42 @@ const DeliveryMethod: React.FC<Props> = ({
       {deliveryMethod === 'Нова Пошта' && (
         <div className="relative mt-3.5 space-y-3">
           <div className="relative">
-            {cityInput && filteredCities.length > 0 && (
-              <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
-                {filteredCities.map(city => (
-                  <li
-                    key={city.Ref}
-                    onClick={() => {
-                      setSelectedCity(city);
-                      setCityInput(city.Description);
-                      setSelectedWarehouse(null);
-                      setWarehouseInput('');
-                      setWarehouses([]);
-                      setCities([]);
-                    }}
-                    className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
-                  >
-                    {city.Description}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <label className="mb-1 block text-sm font-semibold text-sky-50">Населений пункт</label>
+            <label htmlFor="delivery-city" className="mb-1 block text-sm font-semibold text-sky-50">Населений пункт</label>
             <input
               type="text"
               value={cityInput}
               onChange={(e) => handleCityInputChange(e.target.value)}
+              id="delivery-city"
               placeholder="Введіть назву міста"
               className="soft-field px-4 py-2.5"
               autoComplete="off"
             />
-          </div>
-
-          <div className="relative">
-            {warehouseInput && filteredWarehouses.length > 0 && (
+            {cityInput && filteredCities.length > 0 && (
               <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
-                {filteredWarehouses.map(wh => (
-                  <li
-                    key={wh.Ref}
-                    onClick={() => {
-                      setSelectedWarehouse(wh);
-                      setWarehouseInput(wh.Description);
-                      setWarehouses([]);
-                    }}
-                    className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
-                  >
-                    {wh.Description}
+                {filteredCities.map(city => (
+                  <li key={city.Ref}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCity(city);
+                        setCityInput(city.Description);
+                        setSelectedWarehouse(null);
+                        setWarehouseInput('');
+                        setWarehouses([]);
+                        setCities([]);
+                      }}
+                      className="w-full cursor-pointer px-4 py-2 text-left text-slate-700 hover:bg-sky-50 focus-visible:bg-sky-50 focus-visible:outline-none"
+                    >
+                      {city.Description}
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
-            <label className="mb-1 block text-sm font-semibold text-sky-50">Номер відділення</label>
+          </div>
+
+          <div className="relative">
+            <label htmlFor="delivery-warehouse" className="mb-1 block text-sm font-semibold text-sky-50">Номер відділення</label>
             <input
               type="text"
               value={warehouseInput}
@@ -306,11 +292,31 @@ const DeliveryMethod: React.FC<Props> = ({
                 setWarehouseInput(e.target.value);
                 setSelectedWarehouse(null);
               }}
+              id="delivery-warehouse"
               placeholder="Введіть номер відділення"
               className="soft-field px-4 py-2.5 disabled:bg-slate-100 disabled:text-slate-400"
               autoComplete="off"
               disabled={!selectedCity}
             />
+            {warehouseInput && filteredWarehouses.length > 0 && (
+              <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
+                {filteredWarehouses.map(wh => (
+                  <li key={wh.Ref}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedWarehouse(wh);
+                        setWarehouseInput(wh.Description);
+                        setWarehouses([]);
+                      }}
+                      className="w-full cursor-pointer px-4 py-2 text-left text-slate-700 hover:bg-sky-50 focus-visible:bg-sky-50 focus-visible:outline-none"
+                    >
+                      {wh.Description}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
@@ -331,28 +337,31 @@ const DeliveryMethod: React.FC<Props> = ({
 
       {deliveryMethod === 'Доставка у Львові' && (
         <div className="relative mt-3.5">
-          <label className="mb-1 block text-sm font-semibold text-sky-50">Вулиця у Львові</label>
+          <label htmlFor="delivery-lviv-street" className="mb-1 block text-sm font-semibold text-sky-50">Вулиця у Львові</label>
           <input
             type="text"
             value={lvivStreet}
             onChange={(e) => handleLvivStreetInput(e.target.value)}
-            placeholder="Введіть назву вулиці"
+            id="delivery-lviv-street"
+              placeholder="Введіть назву вулиці"
             className="soft-field px-4 py-2.5"
             autoComplete="off"
           />
           {lvivStreets.length > 0 && (
             <ul className="soft-surface-card absolute bottom-full top-auto z-10 mb-1 max-h-48 w-full overflow-y-auto rounded-[16px]">
               {lvivStreets.map((street) => (
-                <li
-                  key={street}
-                  onClick={() => {
-                    setSelectedLvivStreet(street);
-                    setLvivStreet(street);
-                    setLvivStreets([]);
-                  }}
-                  className="cursor-pointer px-4 py-2 text-slate-700 hover:bg-sky-50"
-                >
-                  {street}
+                <li key={street}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedLvivStreet(street);
+                      setLvivStreet(street);
+                      setLvivStreets([]);
+                    }}
+                    className="w-full cursor-pointer px-4 py-2 text-left text-slate-700 hover:bg-sky-50 focus-visible:bg-sky-50 focus-visible:outline-none"
+                  >
+                    {street}
+                  </button>
                 </li>
               ))}
             </ul>

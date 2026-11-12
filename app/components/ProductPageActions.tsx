@@ -189,13 +189,6 @@ const ProductPageActions = ({
                   ? `У кошику весь залишок: ${maxQty} шт.`
                   : "Додати в замовлення"
             }
-            aria-label={
-              justAdded
-                ? "Товар додано"
-                : isCartLimitReached
-                  ? `У кошику весь залишок: ${maxQty} шт.`
-                  : "Додати в замовлення"
-            }
               className={`product-cart-button relative inline-flex min-w-0 items-center justify-center gap-2 rounded-[16px] border px-3 text-[11px] font-black transition-[transform,filter,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] sm:px-4 sm:text-sm ${prominent ? "min-h-[52px]" : "min-h-12"} ${
               isAddDisabled
                 ? justAdded

@@ -75,6 +75,15 @@ export const fixCatalogSpelling = (value: string) => {
   return text;
 };
 
+/**
+ * A car model name as shown. Some 1C models lost the start of their
+ * "(body, years)" tail: "Iltis , 1978-1988)", "G-klasse II W463 , 1989-2".
+ * The raw name stays the key for URLs and 1C lookups; people read it without
+ * the broken tail (the pages print the years separately).
+ */
+export const formatCarModelName = (value: string) =>
+  fixCatalogSpelling((value || "").replace(/\s+,\s.*$/, "").trim() || value || "");
+
 /** A group/category label as shown: spelling, "/" spacing, wording. */
 export const formatCatalogLabel = (value: string) => {
   const text = fixCatalogSpelling(value)

@@ -97,7 +97,7 @@ export const brands = [
   { name: "WIX", logo: "/Brands/WIX.svg", description: "WIX Filters (Dana Inc.) — американський виробник фільтрів із 1939 року, пропонує оливні, паливні, повітряні та гідравлічні фільтри для легкових і вантажних авто." },
   { name: "Victor Reinz", logo: "/Brands/VICTOR REINZ.webp", description: "Victor Reinz (Dana Inc.) — провідний виробник прокладок двигуна, комплектів ущільнень ГБЦ та герметиків для двигунів усіх типів." },
   { name: "Continental AG", logo: "/Brands/Continental.png", description: "Continental AG — глобальний автомобільний постачальник: шини, електроніка, системи приводу та компоненти гальмівних систем для OEM і aftermarket." },
-  { name: "KNECHT", logo: "/Brands/MANN-FILTER.png", description: "KNECHT — торгова марка Mahle для фільтрів масла, повітря, палива і салону. Синонім якості фільтрації на европейському ринку з 1927 року." },
+  { name: "KNECHT", logo: "/Brands/MahleKnecht.png", description: "KNECHT — торгова марка Mahle для фільтрів масла, повітря, палива і салону. Синонім якості фільтрації на європейському ринку з 1927 року." },
   { name: "LEMFORDER", logo: "/Brands/Lemförder.png", description: "Lemförder (ZF Group) — преміальний виробник компонентів рульового керування та підвіски з найвищим рівнем точності виготовлення." },
 
   // ===== Розширений список брендів =====

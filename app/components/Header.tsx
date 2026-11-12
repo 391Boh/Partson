@@ -540,7 +540,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
                   <span className="hidden md:inline cursor-pointer select-none">Меню</span>
                 </button>
 
-                <ul className={`${menuDropdownClass} ${
+                <ul inert={activeMenu !== "menu"} className={`${menuDropdownClass} ${
                     activeMenu === "menu"
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"
@@ -603,7 +603,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
                   <span className="hidden md:inline cursor-pointer select-none">Інформація</span>
                 </button>
 
-                <ul className={`${infoDropdownClass} ${
+                <ul inert={activeMenu !== "info"} className={`${infoDropdownClass} ${
                     activeMenu === "info"
                       ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                       : "opacity-0 scale-95 -translate-y-1 pointer-events-none"

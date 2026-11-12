@@ -673,6 +673,12 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       priority: 0.58,
     },
     {
+      path: "/oferta",
+      lastModified: contentLastModified,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
       path: "/editorial-policy",
       lastModified: contentLastModified,
       changeFrequency: "monthly",
