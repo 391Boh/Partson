@@ -39,3 +39,6 @@ build.log
 
 # Local test screenshots and audits
 /output/
+
+# VITOL supplier sync: which 1C codes were created from the feed + last run report
+data/vitol/

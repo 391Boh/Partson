@@ -12,7 +12,7 @@ export const suites = {
     "site-url", "euro-rate-client", "marketing-attribution", "onec-client", "onec-stock-cache",
     "partner-grants", "partner-prices-route", "partner-status-cache", "profile-appearance-api",
     "order-cancel", "admin-chat-activity", "admin-catalog-price-loading", "catalog-euro-readiness",
-    "home-blog-cache", "home-blog-cover", "product-google-pricing", "merchant-feed-refresh", "product-seo-images", "product-image-sitemap", "product-image-final-miss", "catalog-image-progress", "onec-request-economy", "product-seo-copy",
+    "home-blog-cache", "home-blog-cover", "product-google-pricing", "merchant-feed-refresh", "product-seo-images", "product-image-sitemap", "product-image-final-miss", "catalog-image-progress", "onec-request-economy", "product-seo-copy", "vitol-feed",
   ].map((name) => `scripts/test-${name}.mjs`),
   browser: ["home-auth-layout", "home-deferred-loading", "footer-loading", "partnership-layout", "auth-window", "profile-appearance", "order-rewards", "customer-windows", "product-edit-modal", "order-tracking", "deferred-stylesheet", "catalog-rendering", "catalog-price-visibility", "catalog-layout-stability", "catalog-image-paint", "product-card-responsive", "product-card-back-tabs", "recommendation-layout", "directory-hero", "directory-collections", "navigation-progress"]
     .map((name) => `scripts/test-${name}.mjs`),
