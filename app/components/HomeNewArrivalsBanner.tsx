@@ -81,17 +81,19 @@ export default function HomeNewArrivalsBanner() {
         <header className="mx-auto flex max-w-[46rem] flex-col items-center text-center">
           <h2
             id="home-arrivals-title"
-            className="font-display font-display-readable text-[clamp(28px,3.3vw,46px)] font-[800] leading-[1.08] tracking-[-.03em] text-[#0f2b3d] [text-shadow:0_2px_1px_rgb(255_255_255/80%)]"
+            className="font-display font-display-readable text-[clamp(30px,3.7vw,52px)] font-[800] leading-[1.06] tracking-[-.035em] text-[#0b2233] [text-shadow:0_2px_1px_rgb(255_255_255/85%)]"
           >
             <span className="block">Нове надходження</span>
-            <span className="mt-1.5 block text-[#087783] [text-wrap:balance] sm:mt-2">
-              <span className="underline decoration-[#7ebdc4] decoration-2 underline-offset-[8px] [text-decoration-skip-ink:auto] [box-decoration-break:clone]">
+            <span className="mt-2 block text-[#086f7a] [text-wrap:balance] sm:mt-2.5">
+              {/* A highlighter stroke under the subject, wrapping with the line. */}
+              <span className="bg-[linear-gradient(180deg,transparent_58%,rgb(94_234_212/55%)_58%,rgb(94_234_212/55%)_92%,transparent_92%)] px-1 [box-decoration-break:clone] [-webkit-box-decoration-break:clone]">
                 аксесуари, автохімія та&nbsp;інструмент
               </span>
             </span>
           </h2>
-          <p className="mt-5 max-w-[46ch] text-[15px] font-medium leading-[1.65] text-[#31566b] sm:mt-6 sm:text-[17px] [text-wrap:balance]">
-            Понад 4&nbsp;300 товарів для авто й гаража в&nbsp;{VITOL_GROUPS.length}&nbsp;нових групах: освіжувачі,
+          <p className="mt-5 max-w-[48ch] text-[15px] font-medium leading-[1.65] text-[#2b4f63] sm:mt-6 sm:text-[17px] [text-wrap:balance]">
+            <strong className="font-bold text-[#0b2233]">Понад 4&nbsp;300 товарів</strong> для авто й гаража в{" "}
+            <strong className="font-bold text-[#0b2233]">{VITOL_GROUPS.length}&nbsp;нових групах</strong>: освіжувачі,
             {" "}<span className="whitespace-nowrap">LED-лампи</span>, набори ключів, компресори, домкрати та&nbsp;інше.
           </p>
           <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
@@ -123,9 +125,9 @@ export default function HomeNewArrivalsBanner() {
               <Link
                 href={groupHref(card.group)}
                 prefetch={false}
-                className="group/card flex h-full items-center gap-3.5 rounded-[20px] border border-[#0f4c5c]/[0.08] bg-white/90 p-2.5 pr-4 sm:gap-4 sm:p-3 sm:pr-5 shadow-[0_1px_2px_rgb(15_43_61/5%),0_10px_24px_-18px_rgb(15_60_80/45%)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#087783]/25 hover:bg-white hover:shadow-[0_1px_2px_rgb(15_43_61/5%),0_18px_32px_-20px_rgb(8_90_110/55%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="group/card flex h-full items-center gap-3.5 rounded-[20px] border border-white/80 bg-white/55 p-2.5 pr-4 shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_12px_28px_-18px_rgb(15_60_80/40%)] backdrop-blur-md backdrop-saturate-150 transition-[transform,box-shadow,border-color,background-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#5eead4]/60 hover:bg-white/75 hover:shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_20px_34px_-20px_rgb(8_90_110/50%)] sm:gap-4 sm:p-3 sm:pr-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
-                <span className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[15px] bg-[linear-gradient(150deg,#f3faf9_0%,#e6f0f6_100%)] sm:h-[104px] sm:w-[104px]">
+                <span className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[15px] bg-white/80 shadow-[inset_0_0_0_1px_rgb(15_76_92/6%)] sm:h-[104px] sm:w-[104px]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the product-image route already serves sized WebP */}
                   <img
                     src={productImage(card.code)}
@@ -139,14 +141,14 @@ export default function HomeNewArrivalsBanner() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-2">
-                    <span className="line-clamp-2 text-[14.5px] font-bold leading-[1.25] text-[#0f2b3d] sm:text-[15.5px]">{card.group}</span>
+                    <span className="line-clamp-2 text-[15px] font-extrabold leading-[1.22] tracking-[-.01em] text-[#0b2233] sm:text-[16.5px]">{card.group}</span>
                     <ArrowUpRight
                       size={15}
                       aria-hidden="true"
                       className="mt-0.5 shrink-0 text-[#087783]/70 transition-[transform,color] duration-200 group-hover/card:-translate-y-px group-hover/card:translate-x-px group-hover/card:text-[#087783]"
                     />
                   </span>
-                  <span className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-[1.45] text-[#4b6878] sm:text-[13px]">
+                  <span className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-[1.45] text-[#33586c] sm:text-[13.5px]">
                     {card.about}
                   </span>
                   <span className="mt-1.5 block truncate text-[10.5px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[11px]">
