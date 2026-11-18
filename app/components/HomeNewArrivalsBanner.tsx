@@ -27,11 +27,12 @@ const CARDS: Array<{ group: VitolGroup; about: string; brands: string; code: str
   { group: "Чохли на кермо та сидіння", about: "Чохли з шкіри й екошкіри, накидки", brands: "VITOL · VOIN · MILEX", code: "РТ-00002690" },
   { group: "Аварійний набір водія", about: "Аптечки, вогнегасники, троси, пускові дроти", brands: "VITOL · ШТУРМОВИК · PULSO", code: "РТ-00001948" },
   { group: "Домкрати", about: "Підкатні, ромбоподібні, телескопічні", brands: "VITOL · IRON HAND", code: "РТ-00002144" },
+  { group: "Компресори та шиноремонт", about: "Компресори, манометри, набори для ремонту шин", brands: "VITOL · ШТУРМОВИК · VOIN", code: "РТ-00004117" },
 ];
 
 // Decoration around the heading (wide screens only): a mix of the range.
 const FLOATING: Array<{ code: string; className: string }> = [
-  { code: "РТ-00004117", className: "left-[3%] top-8 w-[165px] -rotate-[6deg] 2xl:left-[8%]" }, // компресор «Ураган»
+  { code: "РТ-00002367", className: "left-[3%] top-10 w-[180px] rotate-[60deg] 2xl:left-[8%]" }, // динамометричний ключ HANS
   { code: "РТ-00002841", className: "left-[15%] top-[120px] w-[120px] rotate-[10deg] 2xl:left-[19%]" }, // саше VITOL Fresh Bag
   { code: "РТ-00004074", className: "left-[5%] top-[200px] w-[125px] -rotate-[10deg] opacity-90 2xl:left-[10%]" }, // буксирувальний трос
   { code: "РТ-00005556", className: "right-[4%] top-8 w-[150px] rotate-[7deg] 2xl:right-[9%]" }, // шампунь VOIN SnowFoam
@@ -115,10 +116,10 @@ export default function HomeNewArrivalsBanner() {
         </header>
 
         {/* Compact cards: a small photo tile beside the text. Phones scroll
-            two rows sideways; tablets show two columns, desktops four. */}
+            two rows sideways; tablets show two columns, desktops three. */}
         <ul
           aria-label="Групи нового надходження"
-          className="-mx-[var(--page-shell-gutter)] mt-10 grid snap-x snap-mandatory auto-cols-[82%] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto scroll-px-[var(--page-shell-gutter)] px-[var(--page-shell-gutter)] pb-2 [scrollbar-width:none] min-[480px]:auto-cols-[58%] sm:mt-11 md:mx-0 md:grid-flow-row md:grid-cols-2 md:grid-rows-none md:gap-3 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
+          className="-mx-[var(--page-shell-gutter)] mt-10 grid snap-x snap-mandatory auto-cols-[82%] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto scroll-px-[var(--page-shell-gutter)] px-[var(--page-shell-gutter)] pb-2 [scrollbar-width:none] min-[480px]:auto-cols-[58%] sm:mt-11 md:mx-0 md:grid-flow-row md:grid-cols-2 md:grid-rows-none md:gap-3 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3 lg:gap-4 [&::-webkit-scrollbar]:hidden"
         >
           {CARDS.map((card) => (
             <li key={card.group} className="min-w-0 snap-start">
