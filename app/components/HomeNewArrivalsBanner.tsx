@@ -6,12 +6,13 @@ import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { VITOL_GROUPS, VITOL_SECTION, type VitolGroup } from "app/lib/vitol-groups";
 
 // Homepage showcase for the new accessories / car care / tools range (VITOL,
-// all "під замовлення"). Full-bleed: a real workshop photo (the /auto
-// directory's cars) under an ink → teal gradient carries the heading, then
-// fades into the page's light ground where eight group cards open the real
-// 1C group pages under "Інше" (/groups/inshe/<group>, same slug rules as the
-// directory). Server-rendered, no client JS. The photo is lazy, low priority
-// and sized per screen; offscreen the section is skipped by content-visibility.
+// all "під замовлення"), in the light picker-section family of the homepage.
+// Full-bleed: a layered mint → sky gradient with real product photos floating
+// at the edges (white photo backgrounds vanish under mix-blend-multiply), the
+// heading in the pickers' display type, then eight group cards that open the
+// real 1C group pages under "Інше" (/groups/inshe/<group>, same slug rules as
+// the directory). Server-rendered, no client JS; every photo is a catalog
+// product served by the product-image route.
 
 const productImage = (code: string) => `/product-image/${encodeURIComponent(code)}`;
 
@@ -20,11 +21,21 @@ const CARDS: Array<{ group: VitolGroup; brands: string; code: string }> = [
   { group: "Ручний інструмент", brands: "ALLOID · HANS", code: "РТ-00004897" },
   { group: "Освіжувачі повітря", brands: "AREON · VITOL · TASOTTI", code: "РТ-00001926" },
   { group: "Автохімія та догляд", brands: "VITOL · VOIN · ABRO", code: "РТ-00003312" },
-  { group: "Автолампи", brands: "PULSO", code: "РТ-00002256" },
+  { group: "Автолампи", brands: "PULSO", code: "РТ-00002289" },
   { group: "Фари та ліхтарі", brands: "PULSO · DLAA · VOIN", code: "РТ-00004386" },
   { group: "Чохли на кермо та сидіння", brands: "VITOL · VOIN · MILEX", code: "РТ-00002690" },
   { group: "Аварійний набір водія", brands: "VITOL · ШТУРМОВИК · PULSO", code: "РТ-00001948" },
   { group: "Домкрати", brands: "VITOL · IRON HAND", code: "РТ-00002144" },
+];
+
+// Decoration around the heading (wide screens only): tools and lamps from the range.
+const FLOATING: Array<{ code: string; className: string }> = [
+  { code: "РТ-00004117", className: "left-[3%] top-8 w-[170px] -rotate-[6deg] 2xl:left-[8%]" }, // компресор «Ураган»
+  { code: "РТ-00004939", className: "left-[15%] top-[140px] w-[140px] rotate-[28deg] 2xl:left-[19%]" }, // тріскачка Alloid
+  { code: "РТ-00005117", className: "left-[5%] top-[215px] w-[150px] rotate-[45deg] opacity-80 2xl:left-[10%]" }, // ключ комбінований HANS
+  { code: "РТ-00002367", className: "right-[3%] top-10 w-[200px] -rotate-[30deg] 2xl:right-[8%]" }, // динамометричний ключ HANS
+  { code: "РТ-00002256", className: "right-[17%] top-[60px] w-[150px] rotate-[8deg] 2xl:right-[21%]" }, // лампи PULSO
+  { code: "РТ-00004956", className: "right-[16%] top-[200px] w-[110px] rotate-[62deg] opacity-80 2xl:right-[20%]" }, // молоток Alloid
 ];
 
 const sectionSlug = buildPlainSeoSlug(VITOL_SECTION);
@@ -34,48 +45,53 @@ export default function HomeNewArrivalsBanner() {
   return (
     <section
       aria-labelledby="home-arrivals-title"
-      className="font-ui relative isolate overflow-hidden bg-[#eef5f7] pb-14 pt-12 text-[#0f2b3d] [contain-intrinsic-size:auto_1000px] [content-visibility:auto] sm:pb-16 sm:pt-16 lg:pb-20 lg:pt-20"
+      className="font-ui relative isolate overflow-hidden py-12 text-[#0f2b3d] [contain-intrinsic-size:auto_1000px] [content-visibility:auto] sm:py-16 lg:py-20"
     >
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[500px] sm:h-[520px] lg:h-[560px]">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a static, pre-sized background photo */}
-        <img
-          src="/images/directories/auto-workshop-v1-960.webp"
-          srcSet="/images/directories/auto-workshop-v1-960.webp 960w, /images/directories/auto-workshop-v1.webp 1920w"
-          sizes="100vw"
-          alt=""
-          width={1920}
-          height={768}
-          loading="lazy"
-          decoding="async"
-          fetchPriority="low"
-          className="h-full w-full object-cover object-[68%_center]"
-        />
-        {/* Ink over the photo: top-down on phones, from the text side on wider screens. */}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(5_22_37/90%)_0%,rgb(5_22_37/78%)_45%,rgb(5_22_37/55%)_70%,rgb(5_22_37/20%)_100%)] md:bg-[linear-gradient(90deg,rgb(5_22_37/96%)_0%,rgb(5_22_37/86%)_34%,rgb(5_22_37/48%)_64%,rgb(5_22_37/18%)_100%)]" />
-        <div className="absolute -left-[10%] -top-[40%] h-[620px] w-[620px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/22%)_0%,transparent_65%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-[58%] bg-[linear-gradient(180deg,rgb(238_245_247/0%)_0%,rgb(238_245_247/70%)_55%,#eef5f7_100%)]" />
+      {/* Background: gradient, two glows, a dotted texture, floating products. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[linear-gradient(160deg,#f2fbf9_0%,#e4f3f4_34%,#dceaf6_68%,#e8ecf9_100%)]" />
+        <div className="absolute -left-[12%] -top-[30%] h-[680px] w-[680px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/26%)_0%,rgb(45_212_191/8%)_45%,transparent_70%)]" />
+        <div className="absolute -bottom-[35%] -right-[10%] h-[760px] w-[760px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/24%)_0%,rgb(99_102_241/8%)_48%,transparent_72%)]" />
+        <div className="absolute inset-0 opacity-50 [background-image:radial-gradient(rgb(15_76_92/14%)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_30%,#000,transparent)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/30%),transparent)]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/30%),transparent)]" />
+        <div className="hidden lg:block">
+          {FLOATING.map((item) => (
+            // eslint-disable-next-line @next/next/no-img-element -- decorative, served sized by the product-image route
+            <img
+              key={item.code}
+              src={productImage(item.code)}
+              alt=""
+              width={500}
+              height={500}
+              loading="lazy"
+              decoding="async"
+              className={`absolute aspect-square object-contain mix-blend-multiply ${item.className}`}
+            />
+          ))}
+        </div>
       </div>
-      <div aria-hidden="true" className="pointer-events-none absolute -bottom-[30%] -right-[10%] -z-10 h-[640px] w-[640px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/16%)_0%,transparent_68%)]" />
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
-        <header className="max-w-[40rem]">
+        {/* Two deliberate heading lines, a balanced lead, one quiet note. */}
+        <header className="mx-auto flex max-w-[46rem] flex-col items-center text-center">
           <h2
             id="home-arrivals-title"
-            className="font-display font-display-readable text-[clamp(28px,3.3vw,46px)] font-[800] leading-[1.08] tracking-[-.03em] text-white [text-shadow:0_2px_18px_rgb(2_12_22/45%)]"
+            className="font-display font-display-readable text-[clamp(28px,3.3vw,46px)] font-[800] leading-[1.08] tracking-[-.03em] text-[#0f2b3d] [text-shadow:0_2px_1px_rgb(255_255_255/80%)]"
           >
             <span className="block">Нове надходження</span>
-            <span className="mt-1.5 block text-[#5eead4] [text-wrap:balance] sm:mt-2">
-              <span className="underline decoration-[#5eead4]/45 decoration-2 underline-offset-[8px] [text-decoration-skip-ink:auto] [box-decoration-break:clone]">
+            <span className="mt-1.5 block text-[#087783] [text-wrap:balance] sm:mt-2">
+              <span className="underline decoration-[#7ebdc4] decoration-2 underline-offset-[8px] [text-decoration-skip-ink:auto] [box-decoration-break:clone]">
                 аксесуари, автохімія та&nbsp;інструмент
               </span>
             </span>
           </h2>
-          <p className="mt-5 max-w-[46ch] text-[15px] font-medium leading-[1.65] text-[#d3e6ee] sm:mt-6 sm:text-[17px] [text-wrap:pretty]">
+          <p className="mt-5 max-w-[46ch] text-[15px] font-medium leading-[1.65] text-[#31566b] sm:mt-6 sm:text-[17px] [text-wrap:balance]">
             Понад 4&nbsp;300 товарів для авто й гаража в&nbsp;{VITOL_GROUPS.length}&nbsp;нових групах: освіжувачі,
-            <span className="whitespace-nowrap">LED-лампи</span>, набори ключів, компресори, домкрати та&nbsp;інше.
+            {" "}<span className="whitespace-nowrap">LED-лампи</span>, набори ключів, компресори, домкрати та&nbsp;інше.
           </p>
-          <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-[14px] border border-white/15 bg-white/[0.08] px-3.5 py-2 text-[13px] font-semibold leading-[1.4] text-[#e6f3f8] sm:rounded-full sm:py-1.5 sm:text-[13.5px]">
-            <Clock3 size={15} aria-hidden="true" className="shrink-0 text-[#5eead4]" />
+          <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-[14px] border border-[#087783]/15 bg-white/65 px-3.5 py-2 text-left text-[13px] font-semibold leading-[1.4] text-[#21485c] shadow-[0_1px_0_rgb(255_255_255/80%)_inset] sm:rounded-full sm:py-1.5 sm:text-[13.5px]">
+            <Clock3 size={15} aria-hidden="true" className="shrink-0 text-[#087783]" />
             <span>
               Під замовлення <span aria-hidden="true">·</span> строк постачання підтвердить менеджер
             </span>
