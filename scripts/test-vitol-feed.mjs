@@ -91,6 +91,18 @@ assert.equal(
   'name-only paragraph dropped, logistics params skipped, specs tab-separated'
 );
 assert.equal(vitolDescription({ name: 'X', description: 'X', params: [] }), '');
+{
+  const long = Array.from({ length: 40 }, (_, i) => `Речення номер ${i} про корисну властивість товару.`).join(' ');
+  const text = vitolDescription({
+    name: 'Чохол',
+    description: `Перший абзац.\nТМ Витол гарантує, що вся продукція якісна.\n${long}\n• пункт`,
+    params: [{ name: 'Матеріал', value: 'шкіра' }],
+  });
+  assert.ok(text.length <= 1024, `fits 1C's 1024 characters (${text.length})`);
+  assert.ok(!text.includes('ТМ Витол'), 'brand boilerplate dropped');
+  assert.ok(text.startsWith('Перший абзац.\nРечення номер 0'), 'paragraphs kept in order');
+  assert.ok(/товару\.\nМатеріал\tшкіра$/.test(text), 'long paragraph cut at a sentence end, characteristics kept');
+}
 assert.equal(textHash('abc'), textHash('abc'));
 assert.notEqual(textHash('abc'), textHash('abd'));
 assert.throws(() => parseVitolYml('<shop><items></items></shop>'), /not a YML/);

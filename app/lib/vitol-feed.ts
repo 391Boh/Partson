@@ -326,27 +326,73 @@ const PARAM_LABELS: Record<string, string> = {
 };
 const PARAM_SKIPPED = new Set(["уктвед", "ширина вгх", "длина вгх", "высота вгх", "торгова марка", "квадрат"]);
 
+// 1C's Описание field holds 1024 characters and cuts the rest mid-word.
+export const ONEC_DESCRIPTION_MAX = 1024;
+
+// VITOL's brand boilerplate, repeated across hundreds of products.
+const BOILERPLATE =
+  /(ТМ\s+Витол\s+гарантує|VIT[OО]L\s+вже\s+20\s+рок|20\s+років\s+на\s+ринку|Про\s+надійність\s+товарів\s+VIT[OО]L|Втілюючи\s+британські\s+стандарти)/i;
+
+/** Cuts text to `limit` at the last sentence end, or returns "" if too little is left. */
+const cutAtSentence = (text: string, limit: number) => {
+  if (text.length <= limit) return text;
+  const head = text.slice(0, limit);
+  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "), head.lastIndexOf("; "));
+  const cut = end >= 0 ? head.slice(0, end + 1) : head.endsWith(".") ? head : "";
+  return cut.length >= 80 ? cut.trim() : "";
+};
+
 /**
- * Text for the 1C description: the feed's own paragraphs (unless they only
- * repeat the product name), then "Назва\tЗначення" rows, the format the
- * product page already renders as a characteristics table.
+ * Text for the 1C description: the feed's own paragraphs (minus a repeat of
+ * the product name and VITOL's brand boilerplate), then "Назва\tЗначення"
+ * rows, the format the product page already renders as a characteristics
+ * table. Fitted into 1C's 1024 characters: the characteristics always fit,
+ * paragraphs are taken whole and the last one is cut at a sentence end.
  */
-export function vitolDescription(item: Pick<VitolFeedItem, "name" | "description" | "params">) {
+export function vitolDescription(
+  item: Pick<VitolFeedItem, "name" | "description" | "params">,
+  maxLength = ONEC_DESCRIPTION_MAX
+) {
   const sameAsName = (line: string) =>
     line.toLocaleLowerCase("uk-UA").replace(/\s+/g, " ").trim() ===
     item.name.toLocaleLowerCase("uk-UA").replace(/\s+/g, " ").trim();
-  const paragraphs = (item.description || "").split("\n").map((line) => line.trim()).filter((line) => line && !sameAsName(line));
+  const paragraphs = (item.description || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !sameAsName(line) && !BOILERPLATE.test(line));
+
   const specs: string[] = [];
   const seen = new Set<string>();
+  let specsLength = 0;
   for (const param of item.params || []) {
     const key = param.name.toLocaleLowerCase("uk-UA").trim();
     if (PARAM_SKIPPED.has(key)) continue;
     const label = PARAM_LABELS[key] || param.name.replace(/\t/g, " ");
     if (seen.has(label)) continue;
+    const row = `${label}\t${param.value.replace(/\t/g, " ")}`.slice(0, 160);
+    // Characteristics may take at most half the room.
+    if (specsLength + row.length + 1 > maxLength / 2) break;
     seen.add(label);
-    specs.push(`${label}\t${param.value.replace(/\t/g, " ")}`);
+    specs.push(row);
+    specsLength += row.length + 1;
   }
-  return [...paragraphs, ...specs].join("\n").slice(0, 8000);
+
+  let room = maxLength - specsLength;
+  const kept: string[] = [];
+  for (const paragraph of paragraphs) {
+    if (paragraph.length + 1 <= room) {
+      kept.push(paragraph);
+      room -= paragraph.length + 1;
+      continue;
+    }
+    // Bullet points are kept whole or not at all.
+    const cut = paragraph.startsWith("•") ? "" : cutAtSentence(paragraph, room - 1);
+    if (cut) kept.push(cut);
+    break;
+  }
+  // A heading ("Переваги:") whose list did not fit says nothing on its own.
+  while (kept.length && /:$/.test(kept[kept.length - 1])) kept.pop();
+  return [...kept, ...specs].join("\n").slice(0, maxLength);
 }
 
 /** Stable short hash so the sync only resends changed descriptions. */
