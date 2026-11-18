@@ -23,9 +23,6 @@ const CARDS: Array<{ group: VitolGroup; about: string; brands: string; code: str
   { group: "Освіжувачі повітря", about: "Гелеві, підвісні та ароматичні саше", brands: "AREON · VITOL · TASOTTI", code: "РТ-00001926" },
   { group: "Автохімія та догляд", about: "Поліролі, шампуні, очисники, омивачі", brands: "VITOL · VOIN · ABRO", code: "РТ-00003312" },
   { group: "Автолампи", about: "LED і галогенні: головне світло, габарити", brands: "PULSO", code: "РТ-00002289" },
-  { group: "Фари та ліхтарі", about: "Додаткові LED-фари, протитуманки, ліхтарі", brands: "PULSO · DLAA · VOIN", code: "РТ-00004386" },
-  { group: "Чохли на кермо та сидіння", about: "Чохли з шкіри й екошкіри, накидки", brands: "VITOL · VOIN · MILEX", code: "РТ-00002690" },
-  { group: "Аварійний набір водія", about: "Аптечки, вогнегасники, троси, пускові дроти", brands: "VITOL · ШТУРМОВИК · PULSO", code: "РТ-00001948" },
   { group: "Домкрати", about: "Підкатні, ромбоподібні, телескопічні", brands: "VITOL · IRON HAND", code: "РТ-00002144" },
   { group: "Компресори та шиноремонт", about: "Компресори, манометри, набори для ремонту шин", brands: "VITOL · ШТУРМОВИК · VOIN", code: "РТ-00004117" },
 ];
@@ -116,19 +113,19 @@ export default function HomeNewArrivalsBanner() {
         </header>
 
         {/* Compact cards: a small photo tile beside the text. Phones scroll
-            two rows sideways; tablets show two columns, desktops three. */}
+            two rows sideways; tablets show two columns, desktops three by two. */}
         <ul
           aria-label="Групи нового надходження"
-          className="-mx-[var(--page-shell-gutter)] mt-10 grid snap-x snap-mandatory auto-cols-[82%] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto scroll-px-[var(--page-shell-gutter)] px-[var(--page-shell-gutter)] pb-2 [scrollbar-width:none] min-[480px]:auto-cols-[58%] sm:mt-11 md:mx-0 md:grid-flow-row md:grid-cols-2 md:grid-rows-none md:gap-3 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3 lg:gap-4 [&::-webkit-scrollbar]:hidden"
+          className="-mx-[var(--page-shell-gutter)] mt-10 grid snap-x snap-mandatory auto-cols-[84%] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto scroll-px-[var(--page-shell-gutter)] px-[var(--page-shell-gutter)] pb-2 [scrollbar-width:none] min-[480px]:auto-cols-[58%] sm:mt-11 md:mx-0 md:grid-flow-row md:grid-cols-2 md:grid-rows-none md:gap-3 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3 lg:gap-4 [&::-webkit-scrollbar]:hidden"
         >
           {CARDS.map((card) => (
             <li key={card.group} className="min-w-0 snap-start">
               <Link
                 href={groupHref(card.group)}
                 prefetch={false}
-                className="group/card flex h-full items-center gap-3 rounded-[18px] border border-[#0f4c5c]/[0.08] bg-white/90 p-2 pr-3 shadow-[0_1px_2px_rgb(15_43_61/5%),0_10px_24px_-18px_rgb(15_60_80/45%)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#087783]/25 hover:bg-white hover:shadow-[0_1px_2px_rgb(15_43_61/5%),0_18px_32px_-20px_rgb(8_90_110/55%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="group/card flex h-full items-center gap-3.5 rounded-[20px] border border-[#0f4c5c]/[0.08] bg-white/90 p-2.5 pr-4 sm:gap-4 sm:p-3 sm:pr-5 shadow-[0_1px_2px_rgb(15_43_61/5%),0_10px_24px_-18px_rgb(15_60_80/45%)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#087783]/25 hover:bg-white hover:shadow-[0_1px_2px_rgb(15_43_61/5%),0_18px_32px_-20px_rgb(8_90_110/55%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
-                <span className="relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-[13px] bg-[linear-gradient(150deg,#f3faf9_0%,#e6f0f6_100%)] sm:h-[84px] sm:w-[84px]">
+                <span className="relative h-[88px] w-[88px] shrink-0 overflow-hidden rounded-[15px] bg-[linear-gradient(150deg,#f3faf9_0%,#e6f0f6_100%)] sm:h-[104px] sm:w-[104px]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the product-image route already serves sized WebP */}
                   <img
                     src={productImage(card.code)}
@@ -137,22 +134,22 @@ export default function HomeNewArrivalsBanner() {
                     height={500}
                     loading="lazy"
                     decoding="async"
-                    className="absolute inset-0 h-full w-full object-contain p-1.5 mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover/card:scale-[1.07] motion-reduce:transition-none"
+                    className="absolute inset-0 h-full w-full object-contain p-2 mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover/card:scale-[1.07] motion-reduce:transition-none"
                   />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-2">
-                    <span className="line-clamp-2 text-[14px] font-bold leading-[1.25] text-[#0f2b3d] sm:text-[14.5px]">{card.group}</span>
+                    <span className="line-clamp-2 text-[14.5px] font-bold leading-[1.25] text-[#0f2b3d] sm:text-[15.5px]">{card.group}</span>
                     <ArrowUpRight
                       size={15}
                       aria-hidden="true"
                       className="mt-0.5 shrink-0 text-[#087783]/70 transition-[transform,color] duration-200 group-hover/card:-translate-y-px group-hover/card:translate-x-px group-hover/card:text-[#087783]"
                     />
                   </span>
-                  <span className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-[1.4] text-[#4b6878] sm:text-[12.5px]">
+                  <span className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-[1.45] text-[#4b6878] sm:text-[13px]">
                     {card.about}
                   </span>
-                  <span className="mt-1 block truncate text-[10px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[10.5px]">
+                  <span className="mt-1.5 block truncate text-[10.5px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[11px]">
                     {card.brands}
                   </span>
                 </span>
