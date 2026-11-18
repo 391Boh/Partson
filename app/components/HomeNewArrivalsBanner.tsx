@@ -11,13 +11,14 @@ import { VITOL_SECTION, type VitolGroup } from "app/lib/vitol-groups";
 // directory. Server-rendered, no client JS; photos are real catalog products
 // served by the product-image route.
 
-const SHOWCASE: Array<{ group: VitolGroup; label: string; code: string; alt: string }> = [
-  { group: "Освіжувачі повітря", label: "Освіжувачі", code: "РТ-00001926", alt: "Освіжувач повітря AREON Fresh Wave" },
-  { group: "Ручний інструмент", label: "Інструмент", code: "РТ-00004897", alt: "Набір головок Alloid, 47 предметів" },
-  { group: "Фари та ліхтарі", label: "Фари та ліхтарі", code: "РТ-00004386", alt: "Фара робочого світла PULSO" },
-  { group: "Чохли на кермо та сидіння", label: "Чохли на кермо", code: "РТ-00002690", alt: "Чохол на кермо VITOL" },
-  { group: "Автохімія та догляд", label: "Автохімія", code: "РТ-00003312", alt: "Набір поліролі для пластику VOIN" },
-  { group: "Домкрати", label: "Домкрати", code: "РТ-00002144", alt: "Підкатний гідравлічний домкрат" },
+// The photo is decoration: the tile's accessible name is its group.
+const SHOWCASE: Array<{ group: VitolGroup; code: string }> = [
+  { group: "Освіжувачі повітря", code: "РТ-00001926" }, // AREON Fresh Wave
+  { group: "Ручний інструмент", code: "РТ-00004897" }, // набір головок Alloid
+  { group: "Фари та ліхтарі", code: "РТ-00004386" }, // фара робочого світла PULSO
+  { group: "Чохли на кермо та сидіння", code: "РТ-00002690" }, // чохол на кермо VITOL
+  { group: "Автохімія та догляд", code: "РТ-00003312" }, // поліроль VOIN
+  { group: "Домкрати", code: "РТ-00002144" }, // підкатний домкрат
 ];
 
 const MORE_GROUPS: VitolGroup[] = [
@@ -51,19 +52,12 @@ export default function HomeNewArrivalsBanner() {
 
           <div className="grid gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)] lg:items-center lg:gap-10 lg:px-10 lg:py-10">
             <div className="flex flex-col items-start gap-4">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-[11px] font-[780] uppercase leading-[1.4] tracking-[.07em] text-[#c9f7f2] shadow-[inset_0_1px_0_rgb(255_255_255/12%)]">
-                <span className="relative flex h-2 w-2" aria-hidden="true">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#5eead4] opacity-70 motion-safe:animate-ping" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#5eead4]" />
-                </span>
-                Нове надходження
-              </span>
-
               <h2
                 id="home-arrivals-title"
                 className="max-w-[20ch] text-[clamp(23px,2.3vw,32px)] font-[760] leading-[1.12] tracking-[-.022em] text-white [text-wrap:balance]"
               >
-                Автоаксесуари, автохімія та&nbsp;інструмент
+                <span className="block text-[#5eead4]">Нове надходження:</span>
+                автоаксесуари, автохімія та&nbsp;інструмент
               </h2>
 
               <p className="max-w-[46ch] text-[14px] font-medium leading-[1.6] text-[#d7e9f1] sm:text-[15px] [text-wrap:pretty]">
@@ -95,7 +89,7 @@ export default function HomeNewArrivalsBanner() {
                       {/* eslint-disable-next-line @next/next/no-img-element -- the product-image route already serves sized WebP */}
                       <img
                         src={`/product-image/${encodeURIComponent(item.code)}`}
-                        alt={item.alt}
+                        alt=""
                         width={500}
                         height={500}
                         loading="lazy"
@@ -104,7 +98,7 @@ export default function HomeNewArrivalsBanner() {
                       />
                     </span>
                     <span className="flex min-h-10 items-center justify-between gap-1 border-t border-[#e3edf2] px-2 py-1.5 text-[11px] font-bold leading-tight sm:min-h-11 sm:gap-2 sm:px-3 sm:py-2 sm:text-[13px]">
-                      {item.label}
+                      {item.group}
                       <ArrowUpRight size={15} aria-hidden="true" className="hidden shrink-0 text-[#0e7490] min-[420px]:block transition-transform duration-200 group-hover/tile:-translate-y-px group-hover/tile:translate-x-px" />
                     </span>
                   </Link>
@@ -115,16 +109,17 @@ export default function HomeNewArrivalsBanner() {
 
           <nav
             aria-label="Інші групи нового надходження"
-            className="border-t border-white/10 bg-[#061527]/40 px-5 py-4 sm:px-8 lg:px-10"
+            className="border-t border-white/10 bg-[#061527]/40 py-4 sm:px-8 lg:px-10"
           >
-            <ul className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <li className="mr-1 text-[11px] font-bold uppercase tracking-[.07em] text-[#9fc3d3]">Також</li>
+            {/* Phones: one swipeable row; wider screens wrap. */}
+            <ul className="flex snap-x snap-mandatory scroll-px-5 items-center gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] sm:flex-wrap sm:gap-2 sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+              <li className="mr-1 shrink-0 text-[11px] font-bold uppercase tracking-[.07em] text-[#9fc3d3]">Також</li>
               {MORE_GROUPS.map((group) => (
-                <li key={group}>
+                <li key={group} className="shrink-0 snap-start">
                   <Link
                     href={groupHref(group)}
                     prefetch={false}
-                    className="inline-flex min-h-10 items-center rounded-full border border-white/12 bg-white/[0.06] px-3 text-[12.5px] font-semibold text-[#e6f3f8] transition-colors hover:border-[#5eead4]/50 hover:bg-white/[0.12] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5eead4]"
+                    className="inline-flex min-h-10 items-center whitespace-nowrap rounded-full border border-white/12 bg-white/[0.06] px-3 text-[12.5px] font-semibold text-[#e6f3f8] transition-colors hover:border-[#5eead4]/50 hover:bg-white/[0.12] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5eead4]"
                   >
                     {group}
                   </Link>
