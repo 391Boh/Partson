@@ -9,33 +9,34 @@ import { VITOL_GROUPS, VITOL_SECTION, type VitolGroup } from "app/lib/vitol-grou
 // all "під замовлення"), in the light picker-section family of the homepage.
 // Full-bleed: a layered mint → sky gradient with real product photos floating
 // at the edges (white photo backgrounds vanish under mix-blend-multiply), the
-// heading in the pickers' display type, then eight group cards that open the
+// heading in the pickers' display type with the section link beside the
+// order note, then eight group cards (what each holds, its brands) that open the
 // real 1C group pages under "Інше" (/groups/inshe/<group>, same slug rules as
 // the directory). Server-rendered, no client JS; every photo is a catalog
 // product served by the product-image route.
 
 const productImage = (code: string) => `/product-image/${encodeURIComponent(code)}`;
 
-// Brands: the leading producers of each group in the VITOL feed.
-const CARDS: Array<{ group: VitolGroup; brands: string; code: string }> = [
-  { group: "Ручний інструмент", brands: "ALLOID · HANS", code: "РТ-00004897" },
-  { group: "Освіжувачі повітря", brands: "AREON · VITOL · TASOTTI", code: "РТ-00001926" },
-  { group: "Автохімія та догляд", brands: "VITOL · VOIN · ABRO", code: "РТ-00003312" },
-  { group: "Автолампи", brands: "PULSO", code: "РТ-00002289" },
-  { group: "Фари та ліхтарі", brands: "PULSO · DLAA · VOIN", code: "РТ-00004386" },
-  { group: "Чохли на кермо та сидіння", brands: "VITOL · VOIN · MILEX", code: "РТ-00002690" },
-  { group: "Аварійний набір водія", brands: "VITOL · ШТУРМОВИК · PULSO", code: "РТ-00001948" },
-  { group: "Домкрати", brands: "VITOL · IRON HAND", code: "РТ-00002144" },
+// What each group holds, and its leading producers in the VITOL feed.
+const CARDS: Array<{ group: VitolGroup; about: string; brands: string; code: string }> = [
+  { group: "Ручний інструмент", about: "Набори ключів і головок, тріскачки, викрутки", brands: "ALLOID · HANS", code: "РТ-00004897" },
+  { group: "Освіжувачі повітря", about: "Гелеві, підвісні та ароматичні саше", brands: "AREON · VITOL · TASOTTI", code: "РТ-00001926" },
+  { group: "Автохімія та догляд", about: "Поліролі, шампуні, очисники, омивачі", brands: "VITOL · VOIN · ABRO", code: "РТ-00003312" },
+  { group: "Автолампи", about: "LED і галогенні: головне світло, габарити", brands: "PULSO", code: "РТ-00002289" },
+  { group: "Фари та ліхтарі", about: "Додаткові LED-фари, протитуманки, ліхтарі", brands: "PULSO · DLAA · VOIN", code: "РТ-00004386" },
+  { group: "Чохли на кермо та сидіння", about: "Чохли з шкіри й екошкіри, накидки", brands: "VITOL · VOIN · MILEX", code: "РТ-00002690" },
+  { group: "Аварійний набір водія", about: "Аптечки, вогнегасники, троси, пускові дроти", brands: "VITOL · ШТУРМОВИК · PULSO", code: "РТ-00001948" },
+  { group: "Домкрати", about: "Підкатні, ромбоподібні, телескопічні", brands: "VITOL · IRON HAND", code: "РТ-00002144" },
 ];
 
-// Decoration around the heading (wide screens only): tools and lamps from the range.
+// Decoration around the heading (wide screens only): a mix of the range.
 const FLOATING: Array<{ code: string; className: string }> = [
-  { code: "РТ-00004117", className: "left-[3%] top-8 w-[170px] -rotate-[6deg] 2xl:left-[8%]" }, // компресор «Ураган»
-  { code: "РТ-00004939", className: "left-[15%] top-[140px] w-[140px] rotate-[28deg] 2xl:left-[19%]" }, // тріскачка Alloid
-  { code: "РТ-00005117", className: "left-[5%] top-[215px] w-[150px] rotate-[45deg] opacity-80 2xl:left-[10%]" }, // ключ комбінований HANS
-  { code: "РТ-00002367", className: "right-[3%] top-10 w-[200px] -rotate-[30deg] 2xl:right-[8%]" }, // динамометричний ключ HANS
-  { code: "РТ-00002256", className: "right-[17%] top-[60px] w-[150px] rotate-[8deg] 2xl:right-[21%]" }, // лампи PULSO
-  { code: "РТ-00004956", className: "right-[16%] top-[200px] w-[110px] rotate-[62deg] opacity-80 2xl:right-[20%]" }, // молоток Alloid
+  { code: "РТ-00004117", className: "left-[3%] top-8 w-[165px] -rotate-[6deg] 2xl:left-[8%]" }, // компресор «Ураган»
+  { code: "РТ-00002841", className: "left-[15%] top-[120px] w-[120px] rotate-[10deg] 2xl:left-[19%]" }, // саше VITOL Fresh Bag
+  { code: "РТ-00004074", className: "left-[5%] top-[200px] w-[125px] -rotate-[10deg] opacity-90 2xl:left-[10%]" }, // буксирувальний трос
+  { code: "РТ-00005556", className: "right-[4%] top-8 w-[150px] rotate-[7deg] 2xl:right-[9%]" }, // шампунь VOIN SnowFoam
+  { code: "РТ-00002256", className: "right-[16%] top-[105px] w-[150px] -rotate-[8deg] 2xl:right-[20%]" }, // лампи PULSO
+  { code: "РТ-00003979", className: "right-[5%] top-[215px] w-[120px] rotate-[12deg] opacity-90 2xl:right-[10%]" }, // тримач телефону BOROFONE BH36
 ];
 
 const sectionSlug = buildPlainSeoSlug(VITOL_SECTION);
@@ -73,7 +74,8 @@ export default function HomeNewArrivalsBanner() {
       </div>
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
-        {/* Two deliberate heading lines, a balanced lead, one quiet note. */}
+        {/* Two heading lines, a balanced lead, then the section link and the
+            order note side by side. */}
         <header className="mx-auto flex max-w-[46rem] flex-col items-center text-center">
           <h2
             id="home-arrivals-title"
@@ -90,17 +92,27 @@ export default function HomeNewArrivalsBanner() {
             Понад 4&nbsp;300 товарів для авто й гаража в&nbsp;{VITOL_GROUPS.length}&nbsp;нових групах: освіжувачі,
             {" "}<span className="whitespace-nowrap">LED-лампи</span>, набори ключів, компресори, домкрати та&nbsp;інше.
           </p>
-          <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-[14px] border border-[#087783]/15 bg-white/65 px-3.5 py-2 text-left text-[13px] font-semibold leading-[1.4] text-[#21485c] shadow-[0_1px_0_rgb(255_255_255/80%)_inset] sm:rounded-full sm:py-1.5 sm:text-[13.5px]">
-            <Clock3 size={15} aria-hidden="true" className="shrink-0 text-[#087783]" />
-            <span>
-              Під замовлення <span aria-hidden="true">·</span> строк постачання підтвердить менеджер
-            </span>
-          </p>
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
+            <Link
+              href={buildGroupPath(sectionSlug)}
+              prefetch={false}
+              className="group/cta inline-flex min-h-11 items-center gap-2.5 rounded-full bg-[#0f2b3d] py-1.5 pl-5 pr-1.5 text-[14px] font-bold text-white shadow-[0_12px_26px_-14px_rgb(15_43_61/70%)] transition-[transform,box-shadow,background-color] duration-200 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:bg-[#0b3a4f] hover:shadow-[0_16px_30px_-14px_rgb(15_43_61/80%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            >
+              Усі {VITOL_GROUPS.length} групи
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5eead4,#38bdf8)] text-[#062033] transition-transform duration-200 group-hover/cta:translate-x-0.5">
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
+            </Link>
+            <p className="text-[13px] font-semibold leading-[1.4] text-[#21485c] sm:text-[13.5px]">
+              <Clock3 size={15} aria-hidden="true" className="mr-1.5 inline-block -translate-y-px align-middle text-[#087783]" />
+              Під замовлення: строк підтвердить менеджер
+            </p>
+          </div>
         </header>
 
         <ul
           aria-label="Групи нового надходження"
-          className="-mx-[var(--page-shell-gutter)] mt-9 flex snap-x snap-mandatory scroll-px-[var(--page-shell-gutter)] gap-3 overflow-x-auto px-[var(--page-shell-gutter)] pb-3 [scrollbar-width:none] sm:mt-11 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0 md:pb-0 lg:gap-5 [&::-webkit-scrollbar]:hidden"
+          className="-mx-[var(--page-shell-gutter)] mt-10 flex snap-x snap-mandatory scroll-px-[var(--page-shell-gutter)] gap-3 overflow-x-auto px-[var(--page-shell-gutter)] pb-3 [scrollbar-width:none] sm:mt-11 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0 md:pb-0 lg:gap-5 [&::-webkit-scrollbar]:hidden"
         >
           {CARDS.map((card) => (
             <li key={card.group} className="w-[46%] shrink-0 snap-start min-[480px]:w-[36%] md:w-auto">
@@ -126,7 +138,10 @@ export default function HomeNewArrivalsBanner() {
                     <span className="block text-[14px] font-bold leading-[1.25] text-[#0f2b3d] [text-wrap:balance] sm:text-[15px]">
                       {card.group}
                     </span>
-                    <span className="mt-1 block text-[11.5px] font-semibold uppercase leading-[1.4] tracking-[.04em] text-[#56788a] sm:text-[12px]">
+                    <span className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-[1.45] text-[#4b6878] sm:text-[13px]">
+                      {card.about}
+                    </span>
+                    <span className="mt-2 block text-[10.5px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[11px]">
                       {card.brands}
                     </span>
                   </span>
@@ -139,18 +154,6 @@ export default function HomeNewArrivalsBanner() {
           ))}
         </ul>
 
-        <div className="mt-8 flex justify-center sm:mt-10">
-          <Link
-            href={buildGroupPath(sectionSlug)}
-            prefetch={false}
-            className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#0f2b3d] py-2 pl-6 pr-2 text-[15px] font-bold text-white shadow-[0_14px_30px_-16px_rgb(15_43_61/70%)] transition-[transform,box-shadow,background-color] duration-200 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:bg-[#0b3a4f] hover:shadow-[0_18px_34px_-16px_rgb(15_43_61/80%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-          >
-            Переглянути всі {VITOL_GROUPS.length} групи
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5eead4,#38bdf8)] text-[#062033]">
-              <ArrowRight size={17} aria-hidden="true" />
-            </span>
-          </Link>
-        </div>
       </div>
     </section>
   );
