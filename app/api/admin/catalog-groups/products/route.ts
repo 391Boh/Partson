@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { checkRateLimit } from "app/api/_lib/rateLimit";
 import {
   CATALOG_MOVE_MAX_PRODUCTS,
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
   const limit = checkRateLimit({ req: request, key: "admin-group-products", limit: 20, windowMs: 60_000 });
   if (!limit.ok) return json({ ok: false, error: "Забагато запитів, спробуйте за хвилину" }, 429);
 
-  if (!(await verifyAdminRequest(request))) return json({ ok: false, error: "Доступ заборонено" }, 403);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Доступ заборонено" }, 403);
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const groupCode = readCode(body?.groupCode);
@@ -54,7 +56,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return json({ ok: true, ...(await moveCatalogProducts(codes, groupCode)) });
+    const result = await moveCatalogProducts(codes, groupCode);
+    if (result.moved.length) {
+      void recordCatalogChange({
+        action: "products.move",
+        actor: admin.email,
+        target: result.groupName || groupCode,
+        code: groupCode,
+        count: result.moved.length,
+        details: `Перенесено в групу: ${result.moved.slice(0, 8).join(", ")}${result.moved.length > 8 ? "…" : ""}`,
+      });
+    }
+    return json({ ok: true, ...result });
   } catch (error) {
     return failure(error, "Не вдалося перенести товари");
   }

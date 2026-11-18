@@ -20,6 +20,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
 import { oneCRequest } from "../app/api/_lib/oneC";
+import { writeCatalogChange } from "../app/lib/catalog-change-log";
 import { fetchConfirmedEuroRate, fetchFullCatalogProducts } from "../app/lib/catalog-server";
 import {
   VITOL_DEFAULT_MARKUP_PERCENT,
@@ -361,6 +362,27 @@ async function main() {
 
   if (apply) writeJson(STATE_FILE, state);
   writeJson(REPORT_FILE, report);
+
+  // One journal entry per run that changed something (Каталог → Журнал змін).
+  const createdProducers = producers.missing.length - producers.failed.length;
+  if (apply && (report.created.length || report.updated.length || report.failed.length || createdProducers)) {
+    const priceChanges = report.updated.filter((entry) => entry.fromUah > 0);
+    await writeCatalogChange({
+      action: "supplier.sync",
+      actor: "VITOL",
+      target: ONEC_GROUP,
+      count: report.created.length + report.updated.length,
+      details: [
+        report.created.length ? `створено товарів: ${report.created.length}` : "",
+        report.updated.length ? `оновлено цін: ${report.updated.length}` : "",
+        createdProducers ? `нові виробники: ${producers.missing.filter((name) => !producers.failed.includes(name)).join(", ")}` : "",
+        report.failed.length ? `помилок: ${report.failed.length}` : "",
+        priceChanges.length
+          ? `напр. ${priceChanges.slice(0, 3).map((entry) => `${entry.code} ${entry.fromUah}→${entry.toUah} грн`).join(", ")}`
+          : "",
+      ].filter(Boolean).join(" · "),
+    }).catch((error) => console.warn("Журнал змін не записано:", error instanceof Error ? error.message : error));
+  }
 
   console.log(
     [

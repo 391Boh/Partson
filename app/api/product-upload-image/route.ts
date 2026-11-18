@@ -6,6 +6,7 @@ import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
@@ -193,6 +194,14 @@ export async function POST(request: NextRequest) {
   } catch {
     // can throw outside of a request context
   }
+
+  void recordCatalogChange({
+    action: "product.photo",
+    actor: adminEmail,
+    target: article || code,
+    code,
+    details: removePhoto ? "Фото видалено" : "Фото завантажено",
+  });
 
   return json({
     ok: true,

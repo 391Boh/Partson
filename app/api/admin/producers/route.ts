@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { checkRateLimit } from "app/api/_lib/rateLimit";
 import {
   CATALOG_NAME_MAX_LENGTH,
@@ -46,7 +47,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!checkWriteLimit(request).ok) return json({ ok: false, error: "Забагато запитів, спробуйте за хвилину" }, 429);
 
-  if (!(await verifyAdminRequest(request))) return json({ ok: false, error: "Доступ заборонено" }, 403);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Доступ заборонено" }, 403);
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const name = normalizeCatalogName(body?.name);
@@ -56,7 +58,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return json({ ok: true, producer: await createCatalogProducer(name) });
+    const producer = await createCatalogProducer(name);
+    if (producer.created) void recordCatalogChange({ action: "producer.create", actor: admin.email, target: producer.name });
+    return json({ ok: true, producer });
   } catch (error) {
     return failure(error, "Не вдалося додати виробника");
   }
@@ -80,7 +84,9 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    return json({ ok: true, ...(await renameCatalogProducer(id, name, admin)) });
+    const renamed = await renameCatalogProducer(id, name, admin);
+    void recordCatalogChange({ action: "producer.rename", actor: admin.email, target: renamed.name, details: `«${renamed.oldName}» → «${renamed.name}»` });
+    return json({ ok: true, ...renamed });
   } catch (error) {
     return failure(error, "Не вдалося перейменувати виробника");
   }
@@ -103,7 +109,15 @@ export async function DELETE(request: NextRequest) {
   if (replacementId === id) return json({ ok: false, error: "Оберіть іншого виробника для перенесення товарів" }, 400);
 
   try {
-    return json({ ok: true, ...(await deleteCatalogProducer(id, replacementId, admin)) });
+    const deleted = await deleteCatalogProducer(id, replacementId, admin);
+    void recordCatalogChange({
+      action: "producer.delete",
+      actor: admin.email,
+      target: deleted.name,
+      count: deleted.moved,
+      details: deleted.moved ? `Товари (${deleted.moved}) передано «${deleted.replacement}»` : undefined,
+    });
+    return json({ ok: true, ...deleted });
   } catch (error) {
     return failure(error, "Не вдалося видалити виробника");
   }

@@ -5,6 +5,7 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 import { clearCatalogImageResultCacheForProduct } from "app/lib/catalog-image-result-cache";
 import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
@@ -229,6 +230,16 @@ export async function POST(request: NextRequest) {
   } catch {
     // can throw outside request context
   }
+
+  void recordCatalogChange({
+    action: "product.create",
+    actor: adminEmail,
+    target: newName,
+    code: newCode || newArticle,
+    details: [newArticle ? `артикул ${newArticle}` : "", producer ? `виробник ${producer}` : "", base64Data ? "з фото" : ""]
+      .filter(Boolean)
+      .join(" · ") || undefined,
+  });
 
   return json({
     ok: true,

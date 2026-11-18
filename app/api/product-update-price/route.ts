@@ -5,12 +5,15 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 import { invalidateFullCatalogSnapshot } from "app/lib/catalog-server";
 import { setProductPromoPriceOverride } from "app/lib/product-promo-overrides";
 import { confirmOneCPromoPrice, promoConfirmationError } from "app/api/_lib/confirm-onec-promo-price";
 
 export const runtime = "nodejs";
+
+const eur = (value: number) => `${value.toLocaleString("uk-UA", { maximumFractionDigits: 2 })} €`;
 
 // Endpoint in the 1C HTTP-service that handles price reads and updates.
 // Must match the endpoint name registered in the 1C configuration.
@@ -186,6 +189,18 @@ export async function POST(request: NextRequest) {
   } catch {
     // Revalidation can throw in non-request contexts.
   }
+
+  void recordCatalogChange({
+    action: "product.price",
+    actor: adminEmail,
+    target: article || code,
+    code,
+    details: [
+      priceEuro !== undefined ? `ціна ${eur(priceEuro)}` : "",
+      costPriceEuro !== undefined ? `закупка ${eur(costPriceEuro)}` : "",
+      confirmedPromoPriceEuro !== undefined ? (confirmedPromoPriceEuro > 0 ? `акція ${eur(confirmedPromoPriceEuro)}` : "акцію знято") : "",
+    ].filter(Boolean).join(" · ") || undefined,
+  });
 
   const hasUpdatedPrice =
     (typeof priceEuro === "number" && Number.isFinite(priceEuro) && priceEuro > 0) ||

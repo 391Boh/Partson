@@ -14,6 +14,7 @@ import {
 import { setProductEditOverride } from "app/lib/product-edit-overrides";
 import { buildProductPath } from "app/lib/product-url";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { clearProductImageCacheForProduct, seedProductImageBase64Cache } from "app/lib/product-image";
 import { clearRouteImageCacheForProduct } from "app/lib/product-image-route-cache";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
@@ -22,6 +23,8 @@ import { setProductPromoPriceOverride } from "app/lib/product-promo-overrides";
 import { confirmOneCPromoPrice, promoConfirmationError } from "app/api/_lib/confirm-onec-promo-price";
 
 export const runtime = "nodejs";
+
+const eur = (value: number) => `${value.toLocaleString("uk-UA", { maximumFractionDigits: 2 })} €`;
 
 const ONEC_PRODUCT_UPDATE_ENDPOINT =
   (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").trim();
@@ -526,6 +529,29 @@ export async function POST(request: NextRequest) {
     }
   } catch {
     // can throw outside of a request context (e.g., tests/build)
+  }
+
+  {
+    const changes = [
+      confirmedName ? `назва «${confirmedName}»` : "",
+      confirmedCatalogNumber ? `артикул ${confirmedCatalogNumber}` : "",
+      producer !== undefined ? `виробник ${producer || "—"}` : "",
+      group || subGroup || category ? `група ${subGroup || group || category}` : "",
+      confirmedPriceEuro !== undefined ? `ціна ${eur(confirmedPriceEuro)}` : "",
+      confirmedCostPriceEuro !== undefined ? `закупка ${eur(confirmedCostPriceEuro)}` : "",
+      confirmedPromoPriceEuro !== undefined ? (confirmedPromoPriceEuro > 0 ? `акція ${eur(confirmedPromoPriceEuro)}` : "акцію знято") : "",
+      receipt !== undefined ? `надходження +${receipt}` : "",
+      sale !== undefined ? `реалізація −${sale}` : "",
+      confirmedQuantity !== undefined ? `залишок ${confirmedQuantity}` : "",
+      image.fileName ? "фото" : "",
+    ].filter(Boolean);
+    void recordCatalogChange({
+      action: "product.update",
+      actor: adminEmail,
+      target: confirmedName || article || code,
+      code,
+      details: changes.join(" · ") || undefined,
+    });
   }
 
   return json({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { checkRateLimit } from "app/api/_lib/rateLimit";
 import {
   CATALOG_NAME_MAX_LENGTH,
@@ -57,7 +58,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return json({ ok: true, ...(await renameCatalogGroup(code, name, admin)) });
+    const renamed = await renameCatalogGroup(code, name, admin);
+    void recordCatalogChange({ action: "group.rename", actor: admin.email, target: renamed.name, code, details: `«${renamed.oldName}» → «${renamed.name}»` });
+    return json({ ok: true, ...renamed });
   } catch (error) {
     return failure(error, "Не вдалося перейменувати групу");
   }
@@ -66,7 +69,8 @@ export async function POST(request: NextRequest) {
 // PUT {name, parentCode?}: create a group at the top level or inside another.
 export async function PUT(request: NextRequest) {
   if (!checkWriteLimit(request).ok) return json({ ok: false, error: "Забагато запитів, спробуйте за хвилину" }, 429);
-  if (!(await verifyAdminRequest(request))) return json({ ok: false, error: "Доступ заборонено" }, 403);
+  const admin = await verifyAdminRequest(request);
+  if (!admin) return json({ ok: false, error: "Доступ заборонено" }, 403);
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const name = normalizeCatalogName(body?.name);
@@ -78,7 +82,9 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    return json({ ok: true, group: await createCatalogGroup(name, parentCode) });
+    const group = await createCatalogGroup(name, parentCode);
+    void recordCatalogChange({ action: "group.create", actor: admin.email, target: group.name, code: group.code });
+    return json({ ok: true, group });
   } catch (error) {
     return failure(error, "Не вдалося створити групу");
   }
@@ -99,7 +105,16 @@ export async function DELETE(request: NextRequest) {
   if (targetCode === code) return json({ ok: false, error: "Оберіть іншу групу для перенесення товарів" }, 400);
 
   try {
-    return json({ ok: true, ...(await deleteCatalogGroup(code, targetCode, admin)) });
+    const deleted = await deleteCatalogGroup(code, targetCode, admin);
+    void recordCatalogChange({
+      action: "group.delete",
+      actor: admin.email,
+      target: deleted.name,
+      code,
+      count: deleted.moved,
+      details: deleted.moved ? `Товари (${deleted.moved}) перенесено в «${deleted.targetName || deleted.targetCode}»` : undefined,
+    });
+    return json({ ok: true, ...deleted });
   } catch (error) {
     return failure(error, "Не вдалося видалити групу");
   }

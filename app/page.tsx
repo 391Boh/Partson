@@ -9,6 +9,7 @@ import HomePageContent from "./components/HomePageContent";
 import AdvantagesSection from "./components/AdvantagesSection";
 import HomeDeferredStack from "./components/HomeDeferredStack";
 import HomeHighlightsSection from "./components/HomeHighlightsSection";
+import HomeNewArrivalsBanner from "./components/HomeNewArrivalsBanner";
 
 // The root page shares the root layout's segment, so the layout's
 // "%s | PartsON" title template doesn't apply here — name the brand directly.
@@ -71,6 +72,7 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: safeJsonLd(buildStorePhotosJsonLd(getSiteUrl())) }}
       />
       <HomeHighlightsSection />
+      <HomeNewArrivalsBanner />
       <HomeDeferredStack />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />

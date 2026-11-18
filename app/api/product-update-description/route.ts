@@ -5,6 +5,7 @@ import { clearAllOneCCache, oneCRequest } from "app/api/_lib/oneC";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
+import { recordCatalogChange } from "app/lib/catalog-change-log";
 import { clearCatalogPageRouteCache } from "app/lib/catalog-page-route-cache";
 import {
   fetchExactCatalogProductByLookup,
@@ -166,6 +167,8 @@ export async function POST(request: NextRequest) {
         (parsed.found === false ? `Товар з номером по каталогу «${article}» не знайдено в 1С` : "1C повернула помилку"),
     }, 422);
   }
+
+  void recordCatalogChange({ action: "product.description", actor: adminEmail, target: article, code: article, details: "Опис оновлено" });
 
   clearAllOneCCache();
   clearCatalogPageRouteCache();

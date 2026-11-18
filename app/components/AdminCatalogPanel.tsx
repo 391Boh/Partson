@@ -9,12 +9,17 @@ import {
   Factory,
   FolderPlus,
   FolderTree,
+  History,
+  ImageIcon,
+  Package,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Table2,
+  Tag,
   Trash2,
+  Truck,
   X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -24,15 +29,16 @@ import type { DialogGroup } from "app/components/AdminGroupProductsDialog";
 import { getAdminIdToken } from "app/lib/get-admin-token";
 
 // Admin "Каталог" tab: create, rename and delete 1C product groups and move
-// their products; add, rename and delete producers. Data comes from
-// /api/admin/catalog-groups(/products) and /api/admin/producers.
+// their products; add, rename and delete producers; read the journal of 1C
+// nomenclature changes. Data comes from /api/admin/catalog-groups(/products),
+// /api/admin/producers and /api/admin/catalog-log.
 
 const AdminGroupProductsDialog = dynamic(() => import("app/components/AdminGroupProductsDialog"), { ssr: false });
 
 type CatalogGroup = { code: string; name: string; parentCode: string; products: number };
 type CatalogProducer = { id: string; name: string; products: number };
 type GroupNode = CatalogGroup & { children: GroupNode[]; total: number; path: string[] };
-type Section = "groups" | "producers";
+type Section = "groups" | "producers" | "log";
 type Notice = { tone: "success" | "info" | "error"; text: string } | null;
 type GroupPanel = { kind: "create" | "delete"; code: string } | null;
 
@@ -127,9 +133,10 @@ function SectionSwitch({
   const options: Array<{ key: Section; label: string; icon: React.ReactNode }> = [
     { key: "groups", label: "Групи товарів", icon: <FolderTree className="h-4 w-4" /> },
     { key: "producers", label: "Виробники", icon: <Factory className="h-4 w-4" /> },
+    { key: "log", label: "Журнал змін", icon: <History className="h-4 w-4" /> },
   ];
   return (
-    <div role="tablist" aria-label="Розділ каталогу" className="grid grid-cols-2 gap-1 rounded-[16px] border border-[#23324b] bg-[#0a1220] p-1">
+    <div role="tablist" aria-label="Розділ каталогу" className="grid grid-cols-3 gap-1 rounded-[16px] border border-[#23324b] bg-[#0a1220] p-1">
       {options.map((option) => {
         const active = option.key === section;
         const count = counts[option.key];
@@ -140,13 +147,13 @@ function SectionSwitch({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(option.key)}
-            className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-bold transition ${
+            className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[12px] px-2 text-[12px] font-bold leading-tight transition sm:gap-2 sm:px-3 ${
               active
                 ? "bg-[image:linear-gradient(135deg,rgba(56,189,248,0.24),rgba(37,99,235,0.2))] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
                 : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
             }`}
           >
-            {option.icon}
+            <span className="hidden shrink-0 min-[420px]:inline-flex">{option.icon}</span>
             {option.label}
             {count !== null && (
               <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${active ? "bg-white/15" : "bg-white/[0.06] text-slate-300"}`}>
@@ -1233,9 +1240,209 @@ function ProducersSection({ active, onCount }: { active: boolean; onCount: (coun
   );
 }
 
+type CatalogChange = {
+  id: string;
+  action: string;
+  actor: string;
+  at: number;
+  target?: string;
+  code?: string;
+  details?: string;
+  count?: number;
+};
+type LogFilter = "all" | "site" | "vitol";
+
+const LOG_PAGE_SIZE = 60;
+
+const CHANGE_LABELS: Record<string, string> = {
+  "product.create": "Створено товар",
+  "product.update": "Змінено товар",
+  "product.price": "Змінено ціну",
+  "product.description": "Змінено опис",
+  "product.photo": "Фото товару",
+  "products.move": "Перенесено товари",
+  "group.create": "Створено групу",
+  "group.rename": "Перейменовано групу",
+  "group.delete": "Видалено групу",
+  "producer.create": "Додано виробника",
+  "producer.rename": "Перейменовано виробника",
+  "producer.delete": "Видалено виробника",
+  "supplier.sync": "Синхронізація VITOL",
+};
+
+const changeTone = (action: string) => {
+  if (action === "supplier.sync") return { icon: <Truck className="h-4 w-4" />, className: "border-teal-300/30 bg-teal-400/15 text-teal-100" };
+  if (action.endsWith(".delete")) return { icon: <Trash2 className="h-4 w-4" />, className: "border-rose-300/30 bg-rose-500/15 text-rose-100" };
+  if (action === "product.price") return { icon: <Tag className="h-4 w-4" />, className: "border-amber-300/30 bg-amber-400/15 text-amber-100" };
+  if (action === "product.photo") return { icon: <ImageIcon className="h-4 w-4" />, className: "border-violet-300/30 bg-violet-400/15 text-violet-100" };
+  if (action.startsWith("group") || action === "products.move") return { icon: <FolderTree className="h-4 w-4" />, className: "border-sky-300/30 bg-sky-400/15 text-sky-100" };
+  if (action.startsWith("producer")) return { icon: <Factory className="h-4 w-4" />, className: "border-sky-300/30 bg-sky-400/15 text-sky-100" };
+  return { icon: <Package className="h-4 w-4" />, className: "border-sky-300/30 bg-sky-400/15 text-sky-100" };
+};
+
+const dayKey = (at: number) => new Date(at).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric" });
+const timeLabel = (at: number) => new Date(at).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" });
+const todayKey = () => dayKey(Date.now());
+const yesterdayKey = () => dayKey(Date.now() - 86_400_000);
+
+function LogSection({ active }: { active: boolean }) {
+  const [items, setItems] = useState<CatalogChange[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<LogFilter>("all");
+  const [query, setQuery] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await authorizedFetch(`/api/admin/catalog-log?limit=${LOG_PAGE_SIZE}`);
+      setItems(Array.isArray(data.items) ? (data.items as CatalogChange[]) : []);
+      setHasMore(data.hasMore === true);
+    } catch (error) {
+      setLoadError(errorText(error, "Не вдалося завантажити журнал"));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    const last = items?.[items.length - 1];
+    if (!last) return;
+    setLoadingMore(true);
+    try {
+      const data = await authorizedFetch(`/api/admin/catalog-log?limit=${LOG_PAGE_SIZE}&before=${last.at}`);
+      const next = Array.isArray(data.items) ? (data.items as CatalogChange[]) : [];
+      setItems((current) => [...(current || []), ...next.filter((entry) => !current?.some((known) => known.id === entry.id))]);
+      setHasMore(data.hasMore === true);
+    } catch (error) {
+      setLoadError(errorText(error, "Не вдалося завантажити журнал"));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [items]);
+
+  useEffect(() => {
+    if (active && items === null && !loading && !loadError) void load();
+  }, [active, items, loading, loadError, load]);
+
+  const visible = useMemo(() => {
+    const needle = searchKey(normalizeName(query));
+    return (items || []).filter((entry) => {
+      if (filter === "vitol" && entry.action !== "supplier.sync") return false;
+      if (filter === "site" && entry.action === "supplier.sync") return false;
+      if (!needle) return true;
+      return searchKey([entry.target, entry.code, entry.details, entry.actor, CHANGE_LABELS[entry.action]].filter(Boolean).join(" ")).includes(needle);
+    });
+  }, [items, filter, query]);
+
+  const days = useMemo(() => {
+    const groups: Array<{ day: string; entries: CatalogChange[] }> = [];
+    for (const entry of visible) {
+      const day = dayKey(entry.at);
+      const last = groups[groups.length - 1];
+      if (last && last.day === day) last.entries.push(entry);
+      else groups.push({ day, entries: [entry] });
+    }
+    return groups;
+  }, [visible]);
+
+  if (loadError && !items) return <LoadError message={loadError} onRetry={() => void load()} />;
+  if (!items) return <LoadingRows />;
+
+  const today = todayKey();
+  const yesterday = yesterdayKey();
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+        <SearchInput value={query} onChange={setQuery} placeholder="Пошук: товар, код, група, хто змінив" />
+        <div role="group" aria-label="Джерело змін" className="inline-flex h-11 items-center gap-0.5 rounded-[14px] border border-[#23324b] bg-[#0a1220] p-1">
+          {([["all", "Усі"], ["site", "Сайт"], ["vitol", "VITOL"]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              aria-pressed={filter === key}
+              className={`h-full min-w-12 rounded-[10px] px-2.5 text-[12px] font-bold transition ${
+                filter === key ? "bg-sky-400/20 text-white" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <SummaryBar loading={loading} onRefresh={() => void load()}>
+        {visible.length === items.length ? `Записів: ${formatCount(items.length)}${hasMore ? "+" : ""}` : `Знайдено ${formatCount(visible.length)} з ${formatCount(items.length)}`}
+        <span className="ml-1.5 text-slate-400">· зміни через сайт і синхронізацію; правки безпосередньо в 1С сюди не потрапляють</span>
+      </SummaryBar>
+
+      {loadError && <NoticeBanner notice={{ tone: "error", text: loadError }} onClose={() => setLoadError(null)} />}
+
+      {days.length ? (
+        <div className="space-y-3">
+          {days.map(({ day, entries }) => (
+            <section key={day} aria-label={day}>
+              <h3 className="sticky top-0 z-[1] mb-1.5 bg-[#0b1424]/95 px-1 py-1 text-[11px] font-bold uppercase tracking-[.06em] text-slate-400 backdrop-blur">
+                {day === today ? "Сьогодні" : day === yesterday ? "Учора" : day}
+              </h3>
+              <ol className="space-y-1">
+                {entries.map((entry) => {
+                  const tone = changeTone(entry.action);
+                  return (
+                    <li key={entry.id} className="flex gap-2.5 rounded-[14px] border border-[#1d2a40] bg-[#0f192b] px-3 py-2.5">
+                      <span className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border ${tone.className}`} aria-hidden="true">
+                        {tone.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="text-[13px] font-bold text-white">{CHANGE_LABELS[entry.action] || entry.action}</span>
+                          {entry.target && <span className="min-w-0 break-words text-[13px] font-semibold text-sky-100">{entry.target}</span>}
+                          {entry.code && entry.code !== entry.target && (
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-1.5 text-[10px] font-bold tabular-nums text-slate-300">{entry.code}</span>
+                          )}
+                        </div>
+                        {entry.details && <p className="mt-0.5 break-words text-[12px] leading-[1.5] text-slate-300">{entry.details}</p>}
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          <time dateTime={new Date(entry.at).toISOString()}>{timeLabel(entry.at)}</time>
+                          {" · "}
+                          {entry.actor}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-[#2c3d5a] bg-[#0d1626] text-[12px] font-bold text-slate-200 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-60"
+            >
+              {loadingMore && <RefreshCw className="h-4 w-4 animate-spin" />}
+              {loadingMore ? "Завантажую…" : "Показати старіші"}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="rounded-[14px] border border-dashed border-[#2c3d5a] bg-[#0d1626] px-3 py-6 text-center text-[13px] text-slate-300">
+          {items.length ? "За цим фільтром записів немає." : "Журнал поки порожній. Тут з’являться зміни товарів, цін, груп і виробників."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminCatalogPanel() {
   const [section, setSection] = useState<Section>("groups");
-  const [counts, setCounts] = useState<Record<Section, number | null>>({ groups: null, producers: null });
+  const [counts, setCounts] = useState<Record<Section, number | null>>({ groups: null, producers: null, log: null });
   const setGroupCount = useCallback((count: number) => setCounts((current) => ({ ...current, groups: count })), []);
   const setProducerCount = useCallback((count: number) => setCounts((current) => ({ ...current, producers: count })), []);
   return (
@@ -1246,6 +1453,9 @@ export default function AdminCatalogPanel() {
       </div>
       <div hidden={section !== "producers"}>
         <ProducersSection active={section === "producers"} onCount={setProducerCount} />
+      </div>
+      <div hidden={section !== "log"}>
+        <LogSection active={section === "log"} />
       </div>
     </div>
   );

@@ -55,6 +55,7 @@ const mocks = {
   },
   "app/lib/product-promo-overrides": { setProductPromoPriceOverride: noop },
   "app/lib/product-edit-overrides": { setProductEditOverride: noop },
+  "app/lib/catalog-change-log": { recordCatalogChange: async () => {} },
   "app/lib/product-url": { buildProductPath: (product) => `/product/${product.name}--${product.article}` },
 };
 const promoConfirmation = {};
