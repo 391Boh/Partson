@@ -46,16 +46,20 @@ export default function HomeNewArrivalsBanner() {
   return (
     <section
       aria-labelledby="home-arrivals-title"
-      className="font-ui relative isolate overflow-hidden py-12 text-[#0f2b3d] [contain-intrinsic-size:auto_1000px] [content-visibility:auto] sm:py-16 lg:py-20"
+      className="font-ui relative isolate overflow-hidden py-12 text-[#0f2b3d] [contain-intrinsic-size:auto_760px] [content-visibility:auto] sm:py-16 lg:py-20"
     >
-      {/* Background: gradient, two glows, a dotted texture, floating products. */}
+      {/* Background: a soft mesh of teal, sky and lilac light over a pale
+          ground, a light beam behind the heading, a fine grid fading out from
+          the centre, hairlines at the edges, and the floating products. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[linear-gradient(160deg,#f2fbf9_0%,#e4f3f4_34%,#dceaf6_68%,#e8ecf9_100%)]" />
-        <div className="absolute -left-[12%] -top-[30%] h-[680px] w-[680px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/26%)_0%,rgb(45_212_191/8%)_45%,transparent_70%)]" />
-        <div className="absolute -bottom-[35%] -right-[10%] h-[760px] w-[760px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/24%)_0%,rgb(99_102_241/8%)_48%,transparent_72%)]" />
-        <div className="absolute inset-0 opacity-50 [background-image:radial-gradient(rgb(15_76_92/14%)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_30%,#000,transparent)]" />
-        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/30%),transparent)]" />
-        <div className="absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/30%),transparent)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#f3faf9_0%,#eaf4f7_45%,#e6eef8_100%)]" />
+        <div className="absolute -left-[8%] -top-[25%] h-[620px] w-[620px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/24%)_0%,rgb(45_212_191/6%)_50%,transparent_70%)] blur-2xl" />
+        <div className="absolute -right-[6%] top-[5%] h-[560px] w-[560px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/20%)_0%,rgb(56_189_248/5%)_50%,transparent_70%)] blur-2xl" />
+        <div className="absolute -bottom-[30%] left-[30%] h-[600px] w-[700px] rounded-full bg-[radial-gradient(circle,rgb(129_140_248/13%)_0%,transparent_68%)] blur-2xl" />
+        <div className="absolute left-1/2 top-0 h-[460px] w-[min(980px,90%)] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgb(255_255_255/85%)_0%,rgb(255_255_255/35%)_40%,transparent_72%)]" />
+        <div className="absolute inset-0 [background-image:linear-gradient(rgb(15_76_92/6%)_1px,transparent_1px),linear-gradient(90deg,rgb(15_76_92/6%)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:radial-gradient(ellipse_75%_65%_at_50%_35%,#000_10%,transparent_75%)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/35%),transparent)]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/35%),transparent)]" />
         <div className="hidden lg:block">
           {FLOATING.map((item) => (
             // eslint-disable-next-line @next/next/no-img-element -- decorative, served sized by the product-image route
@@ -110,18 +114,20 @@ export default function HomeNewArrivalsBanner() {
           </div>
         </header>
 
+        {/* Compact cards: a small photo tile beside the text. Phones scroll
+            two rows sideways; tablets show two columns, desktops four. */}
         <ul
           aria-label="Групи нового надходження"
-          className="-mx-[var(--page-shell-gutter)] mt-10 flex snap-x snap-mandatory scroll-px-[var(--page-shell-gutter)] gap-3 overflow-x-auto px-[var(--page-shell-gutter)] pb-3 [scrollbar-width:none] sm:mt-11 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0 md:pb-0 lg:gap-5 [&::-webkit-scrollbar]:hidden"
+          className="-mx-[var(--page-shell-gutter)] mt-10 grid snap-x snap-mandatory auto-cols-[82%] grid-flow-col grid-rows-2 gap-2.5 overflow-x-auto scroll-px-[var(--page-shell-gutter)] px-[var(--page-shell-gutter)] pb-2 [scrollbar-width:none] min-[480px]:auto-cols-[58%] sm:mt-11 md:mx-0 md:grid-flow-row md:grid-cols-2 md:grid-rows-none md:gap-3 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
         >
           {CARDS.map((card) => (
-            <li key={card.group} className="w-[46%] shrink-0 snap-start min-[480px]:w-[36%] md:w-auto">
+            <li key={card.group} className="min-w-0 snap-start">
               <Link
                 href={groupHref(card.group)}
                 prefetch={false}
-                className="group/card flex h-full flex-col overflow-hidden rounded-[22px] border border-[#0f4c5c]/[0.08] bg-white shadow-[0_1px_2px_rgb(15_43_61/6%),0_14px_30px_-20px_rgb(15_60_80/45%)] transition-[transform,box-shadow,border-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-1 hover:border-[#087783]/25 hover:shadow-[0_1px_2px_rgb(15_43_61/6%),0_24px_40px_-22px_rgb(8_90_110/55%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="group/card flex h-full items-center gap-3 rounded-[18px] border border-[#0f4c5c]/[0.08] bg-white/90 p-2 pr-3 shadow-[0_1px_2px_rgb(15_43_61/5%),0_10px_24px_-18px_rgb(15_60_80/45%)] transition-[transform,box-shadow,border-color,background-color] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#087783]/25 hover:bg-white hover:shadow-[0_1px_2px_rgb(15_43_61/5%),0_18px_32px_-20px_rgb(8_90_110/55%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
-                <span className="relative block aspect-[4/3] overflow-hidden bg-[linear-gradient(150deg,#f4faf9_0%,#e9f2f7_100%)] md:aspect-[2/1]">
+                <span className="relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-[13px] bg-[linear-gradient(150deg,#f3faf9_0%,#e6f0f6_100%)] sm:h-[84px] sm:w-[84px]">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the product-image route already serves sized WebP */}
                   <img
                     src={productImage(card.code)}
@@ -130,23 +136,23 @@ export default function HomeNewArrivalsBanner() {
                     height={500}
                     loading="lazy"
                     decoding="async"
-                    className="absolute inset-0 h-full w-full object-contain p-3 mix-blend-multiply md:p-3 transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover/card:scale-[1.05] motion-reduce:transition-none sm:p-4"
+                    className="absolute inset-0 h-full w-full object-contain p-1.5 mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover/card:scale-[1.07] motion-reduce:transition-none"
                   />
                 </span>
-                <span className="flex flex-1 items-start justify-between gap-2 px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4">
-                  <span className="min-w-0">
-                    <span className="block text-[14px] font-bold leading-[1.25] text-[#0f2b3d] [text-wrap:balance] sm:text-[15px]">
-                      {card.group}
-                    </span>
-                    <span className="mt-1 line-clamp-2 text-[12.5px] font-medium leading-[1.45] text-[#4b6878] sm:text-[13px]">
-                      {card.about}
-                    </span>
-                    <span className="mt-2 block text-[10.5px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[11px]">
-                      {card.brands}
-                    </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="line-clamp-2 text-[14px] font-bold leading-[1.25] text-[#0f2b3d] sm:text-[14.5px]">{card.group}</span>
+                    <ArrowUpRight
+                      size={15}
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0 text-[#087783]/70 transition-[transform,color] duration-200 group-hover/card:-translate-y-px group-hover/card:translate-x-px group-hover/card:text-[#087783]"
+                    />
                   </span>
-                  <span className="mt-0.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eef7f8] text-[#087783] transition-colors duration-200 group-hover/card:bg-[#087783] group-hover/card:text-white sm:inline-flex">
-                    <ArrowUpRight size={16} aria-hidden="true" />
+                  <span className="mt-0.5 line-clamp-2 text-[12px] font-medium leading-[1.4] text-[#4b6878] sm:text-[12.5px]">
+                    {card.about}
+                  </span>
+                  <span className="mt-1 block truncate text-[10px] font-bold uppercase leading-[1.4] tracking-[.06em] text-[#087783] sm:text-[10.5px]">
+                    {card.brands}
                   </span>
                 </span>
               </Link>
