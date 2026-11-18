@@ -89,7 +89,10 @@ export async function generateMetadata({ params }: AutoBrandPageProps): Promise<
     modelsCount > 0
       ? `: ${modelsCount.toLocaleString("uk-UA")} ${pluralizeModels(modelsCount)}`
       : " за моделлю";
-  const titleTails = [`${modelsTail}, купити у Львові`, modelsTail, ""];
+  // "купити у Львові" carries the buying + local intent people search with
+  // ("купити запчастини пежо", "запчастини мерседес львів"), so it outranks
+  // the model count when both do not fit.
+  const titleTails = [`${modelsTail}, купити у Львові`, " — купити у Львові", modelsTail, ""];
   const cyrillicName = getCarBrandCyrillicName(brand.name);
   const cyrillicTitle = cyrillicName
     ? buildFirstFittingSeoTitle(`Запчастини ${brand.name} (${cyrillicName})`, titleTails)
