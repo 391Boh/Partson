@@ -54,4 +54,65 @@ assert.equal(Math.round(uahToEuro(1605, 48.5) * 48.5), 1605, 'site shows the tar
 assert.equal(vitolMatchKey('U-600 ', 'Vitol'), vitolMatchKey('u600', 'VITOL'));
 assert.deepEqual(plain(parseCsvRows('a;"b\r\nc"\r\n')), [['a', 'b\r\nc']]);
 
+const { parseVitolYml, vitolDescription, htmlToParagraphs, textHash } = exports;
+const yml = `<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="2026-11-18"><shop><categories>
+  <category id="3">ROOT</category>
+  <category id="15" parentId="3">ІНСТРУМЕНТ</category>
+  <category id="20" parentId="15">Інструмент ALLOID BUILDING TOOLS</category>
+  <category id="21" parentId="20">Alloid. Свердла</category>
+  <category id="22" parentId="15">Інструмент HANS</category>
+</categories><offers>
+  <offer id="900" available="true"><price>142</price><discount>30%</discount><currencyId>UAH</currencyId><categoryId>21</categoryId>
+    <picture>https://vitol.com.ua/img/1.jpg</picture><name>Свердло &quot;Pro&quot; 6 мм</name>
+    <description><![CDATA[<p>Свердло &quot;Pro&quot; 6 мм</p><p>Для металу.</p><ul><li>сталь HSS</li></ul>]]></description>
+    <vendor>ALLOID</vendor><vendorCode>DR-6</vendorCode>
+    <param name="Країна походження">Китай</param><param name="УКТВЕД">8207</param><param name="Вес ВГХ">0,05</param></offer>
+  <offer id="901" available="true"><price>0</price><currencyId>UAH</currencyId><categoryId>22</categoryId><name>Без ціни</name><vendor>HANS</vendor></offer>
+  <offer id="902" available="false"><price>10</price><currencyId>UAH</currencyId><categoryId>22</categoryId><name>Нема</name></offer>
+  <offer id="903" available="true"><price>99</price><currencyId>UAH</currencyId><categoryId>560</categoryId><name>Тримач телефону</name><vendorCode>BH36</vendorCode><mpn>BH-36</mpn></offer>
+</offers></shop></yml_catalog>`;
+const parsedYml = parseVitolYml(yml);
+assert.equal(parsedYml.items.length, 2);
+assert.deepEqual(plain(parsedYml.skipped.map((s) => s.reason)), ['немає ціни', 'немає у постачальника']);
+const [drill, holder] = parsedYml.items;
+assert.equal(drill.name, 'Свердло "Pro" 6 мм');
+assert.equal(drill.article, 'DR-6');
+assert.equal(drill.costUah, 142);
+assert.deepEqual(plain(drill.categoryPath), ['ROOT', 'ІНСТРУМЕНТ', 'Інструмент ALLOID BUILDING TOOLS', 'Alloid. Свердла']);
+assert.equal(holder.article, 'BH-36', 'mpn wins over vendorCode');
+assert.equal(holder.producer, 'VITOL');
+assert.equal(parsedYml.prices.get('901'), undefined);
+assert.equal(parsedYml.prices.get('902'), 10, 'regular prices are kept for every offer');
+assert.equal(htmlToParagraphs('<p>a&nbsp;b</p><br/>c'), 'a b\nc');
+assert.equal(
+  vitolDescription(drill),
+  'Для металу.\n• сталь HSS\nКраїна походження\tКитай\nВага, кг\t0,05',
+  'name-only paragraph dropped, logistics params skipped, specs tab-separated'
+);
+assert.equal(vitolDescription({ name: 'X', description: 'X', params: [] }), '');
+assert.equal(textHash('abc'), textHash('abc'));
+assert.notEqual(textHash('abc'), textHash('abd'));
+assert.throws(() => parseVitolYml('<shop><items></items></shop>'), /not a YML/);
+
+const groupsSource = ts.transpileModule(readFileSync('app/lib/vitol-groups.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const groups = {};
+vm.runInNewContext(groupsSource, { exports: groups });
+const { vitolGroupFor, VITOL_GROUPS } = groups;
+const group = (categoryPath, categoryId, name) => vitolGroupFor({ categoryPath, categoryId, name });
+assert.equal(group(drill.categoryPath), 'Свердла, диски та абразив');
+assert.equal(group(['ІНСТРУМЕНТ', 'Інструмент ALLOID BUILDING TOOLS', 'Alloid. Рівні, правила']), 'Будівельний інструмент');
+assert.equal(group(['ІНСТРУМЕНТ', 'Інструмент ALLOID', 'Alloid. Пневмоінструмент']), 'Інструмент для ремонту авто');
+assert.equal(group(['ІНСТРУМЕНТ', 'Інструмент ALLOID для ремонту авто', 'Alloid. Знімачі']), 'Інструмент для ремонту авто');
+assert.equal(group(['ІНСТРУМЕНТ', 'Інструмент HANS', 'HANS. Голівки']), 'Ручний інструмент');
+assert.equal(group(['ДОГЛЯД ЗА КУЗОВОМ і САЛОНОМ', 'ОСВІЖУВАЧІ', 'Освіжувачі  AREON']), 'Освіжувачі повітря');
+assert.equal(group(['СВІТЛО', 'Лампи головного світла', 'Лампи LED']), 'Автолампи');
+assert.equal(group(['ТЕХДОПОМОГА', 'Домкрати', 'Домкрати підкатні']), 'Домкрати');
+assert.equal(group([], '528'), 'Щітки склоочисника', 'category missing from the tree: CSV group id');
+assert.equal(group([], '99999', 'Освіжувач повітря'), 'Освіжувачі повітря', 'last resort: product name');
+assert.equal(group(['ТРАНСПОРТ', 'Скутери'], '1312', 'Електровелосипед'), 'Інші автотовари');
+assert.ok(VITOL_GROUPS.every((name) => name.length <= 100), '1C group names fit 100 chars');
+
 console.log('vitol-feed: ok');

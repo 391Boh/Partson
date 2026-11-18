@@ -8,17 +8,27 @@
 // The feed price is VITOL's own retail price (ЦенаРРЦ), and we sell at it.
 export const VITOL_DEFAULT_MARKUP_PERCENT = 0;
 export const VITOL_DEFAULT_PRODUCER = "VITOL";
+// 1C's НомерПоКаталогу holds 25 characters and silently cuts longer ones;
+// descriptions and price rows are looked up by it, so we cut first.
+export const ONEC_ARTICLE_MAX = 25;
+export const toOneCArticle = (value: string) => value.trim().slice(0, ONEC_ARTICLE_MAX).trim();
 
 export type VitolFeedItem = {
   supplierCode: string;
   article: string;
   name: string;
+  /** Plain text: paragraphs on their own lines (HTML from the feed stripped). */
   description: string;
+  /** VITOL's price for the item, UAH (their retail price). */
   costUah: number;
   imageUrl: string;
   producer: string;
   groupName: string;
   availability: string;
+  /** YML feed only. */
+  categoryId?: string;
+  categoryPath?: string[];
+  params?: Array<{ name: string; value: string }>;
 };
 
 export type VitolFeedParseResult = {
@@ -157,7 +167,7 @@ export function parseVitolFeed(text: string): VitolFeedParseResult {
     const mpn = collapse(cell(cells, COLUMN.mpn));
     items.push({
       supplierCode,
-      article: mpn || vitolArticle || supplierCode,
+      article: toOneCArticle(mpn || vitolArticle || supplierCode),
       name,
       description: stripHtml(cell(cells, COLUMN.description)),
       costUah,
@@ -186,4 +196,165 @@ export function uahToEuro(uah: number, euroRate: number) {
 export function vitolMatchKey(article: string, producer: string) {
   const norm = (value: string) => value.toLowerCase().replace(/[^0-9a-zа-яіїєґ]/gi, "");
   return `${norm(article)}|${norm(producer)}`;
+}
+
+// ---------------------------------------------------------------------------
+// YML export (exporttype=3): the same offers as the CSV plus the category
+// tree and characteristics. Offer ids equal the CSV Ідентифікатор_товару.
+
+const decodeXml = (value: string) =>
+  value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&amp;/g, "&");
+
+/** HTML description → text with one paragraph / list item per line. */
+export function htmlToParagraphs(value: string) {
+  return decodeXml(
+    value
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|li|div|h\d|tr)>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "• ")
+      .replace(/<[^>]+>/g, " ")
+  )
+    .replace(/&nbsp;/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/[ \t ]+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+const tag = (block: string, name: string) => {
+  const match = block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
+  return match ? decodeXml(match[1]).trim() : "";
+};
+
+export type VitolYmlFeed = {
+  items: VitolFeedItem[];
+  skipped: VitolFeedParseResult["skipped"];
+  /** offer id → price, for merging the regular-price export. */
+  prices: Map<string, number>;
+};
+
+export function parseVitolYml(xml: string): VitolYmlFeed {
+  if (!/<yml_catalog[\s>]/.test(xml) || !/<offers>/.test(xml)) {
+    throw new Error("VITOL feed: not a YML catalog (exporttype=3)");
+  }
+  const categories = new Map<string, { parentId: string; name: string }>();
+  for (const match of xml.matchAll(/<category id="(\d+)"(?: parentId="(\d+)")?>([^<]*)<\/category>/g)) {
+    categories.set(match[1], { parentId: match[2] || "", name: collapse(decodeXml(match[3])) });
+  }
+  const pathOf = (id: string) => {
+    const path: string[] = [];
+    const seen = new Set<string>();
+    let current = categories.get(id) ? id : "";
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      const node = categories.get(current);
+      if (!node) break;
+      path.unshift(node.name);
+      current = node.parentId;
+    }
+    return path;
+  };
+
+  const items: VitolFeedItem[] = [];
+  const skipped: VitolFeedParseResult["skipped"] = [];
+  const prices = new Map<string, number>();
+  let index = 0;
+  for (const match of xml.matchAll(/<offer\s+id="([^"]+)"([^>]*)>([\s\S]*?)<\/offer>/g)) {
+    index += 1;
+    const supplierCode = match[1].trim();
+    const attrs = match[2];
+    const block = match[3];
+    const price = parseFeedNumber(tag(block, "price"));
+    if (price > 0) prices.set(supplierCode, price);
+    const name = collapse(tag(block, "name"));
+    const vendorCode = collapse(tag(block, "vendorCode"));
+    const mpn = collapse(tag(block, "mpn"));
+    const currency = collapse(tag(block, "currencyId")).toUpperCase();
+    if (/available="false"/.test(attrs)) {
+      skipped.push({ line: index, reason: "немає у постачальника", supplierCode });
+      continue;
+    }
+    if (!name) {
+      skipped.push({ line: index, reason: "немає назви", supplierCode });
+      continue;
+    }
+    if (!(price > 0)) {
+      skipped.push({ line: index, reason: "немає ціни", supplierCode });
+      continue;
+    }
+    if (currency && currency !== "UAH") {
+      skipped.push({ line: index, reason: `валюта ${currency}`, supplierCode });
+      continue;
+    }
+    const categoryId = tag(block, "categoryId");
+    const params: Array<{ name: string; value: string }> = [];
+    for (const param of block.matchAll(/<param name="([^"]+)"[^>]*>([\s\S]*?)<\/param>/g)) {
+      const paramName = collapse(decodeXml(param[1]));
+      const value = collapse(decodeXml(param[2]));
+      if (paramName && value) params.push({ name: paramName, value });
+    }
+    items.push({
+      supplierCode,
+      article: toOneCArticle(mpn || vendorCode || supplierCode),
+      name,
+      description: htmlToParagraphs(tag(block, "description")),
+      costUah: price,
+      imageUrl: collapse(tag(block, "picture")),
+      producer: collapse(tag(block, "vendor")) || VITOL_DEFAULT_PRODUCER,
+      groupName: pathOf(categoryId).join(" / "),
+      availability: "+",
+      categoryId,
+      categoryPath: pathOf(categoryId),
+      params,
+    });
+  }
+  return { items, skipped, prices };
+}
+
+// Characteristics worth showing on the product page, VITOL name → our label.
+// Logistics codes and box sizes (УКТВЕД, *ВГХ) are left out; weight stays.
+const PARAM_LABELS: Record<string, string> = {
+  "вес вгх": "Вага, кг",
+  "направление применения": "Застосування",
+};
+const PARAM_SKIPPED = new Set(["уктвед", "ширина вгх", "длина вгх", "высота вгх", "торгова марка", "квадрат"]);
+
+/**
+ * Text for the 1C description: the feed's own paragraphs (unless they only
+ * repeat the product name), then "Назва\tЗначення" rows, the format the
+ * product page already renders as a characteristics table.
+ */
+export function vitolDescription(item: Pick<VitolFeedItem, "name" | "description" | "params">) {
+  const sameAsName = (line: string) =>
+    line.toLocaleLowerCase("uk-UA").replace(/\s+/g, " ").trim() ===
+    item.name.toLocaleLowerCase("uk-UA").replace(/\s+/g, " ").trim();
+  const paragraphs = (item.description || "").split("\n").map((line) => line.trim()).filter((line) => line && !sameAsName(line));
+  const specs: string[] = [];
+  const seen = new Set<string>();
+  for (const param of item.params || []) {
+    const key = param.name.toLocaleLowerCase("uk-UA").trim();
+    if (PARAM_SKIPPED.has(key)) continue;
+    const label = PARAM_LABELS[key] || param.name.replace(/\t/g, " ");
+    if (seen.has(label)) continue;
+    seen.add(label);
+    specs.push(`${label}\t${param.value.replace(/\t/g, " ")}`);
+  }
+  return [...paragraphs, ...specs].join("\n").slice(0, 8000);
+}
+
+/** Stable short hash so the sync only resends changed descriptions. */
+export function textHash(value: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
