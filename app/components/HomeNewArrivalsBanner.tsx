@@ -71,23 +71,28 @@ export default function HomeNewArrivalsBanner() {
       </div>
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
-        <header className="mx-auto flex max-w-[44rem] flex-col items-center text-center">
+        {/* Two deliberate heading lines, a balanced lead, one quiet note. */}
+        <header className="mx-auto flex max-w-[46rem] flex-col items-center text-center">
           <h2
             id="home-arrivals-title"
-            className="font-display font-display-readable text-[clamp(28px,3.2vw,44px)] font-[800] leading-[1.1] tracking-[-.03em] text-[#0f2b3d] [text-wrap:balance] [text-shadow:0_2px_1px_rgb(255_255_255/80%)]"
+            className="font-display font-display-readable text-[clamp(28px,3.3vw,46px)] font-[800] leading-[1.08] tracking-[-.03em] text-[#0f2b3d] [text-shadow:0_2px_1px_rgb(255_255_255/80%)]"
           >
-            Нове надходження:{" "}
-            <span className="text-[#087783] underline decoration-[#7ebdc4] decoration-2 underline-offset-[7px] [text-decoration-skip-ink:auto]">
-              аксесуари, автохімія та&nbsp;інструмент
+            <span className="block">Нове надходження</span>
+            <span className="mt-1.5 block text-[#087783] [text-wrap:balance] sm:mt-2">
+              <span className="underline decoration-[#7ebdc4] decoration-2 underline-offset-[8px] [text-decoration-skip-ink:auto] [box-decoration-break:clone]">
+                аксесуари, автохімія та&nbsp;інструмент
+              </span>
             </span>
           </h2>
-          <p className="mt-5 max-w-[50ch] text-[15px] font-medium leading-[1.7] text-[#31566b] sm:text-[16px] [text-wrap:pretty]">
-            Понад 4&nbsp;300 товарів для авто й гаража у&nbsp;{VITOL_GROUPS.length}&nbsp;нових групах каталогу: від
-            освіжувачів і&nbsp;LED-ламп до наборів ключів, компресорів і&nbsp;домкратів.
+          <p className="mt-5 max-w-[46ch] text-[15px] font-medium leading-[1.65] text-[#31566b] sm:mt-6 sm:text-[17px] [text-wrap:balance]">
+            Понад 4&nbsp;300 товарів для авто й гаража в&nbsp;{VITOL_GROUPS.length}&nbsp;нових групах: освіжувачі,
+            LED‑лампи, набори ключів, компресори, домкрати та&nbsp;інше.
           </p>
-          <p className="mt-4 inline-flex items-center gap-2 rounded-[16px] border border-[#087783]/15 bg-white/60 px-3.5 py-1.5 text-left text-[13px] font-semibold text-[#21485c] shadow-[0_1px_0_rgb(255_255_255/80%)_inset] sm:rounded-full">
+          <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-[14px] border border-[#087783]/15 bg-white/65 px-3.5 py-2 text-left text-[13px] font-semibold leading-[1.4] text-[#21485c] shadow-[0_1px_0_rgb(255_255_255/80%)_inset] sm:rounded-full sm:py-1.5 sm:text-[13.5px]">
             <Clock3 size={15} aria-hidden="true" className="shrink-0 text-[#087783]" />
-            Під замовлення — строк постачання підтвердить менеджер
+            <span>
+              Під замовлення <span aria-hidden="true">·</span> строк постачання підтвердить менеджер
+            </span>
           </p>
         </header>
 
