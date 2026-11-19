@@ -44,6 +44,7 @@
     "pm2:monit": "pm2 monit",
     "memory:monitor": "bash scripts/memory-monitor.sh",
     "generate:home-popular-icons": "tsx --require ./scripts/preload.cjs scripts/generate-home-popular-icons.ts",
+    "generate:home-arrival-images": "tsx --require ./scripts/preload.cjs scripts/generate-home-arrival-images.ts",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node scripts/run-tests.mjs unit",
     "test:browser": "node scripts/run-tests.mjs browser",

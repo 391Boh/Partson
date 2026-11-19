@@ -101,6 +101,7 @@ const collectGroupListingPaths = (
     label: string;
     slug: string;
     productCount?: number;
+    countsKnown?: boolean;
     subgroups: Array<{
       label: string;
       slug: string;
@@ -132,6 +133,7 @@ const collectGroupListingPaths = (
   for (const group of groups) {
     const groupSlug = (group.slug || "").trim();
     if (!groupSlug) continue;
+    const filterByCount = onlyWithProducts && group.countsKnown !== false;
 
     for (const subgroup of group.subgroups || []) {
       const subgroupSlug = (subgroup.slug || "").trim();
@@ -139,7 +141,7 @@ const collectGroupListingPaths = (
 
       const subgroupPath = buildGroupItemPath(groupSlug, subgroupSlug);
       if (
-        (!onlyWithProducts || (subgroup.productCount || 0) > 0) &&
+        (!filterByCount || (subgroup.productCount || 0) > 0) &&
         !seenSubgroupPaths.has(subgroupPath)
       ) {
         seenSubgroupPaths.add(subgroupPath);
@@ -154,7 +156,7 @@ const collectGroupListingPaths = (
       for (const child of Array.isArray(subgroup.children) ? subgroup.children : []) {
         const childSlug = (child.slug || "").trim();
         if (!childSlug) continue;
-        if (onlyWithProducts && (child.productCount || 0) <= 0) continue;
+        if (filterByCount && (child.productCount || 0) <= 0) continue;
 
         const childPath = buildGroupItemPath(groupSlug, childSlug);
         if (seenChildPaths.has(childPath)) continue;
@@ -212,7 +214,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   // still get their category icon via buildGroupSitemapImage.
   const onlyWithProducts = directoryData.hasProductCounts;
   const sitemapGroups = directoryData.clientGroups.filter(
-    (group) => !onlyWithProducts || group.productCount > 0
+    (group) => !onlyWithProducts || group.countsKnown === false || group.productCount > 0
   );
 
   for (const group of sitemapGroups.slice(0, maxGroupPages)) {
@@ -411,7 +413,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
 
 const getGroupsSitemapEntriesCached = unstable_cache(
   buildGroupsSitemapEntries,
-  ["groups-sitemap-v4-product-previews"],
+  ["groups-sitemap-v5-unknown-counts"],
   {
     revalidate: SITEMAP_REVALIDATE_SECONDS,
     tags: ["groups-sitemap"],

@@ -2,6 +2,8 @@ import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-fo
 import { splitProductFitmentLine, type ProductFitmentGroup } from "app/lib/product-fitment-format";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { trimSeoDescription } from "app/lib/seo-metadata";
+import { getCatalogSelectionGuide } from "app/lib/catalog-selection-guide";
+import { isAccessoriesCatalogGroup } from "app/lib/catalog-group-label";
 
 const clean = (value?: string) => (value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 const contains = (text: string, value: string) => {
@@ -32,6 +34,40 @@ export function buildProductSeoTitle({ name, producer, article }: { name: string
   const code = clean(article);
   const makerPart = maker && !contains(label, maker) ? short(maker, 18) : "";
   const codePart = code && !contains(label, code) ? short(code, 24) : "";
+  // Most product impressions come from article searches ("1987945328",
+  // "f026402378"): the part, maker and article lead, so the searched code is
+  // never cut and sits next to what the part is; the cars follow in readable
+  // case ("T5 TOURAN GOLF PASSAT 03-" → "T5 Touran Golf Passat (з 2003)").
+  const kind = productKind(label);
+  // A name cut mid-abbreviation ("Тяга рульова лів./прав. Megane") leaves
+  // punctuation at the start of the tail: keep the name as written then.
+  const tail = label.slice(kind.length);
+  const vehicle = kind && /^\s+[\p{L}\p{N}]/u.test(tail)
+    ? nameVehicle(label, kind).replace(/[\s,;:/.-]+$/u, "")
+    : "";
+  const identity = [makerPart, codePart].filter(Boolean).join(" ");
+  if (kind && vehicle && codePart) {
+    // Too long: drop the site name, then the years, then the maker; finally
+    // keep as many whole models as fit — never a dangling "(з…".
+    const models = vehicle.replace(/\s*\([^)]*\)$/u, "");
+    const part = kind[0].toLocaleUpperCase("uk-UA") + kind.slice(1);
+    for (const head of [`${part} ${identity}`, `${part} ${codePart}`]) {
+      for (const cars of [vehicle, models]) {
+        for (const suffix of [" | PartsON", ""]) {
+          const full = `${head} — ${cars}${suffix}`;
+          if (full.length <= SEO_TITLE_MAX_LENGTH) return full;
+        }
+      }
+    }
+    const head = `${part} ${identity}`;
+    const kept: string[] = [];
+    for (const word of models.split(" ")) {
+      if (`${head} — ${[...kept, word].join(" ")}`.length > SEO_TITLE_MAX_LENGTH) break;
+      kept.push(word);
+    }
+    const cars = kept.join(" ").replace(/[\s,;:/.-]+$/u, "");
+    if (cars.length >= 4) return `${head} — ${cars}`;
+  }
   const withIdentity = (...parts: string[]) => {
     const identity = parts.filter(Boolean).join(" ");
     return identity ? ` — ${identity}` : "";
@@ -163,6 +199,17 @@ const DESCRIPTION_VIN = " Оригінали й аналоги, перевірк
 
 export function buildProductMetaDescription(options: ProductDescriptionInput) {
   const name = options.productName ? fixCatalogSpelling(clean(buildVisibleProductName(options.productName))) : "";
+  // A fragrance, tool size or voltage in a supplier's product name is not
+  // vehicle fitment. Keep those names intact and omit the spare-parts VIN
+  // boilerplate for the accessory catalog.
+  if (getCatalogSelectionGuide(options.subGroup, options.group) || isAccessoriesCatalogGroup(options.category || "")) {
+    const label = name || clean(options.subGroup || options.group) || "Автотовар";
+    const identity = [clean(options.producer), clean(options.article)]
+      .filter(value => value && !contains(label, value)).join(" — ");
+    const identitySuffix = identity ? ` — ${identity}` : "";
+    const budget = DESCRIPTION_MAX_LENGTH - DESCRIPTION_ENDING.length - identitySuffix.length - 1;
+    return trimSeoDescription(`${short(label, Math.max(20, budget))}${identitySuffix}.${DESCRIPTION_ENDING}`);
+  }
   const category = [options.subGroup, options.group, options.category]
     .map(value => formatCatalogLabel(clean(value).replace(/\s*\(([^()]+)\)/gu, (match: string, note: string, offset: number, label: string) =>
       label.slice(0, offset).toLocaleLowerCase("uk-UA").includes(note.trim().toLocaleLowerCase("uk-UA")) ? "" : ` ${match.trim()}`

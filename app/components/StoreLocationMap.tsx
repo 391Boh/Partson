@@ -1,46 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-import { whenScrollSettles } from "app/lib/when-scroll-settles";
+import { MapPin } from "lucide-react";
+import { useStoreEmbed } from "app/lib/use-store-embed";
 
 type Props = { src: string };
 
-/** Native lazy iframes can fetch thousands of pixels ahead of the viewport,
- * competing with the homepage hero and the panorama. Google's scripts also
- * stall a scroll that merely passes by, so wait until the frame is on screen
- * and the page has come to rest. */
+/** Start shortly before the reserved map reaches the screen, independently of scrolling/load. */
 export default function StoreLocationMap({ src }: Props) {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [nearby, setNearby] = useState(false);
-
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setNearby(true);
-      return;
-    }
-    let cancelSettle: (() => void) | undefined;
-    const observer = new IntersectionObserver(([entry]) => {
-      cancelSettle?.();
-      if (!entry?.isIntersecting) return;
-      cancelSettle = whenScrollSettles(() => {
-        observer.disconnect();
-        setNearby(true);
-      });
-    }, { threshold: 0.1 });
-    observer.observe(frame);
-    return () => {
-      observer.disconnect();
-      cancelSettle?.();
-    };
-  }, []);
+  const { frameRef, state, active, attempt, load, retry, onLoad, onError } = useStoreEmbed(src, true);
 
   return (
-    <div className="home-store-map-frame" ref={frameRef}>
-      {nearby && <iframe src={src} title="Google Maps — магазин PartsON, Львів, Перфецького, 8" loading="eager" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />}
-      <noscript><iframe src={src} title="Карта магазину PartsON у Львові" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen /></noscript>
+    <div className={`home-store-map-frame${state === "ready" ? " is-map-loaded" : ""}`} ref={frameRef} aria-busy={state === "loading"}>
+      {state !== "ready" && <div className="home-store-map-status">
+        <MapPin size={25} aria-hidden="true" />
+        {state === "idle" ? <button type="button" onClick={load}>Показати карту</button> : <p role="status">{state === "error" ? "Не вдалося завантажити карту." : "Завантажуємо карту…"}</p>}
+        {state === "error" && <button type="button" onClick={retry}>Спробувати ще раз</button>}
+      </div>}
+      {active && <iframe key={attempt} src={src} title="Google Maps — магазин PartsON, Львів, Перфецького, 8" loading="eager" onLoad={onLoad} onError={onError} referrerPolicy="no-referrer-when-downgrade" allowFullScreen />}
+      <noscript><style>{".home-static .home-store-map-status{display:none}"}</style><iframe src={src} title="Карта магазину PartsON у Львові" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen /></noscript>
     </div>
   );
 }

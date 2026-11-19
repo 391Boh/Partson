@@ -25,7 +25,7 @@ export default function HeroIntroCard() {
 
       <ul className="home-part-paths" aria-label="Способи підбору запчастин">
         <li>
-          <HeroSectionLink targetId={HOME_SECTION_IDS.auto} ariaLabel="Оберіть авто" className="home-part-path home-part-path-primary">
+          <HeroSectionLink targetId={HOME_SECTION_IDS.auto} className="home-part-path home-part-path-primary">
             <span className="home-part-path-icon">
               <Car size={20} strokeWidth={2} aria-hidden="true" />
             </span>
@@ -37,7 +37,7 @@ export default function HeroIntroCard() {
           </HeroSectionLink>
         </li>
         <li>
-          <HeroSectionLink targetId={HOME_SECTION_IDS.categories} ariaLabel="Відкрийте каталог" className="home-part-path">
+          <HeroSectionLink targetId={HOME_SECTION_IDS.categories} className="home-part-path">
             <span className="home-part-path-icon">
               <LayoutGrid size={20} strokeWidth={2} aria-hidden="true" />
             </span>

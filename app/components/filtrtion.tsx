@@ -329,6 +329,14 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
   const [internalSelectedCars, setInternalSelectedCars] = useState<string[]>(selectedCars);
   const [localSortOrder, setLocalSortOrder] = useState<CatalogSortOrder>('none');
   const [collapsed, setCollapsed] = useState(true);
+  // The collapsed panel is invisible, yet rendering it put ~300 elements into
+  // the catalog's first hydration. Mount it on first open, then keep it so the
+  // tab state and the collapse animation survive.
+  const [panelOpenedOnce, setPanelOpenedOnce] = useState(false);
+  useEffect(() => {
+    if (!collapsed) setPanelOpenedOnce(true);
+  }, [collapsed]);
+  const panelMounted = panelOpenedOnce || !collapsed;
   const ignoreScrollCloseUntilRef = useRef(0);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   // One search field in the header serves the open tab; each tab keeps its
@@ -1041,6 +1049,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
         : null;
 
   const renderActivePanel = () => {
+    if (!panelMounted) return null;
     switch (activeComponent) {
       case 'auto':
         return (
@@ -1431,7 +1440,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               type="button"
               onClick={handleOpenAutoTab}
               className={autoButtonClass}
-              aria-label="Відкрити вкладку авто"
               aria-expanded={isAutoTabOpen}
               aria-pressed={isAutoSelected}
               title={isAutoSelected ? carLabel : 'Обрати авто'}
@@ -1445,7 +1453,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               type="button"
               onClick={handleOpenCategoryTab}
               className={categoryButtonClass}
-              aria-label="Відкрити вкладку категорії"
               aria-expanded={isCategoryTabOpen}
               aria-pressed={isCategorySelected}
               title={displayCategoryLabel || 'Категорія'}
@@ -1469,7 +1476,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
                 type="button"
                 onClick={handleOpenParamsTab}
                 className={paramsButtonClass}
-                aria-label="Відкрити вкладку параметрів товару"
                 aria-expanded={isParamsTabOpen}
                 aria-pressed={isParamsSelected}
                 title="Параметри: позиція, розміри, тип"
@@ -1484,7 +1490,6 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
               type="button"
               onClick={handleOpenProducerTab}
               className={producerButtonClass}
-              aria-label="Відкрити вкладку виробників"
               aria-expanded={isProducerTabOpen}
               aria-pressed={isProducerSelected}
               title={displayProducerLabel || 'Виробник'}
@@ -1599,6 +1604,7 @@ const FilterSidebar: FC<FilterSidebarProps> = ({
             : 'grid-rows-[1fr] opacity-100 translate-y-0'
         }`}
         onTransitionEnd={handlePanelTransitionEnd}
+        inert={collapsed}
       >
         <div className="min-h-0 overflow-hidden">
           <div ref={panelContentRef} className="catalog-filter-body page-shell-inline">

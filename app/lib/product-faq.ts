@@ -3,6 +3,9 @@
 // from this same list, so the structured data always matches what's
 // actually on the page (a mismatch there is a known Google Search Console
 // flag, not just a cosmetic risk).
+import { getCatalogSelectionGuide } from "app/lib/catalog-selection-guide";
+import { isAccessoriesCatalogGroup } from "app/lib/catalog-group-label";
+
 export type ProductFaqItem = {
   question: string;
   answer: string;
@@ -29,9 +32,21 @@ export const buildProductFaqItems = (options: {
   const productLabel = productName ? inSentence(productName) : "ця деталь";
   const catalogLabel = producer ? `каталогом ${producer}` : "каталогом виробника";
   const groupLabel = (subGroup || group).trim();
+  const guide = getCatalogSelectionGuide(subGroup, group);
+  const accessorySelection = guide
+    ? {
+        question: "Що перевірити перед замовленням цього товару?",
+        answer: `Перевірте ${guide.checks.join(", ")}. ${guide.advice} Якщо потрібного параметра немає в картці, повідомте менеджеру артикул товару й уточніть його перед замовленням.`,
+      }
+    : isAccessoriesCatalogGroup(group)
+      ? {
+          question: "Як перевірити, чи підійде цей товар?",
+          answer: "Звірте призначення, розміри, спосіб встановлення й комплектацію в картці товару. Для модельних аксесуарів додатково перевірте марку, модель, кузов і рік авто. Якщо даних недостатньо, повідомте менеджеру артикул і потрібні параметри.",
+        }
+      : null;
 
   return [
-    {
+    accessorySelection ?? {
       question: `Чи підійде ${productLabel} до мого авто?`,
       answer: `Надішліть VIN-код або марку, модель, рік і двигун автомобіля — менеджер PartsON звірить номер з ${catalogLabel} і підтвердить сумісність до відправлення.${groupLabel ? ` Якщо позиція не підходить, підберемо іншу з розділу «${groupLabel}» або аналог.` : " Якщо позиція не підходить, підберемо аналог."}`,
     },

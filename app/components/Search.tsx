@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useId } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import SmartLink from "app/components/SmartLink";
+import ProductCardImage from "app/components/ProductCardImage";
 import {
-  Search, Clock, X, ImageOff, ChevronRight,
+  Search, Clock, X, ChevronRight,
   PackageCheck, PackageX, SlidersHorizontal, ChevronDown, LayoutGrid, Factory,
 } from "lucide-react";
 import {
@@ -13,8 +13,8 @@ import {
   safeRemoveStorageItem,
   safeSetStorageItem,
 } from "app/lib/safe-storage";
-import { buildProductImagePath } from "app/lib/product-image-path";
 import { loadEuroRate, readCachedEuroRate } from "app/lib/euro-rate-client";
+import { prefetchCatalogListing } from "app/lib/catalog-page-prefetch";
 import { buildProductPath } from "app/lib/product-url";
 import { normalizeSearchQuery, suggestionDisplayName } from "app/lib/catalog-search";
 import { pluralizeProducts } from "app/lib/pluralize-uk";
@@ -54,7 +54,7 @@ type SuggestionResult = {
 };
 
 const MAX_HISTORY          = 8;
-// Warm the same first page the catalog will request after Enter.
+// Suggestions have their own relevance order; catalog prefetch starts on submit.
 const SEARCH_PAGE_SIZE = 16;
 const SUGGESTION_MIN_CHARS = 2;
 const DEBOUNCE_MS          = 80;
@@ -124,6 +124,7 @@ const fetchSuggestions = async (
       hasMore?: boolean; nextCursor?: string; facets?: SuggestionFacets;
       serviceUnavailable?: boolean; message?: string;
     };
+    if (signal.aborted) throw new DOMException("Search cancelled", "AbortError");
     if (!res.ok || data.serviceUnavailable || !Array.isArray(data.items)) {
       throw new Error("Пошук тимчасово недоступний. Спробуйте ще раз.");
     }
@@ -173,18 +174,16 @@ const requestSuggestions = (query: string, filter: SearchFilter) => {
 const SuggestionImage: React.FC<{ code: string; article: string; name: string; hasPhoto?: boolean }> = ({
   code, article, name, hasPhoto,
 }) => {
-  const [failed, setFailed] = useState(false);
-  const src = buildProductImagePath(code, article, { catalog: true });
-  if (hasPhoto === false || failed || !src) {
-    return (
-      <div className="flex h-full w-full items-center justify-center rounded-xl border border-white/10 bg-[image:linear-gradient(145deg,rgba(51,65,85,0.72),rgba(15,23,42,0.88))] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-        <ImageOff size={16} className="text-slate-500" strokeWidth={1.5} aria-hidden="true" />
-      </div>
-    );
-  }
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/12 bg-white/[0.94] shadow-[0_5px_14px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.85)]">
-      <Image src={src} alt={name} fill sizes="(max-width: 640px) 48px, 56px" className="object-contain p-1" onError={() => setFailed(true)} />
+      <ProductCardImage
+        productCode={code}
+        articleHint={article}
+        hasKnownPhoto={hasPhoto !== false}
+        alt={name}
+        sizes="(max-width: 640px) 48px, 56px"
+        className="!rounded-none !bg-transparent [&_img]:p-1"
+      />
     </div>
   );
 };
@@ -218,16 +217,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const previousSearchRef = useRef({ query: "", filter: "all" as SearchFilter });
   const router = useRouter();
 
-  // init
+  // History is local; do not request the exchange rate until search is used.
   useEffect(() => {
-    const cachedRate = readCachedEuroRate();
-    if (cachedRate != null) {
-      setEuroRate(cachedRate);
-    } else {
-      void loadEuroRate().then((rate) => {
-        if (rate != null) setEuroRate(rate);
-      });
-    }
     if (typeof window === "undefined") return;
     try {
       const raw = safeGetStorageItem(window.localStorage, "searchHistory");
@@ -242,11 +233,24 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   }, []);
 
   useEffect(() => {
+    if (!dropdown || isComposing || normalizeSearchQuery(query).length < SUGGESTION_MIN_CHARS) return;
+    let current = true;
+    const cachedRate = readCachedEuroRate();
+    setEuroRate(cachedRate);
+    if (cachedRate == null) {
+      void loadEuroRate().then((rate) => { if (current) setEuroRate(rate); });
+    }
+    return () => { current = false; };
+  }, [dropdown, query, retry, isComposing]);
+
+  useEffect(() => {
     const invalidate = () => {
       sCache.clear();
       sCacheTimes.clear();
       pendingSuggestions.forEach(({ controller }) => controller.abort());
       pendingSuggestions.clear();
+      moreRequestRef.current?.abort();
+      moreRequestRef.current = null;
       setRetry((value) => value + 1);
     };
     window.addEventListener("partson:catalog-invalidated", invalidate);
@@ -321,7 +325,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
       const result = await fetchSuggestions(normalizeSearchQuery(query), filter, controller.signal, nextCursor);
-      if (moreRequestRef.current !== controller) return;
+      if (controller.signal.aborted || moreRequestRef.current !== controller) return;
       if (result.hasMore && result.nextCursor === nextCursor) throw new Error("Search cursor did not advance");
       setSuggestions((current) => {
         const seen = new Set(current.map((item) => item.code));
@@ -364,7 +368,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         search_source: "header",
       });
     }
-    router.push(`/katalog?search=${encodeURIComponent(sanitized)}&filter=${ef}&reset=search`);
+    const href = `/katalog?search=${encodeURIComponent(sanitized)}&filter=${ef}&reset=search`;
+    // Start the actual catalog page in parallel with its route/chunk loading.
+    // useCatalogData joins this same request; ranked suggestions cannot seed it.
+    void prefetchCatalogListing(href);
+    router.push(href);
     onSearch(sanitized, ef);
     saveHistory(raw.trim() || sanitized);
     setQuery(""); setDropdown(false); setFallback(null);

@@ -42,7 +42,7 @@ try {
   await page.getByText('АКТУАЛЬНА ВИБІРКА', { exact: true }).first().waitFor();
   console.log('Testing filter list navigation');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.getByRole('button', { name: 'Відкрити вкладку авто', exact: true }).click();
+  await page.getByRole('button', { name: 'Авто', exact: true }).click();
   const list = page.locator('.catalog-filter-card .directory-horizontal-rail[data-row-cap]').first();
   const navigation = page.locator('.filter-list-navigation').first();
   await navigation.waitFor();

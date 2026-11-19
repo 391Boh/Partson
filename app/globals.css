@@ -325,6 +325,31 @@ html.is-scrolling .home-scroll-decor {
   box-shadow: none !important;
 }
 
+/* The arrival photos float independently inside their fixed composition.
+   Only transforms move; one visibility observer controls CSS playback. */
+@keyframes home-arrival-drift {
+  0%, 100% { transform: translate3d(-2px, 4px, 0) rotate(-0.6deg); }
+  50% { transform: translate3d(3px, -6px, 0) rotate(0.7deg); }
+}
+
+@media (min-width: 1280px) and (prefers-reduced-motion: no-preference) {
+  .home-arrival-float {
+    animation: home-arrival-drift var(--arrival-duration, 20s) ease-in-out infinite;
+    animation-delay: var(--arrival-delay, -4s);
+    animation-play-state: paused;
+  }
+
+  .home-arrival-decor > picture:nth-child(2) { --arrival-duration: 23s; --arrival-delay: -11s; }
+  .home-arrival-decor > picture:nth-child(3) { --arrival-duration: 19s; --arrival-delay: -7s; }
+  .home-arrival-decor > picture:nth-child(4) { --arrival-duration: 24s; --arrival-delay: -16s; }
+  .home-arrival-decor > picture:nth-child(5) { --arrival-duration: 21s; --arrival-delay: -5s; }
+  .home-arrival-decor > picture:nth-child(6) { --arrival-duration: 22s; --arrival-delay: -13s; }
+
+  html:not(.is-scrolling) .home-arrival-decor[data-moving="true"] .home-arrival-float {
+    animation-play-state: running;
+  }
+}
+
 /* Keep blur disabled consistently instead of toggling it at scroll boundaries;
    toggling GPU filter layers was the visible flash on battery-throttled Macs. */
 .home-static .backdrop-blur-md,
@@ -6497,7 +6522,14 @@ svg.catalog-filter-search-icon {
   .site-header-row > div:first-child nav > ul,
   .site-header-row > div:last-child { gap:6px; }
   .site-header-row .site-header-search { padding-inline:0; }
-  .site-header-row .nav-action { width:40px; height:40px; min-width:40px; min-height:40px; border-radius:12px; }
+  /* Keep the 44px touch target; only the gaps tighten. */
+  .site-header-row .nav-action { width:44px; height:44px; min-width:44px; min-height:44px; border-radius:12px; }
+}
+@media (min-width:375px) and (max-width:399px) {
+  .site-header-row,
+  .site-header-row > div:first-child,
+  .site-header-row > div:first-child nav > ul,
+  .site-header-row > div:last-child { gap:4px; }
 }
 @media (max-width:1023px) {
   .site-header-search > button.nav-action[aria-expanded="true"] { box-shadow:0 3px 10px rgba(56,189,248,.26),inset 0 1px 0 rgba(255,255,255,.3) !important; }
@@ -17696,6 +17728,11 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 .home-static .home-story-map { align-self:start; }
 .home-static .home-store-map-frame { position:relative; height:390px; flex:none; background:#e0ebed; }
 .home-static .home-store-map-frame iframe { position:relative; z-index:1; display:block; width:100%; height:100%; border:0; }
+.home-static .home-store-map-frame:not(.is-map-loaded) > iframe { opacity:0; }
+.home-static .home-store-map-status { position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; color:#184d5d; text-align:center; background:#e6f0f2; }
+.home-static .home-store-map-status p { margin:0; font-size:14px; line-height:1.6; }
+.home-static .home-store-map-status button { min-height:44px; padding:10px 18px; border:1px solid #bfd6dd; border-radius:10px; color:#16485a; background:#faffff; font-size:14px; font-weight:650; cursor:pointer; }
+.home-static .home-store-map-status button:focus-visible { outline:2px solid #087b85; outline-offset:3px; }
 /* Until the map iframe mounts (it waits for the frame to be on screen and the
    scroll to settle), show a quiet map-like placeholder with the store pin
    instead of an empty grey block. The iframe paints over it. */
@@ -18665,7 +18702,7 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 }
 .site-footer-copyright { margin-top:12px !important; color:#a5c1ce; font-size:12px; }
 @media (min-width:640px) {
-  .footer-frame { --footer-reserved-height:1120px; }
+  .footer-frame { --footer-reserved-height:1136px; }
   .site-footer-intro { grid-template-columns:minmax(0,1fr) auto; gap:28px; }
   .site-footer-call { font-size:16px !important; }
 }
@@ -18703,9 +18740,9 @@ html[data-admin-hint] .product-gallery-admin-preview { display:flex; }
 /* Touch rows are taller than mouse rows. Reserve their real footprint before
    the lazy footer arrives, including the widest display heading and fonts. */
 @media (pointer:coarse) {
-  .footer-frame { --footer-reserved-height:1264px; }
-  @media (max-width:359px) { .footer-frame { --footer-reserved-height:1280px; } }
-  @media (min-width:640px) { .footer-frame { --footer-reserved-height:1168px; } }
+  .footer-frame { --footer-reserved-height:1284px; }
+  @media (max-width:359px) { .footer-frame { --footer-reserved-height:1304px; } }
+  @media (min-width:640px) { .footer-frame { --footer-reserved-height:1176px; } }
   @media (min-width:768px) { .footer-frame { --footer-reserved-height:752px; } }
   @media (min-width:1024px) { .footer-frame { --footer-reserved-height:616px; } }
 }
@@ -20755,3 +20792,127 @@ body:has(main[aria-busy="true"]) .directory-assist-shell { display:none; }
 /* The buy strip's thumbnail mirrors the hero photo at any ratio; below 768px
    it had no object-fit and stretched a non-square photo into 36×36. */
 .product-nav-buy-thumb { object-fit: contain; }
+
+/* ─── Manufacturer page (/manufacturers/[slug]) ──────────────────────────────
+   Hero search into the brand's catalog, compact category → group rows (the
+   whole row is one link), and a filterable index of the remaining products. */
+.mfr-hero-search { position:relative; display:flex; align-items:center; gap:8px; max-width:560px; margin-top:18px; padding:5px 5px 5px 42px; border:1px solid #a3c9dc40; border-radius:14px; background:#0b2234e6; transition:border-color .2s ease, box-shadow .2s ease; }
+.mfr-hero-search:focus-within { border-color:#5fd0df; box-shadow:0 0 0 3px #38b6c733; }
+.mfr-hero-search-icon { position:absolute; left:14px; top:50%; translate:0 -50%; color:#8fd3e0; pointer-events:none; }
+.mfr-hero-search input[type="search"] { flex:1; min-width:0; height:44px; border:0; background:transparent; color:#f2f8fc; font-size:16px; outline:none; }
+.mfr-hero-search input::placeholder { color:#93adbd; }
+.mfr-hero-search input::-webkit-search-cancel-button { filter:invert(1) opacity(.6); }
+.mfr-hero-search button { flex:none; height:44px; padding:0 18px; border-radius:10px; background:#08798c; color:#fff; font-size:14px; font-weight:700; transition:background-color .2s ease; }
+.mfr-hero-search button:hover { background:#066a7b; }
+.mfr-hero-search button:focus-visible { outline:2px solid #8ad6e5; outline-offset:2px; }
+.mfr-hero-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-top:14px; }
+.mfr-hero-actions > a { min-height:44px; }
+.mfr-quicknav { display:flex; flex-wrap:wrap; gap:8px; }
+.mfr-quicknav .manufacturer-quicknav-pill { min-height:36px; }
+@media (max-width:639px) {
+  .mfr-hero-search { margin-top:14px; }
+  .mfr-hero-search button { padding:0 14px; }
+  .mfr-hero-actions { flex-direction:column; align-items:stretch; }
+  /* One swipeable row instead of pills wrapping onto two lines. */
+  .mfr-quicknav { flex-wrap:nowrap; overflow-x:auto; margin-inline:-4px; padding:2px 4px 4px; scrollbar-width:none; }
+  .mfr-quicknav::-webkit-scrollbar { display:none; }
+  .mfr-quicknav .manufacturer-quicknav-pill { min-height:44px; flex:none; }
+}
+
+/* Categories: two balanced columns, so a short category does not leave a
+   tall empty card next to a long one. */
+.mfr-category-grid { columns:2 360px; column-gap:14px; padding:18px 24px 24px; }
+.mfr-category-grid > .mfr-category { break-inside:avoid; margin-bottom:14px; }
+.mfr-category { display:block; overflow:hidden; border:1px solid #d7e6ec; border-radius:16px; background:#fff; }
+.mfr-category-head { display:flex; align-items:center; gap:12px; padding:14px 14px 12px 16px; border-bottom:1px solid #e6eff3; background:#f7fbfd; }
+.mfr-category-icon { display:grid; place-items:center; flex:none; width:44px; height:44px; border:1px solid #d3e8f0; border-radius:12px; background:#fff; }
+.mfr-category-title { margin:0; color:#0f2a3a; font-size:17px; font-weight:750; line-height:1.3; overflow-wrap:anywhere; }
+.mfr-category-meta { margin:2px 0 0; color:#4f6d7e; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+.mfr-category-all { display:inline-flex; flex:none; align-items:center; gap:4px; min-height:44px; padding:0 12px; border:1px solid #cfe3ea; border-radius:10px; background:#fff; color:#0b6f80; font-size:13px; font-weight:700; transition:background-color .2s ease, border-color .2s ease; }
+.mfr-category-all:hover { border-color:#8fcbd6; background:#effafb; }
+.mfr-group-list { margin:0; padding:6px; list-style:none; }
+.mfr-group + .mfr-group { border-top:1px solid #edf3f6; }
+.mfr-group-link { display:flex; align-items:center; gap:12px; min-height:60px; padding:8px 10px; border-radius:12px; color:#0f2a3a; transition:background-color .18s ease, color .18s ease; }
+.mfr-group-link:hover { background:#f0f8fa; color:#0b6f80; }
+.mfr-group-link:focus-visible { outline:2px solid #0a8a9c; outline-offset:-2px; }
+.mfr-group-link .manufacturer-group-thumb { width:48px; height:48px; border-radius:12px; }
+@media (hover:hover) { .mfr-group-link:hover .manufacturer-group-thumb > img { transform:scale(1.05); } }
+.mfr-group-text { display:flex; flex:1; min-width:0; flex-direction:column; gap:2px; }
+.mfr-group-name { font-size:15px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.mfr-group-count { color:#557386; font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+.mfr-group-chevron { flex:none; color:#8aa6b4; transition:color .18s ease, translate .18s ease; }
+.mfr-group-link:hover .mfr-group-chevron { color:#0b6f80; translate:2px 0; }
+.mfr-subgroups { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0 10px 10px 70px; list-style:none; }
+.mfr-subgroup { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border:1px solid #d7e6ec; border-radius:999px; background:#f7fbfd; color:#24485b; font-size:12.5px; font-weight:650; transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
+.mfr-subgroup:hover { border-color:#8fcbd6; background:#effafb; color:#0b6f80; }
+.mfr-subgroup > span { color:#557386; font-size:11.5px; font-variant-numeric:tabular-nums; }
+.mfr-group-list-flat { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:4px 14px; padding:14px 18px 18px; }
+.mfr-group-list-flat > .mfr-group { border-top:0; }
+@media (max-width:639px) {
+  .mfr-category-grid { padding:12px; }
+  .mfr-category-grid > .mfr-category { margin-bottom:10px; }
+  .mfr-category-head { padding:12px; }
+  .mfr-category-title { font-size:16px; }
+  .mfr-subgroups { padding-left:10px; }
+  .mfr-subgroup { min-height:44px; }
+  .mfr-group-list-flat { grid-template-columns:minmax(0,1fr); padding:8px; }
+}
+@media (prefers-reduced-motion:reduce) { .mfr-group-chevron, .mfr-group-link { transition:none; } }
+
+/* Product index: a disclosure with a live filter over server-rendered links. */
+.mfr-index-summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:60px; padding:12px 20px; cursor:pointer; list-style:none; color:#0f2a3a; font-size:17px; font-weight:750; }
+.mfr-index-summary::-webkit-details-marker { display:none; }
+.mfr-index-summary:focus-visible { outline:2px solid #0a8a9c; outline-offset:-4px; border-radius:20px; }
+.mfr-index-count { display:inline-block; margin-left:4px; padding:2px 9px; border-radius:999px; background:#e8f4f7; color:#24596b; font-size:13px; font-weight:700; vertical-align:2px; font-variant-numeric:tabular-nums; }
+.mfr-index-toggle { display:inline-flex; flex:none; align-items:center; gap:4px; color:#0b6f80; font-size:14px; font-weight:700; }
+.mfr-index-toggle svg { transition:rotate .2s ease; }
+.mfr-index[open] .mfr-index-toggle svg { rotate:90deg; }
+.mfr-index .mfr-index-hide, .mfr-index[open] .mfr-index-show { display:none; }
+.mfr-index[open] .mfr-index-hide { display:inline; }
+.mfr-index-filter { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:4px 20px 14px; }
+.mfr-index-filter-field { position:relative; display:flex; flex:1 1 280px; max-width:440px; align-items:center; }
+.mfr-index-filter-field > svg { position:absolute; left:13px; color:#3f8796; pointer-events:none; }
+.mfr-index-filter-field input { width:100%; height:44px; padding:0 44px 0 40px; border:1px solid #cfe0e7; border-radius:12px; background:#fff; color:#0f2a3a; font-size:16px; outline:none; }
+.mfr-index-filter-field input:focus { border-color:#0a8a9c; box-shadow:0 0 0 3px #0a8a9c26; }
+.mfr-index-filter-field input::-webkit-search-cancel-button { display:none; }
+.mfr-index-filter-field button { position:absolute; right:2px; display:grid; place-items:center; width:40px; height:40px; border-radius:10px; color:#557386; }
+.mfr-index-filter-field button:hover { color:#0f2a3a; }
+.mfr-index-filter p { margin:0; color:#4f6d7e; font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+.mfr-index-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:2px 16px; max-height:min(70vh,640px); overflow-y:auto; overscroll-behavior:contain; margin:0; padding:0 14px 16px; list-style:none; }
+.mfr-index-list > li { min-width:0; }
+.mfr-index-list a { display:flex; min-height:44px; flex-direction:column; justify-content:center; padding:6px 8px; border-radius:10px; color:#1f3f50; font-size:14px; line-height:1.35; transition:background-color .15s ease, color .15s ease; }
+.mfr-index-list a:hover { background:#f0f8fa; color:#0b6f80; }
+.mfr-index-list a > span { display:-webkit-box; overflow:hidden; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+.mfr-index-list a > small { color:#5b7788; font-size:12px; font-variant-numeric:tabular-nums; }
+@media (max-width:639px) {
+  .mfr-index-summary { padding:12px 16px; font-size:16px; }
+  .mfr-index-toggle .mfr-index-show, .mfr-index[open] .mfr-index-toggle .mfr-index-hide { display:none; }
+  .mfr-index-filter { padding:4px 12px 12px; }
+  .mfr-index-list { grid-template-columns:minmax(0,1fr); padding:0 6px 12px; }
+}
+
+/* /manufacturers: sort switch and first-letter filter above the brand grid. */
+.mfr-dir-tools { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; padding:14px 24px; border-bottom:1px solid #e1ebf1; }
+.mfr-dir-sort { display:inline-flex; flex:none; padding:3px; border:1px solid #d7e6ec; border-radius:12px; background:#f3f8fa; }
+.mfr-dir-sort button { min-height:38px; padding:0 14px; border-radius:9px; color:#38596a; font-size:13px; font-weight:700; transition:background-color .18s ease, color .18s ease; }
+.mfr-dir-sort button[aria-pressed="true"] { background:#fff; color:#0b6f80; box-shadow:0 1px 3px #0f2a3a1f; }
+.mfr-dir-letters { display:flex; flex:1 1 320px; flex-wrap:wrap; gap:4px; min-width:0; }
+.mfr-dir-letters button { min-width:36px; min-height:36px; padding:0 8px; border:1px solid transparent; border-radius:9px; color:#24485b; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; transition:background-color .15s ease, border-color .15s ease, color .15s ease; }
+.mfr-dir-letters button:hover { border-color:#cfe3ea; background:#f3f9fb; }
+.mfr-dir-letters button[aria-pressed="true"] { border-color:#08798c; background:#08798c; color:#fff; }
+:is(.mfr-dir-sort,.mfr-dir-letters) button:focus-visible { outline:2px solid #0a8a9c; outline-offset:1px; }
+@media (min-width:640px) {
+  /* Every letter on one line: the buttons share the row instead of wrapping. */
+  .mfr-dir-letters { flex-wrap:nowrap; gap:2px; overflow-x:auto; scrollbar-width:thin; }
+  .mfr-dir-letters button { flex:1 1 0; min-width:30px; padding:0 4px; }
+  .mfr-dir-letters button:first-child { flex:none; padding:0 10px; }
+}
+@media (max-width:639px) {
+  .mfr-dir-tools { padding:12px 16px; }
+  .mfr-dir-sort { width:100%; }
+  .mfr-dir-sort button { flex:1; min-height:44px; }
+  /* One swipeable row of letters on phones. */
+  .mfr-dir-letters { flex-wrap:nowrap; overflow-x:auto; margin-inline:-16px; padding:2px 16px; scrollbar-width:none; }
+  .mfr-dir-letters::-webkit-scrollbar { display:none; }
+  .mfr-dir-letters button { flex:none; min-width:44px; min-height:44px; border-color:#dde9ee; background:#fff; }
+}

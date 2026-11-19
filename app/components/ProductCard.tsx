@@ -180,9 +180,9 @@ const ProductCard: React.FC<Props> = ({
         const normalizedProducer = (producer || "").trim();
         if (!normalizedProducer || normalizedProducer === "-") return "";
 
-        const manufacturerPath = buildManufacturerPathFromLabel(normalizedProducer);
-        const query = new URLSearchParams({ producer: normalizedProducer }).toString();
-        return `${manufacturerPath}?${query}`;
+        // The manufacturer page ignores query parameters; a ?producer= copy
+        // only gave every brand a second, duplicate URL for crawlers.
+        return buildManufacturerPathFromLabel(normalizedProducer);
     }, [producer]);
     const producerLogoSrc = useMemo(() => resolveProducerLogoSrc(producer), [producer]);
     const [articleCopied, setArticleCopied] = useState(false);

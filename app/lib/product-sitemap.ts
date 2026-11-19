@@ -6,6 +6,7 @@ import {
   type CatalogProduct,
 } from "app/lib/catalog-server";
 import { isPublicCatalogProduct } from "app/lib/public-catalog-product";
+import { buildProductPath } from "app/lib/product-url";
 
 const parsePositiveInt = (value: string | undefined, fallbackValue: number) => {
   const numeric = Number(value);
@@ -643,12 +644,25 @@ const chunkProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
   return batches;
 };
 
+const chunkCanonicalProductSitemapEntries = (entries: ProductSitemapEntry[]) => {
+  const seen = new Set<string>();
+  // Different 1C records can share one canonical page (same name/article).
+  // Deduplicate before splitting: otherwise the same URL can land in two XML
+  // files. Keep the full source snapshot for exact-code lookups and exports.
+  return chunkProductSitemapEntries(entries.filter((entry) => {
+    const path = buildProductPath(entry);
+    if (seen.has(path)) return false;
+    seen.add(path);
+    return true;
+  }));
+};
+
 const getPricedProductSitemapEntryBatchesSafe = async () => {
   expireSnapshotCaches();
   if (shouldBypassProductSitemapCache()) {
     const allEntries = (await buildProductSitemapEntryBatches()).flat();
     const enrichedEntries = await enrichProductSitemapEntriesWithPrices(allEntries);
-    return chunkProductSitemapEntries(
+    return chunkCanonicalProductSitemapEntries(
       enrichedEntries.filter(isPricedProductSitemapEntry)
     );
   }
@@ -672,7 +686,7 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
           const allSnapshotEntries = await readProductSitemapEntriesSnapshot();
           return allSnapshotEntries.filter(isPricedProductSitemapEntry);
         })
-        .then((entries) => chunkProductSitemapEntries(entries))
+        .then((entries) => chunkCanonicalProductSitemapEntries(entries))
         .then((batches) => {
           pricedProductSitemapEntryBatchesMemory = batches;
           return batches;
@@ -702,7 +716,7 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
       enrichProductSitemapEntriesWithPrices(batches.flat())
     )
     .then((entries) =>
-      chunkProductSitemapEntries(
+      chunkCanonicalProductSitemapEntries(
         entries.filter(
           (entry) => isPricedProductSitemapEntry(entry) && entry.hasPhoto === true
         )

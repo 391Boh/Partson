@@ -239,20 +239,31 @@ function buildInlinePrices(
 
 // This route answers anonymous visitors: never send the 1C purchase price.
 // Admins read cost prices from the authenticated /api/catalog-prices.
-const withoutCostPrices = <T,>(payload: T): T => {
+const withoutCostPrices = <T,>(payload: T, compact = false): T => {
   const items = (payload as { items?: unknown } | null)?.items;
   if (!Array.isArray(items)) return payload;
   return {
     ...payload,
-    items: items.map((item) =>
-      item && typeof item === "object" ? withoutCostPrice(item as object) : item
-    ),
+    items: items.map((item) => {
+      if (!item || typeof item !== "object") return item;
+      if (!compact) return withoutCostPrice(item as object);
+      // Matching/ranking still uses the full product on the server. The header
+      // never renders descriptions, fitments or parameters; large descriptions
+      // used to be resent on every keystroke, including cached responses.
+      const product = item as CatalogProduct;
+      return {
+        code: product.code, article: product.article, name: product.name,
+        producer: product.producer, quantity: product.quantity,
+        priceEuro: product.priceEuro, hasPhoto: product.hasPhoto,
+      };
+    }),
   };
 };
 
 export async function POST(request: Request) {
   let body: Record<string, unknown> = {};
   let routeCacheKey = "";
+  const publicPayload = <T,>(payload: T) => withoutCostPrices(payload, body.purpose === "suggestions");
 
   try {
     body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -302,7 +313,7 @@ export async function POST(request: Request) {
       }).catch(() => null);
       if (promoListing) {
         return NextResponse.json(
-          withoutCostPrices({
+          publicPayload({
             items: promoListing.items,
             prices: buildInlinePrices(promoListing.items),
             images: {},
@@ -330,7 +341,7 @@ export async function POST(request: Request) {
       const items = products.slice(start, start + limit);
 
       return NextResponse.json(
-        withoutCostPrices({
+        publicPayload({
           items,
           prices: buildInlinePrices(items),
           images: {},
@@ -365,7 +376,7 @@ export async function POST(request: Request) {
         const items = products.slice(start, start + limit);
 
         return NextResponse.json(
-          withoutCostPrices({
+          publicPayload({
             items,
             prices: buildInlinePrices(items),
             images: {},
@@ -387,7 +398,7 @@ export async function POST(request: Request) {
     // A cached 1C answer without a total loses to the snapshot listing below,
     // which has the exact count.
     if (cacheHit && typeof cacheHit.totalCount === "number") {
-      return NextResponse.json(withoutCostPrices(cacheHit), {
+      return NextResponse.json(publicPayload(cacheHit), {
         headers: { "cache-control": "no-store" },
       });
     }
@@ -581,7 +592,7 @@ export async function POST(request: Request) {
           });
         }
 
-        return NextResponse.json(withoutCostPrices(payload), {
+        return NextResponse.json(publicPayload(payload), {
           headers: { "cache-control": "no-store" },
         });
       }
@@ -643,7 +654,7 @@ export async function POST(request: Request) {
           totalCount: listing.totalCount,
           ...(directOffset !== null ? { directOffset } : {}),
         };
-        return NextResponse.json(withoutCostPrices(payload), {
+        return NextResponse.json(publicPayload(payload), {
           headers: { "cache-control": "no-store" },
         });
       }
@@ -922,7 +933,7 @@ export async function POST(request: Request) {
     if (staleCacheHit) {
       void inFlight.catch(() => null);
       const stalePayload = buildStaleCatalogPayload(staleCacheHit);
-      return NextResponse.json(withoutCostPrices(stalePayload), {
+      return NextResponse.json(publicPayload(stalePayload), {
         headers: { "cache-control": "private, max-age=30, stale-while-revalidate=300" },
       });
     }
@@ -938,7 +949,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(withoutCostPrices(payload), {
+    return NextResponse.json(publicPayload(payload), {
       headers: { "cache-control": "no-store" },
     });
   } catch (error) {
@@ -952,7 +963,7 @@ export async function POST(request: Request) {
     const staleHit = getStaleRouteCacheValue(routeCacheKey);
     if (staleHit) {
       return NextResponse.json(
-        buildStaleCatalogPayload(staleHit)
+        publicPayload(buildStaleCatalogPayload(staleHit))
       );
     }
 

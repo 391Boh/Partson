@@ -21,6 +21,8 @@ export type GroupsDirectoryItem = {
   label: string;
   slug: string;
   productCount: number;
+  /** Missing from a snapshot is different from explicitly counted empty. */
+  countsKnown?: boolean;
   subgroupsCount: number;
   subgroups: Array<{
     label: string;
@@ -103,6 +105,7 @@ const buildGroupsDirectoryDataFromSeoFacets = (
 
 const pruneEmptyGroups = (groups: GroupsDirectoryItem[]): GroupsDirectoryItem[] =>
   groups.flatMap((group) => {
+    if (group.countsKnown === false) return [group];
     if (group.productCount <= 0) return [];
     const subgroups = group.subgroups.flatMap((subgroup) =>
       subgroup.productCount > 0
@@ -124,6 +127,7 @@ const buildGroupsDirectoryData = (
       label: group.label,
       slug: group.slug,
       productCount: counts.productCount,
+      countsKnown: counts.countsKnown,
       subgroupsCount: counts.subgroupsCount,
       subgroups: group.subgroups.map((subgroup) => ({
         label: subgroup.label,
@@ -138,10 +142,9 @@ const buildGroupsDirectoryData = (
     };
   });
 
-  // With real counts the directory lists only nodes that hold public
-  // products, so no card leads to an empty catalog. The empty pages stay
-  // reachable by URL (noindex, follow). Without counts every node is kept.
-  const countsKnown = treeGroups.some((group) => group.productCount > 0);
+  // Prune explicitly counted empty nodes. A fresh tree can contain a new
+  // category absent from an older counts snapshot; retain its real links.
+  const countsKnown = treeGroups.some((group) => group.countsKnown);
   const clientGroups = countsKnown ? pruneEmptyGroups(treeGroups) : treeGroups;
 
   const totalGroups = clientGroups.length;

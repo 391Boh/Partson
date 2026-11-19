@@ -1,3 +1,5 @@
+import { readIndexNowUrls } from "./lib/indexnow-input.mjs";
+
 const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
 const MAX_URLS_PER_REQUEST = 10_000;
 
@@ -22,25 +24,7 @@ async function main() {
     );
   }
 
-  const requestedValues = process.argv.slice(2).map((value) => value.trim()).filter(Boolean);
-  if (requestedValues.length === 0) {
-    throw new Error(
-      "Pass at least one canonical path or URL, for example: npm run indexnow:submit -- / /katalog"
-    );
-  }
-
-  const urlList = Array.from(
-    new Set(
-      requestedValues.map((value) => {
-        const url = new URL(value, `${siteUrl}/`);
-        if (url.origin !== siteOrigin) {
-          throw new Error(`IndexNow URL must belong to ${siteOrigin}: ${value}`);
-        }
-        url.hash = "";
-        return url.toString();
-      })
-    )
-  );
+  const urlList = await readIndexNowUrls(process.argv.slice(2), siteUrl);
 
   if (urlList.length > MAX_URLS_PER_REQUEST) {
     throw new Error(`IndexNow accepts at most ${MAX_URLS_PER_REQUEST} URLs per request`);
@@ -57,6 +41,7 @@ async function main() {
       keyLocation: `${siteUrl}/indexnow-key.txt`,
       urlList,
     }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
@@ -66,7 +51,7 @@ async function main() {
     );
   }
 
-  console.log(`IndexNow accepted ${urlList.length} URL(s) for ${siteOrigin}`);
+  console.log(`IndexNow ${response.status}: ${urlList.length} URL(s) submitted for ${siteOrigin}${response.status === 202 ? " (key verification pending)" : ""}. This is not an indexing confirmation.`);
 }
 
 main().catch((error) => {

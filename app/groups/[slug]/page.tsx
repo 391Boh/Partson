@@ -36,11 +36,10 @@ import {
 import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
 import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
-import { buildVisibleProductName } from "app/lib/product-url";
-import { formatCatalogLabel } from "app/lib/catalog-label-format";
+import { buildVisibleCatalogGroupName, isAccessoriesCatalogGroup } from "app/lib/catalog-group-label";
 
 // Display only: slugs and 1C filters keep the raw 1C label.
-const buildVisibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
+const buildVisibleGroupName = buildVisibleCatalogGroupName;
 import { getGroupSeoCopy } from "app/lib/seo-copy";
 import {
   appendSeoContactLast,
@@ -114,7 +113,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
     rawSeoFacets,
     getAllProductSitemapEntries
   );
-  const countsKnown = seoFacets.totalProductCount > 0;
+  let countsKnown = seoFacets.totalProductCount > 0;
   const group = dataset?.groups.find(
     (item) => item.slug === slug || item.legacySlug === slug
   );
@@ -165,6 +164,7 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
   }
 
   const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
+  countsKnown = countsKnown && counts.countsKnown;
   const subgroups = group.subgroups.map((subgroup) => ({
     label: subgroup.label,
     slug: subgroup.slug,
@@ -202,12 +202,14 @@ const getGroupBySlug = cache(async (slug: string): Promise<GroupPageData | null>
 // buildAdaptiveSeoTitle drops the decorative suffix rather than risk a
 // Google-truncated title once the layout's " | PartsON" template is added.
 const buildGroupTitle = (label: string) =>
-  buildAdaptiveSeoTitle(buildVisibleGroupName(label), " — каталог запчастин");
+  buildAdaptiveSeoTitle(buildVisibleGroupName(label), isAccessoriesCatalogGroup(label) ? " — каталог товарів" : " — каталог запчастин");
 
 // The <title> targets the commercial query ("амортизація купити", "… ціна",
 // "… львів"); the on-page H1 keeps the calmer buildGroupTitle wording.
 const buildGroupSeoTitle = (label: string) =>
-  buildFirstFittingSeoTitle(buildVisibleGroupName(label), [
+  buildFirstFittingSeoTitle(buildVisibleGroupName(label), isAccessoriesCatalogGroup(label) ? [
+    " — купити, ціни у Львові", " — купити, ціни", " — каталог",
+  ] : [
     " — купити запчастини, ціни у Львові",
     " — купити запчастини, ціни",
     " — запчастини, ціни",
@@ -232,6 +234,9 @@ const buildGroupDescription = (
   subgroups: GroupDescriptionSubgroup[]
 ) => {
   const visibleLabel = buildVisibleGroupName(label);
+  if (isAccessoriesCatalogGroup(label)) {
+    return "Автоаксесуари, автохімія та інструмент у PartsON. Освіжувачі, догляд, освітлення й приладдя для ремонту. Ціни, самовивіз у Львові та доставка по Україні.";
+  }
   const productLabel =
     productCount > 0
       ? `${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}`
@@ -268,6 +273,10 @@ const buildGroupHeroDescription = (
 ) => {
   const visibleLabel = buildVisibleGroupName(label);
 
+  if (isAccessoriesCatalogGroup(label)) {
+    return "Товари для салону, догляду за авто, ремонту й гаража. Оберіть категорію, порівняйте виробників, характеристики та комплектацію.";
+  }
+
   if (hasSubgroups) {
     return `Оберіть групу запчастин у категорії «${visibleLabel}». Далі можна переглянути товари, порівняти виробників, ціну та наявність.`;
   }
@@ -284,6 +293,10 @@ const buildGroupHeroDetails = (
   hasSubgroups: boolean
 ) => {
   const visibleLabel = buildVisibleGroupName(label);
+
+  if (isAccessoriesCatalogGroup(label)) {
+    return "Для інструмента звірте робочі розміри, для електротоварів — живлення й роз’єми, а для модельних аксесуарів — застосування до авто.";
+  }
 
   if (hasSubgroups) {
     return "Перед замовленням перевірте артикул, сторону встановлення та застосування до вашої модифікації автомобіля.";
@@ -384,7 +397,7 @@ export async function generateMetadata({ params }: GroupPageProps): Promise<Meta
       `ціна ${group.label}`,
       "групи автозапчастин",
     ],
-    openGraphTitle: `${buildVisibleGroupName(group.label)} — каталог автозапчастин | PartsON`,
+    openGraphTitle: `${buildVisibleGroupName(group.label)} — каталог ${isAccessoriesCatalogGroup(group.label) ? "товарів" : "автозапчастин"} | PartsON`,
     // The segment's opengraph-image/twitter-image card (1200×630) supplies
     // og/twitter images; explicit ones here would override it.
     image: null,
@@ -570,7 +583,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   {pageDescription}{" "}
                   У категорії —{" "}
                   <strong>
-                    {formatCount(group.productCount)} {pluralizeUk(group.productCount, "товар", "товари", "товарів")}
+                    {group.countsKnown
+                      ? <>{formatCount(group.productCount)} {pluralizeUk(group.productCount, "товар", "товари", "товарів")}</>
+                      : "товари в каталозі"}
                   </strong>
                   {group.subgroupsCount > 0 ? (
                     <>
@@ -607,7 +622,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       {group.subgroups.length > 0 && (
         <section className="directory-panel directory-section-list mt-6" aria-labelledby="group-sections-title">
           <header className="directory-panel-header">
-            <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">Групи запчастин</h2>
+            <h2 id="group-sections-title" className="directory-heading text-2xl text-slate-900">{isAccessoriesCatalogGroup(group.label) ? "Категорії автотоварів" : "Групи запчастин"}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">Оберіть групу, а за потреби уточніть підгрупу.</p>
           </header>
           {/* One card per group, subgroups listed inside it. Columns instead of
@@ -648,7 +663,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                     <span className="cat-group-text">
                       <span className="cat-group-title">{subgroupName}</span>
                       <span className="cat-group-meta">
-                        {formatCount(subgroup.productCount)} {pluralizeProducts(subgroup.productCount)}
+                        {group.countsKnown
+                          ? <>{formatCount(subgroup.productCount)} {pluralizeProducts(subgroup.productCount)}</>
+                          : "Переглянути товари"}
                         {childCount > 0 && (
                           <>
                             <span aria-hidden className="cat-group-meta-dot" />
@@ -670,7 +687,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                             className="cat-subgroup"
                           >
                             <span className="cat-subgroup-name">{buildVisibleGroupName(child.label)}</span>
-                            <span className="cat-subgroup-count">{formatCount(child.productCount)}</span>
+                            {group.countsKnown && <span className="cat-subgroup-count">{formatCount(child.productCount)}</span>}
                           </CatalogPrefetchLink>
                         </li>
                       ))}
@@ -736,7 +753,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
       <CatalogSeoTextSection
         contained={false}
         badge="Навігація по групі"
-        title={`${visibleGroupLabel}: підгрупи, виробники та товари`}
+        title={seoCopy.title}
         lead={seoCopy.intro}
         topics={[
           {
@@ -755,7 +772,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           },
           {
             title: "Точний підбір",
-            text: "Звіряйте артикул і технічні характеристики, а за потреби уточнюйте сумісність за VIN.",
+            text: buildGroupHeroDetails(group.label, hasSubgroups),
             icon: PackageSearch,
           },
         ]}
@@ -763,7 +780,9 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
         links={[
           { href: catalogLink, label: `Товари ${visibleGroupLabel}` },
           { href: "/groups", label: "Усі групи" },
-          { href: "/auto", label: "Підбір за авто" },
+          isAccessoriesCatalogGroup(group.label)
+            ? { href: "/manufacturers", label: "Усі виробники" }
+            : { href: "/auto", label: "Підбір за авто" },
         ]}
       />
 

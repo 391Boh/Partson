@@ -62,4 +62,18 @@ const cutFitment = buildProductMetaDescription({
 assert.match(cutFitment, /для T5 Touran Golf Passat \(з 2003\); Audi A1/, 'cars the cut 1C fitment misses still lead');
 assert.ok(cutFitment.length <= 160);
 
-console.log('Product SEO copy passed: Latin model marks, named cars first in descriptions.');
+const { buildProductSeoTitle } = load('app/lib/product-seo-copy.ts');
+const titles = {
+  'Комплект ГРМ T5 TOURAN GOLF PASSAT 03-|BOSCH|1987945328': 'Комплект ГРМ BOSCH 1987945328 — T5 Touran Golf Passat (з 2003)',
+  'Фільтр повітря KIA RIO HYUNDAI ACCENT 02-|ALPHA|AF1741': 'Фільтр повітря ALPHA AF1741 — KIA RIO Hyundai Accent (з 2002)',
+  'Фільтр паливний MASTER TRAFIC 10-|BOSCH|F026402378': 'Фільтр паливний BOSCH F026402378 — Master Trafic (з 2010)',
+  'Фільтр масляний|MANN|W712': 'Фільтр масляний — MANN W712 | PartsON',
+};
+for (const [input, expected] of Object.entries(titles)) {
+  const [name, producer, article] = input.split('|');
+  const title = buildProductSeoTitle({ name, producer, article });
+  assert.equal(title, expected, input);
+  assert.ok(title.length <= 65, title);
+}
+
+console.log('Product SEO copy passed: Latin model marks, named cars first, article-led titles.');

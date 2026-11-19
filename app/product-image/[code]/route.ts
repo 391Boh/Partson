@@ -41,12 +41,19 @@ const safeDecode = (value: string) => {
   }
 };
 
+// nginx caches this route ignoring Cache-Control (partson.conf on the server), but it
+// honours X-Accel-Expires: a miss that only means "1C did not answer in time"
+// must not be kept there, or the photo stays hidden for every visitor.
+const NGINX_NO_CACHE = { "x-accel-expires": "0" };
+const isNoStore = (cacheControl?: string) => Boolean(cacheControl?.includes("no-store"));
+
 const fallbackRedirect = (request: Request, cacheControl?: string) => {
   const response = NextResponse.redirect(new URL(PRODUCT_IMAGE_FALLBACK_PATH, request.url), 307);
   response.headers.set(
     "cache-control",
     cacheControl || "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400"
   );
+  if (isNoStore(cacheControl)) response.headers.set("x-accel-expires", "0");
   return response;
 };
 const fallbackNotFound = (cacheControl?: string) =>
@@ -56,6 +63,7 @@ const fallbackNotFound = (cacheControl?: string) =>
       "cache-control":
         cacheControl ||
         "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+      ...(isNoStore(cacheControl) ? NGINX_NO_CACHE : {}),
     },
   });
 const FULL_IMAGE_LOOKUP_OPTIONS = {
@@ -1010,5 +1018,7 @@ export async function GET(request: Request, context: ProductImageRouteContext) {
     );
   }
 
-  return fallbackRedirect(request);
+  // A full-size lookup that timed out falls back to the placeholder only for
+  // this request; a confirmed miss keeps the usual one-hour redirect.
+  return fallbackRedirect(request, hasAuthoritativeMiss ? undefined : "no-store");
 }

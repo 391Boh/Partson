@@ -88,6 +88,7 @@ export const resolveGroupSeoCounts = (
   const childProductCounts = new Map<string, number>();
 
   let subgroupProductsTotal = 0;
+  let countsKnown = directGroupFacet !== null;
 
   for (const subgroup of group.subgroups) {
     // The product tree may contain an outer display category (for example
@@ -96,6 +97,7 @@ export const resolveGroupSeoCounts = (
     const rootSubgroupFacet = findFacetMatch(groupLookup, subgroup);
     const nestedSubgroupFacet = findFacetMatch(directSubgroupLookup, subgroup);
     const subgroupFacet = rootSubgroupFacet ?? nestedSubgroupFacet;
+    if (subgroupFacet) countsKnown = true;
     const childLookup = buildFacetLookup<SeoFacetItem>(
       rootSubgroupFacet?.subgroups ?? []
     );
@@ -103,6 +105,7 @@ export const resolveGroupSeoCounts = (
 
     for (const child of subgroup.children ?? []) {
       const childFacet = findFacetMatch(childLookup, child);
+      if (childFacet) countsKnown = true;
       const childProductCount = toPositiveInt(childFacet?.productCount);
       childProductCounts.set(child.slug, childProductCount);
       childrenProductsTotal += childProductCount;
@@ -121,6 +124,9 @@ export const resolveGroupSeoCounts = (
   }
 
   return {
+    // A snapshot without this category cannot prove it has zero products.
+    // New 1C groups may appear before the next SEO snapshot is generated.
+    countsKnown,
     productCount: Math.max(
       toPositiveInt(directGroupFacet?.productCount),
       subgroupProductsTotal

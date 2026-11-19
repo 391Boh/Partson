@@ -76,6 +76,8 @@ import { buildProductFaqJsonLd } from "app/lib/product-faq";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { normalizeProductDisplayName } from "app/lib/product-display-name";
 import { buildProductMetaDescription, buildProductSeoTitle, buildProductImageAlt } from "app/lib/product-seo-copy";
+import { getCatalogSelectionGuide } from "app/lib/catalog-selection-guide";
+import { buildVisibleCatalogGroupName, isAccessoriesCatalogGroup } from "app/lib/catalog-group-label";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
 import { getProductEditOverride } from "app/lib/product-edit-overrides";
 import { resolvePublicProductPriceEuro } from "app/lib/public-product-price";
@@ -2226,6 +2228,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   });
   const visibleProductGroup = buildVisibleCategoryLabel(productGroup);
   const visibleProductSubgroup = buildVisibleCategoryLabel(productSubgroup);
+  const isAccessoryProduct = Boolean(
+    getCatalogSelectionGuide(productSubgroup, productGroup) ||
+    isAccessoriesCatalogGroup(productCategory || productGroup)
+  );
   const siteUrl = getSiteUrl();
   // Both reads depend only on the code, including recovery paths that found
   // the product after those reads were started.
@@ -2356,7 +2362,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     siteUrl,
     canonicalUrl,
     name: visibleProductName,
-    topCategoryName: topCategoryPath ? buildVisibleCategoryLabel(productCategory) : undefined,
+    topCategoryName: topCategoryPath ? buildVisibleCatalogGroupName(productCategory) : undefined,
     topCategoryPath: topCategoryPath || undefined,
     groupName: visibleProductGroup || undefined,
     groupPath: groupLandingPath,
@@ -2394,7 +2400,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     { href: "/", label: "Головна" },
     { href: "/katalog", label: "Каталог" },
     topCategoryPath
-      ? { href: topCategoryPath, label: buildVisibleProductName(productCategory) }
+      ? { href: topCategoryPath, label: buildVisibleCatalogGroupName(productCategory) }
       : null,
     groupLandingPath && productGroup
       ? { href: groupLandingPath, label: visibleProductGroup }
@@ -2446,7 +2452,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     informationSections.find((section) => section.key === "delivery")?.facts[0]?.value || "1–2 дні";
   const productHeroHighlights: Array<{ label: string; icon: typeof Truck; href?: string }> = [
     {
-      label: "Перевіримо за VIN",
+      label: isAccessoryProduct ? "Уточнимо параметри" : "Перевіримо за VIN",
       icon: ShieldCheck,
     },
     {
@@ -2602,7 +2608,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         the last thing on the page, so this is a jump link,
                         not part of the product's identity up top. */}
                     <div className="product-review-row">
-                      <p className="product-overview-description">Потрібно перевірити сумісність? Надішліть VIN або дані автомобіля — менеджер допоможе з підбором.</p>
+                      <p className="product-overview-description">{isAccessoryProduct
+                        ? "Потрібна допомога з вибором? Повідомте менеджеру артикул і потрібні параметри — уточнимо характеристики та комплектацію."
+                        : "Потрібно перевірити сумісність? Надішліть VIN або дані автомобіля — менеджер допоможе з підбором."}</p>
                       <a href="#product-reviews" className="product-review-button">
                         <Star size={14} className="fill-amber-400 text-amber-400" aria-hidden="true" />
                         {reviewStats ? (

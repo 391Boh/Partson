@@ -50,6 +50,9 @@ const PRODUCT_ARRAY_KEYS = [
 const MAX_TREE_DEPTH = 8;
 const MAX_CHILDREN_PER_NODE = 250;
 const PRODUCT_TREE_SOURCE_TIMEOUT_MS = 8000;
+// Match the public getprod/browser lifetime. A six-hour server snapshot kept
+// new arrival groups missing long after 1C and the homepage exposed them.
+const PRODUCT_TREE_REVALIDATE_SECONDS = 300;
 
 const normalizeValue = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim();
@@ -315,12 +318,14 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
     timeoutMs: PRODUCT_TREE_SOURCE_TIMEOUT_MS,
     retries: 0,
     retryDelayMs: 100,
-    cacheTtlMs: 1000 * 60 * 60 * 6,
+    // unstable_cache owns freshness. A second six-hour 1C transport cache
+    // could otherwise refill an expired Next cache with the same old tree.
+    cacheTtlMs: 0,
   });
 
   // A failed 1C call still resolves (not throws) with an error-shaped body —
   // without this check that body silently parses to "no rows" and
-  // unstable_cache would happily cache an empty dataset for 6 hours.
+  // unstable_cache would happily cache an empty dataset.
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`getprod request failed with status ${response.status}`);
   }
@@ -330,7 +335,7 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
 
   // A 2xx status doesn't guarantee a real body — 1C can also return 200
   // with an empty/malformed payload while degraded, which parses to zero
-  // rows and would otherwise cache as a "successful" empty tree for 6h.
+  // rows and would otherwise cache as a "successful" empty tree.
   // Downstream (app/katalog/page.tsx), an empty tree here makes the "top
   // categories" SEO section silently fall back to seoFacets.groups instead
   // — real data, but at the wrong granularity (specific groups shown under
@@ -343,8 +348,8 @@ const fetchDataset = async (): Promise<ProductTreeDataset> => {
   return buildDataset(nodes);
 };
 
-const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v5-fast-source"], {
-  revalidate: 60 * 60 * 6,
+const fetchDatasetCached = unstable_cache(fetchDataset, ["product-tree-v6-fresh-groups"], {
+  revalidate: PRODUCT_TREE_REVALIDATE_SECONDS,
   tags: ["product-tree"],
 });
 
@@ -360,11 +365,11 @@ const fetchRawTreeNodes = async (): Promise<ProductTreeNode[]> => {
     timeoutMs: PRODUCT_TREE_SOURCE_TIMEOUT_MS,
     retries: 0,
     retryDelayMs: 100,
-    cacheTtlMs: 1000 * 60 * 60 * 6,
+    cacheTtlMs: 0,
   });
 
   // Same guard as fetchDataset: a failed call resolves rather than throws,
-  // so without this check an outage gets cached as "zero products" for 6h.
+  // so without this check an outage gets cached as "zero products".
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`getprod request failed with status ${response.status}`);
   }
@@ -379,8 +384,8 @@ export const getProductTreeNodesUncached = fetchRawTreeNodes;
 
 const fetchRawTreeNodesCached = unstable_cache(
   fetchRawTreeNodes,
-  ["product-tree-raw-nodes-v1"],
-  { revalidate: 60 * 60 * 6, tags: ["product-tree"] }
+  ["product-tree-raw-nodes-v2-fresh-groups"],
+  { revalidate: PRODUCT_TREE_REVALIDATE_SECONDS, tags: ["product-tree"] }
 );
 
 export const getProductTreeNodes = cache(async () => fetchRawTreeNodesCached());

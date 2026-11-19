@@ -19,13 +19,12 @@ import {
 import SmartLink from "app/components/SmartLink";
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
-import { buildVisibleProductName } from "app/lib/product-url";
-import { formatCatalogLabel } from "app/lib/catalog-label-format";
+import { buildVisibleCatalogGroupName } from "app/lib/catalog-group-label";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 // 1C labels as people read them ("Комплекти/ Ремені ГРМ" → "Комплекти та
 // ремені ГРМ"); the raw label stays in links and in the search text.
-const visibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
+const visibleGroupName = buildVisibleCatalogGroupName;
 
 export type GroupsDirectoryItem = {
   label: string;
@@ -281,7 +280,7 @@ export default function GroupsDirectoryClient({
                   Категорії каталогу
                 </div>
                 <h2 className={directoryTitleClass}>
-                  Оберіть систему автомобіля
+                  Оберіть систему авто або категорію товарів
                 </h2>
                 <p className={directoryDescriptionClass}>
                   На кожній картці — найбільші групи системи: відкрийте <strong className="font-bold text-slate-800">категорію цілком</strong> або одразу потрібну групу.

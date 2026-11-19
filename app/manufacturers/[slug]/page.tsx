@@ -7,7 +7,7 @@ import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { Info, Layers3, PackageSearch, Search, ShoppingBag } from "lucide-react";
+import { ArrowRight, ChevronRight, Info, Layers3, PackageSearch, Search, ShoppingBag } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
@@ -17,10 +17,8 @@ import { resolveRenamedProducerRedirect } from "app/lib/producer-rename-redirect
 import {
   catalogPageBackgroundClass,
   directoryBadgeClass,
-  directoryCompactMetricAccentClass,
   directoryDescriptionClass,
   directoryHeaderClass,
-  directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
   directorySecondaryButtonClass,
@@ -43,8 +41,11 @@ import {
 } from "app/lib/catalog-seo";
 import {
   fetchCatalogProductsByQuery,
+  fetchConfirmedEuroRate,
+  fetchEuroRate,
   type CatalogProduct,
 } from "app/lib/catalog-server";
+import ManufacturerProductIndexFilter from "app/manufacturers/[slug]/ManufacturerProductIndexFilter";
 import { resolveProductCategoryHierarchy } from "app/lib/catalog-hierarchy";
 import {
   buildCatalogSeoFacetsFromSitemapEntries,
@@ -1233,6 +1234,21 @@ const getManufacturerBySlug = cache(
   }
 );
 
+// producer.productCount counts only the priced, photographed products in the
+// SEO snapshot (the index/noindex rule relies on that). Visitors are told the
+// same unfiltered total as the manufacturers list and the catalog they land in.
+const getManufacturerVisibleTotal = async (producer: ManufacturerPageData) => {
+  const directoryEntry = await resolveWithTimeout(
+    () =>
+      getFullManufacturersDirectoryData().then(
+        (data) => data.clientProducers.find((item) => item.slug === producer.slug) ?? null
+      ),
+    null,
+    800
+  ).catch(() => null);
+  return Math.max(producer.productCount, directoryEntry?.productCount || 0);
+};
+
 export async function generateStaticParams() {
   const fromBrands = brands.map((brand) => ({ slug: buildSeoSlug(brand.name) }));
   const limit = parsePositiveInt(
@@ -1254,6 +1270,17 @@ export async function generateStaticParams() {
     .slice(0, limit);
 }
 
+// A producer renamed or replaced in the admin panel keeps its old URL; an
+// older collision suffix ("…-f44l35-2", still linked from outside) points at
+// the producer that now owns the unsuffixed slug.
+async function resolveMissingManufacturerRedirect(slug: string) {
+  const renamed = await resolveRenamedProducerRedirect(slug);
+  if (renamed) return renamed;
+  const base = slug.match(/^(.+)-\d{1,2}$/)?.[1];
+  const producer = base ? await getManufacturerBySlug(base) : null;
+  return producer ? buildManufacturerPath(producer.slug) : null;
+}
+
 export async function generateMetadata({
   params,
 }: ManufacturerPageProps): Promise<Metadata> {
@@ -1261,9 +1288,8 @@ export async function generateMetadata({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
-    // A producer renamed or replaced in the admin panel keeps its old URL.
-    const renamed = await resolveRenamedProducerRedirect(slug);
-    if (renamed) permanentRedirect(renamed);
+    const redirectPath = await resolveMissingManufacturerRedirect(slug);
+    if (redirectPath) permanentRedirect(redirectPath);
     notFound();
   }
 
@@ -1271,7 +1297,7 @@ export async function generateMetadata({
   const description = appendSeoContact(
     buildManufacturerDescription(
       producer.label,
-      producer.productCount,
+      await getManufacturerVisibleTotal(producer),
       getManufacturerSeoGroups(producer),
       producer.groupsCount
     )
@@ -1318,9 +1344,8 @@ export default async function ManufacturerDetailPage({
   const producer = await getManufacturerBySlug(slug);
 
   if (!producer) {
-    // A producer renamed or replaced in the admin panel keeps its old URL.
-    const renamed = await resolveRenamedProducerRedirect(slug);
-    if (renamed) permanentRedirect(renamed);
+    const redirectPath = await resolveMissingManufacturerRedirect(slug);
+    if (redirectPath) permanentRedirect(redirectPath);
     notFound();
   }
   if (slug !== producer.slug) {
@@ -1354,7 +1379,16 @@ export default async function ManufacturerDetailPage({
   // These two only depend on topProducts/visibleProducts above, not on each
   // other — group sampling and image resolution used to run back-to-back,
   // each paying its own full timeout on the tail case.
-  const [productSamplesByGroup, visibleProductImages] = await Promise.all([
+  // Same confirmed rate as the product page, so a brand card never shows a
+  // price that differs from the product it links to.
+  const euroRatePromise = visibleProducts.some(
+    (product) => typeof product.priceEuro === "number" && product.priceEuro > 0
+  )
+    ? resolveWithTimeout(() => fetchConfirmedEuroRate(), null, 1500)
+        .then((rate) => rate ?? resolveWithTimeout(() => fetchEuroRate(), null, 500))
+        .catch(() => null)
+    : Promise.resolve(null);
+  const [productSamplesByGroup, visibleProductImages, euroRate] = await Promise.all([
     buildManufacturerGroupProductSamples(
       producer.label,
       producer.topGroups,
@@ -1379,6 +1413,7 @@ export default async function ManufacturerDetailPage({
           timeoutMs: 650,
           allowUrlDownload: true,
         }),
+    euroRatePromise,
   ]);
   const visibleProductImagePayload = Object.fromEntries(
     visibleProducts.flatMap((product) => {
@@ -1391,17 +1426,19 @@ export default async function ManufacturerDetailPage({
   const siteUrl = getSiteUrl();
   const pagePath = buildManufacturerPath(producer.slug);
   const catalogPath = buildCatalogProducerPath(producer.label);
+  const totalProductCount = await getManufacturerVisibleTotal(producer);
+  const catalogProducerValue = new URLSearchParams(catalogPath.split("?")[1]).get("producer") || producer.label;
   const canonicalPageUrl = `${siteUrl}${pagePath}`;
   const pageTitle = buildManufacturerTitle(producer.label, getManufacturerSeoGroups(producer));
   const pageDescription = buildManufacturerDescription(
     producer.label,
-    producer.productCount,
+    totalProductCount,
     getManufacturerSeoGroups(producer),
     producer.groupsCount
   );
   const seoCopy = getProducerSeoCopy(
     producer.label,
-    producer.productCount,
+    totalProductCount,
     producer.topGroups.map((group) => group.label),
     manufacturerProducts.map((product) => product.name)
   );
@@ -1563,15 +1600,20 @@ export default async function ManufacturerDetailPage({
           )
         : buildCatalogProducerPath(producer.label, group.filterValue);
 
+    const groupName = formatCatalogLabel(normalizeValue(group.label));
+
+    // The whole row is one link (thumb, name, count, chevron) instead of a
+    // card with a small chevron button: one generous target per group.
     return (
-      <article
-        key={`${keyPrefix}:${group.slug}:${group.filterValue}:${groupIndex}`}
-        className={`${directoryListCardClass} group/card overflow-hidden`}
-      >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+      <li key={`${keyPrefix}:${group.slug}:${group.filterValue}:${groupIndex}`} className="mfr-group">
+        <CatalogPrefetchLink
+          href={groupCatalogPath}
+          prefetchCatalogOnViewport
+          className="mfr-group-link"
+        >
           {showIcon ? (
-            <span className="manufacturer-group-thumb">
-              <PartTypeIcon label={group.label} parents={[categoryFilterValue]} size={26} />
+            <span className="manufacturer-group-thumb" aria-hidden="true">
+              <PartTypeIcon label={group.label} parents={[categoryFilterValue]} size={24} />
               {groupThumb ? (
                 <ManufacturerGroupSampleImage
                   src={groupThumb.src}
@@ -1581,93 +1623,41 @@ export default async function ManufacturerDetailPage({
                   // around a centred part, so they are cropped to the
                   // square; product photos are shown whole.
                   className={`absolute inset-0 h-full w-full bg-white ${
-                    groupThumb.src.startsWith("/group-previews/") ? "object-cover" : "object-contain p-1.5"
+                    groupThumb.src.startsWith("/group-previews/") ? "object-cover" : "object-contain p-1"
                   }`}
                 />
               ) : null}
             </span>
           ) : null}
-
-          <div className="min-w-0 flex-1">
-            <CatalogPrefetchLink
-              href={groupCatalogPath}
-              prefetchCatalogOnViewport
-              className="directory-card-title inline-flex text-[15px] leading-tight text-slate-900 transition-colors duration-200 group-hover/card:text-teal-700"
-            >
-              {formatCatalogLabel(normalizeValue(group.label))}
-            </CatalogPrefetchLink>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+          <span className="mfr-group-text">
+            <span className="mfr-group-name">{groupName}</span>
+            <span className="mfr-group-count">
               {formatCountedWord(group.productCount, "товар", "товари", "товарів")}
             </span>
-            {groupSamples.length > 1 ? (
-              <div className="hidden items-center -space-x-2 sm:flex">
-                {groupSamples.slice(1, 3).map((sample, sampleIndex) => {
-                  const sampleName = buildVisibleProductName(sample.name);
-                  const samplePath = buildProductPath({
-                    code: sample.code,
-                    article: sample.article,
-                    name: sample.name,
-                    producer: sample.producer,
-                    group: sample.group,
-                    subGroup: sample.subGroup,
-                    category: sample.category,
-                  });
-
-                  return (
-                    <Link
-                      key={`${buildProductDedupeKey(sample)}:${sampleIndex}`}
-                      href={samplePath}
-                      title={sampleName}
-                      className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-sm ring-1 ring-slate-100 transition-colors duration-200 hover:ring-sky-200"
-                    >
-                      <ManufacturerGroupSampleImage
-                        src={sample.imageSrc}
-                        alt={`Фото ${sampleName}`}
-                      />
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : null}
-            <CatalogPrefetchLink
-              href={groupCatalogPath}
-              prefetchCatalogOnViewport
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              aria-label={`Відкрити групу ${formatCatalogLabel(normalizeValue(group.label))}`}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="m9 18 6-6-6-6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </CatalogPrefetchLink>
-          </div>
-        </div>
+          </span>
+          <ChevronRight className="mfr-group-chevron" size={18} strokeWidth={2.4} aria-hidden />
+        </CatalogPrefetchLink>
 
         {visibleSubgroups.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-            <span className="category-level-caption">Підгрупи</span>
+          <ul className="mfr-subgroups" aria-label={`Підгрупи групи «${groupName}»`}>
             {visibleSubgroups.map((subgroup, subgroupIndex) => (
-              <CatalogPrefetchLink
-                key={`${keyPrefix}:${group.slug}:${groupIndex}:${subgroup.slug}:${subgroupIndex}`}
-                href={buildCatalogProducerPath(
-                  producer.label,
-                  group.filterValue,
-                  subgroup.label
-                )}
-                prefetchCatalogOnViewport
-                className="group/sub inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-2.5 py-1 text-[12px] font-semibold text-slate-600 transition-colors duration-200 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-              >
-                {formatCatalogLabel(normalizeValue(subgroup.label))}
-                <span className="whitespace-nowrap rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 transition-colors duration-200 group-hover/sub:text-sky-600">
-                  {formatCountedWord(subgroup.productCount, "товар", "товари", "товарів")}
-                </span>
-              </CatalogPrefetchLink>
+              <li key={`${keyPrefix}:${group.slug}:${groupIndex}:${subgroup.slug}:${subgroupIndex}`}>
+                <CatalogPrefetchLink
+                  href={buildCatalogProducerPath(
+                    producer.label,
+                    group.filterValue,
+                    subgroup.label
+                  )}
+                  className="mfr-subgroup"
+                >
+                  {formatCatalogLabel(normalizeValue(subgroup.label))}
+                  <span>{formatCount(subgroup.productCount)}</span>
+                </CatalogPrefetchLink>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : null}
-      </article>
+      </li>
     );
   };
 
@@ -1735,62 +1725,64 @@ export default async function ManufacturerDetailPage({
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                   У каталозі PartsON —{" "}
                   <strong>
-                    {formatCount(producer.productCount)} {pluralizeUk(producer.productCount, "товар", "товари", "товарів")} {producer.label}
+                    {formatCountedWord(totalProductCount, "товар", "товари", "товарів")} {producer.label}
                   </strong>
-                  {producer.groupsCount > 0 ? (
-                    <>
-                      {" "}у{" "}
-                      <strong>
-                        {formatCount(producer.groupsCount)} {pluralizeUk(producer.groupsCount, "групі", "групах", "групах")}
-                      </strong>
-                    </>
-                  ) : null}
-                  {producer.categoriesCount > 0 ? (
-                    <>
-                      {" "}і{" "}
-                      <strong>
-                        {formatCount(producer.categoriesCount)} {pluralizeUk(producer.categoriesCount, "підгрупі", "підгрупах", "підгрупах")}
-                      </strong>
-                    </>
-                  ) : null}
-                  . Оберіть категорію або групу запчастин {producer.label}, щоб переглянути товари з цінами й наявністю. Для підбору конкретної деталі звірте артикул, характеристики та застосування до вашого автомобіля.
+                  . Знайдіть деталь за назвою чи артикулом
+                  {producer.groupsCount > 1
+                    ? ` або оберіть одну з ${formatCount(producer.groupsCount)} груп нижче`
+                    : " або оберіть групу нижче"}
+                  . Перед замовленням звірте артикул і застосування до вашого авто.
                 </p>
 
-                {/* In-page quick nav — replaces two purely decorative
-                    badges ("Фільтр виробника вже готовий" restated nothing
-                    a first-time visitor needed) with an actual map of the
-                    page: about → structure → popular products, so a long
-                    brand page reads as a structured document instead of
-                    one undifferentiated scroll. */}
-                <nav
-                  aria-label="Швидкий перехід по сторінці"
-                  className="mt-4 flex flex-wrap gap-2"
-                >
-                  <a href="#manufacturer-groups" className="manufacturer-quicknav-pill">
-                    <Layers3 size={13} strokeWidth={2.4} aria-hidden />
-                    Структура каталогу
-                  </a>
-                  {visibleProducts.length > 0 ? (
-                    <a href="#manufacturer-products" className="manufacturer-quicknav-pill">
-                      <PackageSearch size={13} strokeWidth={2.4} aria-hidden />
-                      Товари бренду
-                    </a>
-                  ) : null}
-                  <a href="#manufacturer-about" className="manufacturer-quicknav-pill">
-                    <Info size={13} strokeWidth={2.4} aria-hidden />
-                    Про бренд і підбір
-                  </a>
-                </nav>
+                {/* A plain GET form into the catalog with this brand already
+                    selected: works before hydration and needs no client JS. */}
+                <form action="/katalog" method="get" role="search" className="mfr-hero-search">
+                  <input type="hidden" name="tab" value="producer" />
+                  <input type="hidden" name="producer" value={catalogProducerValue} />
+                  <label htmlFor="manufacturer-search" className="sr-only">
+                    Пошук серед товарів {producer.label}
+                  </label>
+                  <Search className="mfr-hero-search-icon" size={18} strokeWidth={2.3} aria-hidden />
+                  <input
+                    id="manufacturer-search"
+                    type="search"
+                    name="search"
+                    required
+                    minLength={2}
+                    autoComplete="off"
+                    enterKeyHint="search"
+                    placeholder={`Назва або артикул ${producer.label}`}
+                  />
+                  <button type="submit">Знайти</button>
+                </form>
 
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="mfr-hero-actions">
                   <CatalogPrefetchLink
                     href={catalogPath}
                     prefetchCatalogOnViewport
                     className={directoryPrimaryButtonClass}
                   >
                     <ShoppingBag size={16} strokeWidth={2.3} aria-hidden />
-                    Товари бренду
+                    {totalProductCount > 0
+                      ? `Усі ${formatCountedWord(totalProductCount, "товар", "товари", "товарів")}`
+                      : "Усі товари бренду"}
                   </CatalogPrefetchLink>
+                  <nav aria-label="Швидкий перехід по сторінці" className="mfr-quicknav">
+                    <a href="#manufacturer-groups" className="manufacturer-quicknav-pill">
+                      <Layers3 size={13} strokeWidth={2.4} aria-hidden />
+                      Категорії
+                    </a>
+                    {visibleProducts.length > 0 ? (
+                      <a href="#manufacturer-products" className="manufacturer-quicknav-pill">
+                        <PackageSearch size={13} strokeWidth={2.4} aria-hidden />
+                        Популярні товари
+                      </a>
+                    ) : null}
+                    <a href="#manufacturer-about" className="manufacturer-quicknav-pill">
+                      <Info size={13} strokeWidth={2.4} aria-hidden />
+                      Про бренд
+                    </a>
+                  </nav>
                 </div>
               </div>
             </div>
@@ -1801,129 +1793,81 @@ export default async function ManufacturerDetailPage({
 
         <section id="manufacturer-groups" className={`${directoryPanelClass} scroll-mt-24`}>
           <div className={directoryHeaderClass}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className={directoryBadgeClass}>
-                  Структура каталогу бренду
-                </p>
-                <h2 className={directoryTitleClass}>
-                  {producer.topCategories?.length
-                    ? hasAnySubgroups
-                      ? `Категорії, групи та підгрупи ${producer.label}`
-                      : `Категорії та групи ${producer.label}`
-                    : hasAnySubgroups
-                      ? `Групи та підгрупи ${producer.label}`
-                      : `Групи товарів ${producer.label}`}
-                </h2>
-                <p className={directoryDescriptionClass}>
-                  {producer.topCategories?.length
-                    ? hasAnySubgroups
-                      ? "Категорія — загальний напрямок, група веде до основного фільтра, а підгрупи відкривають точніші результати."
-                      : "Категорія — загальний напрямок; кожна група веде безпосередньо до відповідного розділу каталогу."
-                    : hasAnySubgroups
-                      ? "Група веде до основного фільтра каталогу бренду, а підгрупи одразу відкривають точніші результати."
-                      : "Кожна група веде безпосередньо до відповідного розділу каталогу цього виробника."}
-                </p>
-              </div>
-              <div className={`grid gap-2 lg:min-w-[25rem] ${producer.topCategories?.length ? (hasAnySubgroups ? "sm:grid-cols-3" : "sm:grid-cols-2") : (hasAnySubgroups ? "sm:grid-cols-2" : "sm:grid-cols-1")}`}>
-                {(producer.topCategories?.length
+            <div>
+              <p className={directoryBadgeClass}>
+                Структура каталогу бренду
+              </p>
+              <h2 className={directoryTitleClass}>
+                {producer.topCategories?.length
                   ? hasAnySubgroups
-                    ? [
-                        { label: "Категорія", text: "загальний напрямок" },
-                        { label: "Група", text: "основний фільтр" },
-                        { label: "Підгрупа", text: "точний результат" },
-                      ]
-                    : [
-                        { label: "Категорія", text: "загальний напрямок" },
-                        { label: "Група", text: "перехід до каталогу" },
-                      ]
+                    ? `Категорії, групи та підгрупи ${producer.label}`
+                    : `Категорії та групи ${producer.label}`
                   : hasAnySubgroups
-                    ? [
-                        { label: "Група", text: "основний фільтр" },
-                        { label: "Підгрупа", text: "точний результат" },
-                      ]
-                    : [
-                        { label: "Група", text: "перехід до каталогу" },
-                      ]
-                ).map((level) => (
-                  <div
-                    key={level.label}
-                    className="rounded-[16px] border border-slate-200 bg-white/82 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
-                  >
-                    <span className="block text-xs font-semibold text-slate-900">
-                      {level.label}
-                    </span>
-                    <span className="directory-counter-label mt-1 block text-[10px] uppercase text-slate-500">
-                      {level.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                    ? `Групи та підгрупи ${producer.label}`
+                    : `Групи товарів ${producer.label}`}
+              </h2>
+              <p className={directoryDescriptionClass}>
+                {producer.topCategories?.length
+                  ? "Відкрийте всю категорію або одразу потрібну групу — каталог покаже лише товари цього виробника."
+                  : "Кожна група веде до розділу каталогу лише з товарами цього виробника."}
+              </p>
             </div>
           </div>
 
           {producer.topCategories?.length ? (
-            <DirectoryCollection labels={producer.topCategories.map(category => [category.label, ...category.groups.map(group => group.label)].join(" "))} className="category-card-grid category-hierarchy-grid px-4 py-4 sm:px-5 sm:py-5" placeholder="Пошук у категоріях виробника">
-              {producer.topCategories.map((category, categoryIndex) => (
-                <article
-                  key={`${category.slug}:${categoryIndex}`}
-                  className="group/category relative overflow-hidden rounded-[24px] border border-slate-200/75 bg-[radial-gradient(circle_at_100%_0%,rgba(186,230,253,0.19),transparent_34%),linear-gradient(155deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_54%,rgba(243,250,248,0.94)_100%)] shadow-[0_18px_42px_rgba(15,23,42,0.06)] ring-1 ring-white/85 transition-[transform,box-shadow] duration-300 hover:shadow-[0_26px_54px_rgba(15,23,42,0.10)]"
-                >
-                  <span
-                    className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-400 opacity-80 transition-opacity duration-300 group-hover/category:opacity-100"
-                    aria-hidden
-                  />
-                  <div className="border-b border-sky-100/80 px-4 py-4 sm:px-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                      <div className="flex min-w-0 gap-3">
-                        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-sky-100/80 bg-gradient-to-br from-sky-50 to-white shadow-[0_2px_8px_rgba(14,165,233,0.10)]">
-                          <Image
-                            src={getCategoryIconPath(category.label)}
-                            alt=""
-                            aria-hidden
-                            width={28}
-                            height={28}
-                            sizes="28px"
-                            className="h-7 w-7 object-contain"
-                          />
-                          <span className="absolute -left-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-sky-500 to-teal-500 text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(14,165,233,0.35)]">
-                            {categoryIndex + 1}
-                          </span>
-                        </span>
-                        <div className="min-w-0">
-                          <p className="directory-kicker text-[10px] uppercase text-sky-800">
-                            Категорія
-                          </p>
-                          <h3 className="directory-heading mt-0.5 text-xl text-slate-900 sm:text-2xl">
-                            {normalizeValue(category.label)}
-                          </h3>
-                        </div>
+            <DirectoryCollection labels={producer.topCategories.map(category => [category.label, ...category.groups.map(group => group.label)].join(" "))} className="mfr-category-grid" placeholder="Пошук у категоріях виробника">
+              {producer.topCategories.map((category, categoryIndex) => {
+                const categoryName = normalizeValue(category.label);
+                return (
+                  <article key={`${category.slug}:${categoryIndex}`} className="mfr-category">
+                    <header className="mfr-category-head">
+                      <span className="mfr-category-icon" aria-hidden="true">
+                        <Image
+                          src={getCategoryIconPath(category.label)}
+                          alt=""
+                          width={28}
+                          height={28}
+                          sizes="28px"
+                          className="h-7 w-7 object-contain"
+                        />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="mfr-category-title">{categoryName}</h3>
+                        <p className="mfr-category-meta">
+                          {formatCountedWord(category.productCount, "товар", "товари", "товарів")}
+                          {category.groups.length > 1
+                            ? ` · ${formatCountedWord(category.groups.length, "група", "групи", "груп")}`
+                            : ""}
+                        </p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={directoryCompactMetricAccentClass}>
-                          {formatCountedWord(category.productCount, "товар виробника", "товари виробника", "товарів виробника")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 p-2.5 sm:grid-cols-2 sm:p-3">
-                    <h4 className="category-level-heading">Групи</h4>
-                    {category.groups.map((group, groupIndex) =>
-                      renderManufacturerGroupCard(
-                        group,
-                        groupIndex,
-                        `${category.slug}:${categoryIndex}`,
-                        true,
-                        category.label
-                      )
-                    )}
-                  </div>
-                </article>
-              ))}
+                      {category.groups.length > 1 ? (
+                        <CatalogPrefetchLink
+                          href={buildCatalogProducerPath(producer.label, category.label, null, { expandHierarchy: true })}
+                          className="mfr-category-all"
+                          aria-label={`Усі товари ${producer.label} у категорії «${categoryName}»`}
+                        >
+                          Усі
+                          <ArrowRight size={14} strokeWidth={2.4} aria-hidden />
+                        </CatalogPrefetchLink>
+                      ) : null}
+                    </header>
+                    <ul className="mfr-group-list">
+                      {category.groups.map((group, groupIndex) =>
+                        renderManufacturerGroupCard(
+                          group,
+                          groupIndex,
+                          `${category.slug}:${categoryIndex}`,
+                          true,
+                          category.label
+                        )
+                      )}
+                    </ul>
+                  </article>
+                );
+              })}
             </DirectoryCollection>
           ) : producer.topGroups.length > 0 ? (
-            <DirectoryCollection labels={producer.topGroups.map(group => group.label)} className="category-card-grid grid gap-2.5 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5" placeholder="Знайти групу товарів">
+            <DirectoryCollection labels={producer.topGroups.map(group => group.label)} as="ul" className="mfr-group-list mfr-group-list-flat" placeholder="Знайти групу товарів">
               {producer.topGroups.map((group, groupIndex) =>
                 renderManufacturerGroupCard(group, groupIndex, "fallback-groups", true)
               )}
@@ -1948,10 +1892,10 @@ export default async function ManufacturerDetailPage({
                 <div>
                   <p className={directoryBadgeClass}>Товари бренду</p>
                   <h2 className={directoryTitleClass}>
-                    Товари {producer.label} у каталозі
+                    Популярні товари {producer.label}
                   </h2>
                   <p className={directoryDescriptionClass}>
-                    Добірка позицій виробника з артикулом, кодом, категорією та швидким переходом на сторінку товару.
+                    Ціна, наявність і артикул — додайте в кошик тут або відкрийте сторінку товару.
                   </p>
                 </div>
                 <CatalogPrefetchLink
@@ -1966,22 +1910,34 @@ export default async function ManufacturerDetailPage({
             <ManufacturerCatalogProducts
               products={visibleProducts.map(withoutCostPrice)}
               images={visibleProductImagePayload}
+              euroRate={euroRate ?? undefined}
             />
           </section>
         )}
         {manufacturerProductLinks.length > 0 && (
           <section className={directoryPanelClass}>
-            <details className="group-all-products">
-              <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-base font-bold text-slate-900 sm:p-5 sm:text-lg">
+            <details className="group-all-products mfr-index" id="manufacturer-all-products">
+              <summary className="mfr-index-summary">
                 <span>
                   {visibleProducts.length > 0 ? "Інші товари" : "Усі товари"} {producer.label}{" "}
-                  <span className="font-semibold text-slate-500">({manufacturerProductLinks.length})</span>
+                  <span className="mfr-index-count">{formatCount(manufacturerProductLinks.length)}</span>
                 </span>
-                <span aria-hidden="true" className="text-sm font-semibold text-teal-700">Показати</span>
+                <span className="mfr-index-toggle" aria-hidden="true">
+                  <span className="mfr-index-show">Показати список</span>
+                  <span className="mfr-index-hide">Згорнути</span>
+                  <ChevronRight size={16} strokeWidth={2.4} />
+                </span>
               </summary>
-              <ul className="grid gap-x-6 gap-y-1.5 px-4 pb-5 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
+              {manufacturerProductLinks.length > 12 ? (
+                <ManufacturerProductIndexFilter
+                  listId="manufacturer-product-index"
+                  total={manufacturerProductLinks.length}
+                  label={`Фільтр товарів ${producer.label} за назвою чи артикулом`}
+                />
+              ) : null}
+              <ul id="manufacturer-product-index" className="mfr-index-list">
                 {manufacturerProductLinks.map((entry) => (
-                  <li key={entry.code} className="min-w-0">
+                  <li key={entry.code}>
                     <Link
                       href={buildProductPath({
                         code: entry.code,
@@ -1993,11 +1949,10 @@ export default async function ManufacturerDetailPage({
                         category: entry.category,
                       })}
                       prefetch={false}
-                      className="text-slate-700 underline-offset-2 hover:text-teal-800 hover:underline"
                     >
-                      {fixCatalogSpelling(buildVisibleProductName(entry.name || entry.code))}
+                      <span>{fixCatalogSpelling(buildVisibleProductName(entry.name || entry.code))}</span>
+                      {entry.article ? <small>{entry.article}</small> : null}
                     </Link>
-                    {entry.article ? <span className="text-slate-500"> — {entry.article}</span> : null}
                   </li>
                 ))}
               </ul>

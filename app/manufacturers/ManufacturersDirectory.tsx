@@ -64,6 +64,14 @@ const collapseWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
 
 const normalize = (value: string) => collapseWhitespace(value).toLowerCase();
 
+const compareLabels = (a: string, b: string) => a.localeCompare(b, "uk", { sensitivity: "base" });
+
+// Digits and symbols share one "0–9" bucket so the letter row stays short.
+const firstLetterOf = (label: string) => {
+  const first = collapseWhitespace(label).charAt(0).toLocaleUpperCase("uk");
+  return /\p{L}/u.test(first) ? first : "0–9";
+};
+
 const formatDirectoryCount = (value: number, fallback: string) =>
   value > 0 ? value.toLocaleString("uk-UA") : fallback;
 
@@ -149,6 +157,8 @@ export default function ManufacturersDirectory({
   totalItems = items.length,
 }: ManufacturersDirectoryProps) {
   const [query, setQuery] = useState("");
+  const [letter, setLetter] = useState<string | null>(null);
+  const [sort, setSort] = useState<"alpha" | "popular">("alpha");
   const [directoryData, setDirectoryData] = useState({
     items,
     hasIndexedCounts,
@@ -199,19 +209,32 @@ export default function ManufacturersDirectory({
     void loadFullDirectory();
   }, [loadFullDirectory]);
 
-  const filteredItems = useMemo(
-    () =>
-      normalizedQuery
-        ? directoryItems.filter((item) => {
-            const haystack = `${item.label} ${item.description ?? ""}`;
-            return normalize(haystack).includes(normalizedQuery);
-          })
-        : directoryItems,
-    [directoryItems, normalizedQuery]
+  const letters = useMemo(
+    () => [...new Set(directoryItems.map((item) => firstLetterOf(item.label)))].sort(compareLabels),
+    [directoryItems]
   );
-  const advertisedTotalItems = Math.max(totalItems, directoryItems.length);
+  // A letter that no longer exists (the full list replaced the first 32)
+  // simply stops filtering instead of showing an empty grid.
+  const activeLetter = letter && letters.includes(letter) ? letter : null;
 
-  const pagination = useDirectoryPagination(filteredItems, normalizedQuery, 12);
+  const filteredItems = useMemo(() => {
+    const matches = directoryItems.filter((item) => {
+      if (activeLetter && firstLetterOf(item.label) !== activeLetter) return false;
+      if (!normalizedQuery) return true;
+      return normalize(`${item.label} ${item.description ?? ""}`).includes(normalizedQuery);
+    });
+    return sort === "popular"
+      ? [...matches].sort((a, b) => b.productCount - a.productCount || compareLabels(a.label, b.label))
+      : matches;
+  }, [activeLetter, directoryItems, normalizedQuery, sort]);
+  const advertisedTotalItems = Math.max(totalItems, directoryItems.length);
+  const isFiltered = Boolean(normalizedQuery || activeLetter);
+
+  const pagination = useDirectoryPagination(
+    filteredItems,
+    `${normalizedQuery}|${activeLetter ?? ""}|${sort}`,
+    12
+  );
 
   return (
     <section
@@ -263,7 +286,7 @@ export default function ManufacturersDirectory({
                     <button
                       type="button"
                       onClick={() => setQuery("")}
-                      className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                      className="absolute right-1 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                       aria-label="Очистити пошук"
                     >
                       <X size={14} />
@@ -273,8 +296,8 @@ export default function ManufacturersDirectory({
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className={directoryMetricClass}>
-                    Знайдено: {(normalizedQuery ? filteredItems.length : advertisedTotalItems).toLocaleString("uk-UA")} {pluralize(
-                      normalizedQuery ? filteredItems.length : advertisedTotalItems,
+                    Знайдено: {(isFiltered ? filteredItems.length : advertisedTotalItems).toLocaleString("uk-UA")} {pluralize(
+                      isFiltered ? filteredItems.length : advertisedTotalItems,
                       "виробник",
                       "виробники",
                       "виробників"
@@ -293,6 +316,38 @@ export default function ManufacturersDirectory({
               </div>
             </div>
           </div>
+
+          {directoryItems.length > 12 ? (
+            <div className="mfr-dir-tools">
+              <div className="mfr-dir-sort" role="group" aria-label="Сортування виробників">
+                {([["alpha", "А–Я"], ["popular", "Більше товарів"]] as const).map(([value, text]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={sort === value}
+                    onClick={() => setSort(value)}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+              <div className="mfr-dir-letters" role="group" aria-label="Перша літера назви виробника">
+                <button type="button" aria-pressed={!activeLetter} onClick={() => setLetter(null)}>
+                  Усі
+                </button>
+                {letters.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={activeLetter === value}
+                    onClick={() => setLetter(activeLetter === value ? null : value)}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="px-4 py-4 sm:px-5 sm:py-5">
             {filteredItems.length > 0 ? (
@@ -317,8 +372,15 @@ export default function ManufacturersDirectory({
                 <DirectoryPagination {...pagination} />
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
-                За цим запитом виробників не знайдено.
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600" role="status">
+                <p>За цим запитом виробників не знайдено.</p>
+                <button
+                  type="button"
+                  onClick={() => { setQuery(""); setLetter(null); }}
+                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-slate-200 bg-white px-4 font-semibold text-teal-800 hover:bg-slate-50"
+                >
+                  Показати всіх виробників
+                </button>
               </div>
             )}
           </div>

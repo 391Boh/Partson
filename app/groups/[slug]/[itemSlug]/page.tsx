@@ -53,10 +53,12 @@ import { getAllProductSitemapEntries, getAllProductSitemapSnapshotEntries } from
 import { resolveRenamedGroupRedirect } from "app/lib/group-rename-redirects";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
-import { fixCatalogSpelling, formatCatalogLabel } from "app/lib/catalog-label-format";
+import { fixCatalogSpelling } from "app/lib/catalog-label-format";
+import { getCatalogSelectionGuide } from "app/lib/catalog-selection-guide";
+import { buildVisibleCatalogGroupName } from "app/lib/catalog-group-label";
 
 // Display only: slugs and 1C filters keep the raw 1C label.
-const buildVisibleGroupName = (label: string) => formatCatalogLabel(buildVisibleProductName(label));
+const buildVisibleGroupName = buildVisibleCatalogGroupName;
 import { isPublicCatalogProduct, withoutCostPrice } from "app/lib/public-catalog-product";
 import { getGroupItemSeoCopy } from "app/lib/seo-copy";
 import {
@@ -467,7 +469,7 @@ const getGroupItemBySlugs = cache(
       rawGroupSeoFacets,
       getAllProductSitemapEntries
     );
-    const countsKnown = seoFacets.totalProductCount > 0;
+    let countsKnown = seoFacets.totalProductCount > 0;
     const group = dataset?.groups.find(
       (entry) => entry.slug === groupSlug || entry.legacySlug === groupSlug
     );
@@ -518,6 +520,7 @@ const getGroupItemBySlugs = cache(
       };
     }
     const counts = resolveGroupSeoCounts(group, buildSeoGroupLookup(seoFacets.groups));
+    countsKnown = countsKnown && counts.countsKnown;
 
     const subgroup = group.subgroups.find(
       (entry) => entry.slug === itemSlug || entry.legacySlug === itemSlug
@@ -699,11 +702,15 @@ const buildGroupItemDescription = (item: GroupItemPageData) => {
     .map((producer) => producer.label.trim());
   const buildBrandsClause = (count: number) =>
     count > 0 && leadingBrands.length ? ` — ${leadingBrands.slice(0, count).join(", ")}` : "";
+  const guide = getCatalogSelectionGuide(item.label, item.parentSubgroupLabel);
+  const tails = guide
+    ? [". Ціни й характеристики, самовивіз у Львові та доставка по Україні.", ". Ціни й наявність, доставка по Україні.", ". Ціни й наявність."]
+    : SEO_DESCRIPTION_TAILS;
 
   return appendSeoContactLast(
     pickFittingSeoDescription(
       [3, 2, 1, 0].flatMap((brandCount) =>
-        SEO_DESCRIPTION_TAILS.map(
+        tails.map(
           (tail) => `${subject} у PartsON: ${productCountLabel}${producersLabel}${buildBrandsClause(brandCount)}${tail}`
         )
       )
@@ -927,12 +934,13 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   const primaryImageUrl = `${siteUrl}${primaryImagePath}`;
   const visibleLabel = buildVisibleGroupName(item.label);
   const visibleGroupLabel = buildVisibleGroupName(item.groupLabel);
-  const visibleParentLabel = buildVisibleGroupName(item.parentSubgroupLabel);
+  const visibleParentLabel = item.parentSubgroupLabel ? buildVisibleGroupName(item.parentSubgroupLabel) : "";
+  const selectionGuide = getCatalogSelectionGuide(item.label, item.parentSubgroupLabel);
   const primaryImageAlt =
     productPreview?.alt || `Категорія автозапчастин «${visibleLabel}»`;
-  const pageDescription = item.parentSubgroupLabel
+  const pageDescription = selectionGuide?.intro ?? (item.parentSubgroupLabel
     ? `Підгрупа ${visibleLabel} у групі ${visibleParentLabel} категорії ${visibleGroupLabel}. Тут можна перейти до товарів, брендів, аналогів і перевірити наявність у каталозі.`
-    : `Група ${visibleLabel} у категорії ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`;
+    : `Група ${visibleLabel} у категорії ${visibleGroupLabel} з прямим переходом до товарів, виробників і суміжних категорій автозапчастин.`);
   const producerProductsTotal = item.producerSplit.reduce(
     (sum, producer) => sum + producer.productCount,
     0
@@ -1122,7 +1130,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                   {pageDescription}{" "}
                   У каталозі —{" "}
                   <strong>
-                    {item.productCount.toLocaleString("uk-UA")} {pluralizeUk(item.productCount, "товар", "товари", "товарів")}
+                    {item.countsKnown
+                      ? <>{item.productCount.toLocaleString("uk-UA")} {pluralizeUk(item.productCount, "товар", "товари", "товарів")}</>
+                      : "товари цієї категорії"}
                   </strong>
                   {item.producersCount > 0 ? (
                     <>
@@ -1320,17 +1330,25 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
       <CatalogSeoTextSection
         contained={false}
         badge={item.parentSubgroupLabel ? "Підгрупа запчастин" : "Група запчастин"}
-        title={`${visibleLabel}: товари, виробники та підбір`}
+        title={seoCopy.title}
         lead={seoCopy.intro}
-        topics={[
+        topics={selectionGuide ? selectionGuide.checks.map((text, index) => ({
+          title: ["Призначення та параметри", "Сумісність і розміри", "Комплектація та застосування"][index],
+          text: `Перевірте ${text}.`,
+          icon: PackageSearch,
+        })) : [
           {
             title: "Товари категорії",
-            text: `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)} із цінами та актуальними характеристиками.`,
+            text: item.countsKnown
+              ? `У каталозі для цієї категорії зібрано ${item.productCount.toLocaleString("uk-UA")} ${pluralizeProducts(item.productCount)} із цінами та актуальними характеристиками.`
+              : "Відкрийте каталог категорії, щоб переглянути товари, ціни та характеристики.",
             icon: PackageSearch,
           },
           {
             title: "Виробники й аналоги",
-            text: `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)} і переходьте одразу до відфільтрованого асортименту.`,
+            text: item.producersCount > 0
+              ? `Порівнюйте пропозиції ${item.producersCount.toLocaleString("uk-UA")} ${pluralizeManufacturers(item.producersCount)} і переходьте одразу до відфільтрованого асортименту.`
+              : "У каталозі категорії можна уточнити виробника й порівняти характеристики доступних варіантів.",
             icon: Factory,
           },
           {
@@ -1343,7 +1361,9 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
         links={[
           { href: item.catalogPath, label: `Товари ${visibleLabel}` },
           { href: groupPagePath, label: `Група ${visibleGroupLabel}` },
-          { href: "/auto", label: "Підбір за авто" },
+          selectionGuide
+            ? { href: "/groups", label: "Усі категорії товарів" }
+            : { href: "/auto", label: "Підбір за авто" },
         ]}
       />
 

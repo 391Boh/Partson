@@ -8,7 +8,6 @@ export default function HeroVinCheckButton() {
   return (
     <button
       type="button"
-      aria-label="Перевірте за VIN-кодом"
       onClick={() => window.dispatchEvent(new Event("openAccountVin"))}
       className="home-part-path"
     >
