@@ -1,24 +1,15 @@
 import { ArrowRight, MapPin, MessageCircle, Star } from "lucide-react";
 import StoreVirtualTour from "./StoreVirtualTour";
-import HomeHeading from "./HomeHeading";
 import StoreLocationMap from "./StoreLocationMap";
 import { STORE_TOUR_EMBED_URL, STORE_TOUR_URL } from "app/lib/store-virtual-tour";
 import SectionRevealAdvantages from "./SectionRevealAdvantages";
 import StoreOpenStatus from "./StoreOpenStatus";
-import Link from "next/link";
 import HomeStoreFaq from "./HomeStoreFaq";
 import { HOME_FAQ_JSON_LD } from "app/lib/home-faq";
 import { safeJsonLd } from "app/lib/safe-json-ld";
 
 const STORE_MAPS_URL = "https://www.google.com/maps/place/PartsON/@49.8177181,24.0058222,14.15z/data=!4m6!3m5!1s0x473ae70feda65713:0x9fd600e7cfbd0edd!8m2!3d49.8140387!4d23.9892492!16s%2Fg%2F11y4t3x15h?entry=ttu";
 const STORE_MAP_EMBED_URL = "https://www.google.com/maps/embed?origin=mfe&pb=!1m2!2m1!1zUGFydHNPTiwg0LLRg9C7LiDQn9C10YDRhNC10YbRjNC60L7Qs9C-LCA4LCDQm9GM0LLRltCy&hl=uk";
-
-// Keep useful search terms in plain, crawlable copy instead of nested cards.
-const catalogScope = [
-  { label: "Планове техобслуговування", items: "Фільтри, моторні оливи, свічки запалювання, ремені й ролики ГРМ." },
-  { label: "Підвіска та гальма", items: "Амортизатори, пружини, важелі, підшипники, гальмівні диски й колодки." },
-  { label: "Електрика й охолодження", items: "Датчики, котушки, стартери, генератори, радіатори, помпи та термостати." },
-] as const;
 
 type Props = { googleRatingValue?: number; googleReviewCount?: number };
 
@@ -30,31 +21,6 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               <img src="/storefront/photos/bg/store-2-detail.webp" width="765" height="1020" alt="" loading="lazy" decoding="async" />
             </div>
       <SectionRevealAdvantages>
-        <div className="home-story-grid grid !grid-cols-1 gap-5">
-          <div className="reveal-adv-copy home-story-copy flex min-w-0 flex-col lg:order-2">
-            <div className="home-story-copy-body flex flex-1 flex-col pt-4 sm:pt-5">
-              <header className="home-store-heading home-store-card-heading">
-                <HomeHeading>Автозапчастини <span>для вашого авто</span></HomeHeading>
-                <p>Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.</p>
-              </header>
-              <div className="home-store-assortment">
-                <ul>
-                  {catalogScope.map((row) => (
-                    <li key={row.label}><h3>{row.label}</h3><p>{row.items}</p></li>
-                  ))}
-                </ul>
-              </div>
-              <div className="home-store-catalog-actions">
-                <p className="text-[14px] leading-[1.7] text-slate-700">
-                  <Link href="/katalog" className="home-store-catalog-link">Перейти до каталогу<ArrowRight size={17} aria-hidden="true" /></Link>
-                  <Link href="/inform/delivery" className="home-store-delivery-link">Доставка й самовивіз</Link>
-                </p>
-              </div>
-              <nav className="home-store-directories" aria-label="Розділи каталогу"><Link href="/auto">За автомобілем</Link><Link href="/groups">За категорією</Link><Link href="/manufacturers">За виробником</Link></nav>
-            </div>
-          </div>
-        </div>
-
         {/* Visit: the 360° tour and the map in one dark card, heading on top. */}
         <section
           aria-labelledby="store-visit-title"

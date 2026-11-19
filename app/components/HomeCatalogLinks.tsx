@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CarFront, Car, Factory, Layers3, type LucideIcon } from "lucide-react";
+import { ArrowRight, CarFront, Car, Disc3, Factory, Layers3, Wrench, Zap, type LucideIcon } from "lucide-react";
 
 import HomeHeading from "./HomeHeading";
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
@@ -9,7 +9,8 @@ import { CAR_BRANDS, GROUPS, PRODUCERS } from "app/lib/home-popular-links";
 // sections: part groups, car brands, the model pages that already draw search
 // impressions, and producers. Without them the homepage HTML linked only to
 // the three directory roots, so its weight never reached the pages people
-// search for ("запчастини форд фокус 2"). Four ruled sections of dot-separated text links;
+// search for ("запчастини форд фокус 2"). Also carries the store's "Автозапчастини
+// для вашого авто" heading, lead and scope. Four ruled sections of dot-separated text links;
 // no JS, skipped offscreen via content-visibility.
 
 const POPULAR_MODELS: Array<[path: string, label: string]> = [
@@ -50,8 +51,15 @@ const BACKDROP_PARTS: Array<{ code: string; className: string }> = [
   { code: "00-00001350", className: "left-[0.5%] bottom-6 w-[clamp(96px,8vw,165px)] -rotate-[6deg] opacity-80" }, // комплект ГРМ
   { code: "00-00004279", className: "right-[0.5%] top-[90px] w-[clamp(96px,8vw,160px)] -rotate-[10deg] opacity-85" }, // гальмівний диск Bosch
   { code: "00-00003450", className: "right-[0.5%] bottom-6 w-[clamp(96px,8vw,160px)] rotate-[14deg] opacity-80" }, // важіль підвіски
-  { code: "00-00000537", className: "right-[24%] top-1 w-[110px] rotate-[8deg] opacity-75" }, // протитуманна фара
 ];
+// What the shop covers, in plain crawlable copy (moved here from the store
+// section, which now holds only the visit block and the FAQ).
+const CATALOG_SCOPE: Array<{ label: string; items: string; icon: LucideIcon }> = [
+  { label: "Планове техобслуговування", items: "Фільтри, моторні оливи, свічки запалювання, ремені й ролики ГРМ.", icon: Wrench },
+  { label: "Підвіска та гальма", items: "Амортизатори, пружини, важелі, підшипники, гальмівні диски й колодки.", icon: Disc3 },
+  { label: "Електрика й охолодження", items: "Датчики, котушки, стартери, генератори, радіатори, помпи та термостати.", icon: Zap },
+];
+
 const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
 const CARDS: Array<{
@@ -127,7 +135,7 @@ export default function HomeCatalogLinks() {
   return (
     <section
       aria-labelledby="home-catalog-links-title"
-      className="font-ui relative isolate overflow-hidden py-9 text-[#0f2b3d] [contain-intrinsic-size:auto_480px] [content-visibility:auto] sm:py-12"
+      className="font-ui relative isolate overflow-hidden py-9 text-[#0f2b3d] [contain-intrinsic-size:auto_820px] [content-visibility:auto] sm:py-12"
     >
       <div
         aria-hidden="true"
@@ -156,14 +164,64 @@ export default function HomeCatalogLinks() {
       </div>
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
-        <HomeHeading id="home-catalog-links-title">
-          Популярні розділи <span>каталогу</span>
-        </HomeHeading>
+        {/* Heading and lead on the left, the two actions on the right. */}
+        <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-12">
+          <div>
+            <HomeHeading id="home-catalog-links-title">
+              Автозапчастини <span>для вашого авто</span>
+            </HomeHeading>
+            <p className="!mb-0 !mt-4 max-w-[62ch] text-[15px] font-medium leading-[1.65] text-[#2b4f63] sm:!mt-5 sm:text-[16.5px]">
+              Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <Link
+              href="/katalog"
+              prefetch={false}
+              className="group/cta inline-flex min-h-11 items-center gap-2.5 rounded-full bg-[#0f2b3d] py-1.5 pl-5 pr-1.5 text-[14px] font-bold text-white shadow-[0_12px_26px_-14px_rgb(15_43_61/70%)] transition-[transform,background-color] duration-200 hover:-translate-y-px hover:bg-[#0b3a4f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            >
+              Перейти до каталогу
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5eead4,#38bdf8)] text-[#062033] transition-transform duration-200 group-hover/cta:translate-x-0.5">
+                <ArrowRight size={16} aria-hidden="true" />
+              </span>
+            </Link>
+            <Link
+              href="/inform/delivery"
+              prefetch={false}
+              className="inline-flex min-h-11 items-center text-[14px] font-bold text-[#087783] underline decoration-[#087783]/30 decoration-2 underline-offset-[6px] transition-colors hover:decoration-[#087783] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783]"
+            >
+              Доставка й самовивіз
+            </Link>
+          </div>
+        </header>
+
+        {/* What we cover: three columns between hairlines. */}
+        <ul className="mt-7 grid border-y border-[#087783]/15 sm:mt-9 md:grid-cols-3">
+          {CATALOG_SCOPE.map(({ label, items, icon: Icon }, index) => (
+            <li
+              key={label}
+              className={`flex gap-3.5 py-4 md:py-5 ${index > 0 ? "border-t border-[#087783]/10 md:border-l md:border-t-0 md:pl-6" : ""} ${index < 2 ? "md:pr-6" : ""}`}
+            >
+              <span aria-hidden="true" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-white text-[#087783] shadow-[0_1px_2px_rgb(15_43_61/6%),0_8px_18px_-12px_rgb(8_80_100/45%)] ring-1 ring-[#087783]/10">
+                <Icon size={19} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="!m-0 text-[15px] font-extrabold leading-tight tracking-[-.01em] text-[#0b2233]">{label}</h3>
+                <p className="!mb-0 !mt-1 text-[13.5px] font-medium leading-[1.55] text-[#33586c]">{items}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <p className="!mb-0 !mt-9 inline-flex items-center gap-2.5 text-[12px] font-bold uppercase tracking-[.16em] text-[#087783] sm:!mt-11">
+          <span aria-hidden="true" className="h-px w-8 bg-[#087783]/40" />
+          Популярні розділи каталогу
+        </p>
 
         {/* No boxes: four sections on one ground, 2×2 from md. Light hairlines
             fade in from the outer edges and meet at a small diamond in the
             centre; phones get a faded rule between stacked sections. */}
-        <div className="mt-7 grid gap-x-14 gap-y-10 sm:mt-9 md:grid-cols-2">
+        <div className="mt-5 grid gap-x-14 gap-y-10 sm:mt-6 md:grid-cols-2">
           {CARDS.map(({ title, icon: Icon, allHref, allLabel, links }, index) => (
             <nav key={title} aria-label={title} className="relative min-w-0">
               <SectionRules index={index} />
