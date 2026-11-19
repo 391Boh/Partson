@@ -75,10 +75,10 @@ export default function HomePage() {
       <HomeHighlightsSection />
       <HomeNewArrivalsBanner />
       <HomeDeferredStack />
-      <HomeCatalogLinks />
       <div className="home-section-stage home-section-stage-static">
         <AdvantagesSection />
       </div>
+      <HomeCatalogLinks />
     </HomePageContent>
   );
 }
