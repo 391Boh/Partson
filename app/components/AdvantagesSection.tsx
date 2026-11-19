@@ -30,7 +30,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               <img src="/storefront/photos/bg/store-2-detail.webp" width="765" height="1020" alt="" loading="lazy" decoding="async" />
             </div>
       <SectionRevealAdvantages>
-        <div className="home-story-grid grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)] lg:items-stretch lg:gap-8 xl:gap-10">
+        <div className="home-story-grid grid !grid-cols-1 gap-5">
           <div className="reveal-adv-copy home-story-copy flex min-w-0 flex-col lg:order-2">
             <div className="home-story-copy-body flex flex-1 flex-col pt-4 sm:pt-5">
               <header className="home-store-heading home-store-card-heading">
@@ -53,27 +53,46 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               <nav className="home-store-directories" aria-label="Розділи каталогу"><Link href="/auto">За автомобілем</Link><Link href="/groups">За категорією</Link><Link href="/manufacturers">За виробником</Link></nav>
             </div>
           </div>
-
-          <div className="reveal-adv-map home-story-map flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_14px_34px_-24px_rgba(10,45,64,0.4)] lg:order-1">
-            <header className="home-store-location-heading">
-              <h3>Завітайте в PartsON</h3>
-              <MapPin size={23} strokeWidth={1.6} aria-hidden="true" />
-            </header>
-            <StoreLocationMap src={STORE_MAP_EMBED_URL} />
-            <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="home-store-route">
-              <MapPin aria-hidden="true" size={20} />
-              <span><strong>Львів, вул. Перфецького, 8</strong><small>Прокласти маршрут у Google Maps</small></span>
-              <ArrowRight aria-hidden="true" size={18} />
-            </a>
-            <div className="home-store-contact-row grid grid-cols-2 divide-x divide-slate-200 border-t border-slate-200">
-              <a href="tel:+380634211851" className="group/phone flex items-center justify-center gap-2 px-3 py-3.5 text-[12px] font-black text-slate-700 transition-colors hover:bg-slate-50 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
-              <StoreOpenStatus />
-            </div>
-            {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="home-store-review-link group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-amber-50 px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-colors duration-200 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white transition-transform duration-200 group-hover/reviews:scale-110"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
-          </div>
         </div>
 
-        <StoreVirtualTour embedUrl={STORE_TOUR_EMBED_URL} tourUrl={STORE_TOUR_URL} />
+        {/* Visit: the 360° tour and the map in one dark card, heading on top. */}
+        <section
+          aria-labelledby="store-visit-title"
+          className="font-ui relative isolate my-10 overflow-hidden rounded-[28px] bg-[linear-gradient(140deg,#0b2233_0%,#0d3346_48%,#0a4a55_100%)] p-2.5 shadow-[0_1px_0_rgb(255_255_255/8%)_inset,0_30px_60px_-34px_rgb(6_40_60/85%)] ring-1 ring-[#5eead4]/15 sm:my-14 sm:p-3"
+        >
+          <span aria-hidden="true" className="pointer-events-none absolute -left-24 -top-32 -z-10 h-[340px] w-[480px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/22%)_0%,transparent_68%)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-24 -z-10 h-[380px] w-[520px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/16%)_0%,transparent_68%)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(94_234_212/55%),transparent)]" />
+          <header className="flex flex-col gap-3 px-3 pb-5 pt-4 sm:px-5 sm:pb-6 sm:pt-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+            <div className="min-w-0">
+              <p className="!m-0 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#5eead4]">
+                <MapPin size={14} aria-hidden="true" />Магазин у Львові
+              </p>
+              <h3 id="store-visit-title" className="font-display font-display-readable !m-0 !mt-2 !text-[clamp(26px,1.3vw+19px,38px)] !font-[800] !leading-[1.08] !tracking-[-.03em] !text-white">
+                Завітайте в <span className="bg-[linear-gradient(90deg,#5eead4,#38bdf8)] bg-clip-text text-transparent">PartsON</span>
+              </h3>
+            </div>
+            <p className="!m-0 max-w-[46ch] text-[14px] font-medium leading-[1.6] text-[#b6d3dd] sm:text-[15px] lg:text-right">
+              Огляньте магазин у панорамі 360° ще до візиту, а на карті прокладіть маршрут до вул.&nbsp;Перфецького,&nbsp;8.
+            </p>
+          </header>
+          <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
+            <StoreVirtualTour embedUrl={STORE_TOUR_EMBED_URL} tourUrl={STORE_TOUR_URL} />
+              <div className="reveal-adv-map home-story-map flex h-full min-h-0 flex-col overflow-hidden !rounded-[20px] bg-white shadow-[0_14px_34px_-24px_rgba(10,45,64,0.4)] lg:order-1">
+                <StoreLocationMap src={STORE_MAP_EMBED_URL} />
+                <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" className="home-store-route">
+                  <MapPin aria-hidden="true" size={20} />
+                  <span><strong>Львів, вул. Перфецького, 8</strong><small>Прокласти маршрут у Google Maps</small></span>
+                  <ArrowRight aria-hidden="true" size={18} />
+                </a>
+                <div className="home-store-contact-row grid grid-cols-2 divide-x divide-slate-200 border-t border-slate-200">
+                  <a href="tel:+380634211851" className="group/phone flex items-center justify-center gap-2 px-3 py-3.5 text-[12px] font-black text-slate-700 transition-colors hover:bg-slate-50 hover:text-sky-800"><MessageCircle className="h-4 w-4 text-sky-600 transition-transform group-hover/phone:scale-110" />+38 (063) 421-18-51</a>
+                  <StoreOpenStatus />
+                </div>
+                {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="home-store-review-link group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-amber-50 px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-colors duration-200 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white transition-transform duration-200 group-hover/reviews:scale-110"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
+              </div>
+          </div>
+        </section>
 
         <div className="reveal-adv-cta home-store-help" aria-labelledby="parts-help-title">
           <div className="home-store-help-photo" aria-hidden="true">
