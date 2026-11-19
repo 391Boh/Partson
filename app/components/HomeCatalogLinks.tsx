@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, CarFront, Car, Factory, Layers3, type LucideIcon } from "lucide-react";
 
@@ -9,7 +8,7 @@ import { CAR_BRANDS, GROUPS, PRODUCERS } from "app/lib/home-popular-links";
 // sections: part groups, car brands, the model pages that already draw search
 // impressions, and producers. Without them the homepage HTML linked only to
 // the three directory roots, so its weight never reached the pages people
-// search for ("запчастини форд фокус 2"). Four ruled sections of pill links;
+// search for ("запчастини форд фокус 2"). Four ruled sections of dot-separated text links;
 // no JS, skipped offscreen via content-visibility.
 
 const POPULAR_MODELS: Array<[path: string, label: string]> = [
@@ -36,11 +35,6 @@ const BACKDROP_PARTS: Array<{ code: string; className: string }> = [
   { code: "00-00000537", className: "right-[24%] top-1 w-[110px] rotate-[8deg] opacity-75" }, // протитуманна фара
 ];
 const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
-
-// Rough pill width at 13px semibold: ~8px per character (Cyrillic runs wide) plus padding,
-// border and the 6px gap. Half the total (plus slack) gives two rows.
-const twoRowWidth = (links: Array<[string, string]>) =>
-  Math.ceil(links.reduce((total, [, label]) => total + label.length * 8 + 32, 0) / 2 + 24);
 
 const CARDS: Array<{
   title: string;
@@ -140,26 +134,26 @@ export default function HomeCatalogLinks() {
                   <ArrowRight size={14} aria-hidden="true" className="transition-transform duration-200 group-hover/all:translate-x-0.5" />
                 </Link>
               </div>
-              {/* Phones: the pills wrap inside a row about half their total
-                  width, so they pack into two tight rows that scroll
-                  sideways; wider screens wrap at the column's width. */}
-              <div className="-mx-[var(--page-shell-gutter)] mt-4 overflow-x-auto px-[var(--page-shell-gutter)] pb-1 [scrollbar-width:none] sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-                <ul
-                  style={{ "--pills-row": `${twoRowWidth(links)}px` } as CSSProperties}
-                  className="flex w-[var(--pills-row)] flex-wrap gap-2 sm:w-auto"
-                >
-                  {links.map(([href, label]) => (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        prefetch={false}
-                        className="inline-flex min-h-9 items-center rounded-full border border-[#0f4c5c]/[0.12] bg-white/90 px-3.5 text-[13px] font-semibold leading-tight text-[#24485c] shadow-[0_1px_2px_rgb(15_43_61/6%)] transition-[color,border-color,background-color,box-shadow] duration-200 hover:border-[#087783]/45 hover:bg-white hover:text-[#087783] hover:shadow-[0_4px_10px_-6px_rgb(8_119_131/45%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783]"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              {/* Plain text links in a flowing line, dot-separated; an
+                  underline grows in on hover. Every link carries a leading
+                  dot; the list is pulled left by one dot's width and clipped,
+                  so a dot that lands at the start of a line is hidden and
+                  every line starts flush with the text. */}
+              <div className="-mx-1 mt-3.5 overflow-hidden px-1">
+              <ul className="-ml-6 flex flex-wrap items-center gap-y-0.5 sm:gap-y-1">
+                {links.map(([href, label]) => (
+                  <li key={href} className="flex items-center">
+                    <span aria-hidden="true" className="mx-2.5 h-1 w-1 shrink-0 rounded-full bg-[#087783]/35" />
+                    <Link
+                      href={href}
+                      prefetch={false}
+                      className="inline-flex min-h-8 items-center bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_1.5px] bg-[position:0_calc(100%-5px)] bg-no-repeat text-[14px] sm:text-[14.5px] font-semibold leading-tight tracking-[-.005em] text-[#1d4257] transition-[color,background-size] duration-300 ease-[cubic-bezier(.16,1,.3,1)] hover:bg-[length:100%_1.5px] hover:text-[#087783] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none sm:bg-[position:0_calc(100%-4px)]"
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
               </div>
             </nav>
           ))}
