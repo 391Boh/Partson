@@ -58,12 +58,13 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
         {/* Visit: the 360° tour and the map in one dark card, heading on top. */}
         <section
           aria-labelledby="store-visit-title"
-          className="font-ui relative isolate my-10 overflow-hidden rounded-[28px] bg-[linear-gradient(140deg,#0b2233_0%,#0d3346_48%,#0a4a55_100%)] p-2.5 shadow-[0_1px_0_rgb(255_255_255/8%)_inset,0_30px_60px_-34px_rgb(6_40_60/85%)] ring-1 ring-[#5eead4]/15 sm:my-14 sm:p-3"
+          className="font-ui relative isolate mx-[calc(50%-50vw)] my-10 overflow-hidden bg-[linear-gradient(140deg,#0b2233_0%,#0d3346_48%,#0a4a55_100%)] py-10 shadow-[0_1px_0_rgb(94_234_212/25%)_inset,0_-1px_0_rgb(94_234_212/25%)_inset] sm:my-14 sm:py-14"
         >
           <span aria-hidden="true" className="pointer-events-none absolute -left-24 -top-32 -z-10 h-[340px] w-[480px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/22%)_0%,transparent_68%)]" />
           <span aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-24 -z-10 h-[380px] w-[520px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/16%)_0%,transparent_68%)]" />
-          <span aria-hidden="true" className="pointer-events-none absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(94_234_212/55%),transparent)]" />
-          <header className="flex flex-col gap-3 px-3 pb-5 pt-4 sm:px-5 sm:pb-6 sm:pt-6 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(94_234_212/55%),transparent)]" />
+          <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
+          <header className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
             <div className="min-w-0">
               <p className="!m-0 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#5eead4]">
                 <MapPin size={14} aria-hidden="true" />Магазин у Львові
@@ -72,11 +73,11 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 Завітайте в <span className="bg-[linear-gradient(90deg,#5eead4,#38bdf8)] bg-clip-text text-transparent">PartsON</span>
               </h3>
             </div>
-            <p className="!m-0 max-w-[46ch] text-[14px] font-medium leading-[1.6] text-[#b6d3dd] sm:text-[15px] lg:text-right">
+            <p className="!m-0 max-w-[60ch] text-[14.5px] font-medium leading-[1.6] text-[#b6d3dd] sm:text-[16px]">
               Огляньте магазин у панорамі 360° ще до візиту, а на карті прокладіть маршрут до вул.&nbsp;Перфецького,&nbsp;8.
             </p>
           </header>
-          <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
+          <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
             <StoreVirtualTour embedUrl={STORE_TOUR_EMBED_URL} tourUrl={STORE_TOUR_URL} />
               <div className="reveal-adv-map home-story-map flex h-full min-h-0 flex-col overflow-hidden !rounded-[20px] bg-white shadow-[0_14px_34px_-24px_rgba(10,45,64,0.4)] lg:order-1">
                 <StoreLocationMap src={STORE_MAP_EMBED_URL} />
@@ -91,6 +92,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
                 </div>
                 {googleReviewCount > 0 && <a href={STORE_MAPS_URL} target="_blank" rel="noreferrer" aria-label={`Переглянути ${googleReviewCount} відгуків PartsON у Google`} className="home-store-review-link group/reviews flex cursor-pointer items-center justify-center gap-2 border-t border-amber-200/70 bg-amber-50 px-3 py-3 text-[12px] font-extrabold text-amber-900 transition-colors duration-200 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-400 text-white transition-transform duration-200 group-hover/reviews:scale-110"><Star className="h-3.5 w-3.5 fill-current" /></span><span>{googleRatingValue.toFixed(1)} · {googleReviewCount} відгуків Google</span><ArrowRight className="h-3.5 w-3.5 text-amber-600 opacity-60 transition-[transform,opacity] group-hover/reviews:translate-x-1 group-hover/reviews:opacity-100" /></a>}
               </div>
+          </div>
           </div>
         </section>
 
