@@ -43,14 +43,15 @@ const MORE_PRODUCERS: Array<[name: string, label: string]> = [
   ["MEYLE", "Meyle"], ["DAYCO", "Dayco"], ["FILTRON", "Filtron"], ["SWAG", "Swag"],
 ];
 
-// Real catalog parts behind the cards (wide screens only).
+// Real catalog parts in the side gutters (wide screens only).
 const BACKDROP_PARTS: Array<{ code: string; className: string }> = [
-  // Side gutters and the empty space right of the heading only, so no part
-  // sits behind the pills; sizes follow the gutter width.
-  { code: "00-00001414", className: "left-[0.5%] top-[110px] w-[clamp(96px,8vw,170px)] rotate-[8deg] opacity-80" }, // радіатор
-  { code: "00-00001350", className: "left-[0.5%] bottom-6 w-[clamp(96px,8vw,165px)] -rotate-[6deg] opacity-80" }, // комплект ГРМ
-  { code: "00-00004279", className: "right-[0.5%] top-[90px] w-[clamp(96px,8vw,160px)] -rotate-[10deg] opacity-85" }, // гальмівний диск Bosch
-  { code: "00-00003450", className: "right-[0.5%] bottom-6 w-[clamp(96px,8vw,160px)] rotate-[14deg] opacity-80" }, // важіль підвіски
+  // Only in the side gutters, and only once they are wide enough (1536px+):
+  // each part is sized to its gutter minus a margin, so it never reaches
+  // the text. Kept faint so it reads as texture, not content.
+  { code: "00-00001414", className: "left-2 top-[120px] rotate-[8deg] opacity-45" }, // радіатор
+  { code: "00-00001350", className: "left-2 bottom-10 -rotate-[6deg] opacity-40" }, // комплект ГРМ
+  { code: "00-00004279", className: "right-2 top-[100px] -rotate-[10deg] opacity-50" }, // гальмівний диск Bosch
+  { code: "00-00003450", className: "right-2 bottom-10 rotate-[14deg] opacity-45" }, // важіль підвіски
 ];
 const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
@@ -139,8 +140,8 @@ export default function HomeCatalogLinks() {
           // Desktop only: the <source> is the sole real URL, so phones never
           // download these. White photo grounds vanish under multiply, and
           // the translucent cards let the parts show through faintly.
-          <picture key={part.code} className={`absolute hidden aspect-square mix-blend-multiply lg:block ${part.className}`}>
-            <source media="(min-width: 1024px)" srcSet={`/product-image/${encodeURIComponent(part.code)}`} />
+          <picture key={part.code} className={`absolute hidden aspect-square w-[min(150px,calc((100vw-var(--page-shell-max))/2+var(--page-shell-gutter)-36px))] mix-blend-multiply [filter:saturate(.8)] min-[1536px]:block ${part.className}`}>
+            <source media="(min-width: 1536px)" srcSet={`/product-image/${encodeURIComponent(part.code)}`} />
             <img
               src={EMPTY_IMAGE}
               alt=""
