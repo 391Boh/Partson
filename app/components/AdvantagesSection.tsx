@@ -24,11 +24,22 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
         {/* Visit: the 360° tour and the map in one dark card, heading on top. */}
         <section
           aria-labelledby="store-visit-title"
-          className="font-ui relative isolate mx-[calc(50%-50vw)] my-10 overflow-hidden bg-[linear-gradient(140deg,#0b2233_0%,#0d3346_48%,#0a4a55_100%)] py-10 shadow-[0_1px_0_rgb(94_234_212/25%)_inset,0_-1px_0_rgb(94_234_212/25%)_inset] sm:my-14 sm:py-14"
+          className="font-ui relative isolate mx-[calc(50%-50vw)] my-4 overflow-hidden py-24 sm:my-6 sm:py-28"
         >
-          <span aria-hidden="true" className="pointer-events-none absolute -left-24 -top-32 -z-10 h-[340px] w-[480px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/22%)_0%,transparent_68%)]" />
-          <span aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-24 -z-10 h-[380px] w-[520px] rounded-full bg-[radial-gradient(circle,rgb(56_189_248/16%)_0%,transparent_68%)]" />
-          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(94_234_212/55%),transparent)]" />
+          {/* Background with depth: the dark ground fades in and out at the
+              top and bottom edges (mask), so the light sections around it
+              melt into it. On it: a teal key light from the upper left, a sky
+              rim light at the lower right, a perspective grid floor receding
+              to a glowing horizon, and a vignette. Static gradients only. */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 [mask-image:linear-gradient(180deg,transparent_0,#000_96px,#000_calc(100%-96px),transparent_100%)]">
+            <div className="absolute inset-0 bg-[radial-gradient(120%_85%_at_18%_8%,#11606b_0%,#0c3446_38%,#081d2b_70%,#05121c_100%)]" />
+            <div className="absolute -left-[10%] top-[6%] h-[70%] w-[55%] rounded-full bg-[radial-gradient(closest-side,rgb(45_212_191/30%),transparent)]" />
+            <div className="absolute -right-[8%] bottom-[2%] h-[65%] w-[50%] rounded-full bg-[radial-gradient(closest-side,rgb(56_189_248/22%),transparent)]" />
+            <div className="absolute left-1/2 top-[38%] h-[46%] w-[80%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(94_234_212/12%),transparent)]" />
+            <div className="absolute inset-x-[-25%] bottom-0 h-[58%] origin-bottom [background-image:linear-gradient(rgb(94_234_212/16%)_1px,transparent_1px),linear-gradient(90deg,rgb(94_234_212/16%)_1px,transparent_1px)] [background-size:64px_64px] [mask-image:linear-gradient(180deg,transparent,#000_45%,#000_75%,transparent)] [transform:perspective(520px)_rotateX(64deg)]" />
+            <div className="absolute inset-x-0 top-[44%] h-px bg-[linear-gradient(90deg,transparent,rgb(94_234_212/35%)_30%,rgb(125_211_252/35%)_70%,transparent)]" />
+            <div className="absolute inset-0 shadow-[inset_0_0_160px_40px_rgb(2_10_18/55%)]" />
+          </div>
           <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
           <header className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
             <div className="min-w-0">
