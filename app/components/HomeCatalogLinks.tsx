@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CarFront, Car, Factory, Layers3, type LucideIcon } from "lucide-react";
 
+import HomeHeading from "./HomeHeading";
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 import { CAR_BRANDS, GROUPS, PRODUCERS } from "app/lib/home-popular-links";
 
@@ -73,6 +74,38 @@ const CARDS: Array<{
   },
 ];
 
+// Decorative separators for section `index` of the 2×2 grid (gap 56 × 40).
+function SectionRules({ index }: { index: number }) {
+  return (
+    <span aria-hidden="true" className="pointer-events-none">
+      {/* Horizontal: under every section on phones but the last; from md
+          under the top row only, running to the centre line. */}
+      {index < 3 && (
+        <span
+          className={`absolute -bottom-5 h-px ${
+            index === 0
+              ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-right-7 md:bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_55%)]`
+              : index === 1
+                ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-left-7 md:bg-[linear-gradient(90deg,rgb(8_119_131/28%)_45%,transparent)]`
+                : `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:hidden`
+          }`}
+        />
+      )}
+      {/* Vertical, md+: between the columns, fading towards top and bottom. */}
+      {index === 0 && <span className="absolute -bottom-5 -right-7 top-2 hidden w-px bg-[linear-gradient(180deg,transparent,rgb(8_119_131/28%)_70%)] md:block" />}
+      {index === 2 && <span className="absolute -right-7 -top-5 bottom-2 hidden w-px bg-[linear-gradient(180deg,rgb(8_119_131/28%)_30%,transparent)] md:block" />}
+      {/* The crossing: a small teal diamond on the page ground. */}
+      {index === 0 && (
+        <span className="absolute -bottom-5 -right-7 hidden h-2 w-2 translate-x-1/2 translate-y-1/2 rotate-45 rounded-[2px] border border-[#087783]/50 bg-[#eef6f8] shadow-[0_0_0_4px_#eef6f8] md:block" />
+      )}
+      {/* Phones: a diamond in the middle of each rule, echoing the centre. */}
+      {index < 3 && (
+        <span className="absolute -bottom-5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 translate-y-1/2 rotate-45 rounded-[1px] bg-[#087783]/45 shadow-[0_0_0_4px_#eef6f8] md:hidden" />
+      )}
+    </span>
+  );
+}
+
 export default function HomeCatalogLinks() {
   return (
     <section
@@ -106,19 +139,18 @@ export default function HomeCatalogLinks() {
       </div>
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
-        <h2
-          id="home-catalog-links-title"
-          className="font-display font-display-readable text-[clamp(22px,2vw,28px)] font-[800] leading-[1.15] tracking-[-.025em] text-[#0b2233]"
-        >
-          Популярні розділи <span className="text-[#087783]">каталогу</span>
-        </h2>
+        <HomeHeading id="home-catalog-links-title">
+          Популярні розділи <span>каталогу</span>
+        </HomeHeading>
 
-        {/* No boxes: four sections on one ground, 2×2 from md, each with a
-            ruled header row (icon, title, "Усі …") and its pills below. */}
-        <div className="mt-6 grid gap-x-14 gap-y-9 sm:mt-8 md:grid-cols-2 md:gap-y-10">
-          {CARDS.map(({ title, icon: Icon, allHref, allLabel, links }) => (
-            <nav key={title} aria-label={title} className="min-w-0">
-              <div className="flex items-center justify-between gap-3 border-b border-[#087783]/15 pb-3">
+        {/* No boxes: four sections on one ground, 2×2 from md. Light hairlines
+            fade in from the outer edges and meet at a small diamond in the
+            centre; phones get a faded rule between stacked sections. */}
+        <div className="mt-7 grid gap-x-14 gap-y-10 sm:mt-9 md:grid-cols-2">
+          {CARDS.map(({ title, icon: Icon, allHref, allLabel, links }, index) => (
+            <nav key={title} aria-label={title} className="relative min-w-0">
+              <SectionRules index={index} />
+              <div className="flex items-center justify-between gap-3">
                 <h3 className="flex items-center gap-2.5 text-[16px] font-extrabold leading-tight tracking-[-.01em] text-[#0b2233]">
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#087783] text-white shadow-[0_6px_14px_-8px_rgb(8_119_131/80%)]">
                     <Icon size={16} aria-hidden="true" />

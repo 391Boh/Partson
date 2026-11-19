@@ -1,4 +1,5 @@
 import Link from "next/link";
+import HomeHeading from "./HomeHeading";
 import { ArrowRight, ArrowUpRight, Clock3 } from "lucide-react";
 
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
@@ -79,18 +80,10 @@ export default function HomeNewArrivalsBanner() {
         {/* Two heading lines, a balanced lead, then the section link and the
             order note side by side. */}
         <header className="mx-auto flex max-w-[46rem] flex-col items-center text-center">
-          <h2
-            id="home-arrivals-title"
-            className="font-display font-display-readable text-[clamp(30px,3.7vw,52px)] font-[800] leading-[1.06] tracking-[-.035em] text-[#0b2233] [text-shadow:0_2px_1px_rgb(255_255_255/85%)]"
-          >
-            <span className="block">Нове надходження</span>
-            <span className="mt-2 block text-[#086f7a] [text-wrap:balance] sm:mt-2.5">
-              {/* A highlighter stroke under the subject, wrapping with the line. */}
-              <span className="bg-[linear-gradient(180deg,transparent_58%,rgb(94_234_212/55%)_58%,rgb(94_234_212/55%)_92%,transparent_92%)] px-1 [box-decoration-break:clone] [-webkit-box-decoration-break:clone]">
-                аксесуари, автохімія та&nbsp;інструмент
-              </span>
-            </span>
-          </h2>
+          <HomeHeading id="home-arrivals-title" align="center">
+            Нове надходження{" "}
+            <span>аксесуари, автохімія та&nbsp;інструмент</span>
+          </HomeHeading>
           <p className="mt-5 max-w-[48ch] text-[15px] font-medium leading-[1.65] text-[#2b4f63] sm:mt-6 sm:text-[17px] [text-wrap:balance]">
             <strong className="font-bold text-[#0b2233]">Понад 4&nbsp;300 товарів</strong> для авто й гаража в{" "}
             <strong className="font-bold text-[#0b2233]">{VITOL_GROUPS.length}&nbsp;нових групах</strong>: освіжувачі,

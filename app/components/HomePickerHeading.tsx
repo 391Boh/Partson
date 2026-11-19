@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import HomeHeading from "./HomeHeading";
 
-/** The three homepage pickers share hierarchy, while keeping their own flow. */
+/** The three homepage pickers use the shared homepage section heading. */
 export default function HomePickerHeading({ children }: { children: ReactNode }) {
-  return <h2 className="home-picker-title font-display font-display-readable">{children}</h2>;
+  return <HomeHeading className="mb-1">{children}</HomeHeading>;
 }

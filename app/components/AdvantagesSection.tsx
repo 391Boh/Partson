@@ -1,5 +1,6 @@
 import { ArrowRight, MapPin, MessageCircle, Star } from "lucide-react";
 import StoreVirtualTour from "./StoreVirtualTour";
+import HomeHeading from "./HomeHeading";
 import StoreLocationMap from "./StoreLocationMap";
 import { STORE_TOUR_EMBED_URL, STORE_TOUR_URL } from "app/lib/store-virtual-tour";
 import SectionRevealAdvantages from "./SectionRevealAdvantages";
@@ -33,7 +34,7 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           <div className="reveal-adv-copy home-story-copy flex min-w-0 flex-col lg:order-2">
             <div className="home-story-copy-body flex flex-1 flex-col pt-4 sm:pt-5">
               <header className="home-store-heading home-store-card-heading">
-                <h2 className="font-display font-display-readable">Автозапчастини{" "}<br /><span>для вашого авто</span></h2>
+                <HomeHeading>Автозапчастини <span>для вашого авто</span></HomeHeading>
                 <p>Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.</p>
               </header>
               <div className="home-store-assortment">
