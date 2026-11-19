@@ -39,7 +39,7 @@ export default function StoreVirtualTour({ embedUrl, tourUrl }: Props) {
 
   return (
     <section
-      className={`home-store-tour relative flex min-w-0 flex-col !overflow-hidden !rounded-[20px] !bg-white/[0.04] !shadow-none ring-1 ring-white/10${loaded ? " is-tour-loaded" : ""}${interactive ? " is-tour-interactive" : ""}`}
+      className={`home-store-tour relative flex min-w-0 flex-col !overflow-hidden !rounded-[20px] !bg-[#123f50]/80 !shadow-[0_24px_50px_-30px_rgb(3_25_38/70%)] ring-1 ring-white/15 backdrop-blur-md${loaded ? " is-tour-loaded" : ""}${interactive ? " is-tour-interactive" : ""}`}
       aria-label="Віртуальний тур 360° магазином PartsON"
     >
       <div ref={frameRef} className="home-store-tour-frame !h-[clamp(260px,52vw,420px)] overflow-hidden rounded-[20px] lg:!h-auto lg:min-h-[380px] lg:flex-1" aria-busy={state === "loading"}>

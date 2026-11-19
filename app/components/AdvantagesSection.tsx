@@ -33,6 +33,34 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
               to a glowing horizon, and a vignette. Static gradients only. */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 [mask-image:linear-gradient(180deg,transparent_0,rgb(0_0_0/8%)_32px,rgb(0_0_0/28%)_72px,rgb(0_0_0/58%)_112px,rgb(0_0_0/84%)_148px,#000_180px,#000_calc(100%-180px),rgb(0_0_0/84%)_calc(100%-148px),rgb(0_0_0/58%)_calc(100%-112px),rgb(0_0_0/28%)_calc(100%-72px),rgb(0_0_0/8%)_calc(100%-32px),transparent_100%)]">
             <div className="absolute inset-0 bg-[radial-gradient(130%_95%_at_18%_8%,#2a8a93_0%,#1d6676_34%,#185468_62%,#164a5e_100%)]" />
+            {/* The shop itself over the gradient: oil shelves on the left, the
+                Bosch wiper stand on the right (phones: the shelves only),
+                toned into the teal by luminosity blending, softly blurred
+                and feathered into each other. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative, lazy local photo */}
+            <img
+              src="/storefront/photos/bg/store-4.webp"
+              alt=""
+              width={660}
+              height={440}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-y-0 left-0 h-full w-full object-cover opacity-45 mix-blend-luminosity blur-[1.5px] [mask-image:linear-gradient(90deg,#000_0%,#000_55%,transparent_100%)] lg:w-[62%]"
+            />
+            <picture className="absolute inset-y-0 right-0 hidden h-full w-[62%] lg:block">
+              <source media="(min-width: 1024px)" srcSet="/storefront/photos/bg/store-7.webp" />
+              <img
+                src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+                alt=""
+                width={660}
+                height={440}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover opacity-45 mix-blend-luminosity blur-[1.5px] [mask-image:linear-gradient(90deg,transparent_0%,#000_45%,#000_100%)]"
+              />
+            </picture>
+            {/* Keep the heading side calm: a teal veil from the left and top. */}
+            <div className="absolute inset-0 bg-[linear-gradient(100deg,rgb(22_74_94/72%)_0%,rgb(22_74_94/38%)_45%,rgb(22_74_94/18%)_100%),linear-gradient(180deg,rgb(22_74_94/45%)_0%,transparent_40%)]" />
             <div className="absolute -left-[10%] top-[6%] h-[70%] w-[55%] rounded-full bg-[radial-gradient(closest-side,rgb(94_234_212/26%),transparent)]" />
             <div className="absolute -right-[8%] bottom-[2%] h-[65%] w-[50%] rounded-full bg-[radial-gradient(closest-side,rgb(125_211_252/22%),transparent)]" />
             <div className="absolute left-1/2 top-[38%] h-[46%] w-[80%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(94_234_212/12%),transparent)]" />
