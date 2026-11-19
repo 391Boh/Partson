@@ -25,6 +25,18 @@ const POPULAR_MODELS: Array<[path: string, label: string]> = [
   ["/auto/opel/vivaro-a", "Opel Vivaro A"],
 ];
 
+// Real catalog parts behind the cards (wide screens only).
+const BACKDROP_PARTS: Array<{ code: string; className: string }> = [
+  // Side gutters and the empty space right of the heading only, so no part
+  // sits behind the pills; sizes follow the gutter width.
+  { code: "00-00001414", className: "left-[0.5%] top-[110px] w-[clamp(96px,8vw,170px)] rotate-[8deg] opacity-80" }, // радіатор
+  { code: "00-00001350", className: "left-[0.5%] bottom-6 w-[clamp(96px,8vw,165px)] -rotate-[6deg] opacity-80" }, // комплект ГРМ
+  { code: "00-00004279", className: "right-[0.5%] top-[90px] w-[clamp(96px,8vw,160px)] -rotate-[10deg] opacity-85" }, // гальмівний диск Bosch
+  { code: "00-00003450", className: "right-[0.5%] bottom-6 w-[clamp(96px,8vw,160px)] rotate-[14deg] opacity-80" }, // важіль підвіски
+  { code: "00-00000537", className: "right-[24%] top-1 w-[110px] rotate-[8deg] opacity-75" }, // протитуманна фара
+];
+const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
 // Rough pill width at 13px semibold: ~8px per character (Cyrillic runs wide) plus padding,
 // border and the 6px gap. Half the total (plus slack) gives two rows.
 const twoRowWidth = (links: Array<[string, string]>) =>
@@ -79,6 +91,24 @@ export default function HomeCatalogLinks() {
       >
         <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/30%),transparent)]" />
         <div className="absolute -right-[10%] -top-[40%] h-[420px] w-[520px] rounded-full bg-[radial-gradient(circle,rgb(45_212_191/14%)_0%,transparent_68%)]" />
+        {BACKDROP_PARTS.map((part) => (
+          // Desktop only: the <source> is the sole real URL, so phones never
+          // download these. White photo grounds vanish under multiply, and
+          // the translucent cards let the parts show through faintly.
+          <picture key={part.code} className={`absolute hidden aspect-square mix-blend-multiply lg:block ${part.className}`}>
+            <source media="(min-width: 1024px)" srcSet={`/product-image/${encodeURIComponent(part.code)}`} />
+            <img
+              src={EMPTY_IMAGE}
+              alt=""
+              width={500}
+              height={500}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+              className="h-full w-full object-contain"
+            />
+          </picture>
+        ))}
       </div>
 
       <div className="mx-auto w-full max-w-[var(--page-shell-max)] px-[var(--page-shell-gutter)]">
@@ -94,7 +124,7 @@ export default function HomeCatalogLinks() {
             <nav
               key={title}
               aria-label={title}
-              className="overflow-hidden rounded-[20px] border border-white/80 bg-white/70 p-4 shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_12px_26px_-20px_rgb(15_60_80/40%)] sm:p-5"
+              className="overflow-hidden rounded-[20px] border border-white/80 bg-white/80 p-4 shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_12px_26px_-20px_rgb(15_60_80/40%)] sm:p-5"
             >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="flex items-center gap-2.5 text-[15px] font-extrabold leading-tight text-[#0b2233]">
