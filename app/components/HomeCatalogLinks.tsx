@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CarFront, Car, Disc3, Factory, Layers3, Wrench, Zap, type LucideIcon } from "lucide-react";
+import { ArrowRight, CarFront, Car, Factory, Layers3, type LucideIcon } from "lucide-react";
 
 import HomeHeading from "./HomeHeading";
 import { buildAutoBrandPath, buildGroupPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
@@ -10,7 +10,7 @@ import { CAR_BRANDS, GROUPS, PRODUCERS } from "app/lib/home-popular-links";
 // impressions, and producers. Without them the homepage HTML linked only to
 // the three directory roots, so its weight never reached the pages people
 // search for ("запчастини форд фокус 2"). Also carries the store's "Автозапчастини
-// для вашого авто" heading, lead and scope. Four ruled sections of dot-separated text links;
+// для вашого авто" heading and the catalog / delivery actions. Four ruled sections of dot-separated text links;
 // no JS, skipped offscreen via content-visibility.
 
 const POPULAR_MODELS: Array<[path: string, label: string]> = [
@@ -52,14 +52,6 @@ const BACKDROP_PARTS: Array<{ code: string; className: string }> = [
   { code: "00-00004279", className: "right-[0.5%] top-[90px] w-[clamp(96px,8vw,160px)] -rotate-[10deg] opacity-85" }, // гальмівний диск Bosch
   { code: "00-00003450", className: "right-[0.5%] bottom-6 w-[clamp(96px,8vw,160px)] rotate-[14deg] opacity-80" }, // важіль підвіски
 ];
-// What the shop covers, in plain crawlable copy (moved here from the store
-// section, which now holds only the visit block and the FAQ).
-const CATALOG_SCOPE: Array<{ label: string; items: string; icon: LucideIcon }> = [
-  { label: "Планове техобслуговування", items: "Фільтри, моторні оливи, свічки запалювання, ремені й ролики ГРМ.", icon: Wrench },
-  { label: "Підвіска та гальма", items: "Амортизатори, пружини, важелі, підшипники, гальмівні диски й колодки.", icon: Disc3 },
-  { label: "Електрика й охолодження", items: "Датчики, котушки, стартери, генератори, радіатори, помпи та термостати.", icon: Zap },
-];
-
 const EMPTY_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
 const CARDS: Array<{
@@ -99,7 +91,7 @@ const CARDS: Array<{
   },
 ];
 
-// Decorative separators for section `index` of the 2×2 grid (gap 56 × 40).
+// Decorative separators for section `index` of the 2×2 grid (gap 64 × 48).
 function SectionRules({ index }: { index: number }) {
   return (
     <span aria-hidden="true" className="pointer-events-none">
@@ -107,25 +99,25 @@ function SectionRules({ index }: { index: number }) {
           under the top row only, running to the centre line. */}
       {index < 3 && (
         <span
-          className={`absolute -bottom-5 h-px ${
+          className={`absolute -bottom-6 h-px ${
             index === 0
-              ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-right-7 md:bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_55%)]`
+              ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-right-8 md:bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_55%)]`
               : index === 1
-                ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-left-7 md:bg-[linear-gradient(90deg,rgb(8_119_131/28%)_45%,transparent)]`
+                ? `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:-left-8 md:bg-[linear-gradient(90deg,rgb(8_119_131/28%)_45%,transparent)]`
                 : `inset-x-0 bg-[linear-gradient(90deg,transparent,rgb(8_119_131/28%)_30%,rgb(8_119_131/28%)_70%,transparent)] md:hidden`
           }`}
         />
       )}
       {/* Vertical, md+: between the columns, fading towards top and bottom. */}
-      {index === 0 && <span className="absolute -bottom-5 -right-7 top-2 hidden w-px bg-[linear-gradient(180deg,transparent,rgb(8_119_131/28%)_70%)] md:block" />}
-      {index === 2 && <span className="absolute -right-7 -top-5 bottom-2 hidden w-px bg-[linear-gradient(180deg,rgb(8_119_131/28%)_30%,transparent)] md:block" />}
+      {index === 0 && <span className="absolute -bottom-6 -right-8 top-2 hidden w-px bg-[linear-gradient(180deg,transparent,rgb(8_119_131/28%)_70%)] md:block" />}
+      {index === 2 && <span className="absolute -right-8 -top-6 bottom-2 hidden w-px bg-[linear-gradient(180deg,rgb(8_119_131/28%)_30%,transparent)] md:block" />}
       {/* The crossing: a small teal diamond on the page ground. */}
       {index === 0 && (
-        <span className="absolute -bottom-5 -right-7 hidden h-2 w-2 translate-x-1/2 translate-y-1/2 rotate-45 rounded-[2px] border border-[#087783]/50 bg-[#eef6f8] shadow-[0_0_0_4px_#eef6f8] md:block" />
+        <span className="absolute -bottom-6 -right-8 hidden h-2 w-2 translate-x-1/2 translate-y-1/2 rotate-45 rounded-[2px] border border-[#087783]/50 bg-[#eef6f8] shadow-[0_0_0_4px_#eef6f8] md:block" />
       )}
       {/* Phones: a diamond in the middle of each rule, echoing the centre. */}
       {index < 3 && (
-        <span className="absolute -bottom-5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 translate-y-1/2 rotate-45 rounded-[1px] bg-[#087783]/45 shadow-[0_0_0_4px_#eef6f8] md:hidden" />
+        <span className="absolute -bottom-6 left-1/2 h-1.5 w-1.5 -translate-x-1/2 translate-y-1/2 rotate-45 rounded-[1px] bg-[#087783]/45 shadow-[0_0_0_4px_#eef6f8] md:hidden" />
       )}
     </span>
   );
@@ -170,8 +162,8 @@ export default function HomeCatalogLinks() {
             <HomeHeading id="home-catalog-links-title">
               Автозапчастини <span>для вашого авто</span>
             </HomeHeading>
-            <p className="!mb-0 !mt-4 max-w-[62ch] text-[15px] font-medium leading-[1.65] text-[#2b4f63] sm:!mt-5 sm:text-[16.5px]">
-              Для техобслуговування й ремонту. Шукайте за автомобілем, артикулом або категорією — забирайте у Львові чи замовляйте доставку по Україні.
+            <p className="!mb-0 !mt-4 max-w-[48ch] text-[15px] font-medium leading-[1.65] text-[#2b4f63] sm:!mt-5 sm:text-[16.5px]">
+              Шукайте за авто, групою або виробником — самовивіз у Львові й доставка по Україні.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -195,33 +187,11 @@ export default function HomeCatalogLinks() {
           </div>
         </header>
 
-        {/* What we cover: three columns between hairlines. */}
-        <ul className="mt-7 grid border-y border-[#087783]/15 sm:mt-9 md:grid-cols-3">
-          {CATALOG_SCOPE.map(({ label, items, icon: Icon }, index) => (
-            <li
-              key={label}
-              className={`flex gap-3.5 py-4 md:py-5 ${index > 0 ? "border-t border-[#087783]/10 md:border-l md:border-t-0 md:pl-6" : ""} ${index < 2 ? "md:pr-6" : ""}`}
-            >
-              <span aria-hidden="true" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-white text-[#087783] shadow-[0_1px_2px_rgb(15_43_61/6%),0_8px_18px_-12px_rgb(8_80_100/45%)] ring-1 ring-[#087783]/10">
-                <Icon size={19} />
-              </span>
-              <div className="min-w-0">
-                <h3 className="!m-0 text-[15px] font-extrabold leading-tight tracking-[-.01em] text-[#0b2233]">{label}</h3>
-                <p className="!mb-0 !mt-1 text-[13.5px] font-medium leading-[1.55] text-[#33586c]">{items}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        <p className="!mb-0 !mt-9 inline-flex items-center gap-2.5 text-[12px] font-bold uppercase tracking-[.16em] text-[#087783] sm:!mt-11">
-          <span aria-hidden="true" className="h-px w-8 bg-[#087783]/40" />
-          Популярні розділи каталогу
-        </p>
 
         {/* No boxes: four sections on one ground, 2×2 from md. Light hairlines
             fade in from the outer edges and meet at a small diamond in the
             centre; phones get a faded rule between stacked sections. */}
-        <div className="mt-5 grid gap-x-14 gap-y-10 sm:mt-6 md:grid-cols-2">
+        <div className="mt-10 grid gap-x-16 gap-y-12 sm:mt-12 md:grid-cols-2">
           {CARDS.map(({ title, icon: Icon, allHref, allLabel, links }, index) => (
             <nav key={title} aria-label={title} className="relative min-w-0">
               <SectionRules index={index} />
