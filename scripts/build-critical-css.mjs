@@ -75,6 +75,8 @@ export const CRITICAL_TARGETS = {
   product: [
     "app/layout.tsx",
     "app/product/[code]/page.tsx",
+    // Streamed first on a direct visit; must not wait for the full stylesheet.
+    "app/product/[code]/loading.tsx",
     "app/components/Search.tsx",
   ],
   blog: [

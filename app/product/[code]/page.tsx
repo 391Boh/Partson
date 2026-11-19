@@ -1,4 +1,5 @@
 import { cache, Suspense } from "react";
+import { firstAcceptedInOrder } from "app/lib/first-accepted";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import dynamic from "next/dynamic";
@@ -1414,18 +1415,16 @@ const findRouteProductLive = async (rawCode: string, limit: number) => {
   const { directCode, nameSlug, tailTokens, tokens } = buildRouteArticleTokens(rawCode, limit);
   if (tokens.length === 0) return null;
   const tailTokenCompacts = new Set(tailTokens.map(compactProductLookupToken).filter(Boolean));
-  const matches = await Promise.all(
-    tokens.map((token) => fetchExactCatalogProductByLookup(token, { timeoutMs: 3000 }).catch(() => null))
-  );
-  for (const match of matches) {
-    const resolved = directCode
+  // All readings at once; the first accepted one in order wins as soon as
+  // the readings before it have answered, not after the slowest (3 s) one.
+  return firstAcceptedInOrder(
+    tokens.map((token) => fetchExactCatalogProductByLookup(token, { timeoutMs: 3000 }).catch(() => null)),
+    (match) => directCode
       ? match && (match.code || match.article)
         ? { code: (match.code || match.article).trim(), product: match }
         : null
-      : acceptSeoSlugMatch(match, nameSlug, tailTokenCompacts);
-    if (resolved) return resolved;
-  }
-  return null;
+      : acceptSeoSlugMatch(match, nameSlug, tailTokenCompacts),
+  );
 };
 
 // Before the catalog snapshot has loaded (right after a restart), a slow
@@ -1445,13 +1444,13 @@ const resolveProductFromSeoNameSlug = async (rawNameSlug: string) => {
   // The article candidates first, all at once and without the slow deep 1C
   // search: tried one by one, a few misses (~1-2 s each) used up the page's
   // 4 s budget before the real article was reached, and the page 404'd.
-  const fastTailMatches = await Promise.all(
-    tailTokens.map((token) => findCatalogProductByLookupToken(token, { deep: false }).catch(() => null))
+  // The first accepted candidate in order returns without waiting for the
+  // slower misses behind it.
+  const fastTailMatch = await firstAcceptedInOrder(
+    tailTokens.map((token) => findCatalogProductByLookupToken(token, { deep: false }).catch(() => null)),
+    (product) => acceptSeoSlugMatch(product, rawNameSlug, tailTokenCompacts),
   );
-  for (const product of fastTailMatches) {
-    const resolved = acceptSeoSlugMatch(product, rawNameSlug, tailTokenCompacts);
-    if (resolved) return resolved;
-  }
+  if (fastTailMatch) return fastTailMatch;
   // The warm snapshot holds the whole catalog and the fast phase already
   // asked 1C by exact article, so the remaining slug readings (e.g. "lx511-1"
   // for article LX511/1) are checked against memory only. Querying 1C for
