@@ -9,7 +9,7 @@ import { CAR_BRANDS, GROUPS, PRODUCERS } from "app/lib/home-popular-links";
 // sections: part groups, car brands, the model pages that already draw search
 // impressions, and producers. Without them the homepage HTML linked only to
 // the three directory roots, so its weight never reached the pages people
-// search for ("запчастини форд фокус 2"). Four compact cards of pill links;
+// search for ("запчастини форд фокус 2"). Four ruled sections of pill links;
 // no JS, skipped offscreen via content-visibility.
 
 const POPULAR_MODELS: Array<[path: string, label: string]> = [
@@ -119,24 +119,22 @@ export default function HomeCatalogLinks() {
           Популярні розділи <span className="text-[#087783]">каталогу</span>
         </h2>
 
-        <div className="mt-5 grid gap-3 sm:mt-6 md:grid-cols-2 md:gap-4">
+        {/* No boxes: four sections on one ground, 2×2 from md, each with a
+            ruled header row (icon, title, "Усі …") and its pills below. */}
+        <div className="mt-6 grid gap-x-14 gap-y-9 sm:mt-8 md:grid-cols-2 md:gap-y-10">
           {CARDS.map(({ title, icon: Icon, allHref, allLabel, links }) => (
-            <nav
-              key={title}
-              aria-label={title}
-              className="overflow-hidden rounded-[20px] border border-white/80 bg-white/80 p-4 shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_12px_26px_-20px_rgb(15_60_80/40%)] sm:p-5"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="flex items-center gap-2.5 text-[15px] font-extrabold leading-tight text-[#0b2233]">
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#e6f5f5] text-[#087783]">
-                    <Icon size={17} aria-hidden="true" />
+            <nav key={title} aria-label={title} className="min-w-0">
+              <div className="flex items-center justify-between gap-3 border-b border-[#087783]/15 pb-3">
+                <h3 className="flex items-center gap-2.5 text-[16px] font-extrabold leading-tight tracking-[-.01em] text-[#0b2233]">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#087783] text-white shadow-[0_6px_14px_-8px_rgb(8_119_131/80%)]">
+                    <Icon size={16} aria-hidden="true" />
                   </span>
                   {title}
                 </h3>
                 <Link
                   href={allHref}
                   prefetch={false}
-                  className="group/all inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-[13px] font-bold text-[#087783] hover:bg-[#e6f5f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783]"
+                  className="group/all -mr-2 inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-2 text-[13px] font-bold text-[#087783] hover:bg-[#087783]/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783]"
                 >
                   {allLabel}
                   <ArrowRight size={14} aria-hidden="true" className="transition-transform duration-200 group-hover/all:translate-x-0.5" />
@@ -144,24 +142,24 @@ export default function HomeCatalogLinks() {
               </div>
               {/* Phones: the pills wrap inside a row about half their total
                   width, so they pack into two tight rows that scroll
-                  sideways; wider screens wrap at the card's width. */}
-              <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-              <ul
-                style={{ "--pills-row": `${twoRowWidth(links)}px` } as CSSProperties}
-                className="flex w-[var(--pills-row)] flex-wrap gap-1.5 sm:w-auto sm:gap-2"
-              >
-                {links.map(([href, label]) => (
-                  <li key={href}>
-                    <Link
-                      href={href}
-                      prefetch={false}
-                      className="inline-flex min-h-9 items-center rounded-full border border-[#0f4c5c]/[0.1] bg-white px-3 text-[13px] font-semibold leading-tight text-[#2b4f63] transition-[color,border-color,background-color] duration-200 hover:border-[#087783]/40 hover:bg-[#f0faf9] hover:text-[#087783] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] sm:min-h-8"
-                    >
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+                  sideways; wider screens wrap at the column's width. */}
+              <div className="-mx-[var(--page-shell-gutter)] mt-4 overflow-x-auto px-[var(--page-shell-gutter)] pb-1 [scrollbar-width:none] sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+                <ul
+                  style={{ "--pills-row": `${twoRowWidth(links)}px` } as CSSProperties}
+                  className="flex w-[var(--pills-row)] flex-wrap gap-2 sm:w-auto"
+                >
+                  {links.map(([href, label]) => (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        prefetch={false}
+                        className="inline-flex min-h-9 items-center rounded-full border border-[#0f4c5c]/[0.12] bg-white/90 px-3.5 text-[13px] font-semibold leading-tight text-[#24485c] shadow-[0_1px_2px_rgb(15_43_61/6%)] transition-[color,border-color,background-color,box-shadow] duration-200 hover:border-[#087783]/45 hover:bg-white hover:text-[#087783] hover:shadow-[0_4px_10px_-6px_rgb(8_119_131/45%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783]"
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </nav>
           ))}
