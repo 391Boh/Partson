@@ -24,14 +24,14 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
         {/* Visit: the 360° tour and the map in one dark card, heading on top. */}
         <section
           aria-labelledby="store-visit-title"
-          className="font-ui relative isolate mx-[calc(50%-50vw)] my-4 overflow-hidden py-24 sm:my-6 sm:py-28"
+          className="font-ui relative isolate mx-[calc(50%-50vw)] -my-2 overflow-hidden py-32 sm:py-36"
         >
           {/* Background with depth: the dark ground fades in and out at the
               top and bottom edges (mask), so the light sections around it
               melt into it. On it: a teal key light from the upper left, a sky
               rim light at the lower right, a perspective grid floor receding
               to a glowing horizon, and a vignette. Static gradients only. */}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 [mask-image:linear-gradient(180deg,transparent_0,#000_96px,#000_calc(100%-96px),transparent_100%)]">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 [mask-image:linear-gradient(180deg,transparent_0,rgb(0_0_0/8%)_32px,rgb(0_0_0/28%)_72px,rgb(0_0_0/58%)_112px,rgb(0_0_0/84%)_148px,#000_180px,#000_calc(100%-180px),rgb(0_0_0/84%)_calc(100%-148px),rgb(0_0_0/58%)_calc(100%-112px),rgb(0_0_0/28%)_calc(100%-72px),rgb(0_0_0/8%)_calc(100%-32px),transparent_100%)]">
             <div className="absolute inset-0 bg-[radial-gradient(130%_95%_at_18%_8%,#2a8a93_0%,#1d6676_34%,#185468_62%,#164a5e_100%)]" />
             <div className="absolute -left-[10%] top-[6%] h-[70%] w-[55%] rounded-full bg-[radial-gradient(closest-side,rgb(94_234_212/26%),transparent)]" />
             <div className="absolute -right-[8%] bottom-[2%] h-[65%] w-[50%] rounded-full bg-[radial-gradient(closest-side,rgb(125_211_252/22%),transparent)]" />
