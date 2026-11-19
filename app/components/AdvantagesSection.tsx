@@ -83,7 +83,19 @@ export default function AdvantagesSection({ googleRatingValue = 4.3, googleRevie
           {/* The chat bubble and the footer's call-to-action already ask the
               visitor to write or call; this block only answers questions. */}
           <div className="home-store-help-copy">
-            <h3 id="parts-help-title">Часті запитання</h3>
+            <span aria-hidden="true" className="mb-3.5 flex items-center gap-1.5">
+              <span className="h-[5px] w-9 rounded-full bg-[linear-gradient(90deg,#0d9488,#38bdf8)] sm:w-11" />
+              <span className="h-[5px] w-[5px] rounded-full bg-[#38bdf8]/70" />
+            </span>
+            <h3
+              id="parts-help-title"
+              className="font-display font-display-readable !m-0 !text-[clamp(26px,1.2vw+19px,36px)] !font-[800] !leading-[1.08] !tracking-[-.03em] !text-[#0b2233] ![text-shadow:0_1px_0_rgb(255_255_255/90%),0_2px_0_rgb(8_70_90/14%),0_8px_18px_rgb(15_60_80/22%)] [-webkit-text-stroke:3px_rgb(255_255_255/80%)] [paint-order:stroke_fill]"
+            >
+              Часті <span className="bg-[linear-gradient(180deg,transparent_60%,rgb(94_234_212/45%)_60%,rgb(94_234_212/45%)_92%,transparent_92%)] px-[0.08em] text-[#086f7a]">запитання</span>
+            </h3>
+            <p className="!mb-0 !mt-3 max-w-[34ch] text-[14.5px] font-medium leading-[1.6] text-[#2b4f63] sm:text-[15.5px]">
+              Коротко про підбір запчастин, самовивіз у Львові та доставку.
+            </p>
           </div>
           <HomeStoreFaq />
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(HOME_FAQ_JSON_LD) }} />

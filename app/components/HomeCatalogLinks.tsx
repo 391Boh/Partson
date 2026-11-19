@@ -23,6 +23,23 @@ const POPULAR_MODELS: Array<[path: string, label: string]> = [
   ["/auto/volkswagen/passat-b6", "VW Passat B6"],
   ["/auto/volkswagen/transporter-t5", "VW Transporter T5"],
   ["/auto/opel/vivaro-a", "Opel Vivaro A"],
+  ["/auto/skoda/fabia-i", "Škoda Fabia I"],
+  ["/auto/volkswagen/passat-b5", "VW Passat B5"],
+  ["/auto/renault/kangoo-ii", "Renault Kangoo II"],
+  ["/auto/opel/combo-c", "Opel Combo C"],
+  ["/auto/skoda/octavia-iii", "Škoda Octavia III"],
+];
+
+// Beyond the shared homepage lists, so each section fills three lines on
+// desktop. Every page was checked to exist.
+const MORE_CAR_BRANDS: Array<[name: string, label: string]> = [
+  ["FIAT", "Fiat"], ["MAZDA", "Mazda"], ["HONDA", "Honda"], ["DACIA", "Dacia"], ["VOLVO", "Volvo"],
+  ["SEAT", "Seat"], ["SUZUKI", "Suzuki"], ["DAEWOO", "Daewoo"], ["SUBARU", "Subaru"], ["LEXUS", "Lexus"], ["CHERY", "Chery"], ["JEEP", "Jeep"],
+];
+const MORE_PRODUCERS: Array<[name: string, label: string]> = [
+  ["VALEO", "Valeo"], ["NGK", "NGK"], ["MANN-FILTER", "Mann-Filter"], ["GATES", "Gates"], ["CONTITECH", "ContiTech"],
+  ["INA", "INA"], ["LUK", "LuK"], ["MONROE", "Monroe"], ["MAHLE", "Mahle"], ["HELLA", "Hella"], ["BREMBO", "Brembo"], ["DENSO", "Denso"],
+  ["MEYLE", "Meyle"], ["DAYCO", "Dayco"], ["FILTRON", "Filtron"], ["SWAG", "Swag"],
 ];
 
 // Real catalog parts behind the cards (wide screens only).
@@ -56,7 +73,7 @@ const CARDS: Array<{
     icon: Car,
     allHref: "/auto",
     allLabel: "Усі марки",
-    links: CAR_BRANDS.map(([name, label]) => [buildAutoBrandPath(name), label]),
+    links: [...CAR_BRANDS, ...MORE_CAR_BRANDS].map(([name, label]) => [buildAutoBrandPath(name), label]),
   },
   {
     title: "Популярні моделі",
@@ -70,7 +87,7 @@ const CARDS: Array<{
     icon: Factory,
     allHref: "/manufacturers",
     allLabel: "Усі виробники",
-    links: PRODUCERS.map(([name, label]) => [buildManufacturerPathFromLabel(name), label]),
+    links: [...PRODUCERS, ...MORE_PRODUCERS].map(([name, label]) => [buildManufacturerPathFromLabel(name), label]),
   },
 ];
 
