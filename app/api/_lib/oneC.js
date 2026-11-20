@@ -169,6 +169,50 @@ function acquireGlobalOneCSlot(waitMs) {
   });
 }
 
+// --- Circuit breaker for a broken 1C -------------------------------------------
+// On 2026-11-20 1C answered HTTP 500 to ~92% of requests for 50 minutes (its
+// file infobase after the disk filled). Every page, retry and background scan
+// kept sending requests anyway. When almost everything recent came back 5xx,
+// requests fail at once for a short while instead, and one probe at a time
+// checks whether 1C is back; the first good answer closes the breaker.
+// Timeouts are not counted: under load they come from short page budgets,
+// not from a broken 1C. Stock movements (orders) are never held back.
+const BREAKER_WINDOW_MS = 20_000;
+const BREAKER_MIN_RESULTS = 15;
+const BREAKER_FAILURE_RATIO = 0.9;
+const BREAKER_OPEN_MS = 15_000;
+const BREAKER_PROBE_INTERVAL_MS = 3_000;
+const oneCBreaker =
+  globalThis.__partsonOneCBreaker ??
+  (globalThis.__partsonOneCBreaker = { results: [], openUntil: 0, nextProbeAt: 0 });
+
+function recordBreakerResult(serverError) {
+  const now = nowMs();
+  if (!serverError) {
+    if (oneCBreaker.openUntil) console.warn("[1C] breaker closed: 1C answers again");
+    oneCBreaker.openUntil = 0;
+  }
+  oneCBreaker.results.push({ at: now, bad: serverError });
+  while (oneCBreaker.results.length && now - oneCBreaker.results[0].at > BREAKER_WINDOW_MS) oneCBreaker.results.shift();
+  if (!serverError || oneCBreaker.results.length < BREAKER_MIN_RESULTS) return;
+  const bad = oneCBreaker.results.reduce((n, r) => n + (r.bad ? 1 : 0), 0);
+  if (bad / oneCBreaker.results.length >= BREAKER_FAILURE_RATIO) {
+    if (oneCBreaker.openUntil <= now) console.warn(`[1C] breaker open: ${bad}/${oneCBreaker.results.length} recent answers were 5xx`);
+    oneCBreaker.openUntil = now + BREAKER_OPEN_MS;
+    oneCBreaker.results = [];
+  }
+}
+
+// True when this request may go to 1C now (the breaker is closed, or this is
+// the one probe allowed per interval while it is open).
+function breakerAllows() {
+  const now = nowMs();
+  if (oneCBreaker.openUntil <= now) return true;
+  if (now < oneCBreaker.nextProbeAt) return false;
+  oneCBreaker.nextProbeAt = now + BREAKER_PROBE_INTERVAL_MS;
+  return true;
+}
+
 // --- Traffic summary ---------------------------------------------------------
 // One log line per 15 minutes: requests per endpoint and request shape (the
 // body's field names, not values), how many came back empty, timed out or
@@ -605,6 +649,14 @@ export async function oneCRequest(endpoint, options = {}) {
       // that is refused here could not be retried.
       const gated = !stockMovement;
       let attemptTimeoutMs = timeoutMs;
+      if (gated && !breakerAllows()) {
+        recordOneCStat(shape, "busy", 0);
+        return {
+          status: 503,
+          text: JSON.stringify({ error: "1C Service unavailable", details: "1C is failing; retrying shortly", endpoint }),
+          contentType: "application/json",
+        };
+      }
       try {
         if (gated) {
           // Waiting for a slot spends this attempt's own budget (it used to be
@@ -682,6 +734,7 @@ export async function oneCRequest(endpoint, options = {}) {
           if (gated) releaseGlobalOneCSlot();
         });
         recordOneCStat(shape, result.status >= 200 && result.status < 300 ? "ok" : "failed", nowMs() - attemptStartedAt, result.text);
+        recordBreakerResult(result.status >= 500);
 
         const shouldRetryStatus =
           retryOn5xx &&
@@ -705,6 +758,8 @@ export async function oneCRequest(endpoint, options = {}) {
         return result;
       } catch (err) {
         recordOneCStat(shape, "failed", nowMs() - attemptStartedAt);
+        // A refused or reset connection means 1C/Apache is down; a timeout does not.
+        if (!/timeout/i.test(err?.message || "") && err?.name !== "AbortError") recordBreakerResult(true);
         attempt += 1;
         const details =
           err?.name === "AbortError"
