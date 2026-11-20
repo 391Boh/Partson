@@ -5,11 +5,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
-import { ArrowUpRight, BadgeCheck, Car, ListTree, MapPin, Phone, Tags, Truck } from "lucide-react";
+import { ArrowUpRight, Car, ListTree, MapPin, Phone, Tags, Truck } from "lucide-react";
 import CatalogCountDigits from "app/components/CatalogCountDigits";
 import CatalogSearchTotalCountClient from "app/components/CatalogSearchTotalCountClient";
 import VinOpenButton from "app/katalog/VinOpenButton";
 import CatalogShownCountClient from "app/components/CatalogShownCountClient";
+import CatalogFreshnessClient from "app/components/CatalogFreshnessClient";
 import CatalogSeoFilterSummaryClient from "app/katalog/CatalogSeoFilterSummaryClient";
 import KatalogPageShell from "app/katalog/KatalogPageShell";
 import CatalogRestoreInlineScript from "app/katalog/CatalogRestoreInlineScript";
@@ -537,12 +538,16 @@ const CatalogSeoSnapshot = async ({
   items,
   hasMore,
   totalCount,
+  dataPending = false,
   topGroups = [],
   topProducers = [],
 }: {
   state: CatalogSeoState;
   items: CatalogSeoProduct[];
   hasMore?: boolean;
+  // No first page in the HTML (1C slow or down): the client loads it, so
+  // the counter must not claim the data is current.
+  dataPending?: boolean;
   totalCount?: number | null;
   topGroups?: CatalogSeoGroupDiscoveryItem[];
   topProducers?: CatalogSeoDiscoveryItem[];
@@ -759,10 +764,7 @@ const CatalogSeoSnapshot = async ({
                 {hasMore && !hasExactCount ? (
                   <p>список оновлюється під час перегляду</p>
                 ) : (
-                  <p className="catalog-seo-counter-fresh">
-                    <BadgeCheck size={12} aria-hidden />
-                    дані актуальні
-                  </p>
+                  <CatalogFreshnessClient initialPending={dataPending} />
                 )}
               </div>
             </div>
@@ -1118,6 +1120,7 @@ export default async function KatalogPage({ searchParams }: KatalogPageProps) {
         state={structuredDataState}
         items={initialPagePayload?.items ?? []}
         hasMore={initialPagePayload?.hasMore}
+        dataPending={!initialPagePayload}
         totalCount={seoTotalCount ?? initialPagePayload?.totalCount ?? null}
         topGroups={catalogNavigationGroups}
         topProducers={topProducers}

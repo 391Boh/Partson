@@ -918,14 +918,19 @@ const Data: React.FC<DataProps> = ({
       __partsonCatalogVisibleSignature?: string;
       __partsonCatalogTotalCount?: number | null;
       __partsonCatalogTotalSignature?: string;
+      __partsonCatalogUnavailable?: boolean;
     };
+    // An empty list because 1C failed is not "0 products": the SEO block's
+    // freshness line (CatalogFreshnessClient) reads this flag.
+    const unavailable = !isDataLoading && Boolean(error);
+    win.__partsonCatalogUnavailable = unavailable;
     win.__partsonCatalogVisibleCount = visibleSortedData.length;
     win.__partsonCatalogVisibleSignature = filterSignature;
     win.__partsonCatalogTotalCount = totalCountForCurrentFilter;
     win.__partsonCatalogTotalSignature = filterSignature;
     window.dispatchEvent(
       new CustomEvent("partson:catalog-visible-count", {
-        detail: { count: visibleSortedData.length, signature: filterSignature, loading: isDataLoading },
+        detail: { count: visibleSortedData.length, signature: filterSignature, loading: isDataLoading, unavailable },
       })
     );
     window.dispatchEvent(
@@ -940,6 +945,7 @@ const Data: React.FC<DataProps> = ({
     accumulatedSortedData.length,
     loading,
     filterLoading,
+    error,
   ]);
   const analyticsList = useMemo(() => {
     const safeSearch = sanitizeAnalyticsSearchTerm(rawSearchQuery);

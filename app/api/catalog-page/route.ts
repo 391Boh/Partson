@@ -206,6 +206,14 @@ const sanitizeCatalogErrorMessage = (value: string | null | undefined) => {
     return "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0442\u0438\u043C\u0447\u0430\u0441\u043E\u0432\u043E \u043F\u0435\u0440\u0435\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u0438\u0439. \u0421\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0449\u0435 \u0440\u0430\u0437 \u0447\u0435\u0440\u0435\u0437 \u043A\u0456\u043B\u044C\u043A\u0430 \u0441\u0435\u043A\u0443\u043D\u0434.";
   }
 
+  // Anything else in English is a technical 1C/transport message ("Catalog
+  // allgoods failed: 500 …", a database file path on 20.11): never shown to
+  // shoppers — they get a plain Ukrainian notice, the server log keeps the detail.
+  if (/[A-Za-z]{3,}/.test(stripped)) {
+    console.warn(`[catalog-page] 1C unavailable: ${stripped.slice(0, 300)}`);
+    return "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u0442\u0438\u043C\u0447\u0430\u0441\u043E\u0432\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0438\u0439. \u0421\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0449\u0435 \u0440\u0430\u0437 \u0447\u0435\u0440\u0435\u0437 \u0445\u0432\u0438\u043B\u0438\u043D\u0443.";
+  }
+
   return stripped.length > 220 ? `${stripped.slice(0, 220)}...` : stripped;
 };
 
