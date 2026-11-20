@@ -18,12 +18,6 @@ type HomeSeoContent = {
   selectionParagraphs: string[];
 };
 
-type GroupsCatalogSeoContent = {
-  title: string;
-  intro: string;
-  highlights: string[];
-};
-
 type GroupSeoCopy = {
   title: string;
   intro: string;
@@ -290,13 +284,6 @@ export const homeSeoContent: HomeSeoContent = {
     "Щоб підібрати потрібну деталь, достатньо скористатися пошуком у верхній частині сайту або перейти у відповідний розділ каталогу. Якщо ви знаєте артикул або код, система відразу покаже релевантні товари. Якщо потрібна деталь для конкретного вузла автомобіля, зручніше шукати через структуру груп і підгруп.",
     "Коли товар має актуальну ціну, його можна одразу додати в замовлення. Якщо ціна уточнюється, зі сторінки товару можна швидко сформувати запит менеджеру. Це дає можливість уточнити сумісність, підібрати аналог або отримати пропозицію по потрібній позиції без зайвих дзвінків і ручного пошуку. PartsON працює для клієнтів зі Львова та всієї України.",
   ],
-};
-
-export const groupsCatalogSeoContent: GroupsCatalogSeoContent = {
-  title: homeSeoContent.highlightsTitle,
-  intro:
-    "На сторінці груп товарів PartsON зручно починати підбір за категорією. Тут користувачі найчастіше переходять до ходових запчастин для ТО, підвіски, гальмівної системи, двигуна, охолодження, електрики та кузовних деталей.",
-  highlights: homeSeoContent.highlights,
 };
 
 type GroupItemSeoCopyMapEntry = {
@@ -2306,9 +2293,6 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
   };
 };
 
-export const getGroupMetaDescription = (label: string, productCount: number) =>
-  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)}, підгрупи, пошук за кодом і артикулом, ціни, наявність, самовивіз у Львові та доставка по Україні.`;
-
 export const getGroupItemSeoCopy = (options: {
   label: string;
   groupLabel: string;
@@ -2347,7 +2331,6 @@ export const getGroupItemSeoCopy = (options: {
     highlights: ["артикул та оригінальний номер;", "технічні характеристики деталі;", "застосування до вашої модифікації авто;"],
   };
 };
-
 
 type ProducerSeoCopyEntry = {
   intro: string;
@@ -3574,5 +3557,3 @@ export const getProducerSeoCopy = (
   };
 };
 
-export const getProducerMetaDescription = (label: string, productCount: number) =>
-  `${label} у PartsON: ${productCount.toLocaleString("uk-UA")} ${pluralizeProducts(productCount)} бренду, групи, категорії, ціни, наявність, підбір за кодом і артикулом, доставка по Україні.`;

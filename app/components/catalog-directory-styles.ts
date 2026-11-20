@@ -31,9 +31,6 @@ export const directoryCompactMetricAccentClass =
 
 export const directoryCardClass = "directory-entry group";
 
-export const directoryHeroClass =
-  "overflow-hidden rounded-lg border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_34%),linear-gradient(160deg,#ffffff_0%,#f8fbff_55%,#eefcf8_100%)] p-4 shadow-[0_18px_42px_rgba(15,23,42,0.07)] sm:p-5";
-
 export const directoryIconTileClass =
   "relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/75 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_34%),linear-gradient(145deg,#fafdff_0%,#e6f5fb_50%,#dff8f2_100%)] text-sm font-extrabold text-slate-700 shadow-[0_10px_24px_rgba(14,165,233,0.09),inset_0_1px_0_rgba(255,255,255,0.98)] transition-[border-color,box-shadow,background-color] duration-300 group-hover:border-teal-300 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14),inset_0_1px_0_rgba(255,255,255,1)]";
 

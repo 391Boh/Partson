@@ -1856,7 +1856,6 @@ const parseLoosePayloadText = (input: string): unknown => {
   return current;
 };
 
-
 const buildCatalogPriceLookupMaps = (
   payload: unknown,
   lookupKeys?: readonly string[]
@@ -4652,38 +4651,6 @@ export const fetchProductDescription = async (
   articleOrCode: string,
   options?: OneCLookupOptions
 ) => (await lookupProductDescription(articleOrCode, options)).description;
-
-export const collectCatalogProductCodes = async (options?: {
-  maxPages?: number;
-  maxItems?: number;
-  pageSize?: number;
-}) => {
-  const maxPages = options?.maxPages && options.maxPages > 0 ? options.maxPages : 120;
-  const maxItems = options?.maxItems && options.maxItems > 0 ? options.maxItems : 6000;
-  const pageSize = options?.pageSize && options.pageSize > 0 ? options.pageSize : 80;
-
-  const codes = new Set<string>();
-
-  for (let page = 1; page <= maxPages; page += 1) {
-    const batch = await fetchCatalogProductsPage({
-      page,
-      limit: pageSize,
-      includePriceEnrichment: false,
-    });
-    if (batch.length === 0) break;
-
-    for (const item of batch) {
-      const code = item.code.trim();
-      if (!code) continue;
-      codes.add(code);
-      if (codes.size >= maxItems) break;
-    }
-
-    if (codes.size >= maxItems) break;
-  }
-
-  return Array.from(codes);
-};
 
 export const findSimilarProductsBySubgroup = async (
   product: CatalogProduct,

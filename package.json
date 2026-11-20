@@ -60,7 +60,6 @@
     "build:refresh": "npm run sync:catalog && npm run build"
   },
   "dependencies": {
-    "@heroicons/react": "^2.2.0",
     "@sentry/nextjs": "^10.78.0",
     "@tailwindcss/postcss": "^4.1.7",
     "body-parser": "^2.4.0",
@@ -74,7 +73,6 @@
     "postcss": "^8.5.15",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-icons": "^5.5.0",
     "server-only": "^0.0.1",
     "tailwindcss": "^4.1.7",
     "tsx": "^4.22.4"

@@ -12,8 +12,6 @@ export const safeDecodeURIComponent = (value: string): string => {
 const PRODUCT_URL_SEPARATOR = "~";
 const PRODUCT_ROUTE_SEGMENT_SEPARATOR = "--";
 const DEFAULT_PRODUCT_GROUP_LABEL = "Автозапчастини";
-export const INTERNAL_PRODUCT_ROUTE_RESOLUTION_PARAM = "__seo_resolved";
-
 export type ProductPathInput = {
   code?: string;
   article?: string;

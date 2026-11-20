@@ -46,7 +46,6 @@ export type GroupsDirectoryData = {
 };
 
 const EMPTY_DATASET: ProductTreeDataset = { groups: [], labels: [] };
-const GROUPS_DIRECTORY_FALLBACK_TIMEOUT_MS = 4500;
 const GROUPS_DIRECTORY_FULL_COUNTS_TIMEOUT_MS = 6000;
 
 const toPositiveProductCount = (value: unknown) => {
@@ -175,19 +174,6 @@ const buildGroupsDirectoryData = (
     hasProductCounts: totalProductCount > 0,
   };
 };
-
-export const getFastGroupsDirectoryData = cache(async () => {
-  const dataset = await getProductTreeDataset().catch(() => EMPTY_DATASET);
-  if (dataset.groups.length > 0) {
-    return buildGroupsDirectoryData(dataset, EMPTY_CATALOG_SEO_FACETS);
-  }
-
-  const seoFacets = await getCatalogSeoFacetsWithTimeout(
-    GROUPS_DIRECTORY_FALLBACK_TIMEOUT_MS
-  ).catch(() => EMPTY_CATALOG_SEO_FACETS);
-
-  return buildGroupsDirectoryDataFromSeoFacets(seoFacets);
-});
 
 export const getFullGroupsDirectoryData = cache(async () => {
   const [dataset, rawSeoFacets] = await Promise.all([

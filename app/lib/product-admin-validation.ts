@@ -9,12 +9,6 @@ export function parseAdminPriceInput(raw: string): { value: number } | { error: 
   return { value };
 }
 
-export function parseAdminQtyInput(raw: string): { value: number } | { error: string } {
-  const value = Number(raw.replace(",", "."));
-  if (!Number.isSafeInteger(value) || value <= 0) return { error: "Введіть цілу кількість > 0" };
-  return { value };
-}
-
 // Empty optional prices stay unset; malformed values must never become zero.
 export function parseProductFormPrice(raw: string): number | undefined | null {
   const value = raw.trim().replace(/\s/g, "").replace(",", ".");

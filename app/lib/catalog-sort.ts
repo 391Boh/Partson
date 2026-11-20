@@ -13,10 +13,3 @@ export const isCatalogSortOrder = (value: unknown): value is CatalogSortOrder =>
 export const priceSortOrder = (sort: CatalogSortOrder): "none" | "asc" | "desc" =>
   sort === "asc" || sort === "desc" ? sort : "none";
 
-export const CATALOG_SORT_LABELS: Record<CatalogSortOrder, string> = {
-  none: "Без сортування",
-  asc: "Ціна: від низької",
-  desc: "Ціна: від високої",
-  name_asc: "Назва: А → Я",
-  name_desc: "Назва: Я → А",
-};

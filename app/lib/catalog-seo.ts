@@ -419,13 +419,6 @@ const buildSlugLookupCandidates = (value: string) => {
   return Array.from(new Set([normalized.toLowerCase(), buildSeoSlug(normalized)]));
 };
 
-export const findSeoGroupBySlug = cache(async (slug: string) => {
-  const slugCandidates = buildSlugLookupCandidates(slug);
-  if (slugCandidates.length === 0) return null;
-  const data = await getCatalogSeoFacets();
-  return data.groups.find((group) => slugCandidates.includes(group.slug)) || null;
-});
-
 // A plain transliterated slug (/manufacturers/mann-filter) is how older
 // links and Google's index reference some producers whose label contains
 // spaces or punctuation, so the hashed candidate above never matches it.

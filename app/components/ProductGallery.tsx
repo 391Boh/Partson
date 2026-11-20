@@ -313,7 +313,7 @@ export default function ProductGallery({
       ) : null}
       <div className="product-gallery-strip">
         {photoUrls.length > 1 ? arrowButton(-1) : null}
-        <div className="product-gallery-thumbs">
+        <div className="product-gallery-thumbs swipe-rail">
         {currentMainImageSrc ? (
           <div className="product-gallery-item">
             <button

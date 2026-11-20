@@ -160,10 +160,6 @@ export const buildManufacturersDirectoryData = async (
   };
 };
 
-export const getFastManufacturersDirectoryData = cache(async () =>
-  buildManufacturersDirectoryData(EMPTY_SEO_FACETS)
-);
-
 export const getFullManufacturersDirectoryData = cache(async () => {
   const rawSeoFacets = await loadManufacturersSeoFacets();
   const seoFacets = await resolveCatalogSeoFacetsWithFallback(

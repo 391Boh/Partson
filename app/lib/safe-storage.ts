@@ -39,21 +39,3 @@ export const safeRemoveStorageItem = (
   } catch {}
 };
 
-export const safePruneStoragePrefix = (
-  storage: Storage | null | undefined,
-  prefix: string
-) => {
-  if (!storage || !prefix) return;
-
-  try {
-    const keys: string[] = [];
-    for (let index = 0; index < storage.length; index += 1) {
-      const key = storage.key(index);
-      if (key?.startsWith(prefix)) keys.push(key);
-    }
-
-    for (const key of keys) {
-      storage.removeItem(key);
-    }
-  } catch {}
-};

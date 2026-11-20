@@ -259,7 +259,7 @@ export default function ManufacturerCatalogProducts({
   return (
     <>
       <div
-        className="flex gap-3 overflow-x-auto overscroll-x-contain px-3 pb-4 pt-3 [scrollbar-width:thin] sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-4 sm:pb-4 md:grid-cols-3 xl:grid-cols-3"
+        className="swipe-rail flex gap-3 px-3 pb-4 pt-3 [--swipe-rail-pad:0.75rem] sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-4 sm:pb-4 md:grid-cols-3 xl:grid-cols-3"
         itemScope
         itemType="https://schema.org/ItemList"
       >

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { useRecommendationPrices } from "app/lib/use-recommendation-prices";
+import { productRailClass } from "app/lib/product-rail-class";
 import type { RecommendationPrice } from "app/lib/recommendation-prices-client";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
@@ -107,17 +108,6 @@ const buildRecommendationIdentityKeys = (
     )
   );
 
-// Fixed pixel column widths, not percentage-of-viewport ones — minmax(...,
-// 42%) meant the same card rendered at a different width on a 360px phone
-// than a 428px one, which fights "always the same size" instead of
-// delivering it. A flat px value is identical on every phone regardless of
-// screen width. Narrow enough that the next card peeks in at the trailing
-// edge (the "there's more" cue), reinforced by the trailing mask fade.
-// Single row at every breakpoint — a 2-row desktop layout worked for the
-// old short cards but would make this section very tall with taller ones.
-const getRecommendationListClass = (count: number) =>
-  `product-rail mt-3 grid grid-flow-col grid-rows-1 auto-cols-[172px] gap-2.5 overflow-x-auto overscroll-x-contain ${count > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[176px] sm:gap-3 lg:auto-cols-[188px]`;
-
 const scheduleProductRecommendationTask = (task: () => void) => {
   if (typeof window === "undefined") {
     task();
@@ -202,7 +192,7 @@ const RecommendationList = ({
   resolvedPrices: Record<string, RecommendationPrice>;
   resolvedImages: Record<string, string>;
 }) => (
-  <div className={getRecommendationListClass(items.length)}>
+  <div className={productRailClass(items.length)}>
     {items.map((item, index) => {
       const stateKey = buildPriceStateKey(item);
       const pricing = resolvedPrices[stateKey];

@@ -150,30 +150,6 @@ export type ProductSitemapEntry = {
   fitment?: string;
 };
 
-const normalizeProductCodes = (codes: string[]) => {
-  const seen = new Set<string>();
-  const uniqueCodes: string[] = [];
-
-  for (const rawCode of codes) {
-    const code = (rawCode || "").trim();
-
-    if (!code) {
-      continue;
-    }
-
-    const dedupeKey = code.toLowerCase();
-
-    if (seen.has(dedupeKey)) {
-      continue;
-    }
-
-    seen.add(dedupeKey);
-    uniqueCodes.push(code);
-  }
-
-  return uniqueCodes;
-};
-
 const FITMENT_LINE_MAX_LENGTH = 400;
 const firstDescriptionLine = (value?: string) => {
   const line = (value || "").split(/\r?\n/)[0]?.replace(/\s+/g, " ").trim() || "";
@@ -738,24 +714,6 @@ const getPricedProductSitemapEntryBatchesSafe = async () => {
   }
 };
 
-export const getProductSitemapIds = async () => {
-  const batches = await getProductSitemapEntryBatchesSafe();
-
-  return batches.map((_, index) => ({
-    id: String(index),
-  }));
-};
-
-export const getProductEntriesBySitemapId = async (id: string) => {
-  const numericId = Number.parseInt(id, 10);
-
-  if (!Number.isFinite(numericId) || numericId < 0) {
-    return [];
-  }
-
-  return (await getProductSitemapEntryBatchesSafe())[numericId] ?? [];
-};
-
 export const getAllProductSitemapEntries = async () => {
   const batches = await getProductSitemapEntryBatchesSafe();
   return batches.flat();
@@ -776,21 +734,6 @@ export const getProductSnapshotFitment = async (code: string) => {
     new Map(entries.filter((entry) => entry.fitment).map((entry) => [entry.code.toLowerCase(), entry.fitment!]))
   );
   return (await snapshotFitmentByCode).get((code || "").trim().toLowerCase()) || "";
-};
-
-export const getAllPricedProductSitemapSnapshotEntries = async () => {
-  const pricedEntries = await readPricedProductSitemapEntriesSnapshot();
-  if (pricedEntries.length > 0) return pricedEntries;
-
-  const allEntries = await readProductSitemapEntriesSnapshot();
-  return allEntries.filter(
-    (entry) => isPricedProductSitemapEntry(entry) && entry.hasPhoto === true
-  );
-};
-
-export const getProductCodesBySitemapId = async (id: string) => {
-  const entries = await getProductEntriesBySitemapId(id);
-  return normalizeProductCodes(entries.map((entry) => entry.code));
 };
 
 export const getPricedProductSitemapIds = async () => {

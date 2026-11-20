@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useRecommendationPrices } from "app/lib/use-recommendation-prices";
+import { productRailClass } from "app/lib/product-rail-class";
 
 import ProductCompactRecommendationCard from "app/components/ProductCompactRecommendationCard";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -210,10 +211,7 @@ export default function ProductRecentlyViewedSection({
   const resolvedPrices = useRecommendationPrices(visibleItems);
 
   if (visibleItems.length === 0) return null;
-  // Same narrower, single-row, fade-masked treatment as the analogs/similar
-  // carousels (ProductRelatedItemsClientSection) — kept in sync so every
-  // horizontal product strip on the page swipes and looks the same way.
-  const listClass = `product-rail mt-3 grid grid-flow-col grid-rows-1 auto-cols-[172px] gap-2.5 overflow-x-auto overscroll-x-contain ${visibleItems.length > 2 ? "pb-2" : "pb-1"} text-left snap-x snap-mandatory scroll-smooth [scrollbar-width:thin] [mask-image:linear-gradient(to_right,black_0%,black_92%,transparent_100%)] sm:auto-cols-[176px] sm:gap-3 lg:auto-cols-[188px]`;
+  const listClass = productRailClass(visibleItems.length);
 
   return (
     <section className="product-section">

@@ -84,9 +84,6 @@ export interface GtmEcommercePayload {
   items: GtmEcommerceItem[];
 }
 
-/** @deprecated Use GtmEcommerceItem */
-export type GtmItem = GtmEcommerceItem;
-
 const getAnalyticsMode = (): AnalyticsMode => {
   if (typeof window === "undefined") return "disabled";
   return window.__PARTSON_ANALYTICS_MODE__ || fallbackAnalyticsMode;

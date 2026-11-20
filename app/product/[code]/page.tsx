@@ -2515,7 +2515,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {!isModalView && (
                 <div className="product-navigation-row">
                   <nav aria-label="Навігаційні хлібні крихти" className="product-breadcrumbs">
-                    <ol className="flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 text-[11px] font-semibold text-slate-500 [scrollbar-width:none] sm:text-[12px] [&::-webkit-scrollbar]:hidden">
+                    <ol className="swipe-rail swipe-rail--free flex items-center gap-1 whitespace-nowrap pb-1 text-[11px] font-semibold text-slate-500 sm:text-[12px]">
                       {breadcrumbItems.map((item, index) => (
                         <li
                           key={`${item.href}:${item.label}:${index}`}

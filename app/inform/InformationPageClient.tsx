@@ -168,12 +168,12 @@ export default function InformationPageClient({ initialSectionKey }: Information
               <p className="info-read info-read-muted info-read-medium hidden px-2 pb-2 pt-1 text-[13px] lg:block">
                 Розділи
               </p>
-              <ul className="flex snap-x gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:overflow-visible">
+              <ul className="swipe-rail flex gap-1.5 lg:grid lg:overflow-visible">
                 {informationSections.map((tab) => {
                   const isActive = tab.key === section.key;
                   const Icon = SECTION_ICONS[tab.key];
                   return (
-                    <li key={tab.key} className={`snap-start ${isActive ? "order-first lg:order-none" : ""}`}>
+                    <li key={tab.key} className={isActive ? "order-first lg:order-none" : undefined}>
                       <Link
                         href={getInformationPath(tab.key)}
                         transitionTypes={NAV_TRANSITION}
@@ -231,7 +231,7 @@ export default function InformationPageClient({ initialSectionKey }: Information
           <div className="min-w-0 select-text">
             <ViewTransition key={section.key} name="info-content" share="info-content" enter="info-content" exit="info-content" default="none">
               <div>
-                <nav aria-label="Зміст сторінки" className="info-toc-rail -mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden">
+                <nav aria-label="Зміст сторінки" className="info-toc-rail swipe-rail -mx-1 mb-6 flex gap-2 px-1 pb-1 [--swipe-rail-pad:0.25rem] lg:hidden">
                   {toc.map((item) => (
                     <a
                       key={item.id}

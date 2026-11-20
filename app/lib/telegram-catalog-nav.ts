@@ -359,22 +359,6 @@ export const buildModelMenu = async (
   };
 };
 
-// Reuses getModelGroupBreakdown's own effectiveQuery (the tiered-fallback
-// search string it already validated against real results) so the product
-// fetch below is guaranteed to match what the model card counted.
-export const resolveModelProductQuery = async (
-  brandSlug: string,
-  modelIndex: number
-): Promise<{ searchQuery: string } | null> => {
-  const resolved = await resolveBrandModels(brandSlug);
-  const model = resolved?.models[modelIndex];
-  if (!resolved || !model) return null;
-
-  const breakdown = await getModelGroupBreakdown(resolved.brand.name, model.name);
-  if (!breakdown.effectiveQuery) return null;
-  return { searchQuery: breakdown.effectiveQuery };
-};
-
 export const buildProducersListMenu = async (page: number): Promise<NavMenu> => {
   const { clientProducers } = await getFullManufacturersDirectoryData();
   const { pageItems, page: clampedPage, totalPages } = paginate(clientProducers, page);

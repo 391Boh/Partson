@@ -129,13 +129,3 @@ export const parseProductDescription = (
   return { fitment, fitmentText, paragraphs, specs };
 };
 
-// Plain-text rendering of the same structure, for places that can only show
-// a string (meta descriptions, JSON-LD).
-export const formatProductDescriptionText = (text: string | null | undefined) => {
-  const { fitmentText, paragraphs, specs } = parseProductDescription(text);
-  return [
-    ...(fitmentText ? [fitmentText] : []),
-    ...paragraphs,
-    ...specs.map((spec) => `${spec.label}: ${spec.value}`),
-  ].join("\n");
-};

@@ -8,7 +8,9 @@
 # incident (V8 OOM core dumps filled the disk, then 1C answered HTTP 500 to
 # ~92% of requests until an `apache2ctl graceful`):
 #   - disk >= 88%: delete what is always safe to delete (core dumps, npm
-#     cache, Turbopack build caches of release dirs, journal over 50 MB);
+#     and apt caches, Turbopack build caches of release dirs, journal over
+#     50 MB);
+# and once a day removes expired product-photo cache files.
 #   - >= 50 1C answers in 5 minutes and >= 80% of them 5xx: graceful-restart
 #     Apache (1C runs inside it), at most once per 30 minutes.
 set -u
@@ -49,6 +51,7 @@ if [ "${disk:-0}" -ge 88 ]; then
     rm -rf /var/www/Partson-release-*/.next/cache/turbopack 2>/dev/null
   fi
   journalctl --vacuum-size=50M >/dev/null 2>&1
+  apt-get clean >/dev/null 2>&1
   actions="$actions disk-cleanup(${disk}%->$(df --output=pcent / | tail -1 | tr -dc '0-9')%)"
 fi
 
@@ -60,6 +63,16 @@ if [ "$total" -ge 50 ] && [ $(( errors * 100 / total )) -ge 80 ]; then
   else
     actions="$actions 1C-failing(${errors}/${total} 5xx, graceful done <30m ago)"
   fi
+fi
+
+# Once a day: files no reader can use any more. The product-photo disk cache
+# (app/product-image/[code]/route.ts) stores a 7-day expiry and ignores older
+# entries, but never deletes them; release dirs inherit them on every build.
+DAILY=/var/lib/partson/health-last-daily
+if [ $(( $(date +%s) - $(cat "$DAILY" 2>/dev/null || echo 0) )) -ge 86400 ]; then
+  date +%s > "$DAILY"
+  expired=$(find /var/www/Partson-release-*/.cache/product-images -maxdepth 1 -type f -mmin +$(( 7 * 24 * 60 + 60 )) -print -delete 2>/dev/null | wc -l)
+  [ "$expired" -gt 0 ] && actions="$actions expired-photos(${expired})"
 fi
 
 echo "$now disk=${disk}% avail=${avail}MB swap=${swap}MB next_rss=${rss}MB next_up=${up}s pm2_restarts=${restarts} 1c_5min=${total} 1c_5xx=${errors}${actions:+ ACTION:$actions}" >> "$LOG"

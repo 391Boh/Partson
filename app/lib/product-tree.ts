@@ -382,10 +382,3 @@ const fetchRawTreeNodes = async (): Promise<ProductTreeNode[]> => {
 // so they need the same parser/source without the unstable_cache wrapper.
 export const getProductTreeNodesUncached = fetchRawTreeNodes;
 
-const fetchRawTreeNodesCached = unstable_cache(
-  fetchRawTreeNodes,
-  ["product-tree-raw-nodes-v2-fresh-groups"],
-  { revalidate: PRODUCT_TREE_REVALIDATE_SECONDS, tags: ["product-tree"] }
-);
-
-export const getProductTreeNodes = cache(async () => fetchRawTreeNodesCached());

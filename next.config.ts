@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
     // object without the function on it at runtime ("... is not a
     // function"), reproducing on every load, not just a stale dev cache.
     // The tree-shaking win isn't worth breaking firebase init.
-    optimizePackageImports: ["lucide-react", "react-icons", "framer-motion"],
+    optimizePackageImports: ["lucide-react", "framer-motion"],
     // Next.js auto-detects CPU count and spawns that many static-generation
     // workers (each rendering pages concurrently, each making its own live
     // 1C calls). The production VPS has only 1-2GB RAM total, and the live

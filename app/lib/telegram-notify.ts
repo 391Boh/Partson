@@ -31,14 +31,6 @@ export const readTelegramNotifyChatIds = () => {
     .filter(Boolean);
 };
 
-export const isTelegramNotifyConfigured = () =>
-  Boolean(
-    process.env.TELEGRAM_BOT_TOKEN ||
-      process.env.TELEGRAM_ADMIN_BOT_TOKEN ||
-      process.env.BOT_TOKEN
-  ) &&
-  readTelegramNotifyChatIds().length > 0;
-
 export const sendTelegramNotification = async (
   text: string
 ): Promise<TelegramNotificationResult> => {

@@ -6,7 +6,7 @@ import { loadDeferredUi } from "app/lib/deferred-stylesheet";
 import {
   ShoppingCart, User, Menu, Info,
   List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
-  CarFront, Factory, Layers3, BookOpen
+  CarFront, Factory, Layers3, BookOpen, X
 } from 'lucide-react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -15,7 +15,6 @@ import { useCart } from 'app/context/CartContext';
 import { useFirebaseAuthState } from 'app/lib/firebase-auth-state';
 import { fetchPartnerStatus } from 'app/lib/partner-status-client';
 import SmartLink from 'app/components/SmartLink';
-import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { createPortal } from 'react-dom';
 
 import { loadAccountInfoModule, loadAuthModalModule } from "app/lib/auth-modal-loader";
@@ -759,7 +758,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-sky-400/25 bg-sky-500/15 text-sky-300">
-                  <MagnifyingGlassIcon className="h-4 w-4" />
+                  <Search className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 </span>
                 <h2 id="header-search-modal-title" className="text-[15px] font-bold tracking-[-0.02em] text-slate-100">
                   Пошук запчастин
@@ -770,7 +769,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
                 aria-label="Закрити пошук"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-white/[0.16] sm:h-8 sm:w-8 sm:rounded-[11px] bg-white/[0.09] text-slate-300 transition-all duration-150 hover:-translate-y-px hover:border-rose-300/40 hover:bg-rose-500/[0.14] hover:text-rose-200 active:translate-y-0 active:scale-95"
               >
-                <XMarkIcon className="h-5 w-5" />
+                <X className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
               </button>
             </div>
 

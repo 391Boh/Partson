@@ -58,7 +58,7 @@ export default function VehicleYearRail({ value, years, loading = false, onChang
             <ChevronLeft size={18} strokeWidth={2.6} aria-hidden="true" />
           </button>
         )}
-        <div ref={scrollerRef} className="vehicle-year-rail-scroller no-scrollbar" onScroll={syncEdges} aria-busy={loading || undefined}>
+        <div ref={scrollerRef} className="vehicle-year-rail-scroller swipe-rail" onScroll={syncEdges} aria-busy={loading || undefined}>
           {loading ? (
             Array.from({ length: 7 }, (_, index) => <span key={index} className="vehicle-year-chip" data-placeholder aria-hidden="true" />)
           ) : (

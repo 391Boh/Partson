@@ -4,17 +4,6 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ProfileAvatar } from './ProfileAvatar';
 import { findAvatarFrame, getProfileAvatarTier, type AvatarTier } from 'app/lib/profile-appearance';
 import {
-  ChatBubbleBottomCenterTextIcon,
-  ShoppingBagIcon,
-  PhoneIcon,
-  TrashIcon,
-  CheckCircleIcon,
-  EyeIcon,
-  TruckIcon,
-  UsersIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
-import {
   ArrowLeft,
   Bookmark,
   Check,
@@ -39,6 +28,14 @@ import {
   ShoppingBag,
   Users2,
   X,
+  CircleCheck,
+  Eye,
+  FileText,
+  MessageSquareText,
+  Phone,
+  Trash2,
+  Truck,
+  Users,
 } from 'lucide-react';
 import {
   collection,
@@ -1449,7 +1446,7 @@ export default function AdminChatPanel({
 
       <div className="sticky top-0 z-10 grid grid-cols-2 gap-1 border-b border-white/10 bg-slate-950/70 px-1.5 py-1 backdrop-blur-xl sm:grid-cols-4 sm:gap-1.5 sm:px-2.5 sm:py-1.5">
         <Tab
-          icon={<ChatBubbleBottomCenterTextIcon className="h-5 w-5" />}
+          icon={<MessageSquareText className="h-5 w-5" strokeWidth={1.75} />}
           label="Повідомлення"
           value={totalThreads}
           meta="Діалоги"
@@ -1458,7 +1455,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('messages')}
         />
         <Tab
-          icon={<UsersIcon className="h-5 w-5" />}
+          icon={<Users className="h-5 w-5" strokeWidth={1.75} />}
           label="Користувачі"
           value={allUsers.length}
           meta={`Онлайн ${onlineUsersCount}`}
@@ -1466,7 +1463,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('users')}
         />
         <Tab
-          icon={<ShoppingBagIcon className="h-5 w-5" />}
+          icon={<ShoppingBag className="h-5 w-5" strokeWidth={1.75} />}
           label="Замовлення"
           value={orders.length}
           meta="Заявки"
@@ -1475,7 +1472,7 @@ export default function AdminChatPanel({
           onClick={() => setTab('orders')}
         />
         <Tab
-          icon={<PhoneIcon className="h-5 w-5" />}
+          icon={<Phone className="h-5 w-5" strokeWidth={1.75} />}
           label="Дзвінки"
           value={calls.length}
           meta="Запити"
@@ -1526,7 +1523,7 @@ export default function AdminChatPanel({
                     className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
                   >
                     <span className="flex items-center gap-2 min-w-0">
-                      <DocumentTextIcon className="h-4 w-4 shrink-0 text-violet-300" />
+                      <FileText className="h-4 w-4 shrink-0 text-violet-300" strokeWidth={1.75} />
                       <span className="min-w-0 text-[11px] font-black uppercase leading-snug tracking-[0.08em] text-violet-200 [overflow-wrap:anywhere]">
                         Шаблони та автовідповідь
                       </span>
@@ -1685,7 +1682,7 @@ export default function AdminChatPanel({
                                         title="Видалити"
                                         className="rounded-[8px] border border-rose-400/20 p-1.5 text-rose-300 hover:bg-rose-500/10"
                                       >
-                                        <TrashIcon className="h-3.5 w-3.5" />
+                                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                                       </button>
                                     </div>
                                   </div>
@@ -1805,7 +1802,7 @@ export default function AdminChatPanel({
 
                 {visibleMessageThreads.length === 0 && (
                   <EmptyPanelState
-                    icon={<ChatBubbleBottomCenterTextIcon className="h-10 w-10" />}
+                    icon={<MessageSquareText className="h-10 w-10" strokeWidth={1.75} />}
                     title="Чатів не знайдено"
                     description="Нові діалоги з’являться тут. Також перевірте фільтр пошуку."
                   />
@@ -1874,7 +1871,7 @@ export default function AdminChatPanel({
                             className="inline-flex h-9 w-9 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-slate-400 transition hover:bg-rose-500/15 hover:text-rose-300"
                             title="Видалити чат"
                           >
-                            <TrashIcon className="h-4.5 w-4.5" />
+                            <Trash2 className="h-4.5 w-4.5" strokeWidth={1.75} />
                           </button>
                         </div>
                       </div>
@@ -2048,7 +2045,7 @@ export default function AdminChatPanel({
                           className="ml-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-transparent text-slate-400 transition hover:border-white/10 hover:bg-white/5 hover:text-rose-400 sm:ml-2 sm:h-9 sm:w-9 sm:rounded-2xl"
                           title="Видалити повідомлення"
                         >
-                          <TrashIcon className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" strokeWidth={1.75} />
                         </button>
                       </div>
                     );
@@ -2402,7 +2399,7 @@ export default function AdminChatPanel({
             </SearchDock>
             {visibleOrders.length === 0 && (
               <EmptyPanelState
-                icon={<ShoppingBagIcon className="h-10 w-10" />}
+                icon={<ShoppingBag className="h-10 w-10" strokeWidth={1.75} />}
                 title="Замовлень не знайдено"
                 description={
                   orderUserFilterId &&
@@ -2471,7 +2468,7 @@ export default function AdminChatPanel({
                         title="Оглянуто"
                         disabled={o.read}
                       >
-                        <EyeIcon className="w-5 h-5" />
+                        <Eye className="w-5 h-5" strokeWidth={1.75} />
                       </button>
                       <button
                         onClick={() => markOrderShipped(o.id)}
@@ -2481,7 +2478,7 @@ export default function AdminChatPanel({
                         title={o.cancelled ? 'Замовлення скасовано' : 'Відправлено'}
                         disabled={o.shipped || o.cancelled}
                       >
-                        <TruckIcon className="w-5 h-5" />
+                        <Truck className="w-5 h-5" strokeWidth={1.75} />
                       </button>
                       <button
                         onClick={() => markOrderCompleted(o.id)}
@@ -2491,7 +2488,7 @@ export default function AdminChatPanel({
                         title={o.cancelled ? 'Замовлення скасовано' : 'Виконано'}
                         disabled={o.completed || o.cancelled}
                       >
-                        <CheckCircleIcon className="w-5 h-5" />
+                        <CircleCheck className="w-5 h-5" strokeWidth={1.75} />
                       </button>
                       <button
                         onClick={() => toggleOrderExpand(o.id, true)}

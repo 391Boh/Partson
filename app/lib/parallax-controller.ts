@@ -65,27 +65,6 @@ const ACTIVE_OVERSCAN_PX = 240;
 // it is deliberately not used as a fallback.
 const readScrollY = () => window.scrollY;
 
-const smoothstep = (value: number) => value * value * (3 - 2 * value);
-
-/** Smooth 0→1 transit from just below the viewport to just above it. */
-export const getViewportParallaxProgress = (
-  scrollY: number,
-  viewportH: number,
-  top: number,
-  height: number
-) => {
-  const raw = (scrollY + viewportH - top) / (viewportH + height);
-  return smoothstep(Math.min(Math.max(raw, 0), 1));
-};
-
-/** The same transit expressed as -1 entering, 0 centred, +1 leaving. */
-export const getCenteredParallaxProgress = (
-  scrollY: number,
-  viewportH: number,
-  top: number,
-  height: number
-) => getViewportParallaxProgress(scrollY, viewportH, top, height) * 2 - 1;
-
 const refreshMotionBudget = () => {
   if (constrainedHardware === null) {
     const nav = navigator as Navigator & { deviceMemory?: number };
@@ -375,49 +354,3 @@ export function registerParallax(opts: {
 /** Native scroll-driven animations available (compositor-only parallax). */
 export const canUseTimelineParallax = () =>
   typeof CSS !== "undefined" && CSS.supports("animation-timeline: view()");
-
-/**
- * Compositor alternative to `registerParallax` for multi-plane backdrops.
- * Every effect here is a transform of the same -1…0…+1 progress that
- * `getCenteredParallaxProgress` produces, and each is linear in progress on
- * either side of 0. So three samples per plane (entering, centred, leaving)
- * written as custom properties are enough: the `[data-plx-root]` keyframes in
- * globals.css interpolate them on the root's own view timeline, with bezier
- * segments that reproduce the controller's smoothstep exactly. No scroll
- * listener, no rAF and no main-thread style writes while scrolling — the
- * previous per-frame transform writes repainted whole homepage stages.
- * Call again after a breakpoint change; planes left out stop animating.
- */
-export function applyTimelineParallax<P extends { el: HTMLElement }>(
-  root: HTMLElement,
-  all: readonly P[],
-  active: readonly P[],
-  transformAt: (plane: P, progress: number) => string
-) {
-  root.dataset.plxRoot = "";
-  const live = new Set(active);
-  for (const plane of all) {
-    const { el } = plane;
-    if (!live.has(plane)) {
-      delete el.dataset.plx;
-      continue;
-    }
-    el.style.setProperty("--plx-0", transformAt(plane, -1));
-    el.style.setProperty("--plx-1", transformAt(plane, 0));
-    el.style.setProperty("--plx-2", transformAt(plane, 1));
-    el.dataset.plx = "";
-  }
-}
-
-/** Release native animation layers while their section is outside overscan.
- * Reapplying the timeline resumes at the current scroll position. */
-export function clearTimelineParallax(
-  root: HTMLElement,
-  planes: readonly { el: HTMLElement }[]
-) {
-  delete root.dataset.plxRoot;
-  for (const { el } of planes) {
-    delete el.dataset.plx;
-    el.style.willChange = "";
-  }
-}

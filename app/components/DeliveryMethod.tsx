@@ -20,12 +20,6 @@ interface CityOrWarehouse {
   Ref: string;
 }
 
-export type DeliveryMethodValue =
-  | 'Нова Пошта'
-  | 'Самовивіз'
-  | 'Доставка у Львові'
-  | '';
-
 interface Props {
   deliveryMethod: 'Нова Пошта' | 'Самовивіз' | 'Доставка у Львові' | '';
   setDeliveryMethod: (method: 'Нова Пошта' | 'Самовивіз' | 'Доставка у Львові' | '') => void;

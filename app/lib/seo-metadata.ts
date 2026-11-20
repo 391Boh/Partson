@@ -15,8 +15,6 @@ export const STORE_ADDRESS = "Львів, вул. Перфецького, 8";
 export const SELLER_NAME = "ФОП Романюк Роман Мирославович";
 export const SELLER_TAX_ID = "2790712258";
 export const SELLER_EMAIL = "romaniukbboogg@gmail.com";
-export const STORE_PHONE_SEO_LABEL = `☎️ ${STORE_PHONE_DISPLAY}`;
-export const STORE_ADDRESS_SEO_LABEL = `📍 ${STORE_ADDRESS}`;
 export const SEO_DESCRIPTION_MAX_LENGTH = 160;
 // Google has no fixed title character limit (it truncates by rendered width),
 // but 60 characters is a useful editorial target for common result layouts.
