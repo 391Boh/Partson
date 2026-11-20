@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: "description is too long (max 10 000 chars)" }, 400);
   }
 
-  // The 1C description endpoint locates the product by НомерПоКаталогу only.
-  // The internal Код is never a valid stand-in for it (sending it there is
-  // what produced "Номенклатура не найдена"), but it can be used to read the
+  // 1C locates the product by Код when it is sent (see sendDescription) and
+  // by НомерПоКаталогу otherwise; Код is never a stand-in for the article
+  // field itself (that produced "Номенклатура не найдена"), but it can be used to read the
   // product's current НомерПоКаталогу from 1C — read-only — when the caller
   // has none or 1C doesn't recognise the one it sent (e.g. renamed in 1C
   // since the page loaded).
@@ -119,7 +119,12 @@ export async function POST(request: NextRequest) {
   const sendDescription = async (catalogNumber: string) => {
     const result = await oneCRequest(ONEC_SET_DESCRIPTION_ENDPOINT, {
       method: "POST",
-      body: { НомерПоКаталогу: catalogNumber, Описание: description },
+      // With Код, 1C (module loaded 2026-11-20) writes exactly this product;
+      // by НомерПоКаталогу alone it takes the first product with that article,
+      // which is another item when two share one.
+      body: code
+        ? { Код: code, НомерПоКаталогу: catalogNumber, Описание: description }
+        : { НомерПоКаталогу: catalogNumber, Описание: description },
       retries: 1,
       retryDelayMs: 300,
       cacheTtlMs: 0,

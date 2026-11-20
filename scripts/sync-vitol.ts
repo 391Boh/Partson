@@ -301,10 +301,14 @@ async function updatePriceInOneC(entry: StateEntry, priceEuro: number, costEuro:
   }
 }
 
-async function setDescriptionInOneC(article: string, text: string) {
+// By 1C code (getinfo accepts Код since the 1C module loaded 2026-11-20):
+// by НомерПоКаталогу 1C finds only the first product with that article, so
+// products sharing one (VITOL's duplicates, AP01 vs ap01, K52, the 3M 1600
+// tapes) could not get their own descriptions.
+async function setDescriptionInOneC(code: string, text: string) {
   const result = await oneCRequest(DESCRIPTION_ENDPOINT, {
     method: "POST",
-    body: { НомерПоКаталогу: article, Описание: text },
+    body: { Код: code, Описание: text },
     timeoutMs: 20_000,
     retries: 1,
     retryDelayMs: 300,
@@ -372,25 +376,12 @@ async function main() {
 
   const ownCodes = new Set(Object.values(state.items).map((entry) => entry.code.toLowerCase()));
   const existing = new Map<string, string>();
-  const foreignArticles = new Set<string>();
   for (const product of await fetchFullCatalogProducts()) {
     if (ownCodes.has(product.code.toLowerCase())) continue;
     const key = vitolMatchKey(product.article, product.producer);
     if (key !== "|") existing.set(key, product.code);
-    if (product.article.trim()) foreignArticles.add(product.article.trim().toLowerCase());
   }
   console.log(`Каталог 1С: ${existing.size} власних позицій для перевірки дублів`);
-  // 1C keys descriptions (and price rows) by article: an article shared by two
-  // products cannot carry two descriptions, so those are left untouched.
-  const articleUses = new Map<string, number>();
-  for (const item of feed.items) {
-    const key = item.article.trim().toLowerCase();
-    articleUses.set(key, (articleUses.get(key) || 0) + 1);
-  }
-  const ambiguousArticle = (article: string) => {
-    const key = article.trim().toLowerCase();
-    return (articleUses.get(key) || 0) > 1 || foreignArticles.has(key);
-  };
 
   const report = {
     startedAt,
@@ -405,7 +396,6 @@ async function main() {
     moved: 0,
     toMove: 0,
     descriptions: 0,
-    descriptionsSkipped: 0,
     alreadyInOneC: [] as Array<{ supplierCode: string; article: string; code: string }>,
     failed: [] as Array<{ supplierCode: string; action: string; error: string }>,
     unchanged: 0,
@@ -426,14 +416,10 @@ async function main() {
       entry.descHash = hash;
       return;
     }
-    if (ambiguousArticle(entry.article)) {
-      report.descriptionsSkipped += 1;
-      return;
-    }
     report.descriptions += 1;
     if (!apply) return;
     try {
-      await setDescriptionInOneC(entry.article, text);
+      await setDescriptionInOneC(entry.code, text);
       entry.descHash = hash;
     } catch (error) {
       fail(item.supplierCode, "description", error);
@@ -493,7 +479,7 @@ async function main() {
     createdCount += 1;
     if (!apply) {
       report.created.push({ supplierCode: item.supplierCode, article: item.article, retailUah, group });
-      if (vitolDescription(item) && !ambiguousArticle(item.article)) report.descriptions += 1;
+      if (vitolDescription(item)) report.descriptions += 1;
       continue;
     }
     try {
@@ -596,7 +582,7 @@ async function main() {
       `${verb("Створено", "Буде створено")}: ${report.created.length}${createLimit < Infinity ? ` (ліміт ${createLimit})` : ""}`,
       `${verb("Оновлено ціни", "Буде оновлено ціни")}: ${report.updated.length}`,
       `${verb("Перенесено в групи", "Буде перенесено в групи")}: ${apply ? report.moved : report.toMove}`,
-      `${verb("Записано описів", "Буде записано описів")}: ${report.descriptions} (пропущено через спільний артикул: ${report.descriptionsSkipped})`,
+      `${verb("Записано описів", "Буде записано описів")}: ${report.descriptions}`,
       `Без змін у ціні: ${report.unchanged}`,
       `Вже є в 1С (не чіпаю): ${report.alreadyInOneC.length}`,
       `Зникли з фіду: ${report.goneFromFeed.length}`,
