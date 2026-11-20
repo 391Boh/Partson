@@ -120,6 +120,92 @@ function getEndpointConcurrencyLimit(endpoint) {
   }
 }
 
+// --- One gate for every 1C request in this process ---------------------------
+// Apache serves the 1C publication with mpm_prefork MaxRequestWorkers 4, so 1C
+// answers at most 4 requests at a time. The per-endpoint limits above add up to
+// ~12, and Next.js loads this module more than once (pages and route handlers
+// get separate copies), so the site used to open far more connections than
+// that: the surplus queued inside Apache, timed out here, and 1C still did the
+// work for requests nobody was waiting for any more (hundreds of allgoods/
+// getimages timeouts a day on 2026-11-20). Waiting here instead costs 1C
+// nothing, and a request whose budget runs out in this queue is never sent.
+// Anchored on globalThis so every module copy shares the one gate.
+const ONEC_GLOBAL_CONCURRENCY = parsePositiveIntEnv("ONEC_GLOBAL_CONCURRENCY", 4);
+const globalOneCGate =
+  globalThis.__partsonOneCGate ??
+  (globalThis.__partsonOneCGate = { active: 0, queue: [] });
+
+class OneCBusyError extends Error {}
+
+function releaseGlobalOneCSlot() {
+  globalOneCGate.active = Math.max(0, globalOneCGate.active - 1);
+  while (globalOneCGate.queue.length > 0 && globalOneCGate.active < ONEC_GLOBAL_CONCURRENCY) {
+    const next = globalOneCGate.queue.shift();
+    if (next.settled) continue;
+    next.settled = true;
+    clearTimeout(next.timer);
+    globalOneCGate.active += 1;
+    next.resolve();
+  }
+}
+
+// Resolves once a slot is held (the caller must release it), or rejects with
+// OneCBusyError after waitMs without one.
+function acquireGlobalOneCSlot(waitMs) {
+  if (globalOneCGate.active < ONEC_GLOBAL_CONCURRENCY) {
+    globalOneCGate.active += 1;
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const entry = { settled: false, resolve, timer: null };
+    entry.timer = setTimeout(() => {
+      if (entry.settled) return;
+      entry.settled = true;
+      const index = globalOneCGate.queue.indexOf(entry);
+      if (index !== -1) globalOneCGate.queue.splice(index, 1);
+      reject(new OneCBusyError(`Timed out after ${waitMs}ms waiting for a free 1C slot`));
+    }, Math.max(1, waitMs));
+    globalOneCGate.queue.push(entry);
+  });
+}
+
+// --- Traffic summary ---------------------------------------------------------
+// One log line per 15 minutes: requests per endpoint and request shape (the
+// body's field names, not values), how many came back empty, timed out or
+// never got a 1C slot, and the average time. Shows which callers load 1C.
+const ONEC_STATS_INTERVAL_MS = 15 * 60 * 1000;
+const oneCStats =
+  globalThis.__partsonOneCStats ??
+  (globalThis.__partsonOneCStats = { since: Date.now(), rows: new Map() });
+
+function requestShape(endpoint, body) {
+  if (!body || typeof body !== "object") return endpoint;
+  const fields = Object.keys(body).filter((key) => body[key] !== false && body[key] !== "" && body[key] != null);
+  return `${endpoint}{${fields.sort().join(",")}}`;
+}
+
+function recordOneCStat(shape, outcome, ms, text) {
+  const row = oneCStats.rows.get(shape) ?? { n: 0, empty: 0, failed: 0, busy: 0, ms: 0 };
+  row.n += 1;
+  row.ms += ms;
+  if (outcome === "busy") row.busy += 1;
+  else if (outcome === "failed") row.failed += 1;
+  else if (typeof text === "string" && /"(?:items|Товари)"\s*:\s*\[\s*\]/.test(text.slice(0, 600))) row.empty += 1;
+  oneCStats.rows.set(shape, row);
+
+  const now = Date.now();
+  if (now - oneCStats.since < ONEC_STATS_INTERVAL_MS) return;
+  const minutes = Math.round((now - oneCStats.since) / 60000);
+  const summary = [...oneCStats.rows]
+    .sort((a, b) => b[1].n - a[1].n)
+    .slice(0, 12)
+    .map(([key, r]) => `${key} n=${r.n} empty=${r.empty} failed=${r.failed} busy=${r.busy} avg=${Math.round(r.ms / r.n)}ms`)
+    .join(" | ");
+  console.log(`[1C stats ${minutes}m] ${summary}`);
+  oneCStats.since = now;
+  oneCStats.rows.clear();
+}
+
 // A request's own timeoutMs (below, req.setTimeout) only bounds time spent
 // actually in flight — it starts counting once this function calls `task`,
 // not while queued waiting for a concurrency slot. Under a genuinely slow
@@ -511,8 +597,31 @@ export async function oneCRequest(endpoint, options = {}) {
       payload = stableStringify(body || {});
     }
 
+    const shape = requestShape(endpoint, body);
     let attempt = 0;
     while (true) {
+      const attemptStartedAt = nowMs();
+      // Stock movements (orders) are never held back: they are rare, and one
+      // that is refused here could not be retried.
+      const gated = !stockMovement;
+      let attemptTimeoutMs = timeoutMs;
+      try {
+        if (gated) {
+          // Waiting for a slot spends this attempt's own budget (it used to be
+          // spent the same way in Apache's queue); at least a quarter of it is
+          // always left for 1C itself.
+          await acquireGlobalOneCSlot(Math.floor(timeoutMs * 0.75));
+          attemptTimeoutMs = Math.max(Math.floor(timeoutMs * 0.25), timeoutMs - (nowMs() - attemptStartedAt));
+        }
+      } catch (err) {
+        recordOneCStat(shape, "busy", nowMs() - attemptStartedAt);
+        logOneCFailure(endpoint, getOneCUrl(endpoint), err?.message || String(err));
+        return {
+          status: 503,
+          text: JSON.stringify({ error: "1C Service busy", details: err?.message || String(err), endpoint }),
+          contentType: "application/json",
+        };
+      }
       try {
         const result = await new Promise((resolve, reject) => {
           const req = transport.request(
@@ -551,12 +660,12 @@ export async function oneCRequest(endpoint, options = {}) {
 
           // setTimeout only fires on an idle socket; a response trickling in
           // slowly would never trip it. The deadline bounds the whole request.
-          req.setTimeout(timeoutMs, () => {
+          req.setTimeout(attemptTimeoutMs, () => {
             req.destroy(new Error(`Request timeout after ${timeoutMs}ms`));
           });
           const deadline = setTimeout(() => {
             req.destroy(new Error(`Request timeout after ${timeoutMs}ms`));
-          }, timeoutMs + 1000);
+          }, attemptTimeoutMs + 1000);
 
           req.on("error", (err) => {
             clearTimeout(deadline);
@@ -569,7 +678,10 @@ export async function oneCRequest(endpoint, options = {}) {
           }
 
           req.end();
+        }).finally(() => {
+          if (gated) releaseGlobalOneCSlot();
         });
+        recordOneCStat(shape, result.status >= 200 && result.status < 300 ? "ok" : "failed", nowMs() - attemptStartedAt, result.text);
 
         const shouldRetryStatus =
           retryOn5xx &&
@@ -592,6 +704,7 @@ export async function oneCRequest(endpoint, options = {}) {
         if (!stockMovement) recordBuildSnapshot(endpoint, resolvedCacheKey, result);
         return result;
       } catch (err) {
+        recordOneCStat(shape, "failed", nowMs() - attemptStartedAt);
         attempt += 1;
         const details =
           err?.name === "AbortError"

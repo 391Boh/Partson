@@ -469,10 +469,16 @@ const fetchAllgoodsResponsesByExactLookup = async (
   // Same ВключатьЦінуЗакуп flag the batched price-details lookup sends —
   // without it here too, the per-key fallback below always comes back with
   // ЦінаПрод but no cost price, even for admin callers that asked for one.
+  // Every 1C code has ONEC_CODE_SHAPE (all 6 388 public products checked
+  // 20.11), so a token of any other shape is only ever a catalog number: asking
+  // 1C to match it as a code was a guaranteed-empty call — about a third of the
+  // ~23k daily allgoods requests on a 1C that serves 4 at a time.
   const lookupFields =
     options?.lookupFields && options.lookupFields.length > 0
       ? options.lookupFields
-      : [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD];
+      : ONEC_CODE_SHAPE.test(normalized)
+        ? [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD]
+        : [ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD];
   // A 1C code is asked as a code first; the two catalog-number queries only
   // follow when that names no such product. Their answers are returned
   // together, so confirmCatalogProductsMissing still sees all three.
@@ -547,7 +553,13 @@ export const confirmCatalogProductsMissing = async (
 ) => {
   const unique = Array.from(new Set(tokens.map((token) => token.trim()).filter(Boolean)));
   if (unique.length === 0) return false;
-  const expectedAnswers = new Set([ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD]).size;
+  // fetchAllgoodsResponsesByExactLookup asks by code only for code-shaped tokens.
+  const expectedAnswersFor = (token: string) =>
+    new Set(
+      ONEC_CODE_SHAPE.test(token)
+        ? [ALLGOODS_CODE_FIELD, ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD]
+        : [ALLGOODS_ARTICLE_FIELD, ALLGOODS_ARTICLE_ALT_FIELD]
+    ).size;
 
   const missing = await Promise.all(
     unique.map(async (token) => {
@@ -555,7 +567,7 @@ export const confirmCatalogProductsMissing = async (
         timeoutMs: options?.timeoutMs ?? 3000,
         cacheTtlMs: 1000 * 30,
       }).catch(() => []);
-      if (responses.length < expectedAnswers) return false;
+      if (responses.length < expectedAnswersFor(token)) return false;
       const target = normalizeFacetValue(token);
       return !responses.some((response) =>
         parseAllgoodsPayload(response.text).items.some(
@@ -3626,7 +3638,11 @@ const scanFullCatalogSnapshot = async (): Promise<FullCatalogSnapshot> => {
       body,
       retries: 1,
       retryDelayMs: 300,
-      cacheTtlMs: 1000 * 60 * 20,
+      // Not cached: the snapshot built from these pages is the cache. Kept in
+      // oneC.js's response cache (64 MB cap) the ~30 pages of a scan took
+      // ~20 MB per module copy and evicted the small entries that do get
+      // reused (category tree, prices, lookups).
+      cacheTtlMs: 0,
     }).catch(() => null);
 
     if (!response || response.status < 200 || response.status >= 300) {

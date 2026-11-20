@@ -18,8 +18,11 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       
-      // Обмеження пам'яті - автоматичний рестарт при перевищенні
-      max_memory_restart: '800M',
+      // Restart only as a last resort. RSS = V8 heap + ~200 MB outside it
+      // (code, large objects, buffers), so this must stay well above the heap
+      // cap below: with 640 MB heap and an 800M limit PM2 killed the server
+      // 26 times a day (2026-11-19) before V8 ever had to collect garbage.
+      max_memory_restart: '880M',
       
       // Автоматичний рестарт при падінні
       autorestart: true,
@@ -37,10 +40,10 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '3000',
-        // Heap below max_memory_restart so V8 collects garbage before PM2
-        // has to kill the process; a 128 MB young generation kept ~300 MB
-        // resident on a 2 GB server shared with 1C.
-        NODE_OPTIONS: '--max-old-space-size=640 --max-semi-space-size=32'
+        // Heap well below max_memory_restart (heap + ~200 MB overhead must
+        // fit) so V8 collects garbage before PM2 has to kill the process.
+        // Live heap measured 2026-11-20: ~290 MB idle, ~410 MB under load.
+        NODE_OPTIONS: '--max-old-space-size=512 --max-semi-space-size=16'
       }
     },
     {
