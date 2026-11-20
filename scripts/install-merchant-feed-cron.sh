@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_PATH="$ROOT_DIR/scripts/update-merchant-feed.sh"
-SCHEDULE="${MERCHANT_FEED_CRON_SCHEDULE:-17 * * * *}"
+SCHEDULE="${MERCHANT_FEED_CRON_SCHEDULE:-17 */3 * * *}"
 BEGIN_MARKER="# BEGIN partson merchant feed"
 END_MARKER="# END partson merchant feed"
 
