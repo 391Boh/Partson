@@ -44,7 +44,10 @@ actions=""
 if [ "${disk:-0}" -ge 88 ]; then
   rm -f /var/lib/apport/coredump/core.* 2>/dev/null
   npm cache clean --force >/dev/null 2>&1
-  rm -rf /var/www/Partson-release-*/.next/cache/turbopack 2>/dev/null
+  # Not while a release is being built: the build writes into that cache.
+  if ! pgrep -f "partson-build.sh|next build" >/dev/null; then
+    rm -rf /var/www/Partson-release-*/.next/cache/turbopack 2>/dev/null
+  fi
   journalctl --vacuum-size=50M >/dev/null 2>&1
   actions="$actions disk-cleanup(${disk}%->$(df --output=pcent / | tail -1 | tr -dc '0-9')%)"
 fi
