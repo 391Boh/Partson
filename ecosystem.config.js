@@ -22,7 +22,7 @@ module.exports = {
       // (code, large objects, buffers), so this must stay well above the heap
       // cap below: with 640 MB heap and an 800M limit PM2 killed the server
       // 26 times a day (2026-11-19) before V8 ever had to collect garbage.
-      max_memory_restart: '880M',
+      max_memory_restart: '900M',
       
       // Автоматичний рестарт при падінні
       autorestart: true,
@@ -42,8 +42,10 @@ module.exports = {
         PORT: '3000',
         // Heap well below max_memory_restart (heap + ~200 MB overhead must
         // fit) so V8 collects garbage before PM2 has to kill the process.
-        // Live heap measured 2026-11-20: ~290 MB idle, ~410 MB under load.
-        NODE_OPTIONS: '--max-old-space-size=512 --max-semi-space-size=16'
+        // Live heap measured 2026-11-20: ~240 MB after GC, 250-310 MB in use,
+        // and a rescan briefly holds two catalog snapshots; 512 MB ran out
+        // twice (V8 OOM abort), so leave room for that peak.
+        NODE_OPTIONS: '--max-old-space-size=576 --max-semi-space-size=16'
       }
     },
     {

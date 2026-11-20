@@ -49,13 +49,23 @@ const isCodeQuery = (value: string) => {
 // The codes a name or description lists, as compact prefixes to test: each
 // word or "/"-piece joined with the next few ("OC405/3/OP570/1" holds
 // "OP5701"; "IMP 220735" holds "IMP220735").
+const CYRILLIC_WORD = /^\p{Script=Cyrillic}+$/u;
 const codeRunsCache = new WeakMap<object, Partial<Record<SearchField, { text: string; runs: string[] }>>>();
 const codeRuns = (item: SearchItem, field: SearchField, value: string) => {
   const byField = codeRunsCache.get(item) ?? {};
   const cached = byField[field];
   if (cached?.text === value) return cached.runs;
   const pieces = value.split(/[\s()[\]{},;:/\\|]+/).map(compact).filter(Boolean);
-  const runs = pieces.map((_, index) => pieces.slice(index, index + 4).join(""));
+  // A run that starts with an all-Cyrillic word can never answer a code query
+  // (isCodeQuery: no Cyrillic, so startsWith fails, and a numeric key that
+  // matches after withoutLetterPrefix also matches the run that starts at the
+  // number itself). Skipping them keeps descriptions — mostly Ukrainian words,
+  // 3.9M characters across the catalog — from holding ~40 MB of runs.
+  const runs: string[] = [];
+  pieces.forEach((piece, index) => {
+    if (CYRILLIC_WORD.test(piece)) return;
+    runs.push(pieces.slice(index, index + 4).join(""));
+  });
   byField[field] = { text: value, runs };
   codeRunsCache.set(item, byField);
   return runs;

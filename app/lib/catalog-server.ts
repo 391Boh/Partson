@@ -3483,6 +3483,7 @@ const fullCatalogState: FullCatalogState =
   });
 const FULL_CATALOG_SCAN_HUNG_MS = 1000 * 60 * 10;
 const FULL_CATALOG_RETRY_AFTER_FAILURE_MS = 1000 * 60;
+const FULL_CATALOG_COLD_RETRY_AFTER_FAILURE_MS = 1000 * 20;
 
 // Called after an admin product edit (see app/api/product-update/route.ts).
 // This snapshot backs several fast, cache-only reads added this session
@@ -3760,6 +3761,13 @@ const getFullCatalogSnapshot = async (): Promise<{
       // After a failed scan, wait before the next one: each attempt is ~20
       // heavy 1C calls, and every search request would otherwise start one.
       if (fullCatalogState.cache && now - fullCatalogState.refreshFailedAt < FULL_CATALOG_RETRY_AFTER_FAILURE_MS) {
+        return Promise.reject(new Error("Full catalog snapshot refresh is backing off"));
+      }
+      // Without any snapshot yet (right after a restart) readers do wait for a
+      // scan, but not for one per request: while 1C answered 500s on
+      // 2026-11-20 a new scan started every few seconds, each failing on its
+      // first page. Callers already handle a failed scan by falling back.
+      if (!fullCatalogState.cache && now - fullCatalogState.refreshFailedAt < FULL_CATALOG_COLD_RETRY_AFTER_FAILURE_MS) {
         return Promise.reject(new Error("Full catalog snapshot refresh is backing off"));
       }
       const scanStartedAt = Date.now();
