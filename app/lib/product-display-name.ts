@@ -133,8 +133,10 @@ export const normalizeProductDisplayName = (value: string) => {
 
   return (
     name
-      // A full word followed by a stray dot mid-name ("шланг. задній").
-      .replace(/(\p{Script=Cyrillic}{4,})\.(?=\s+\S)/gu, "$1")
+      // A full word followed by a stray dot mid-name ("шланг. задній"). A dot
+      // before a capitalised Cyrillic word ends a sentence in a description
+      // paragraph ("… вижимний підшипник. Вижимний …") and stays.
+      .replace(/(\p{Script=Cyrillic}{4,})\.(?=\s+(?![А-ЯІЇЄҐ][а-яіїєґ'’])\S)/gu, "$1")
       // Engine size typed with a stray space ("Vectra A 1. 8-2. 0", "1. 9CDTi").
       // Only a single digit before the dot (dates such as "12. 02" stay) and
       // only when fitment follows — not Cyrillic text, so a numbered line in a

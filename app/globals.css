@@ -13174,10 +13174,15 @@ button[aria-label="Відкрити вкладку параметрів това
   .product-overview-sticky .product-summary-details .product-spec dd { margin-top: 2px; font-size: 11px; line-height: 14px; }
 }
 /* Title block: quiet code eyebrow, then the H1 in the brand's italic display
-   face, set large in a narrow measure with a short accent rule under it. The
+   face across the full text column, with a short accent rule under it. The
    compatibility note and the review link share the bottom row, above the facts. */
 .product-overview-sticky .product-identity-details h1.product-title {
-  display: -webkit-box; max-width: 21ch; padding: 0 .1em 2px 0;
+  /* Full width of the text column: long 1C names ("Комплект зчеплення з
+     підшипником PARTNER BERLINGO 00-") used to stack into a narrow 21ch
+     column with empty space beside it. */
+  display: -webkit-box; width: 100%; max-width: none; padding: 0 .1em 2px 0;
+  /* Fill each line (the global h1 rule balances them into a narrow block). */
+  text-wrap: pretty;
   color: #0b1b26; font-size: clamp(26px, 2.4vw, 34px);
   -webkit-box-orient: vertical; -webkit-line-clamp: 3;
   font-style: italic; line-height: 1.08; letter-spacing: -.025em;

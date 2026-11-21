@@ -2598,7 +2598,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <div className="product-title-wrap relative">
                       <h1
                         title={productHeadingText}
-                        className="product-title font-display max-w-[27ch] break-words text-[clamp(1.45rem,3.2vw,2.65rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-950 [overflow-wrap:anywhere] [text-wrap:balance]"
+                        className="product-title font-display w-full break-words text-[clamp(1.45rem,3.2vw,2.65rem)] font-extrabold leading-[1.14] tracking-[-0.025em] text-slate-950 [overflow-wrap:break-word] [text-wrap:pretty]"
                       >
                         {productHeadingText}
                       </h1>
