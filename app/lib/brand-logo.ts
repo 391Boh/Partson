@@ -61,6 +61,15 @@ const PRODUCER_LOGO_ALIASES = new Map<string, string>([
   ["vika", "/Brands/VIKA.png"],
 ]);
 
+// Producers 1C spells in Cyrillic: normalizeBrandKey drops Cyrillic letters,
+// so "К2" would become "2" and "ШТУРМОВИК" nothing at all. Matched on the
+// lowercased label instead.
+const PRODUCER_LOGO_LABEL_ALIASES = new Map<string, string>([
+  ["к2", "/Brands/K2.jpg"],
+  ["штурмовик", "/Brands/SHTURMOVIK.jpg"],
+  ["3м", "/Brands/3M.svg"],
+]);
+
 // These legacy files were visually audited and belong to unrelated brands.
 // Returning no image is safer than showing a false trademark; the directory
 // card renders the full producer wordmark until a verified asset is supplied.
@@ -103,6 +112,9 @@ export const getProducerInitials = (label: string) => {
 
 export const resolveProducerLogo = (label: string, logoMap: Map<string, string>) => {
   if (!label) return null;
+
+  const labelAlias = PRODUCER_LOGO_LABEL_ALIASES.get(label.trim().toLowerCase());
+  if (labelAlias) return labelAlias;
 
   const directKey = normalizeBrandKey(label);
   if (REJECTED_PRODUCER_LOGOS.has(directKey)) return null;
