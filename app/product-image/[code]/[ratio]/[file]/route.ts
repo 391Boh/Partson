@@ -14,6 +14,8 @@ type VariantKind = ProductImageAspectRatio | typeof PRODUCT_PHOTO_SEGMENT;
 const cache = new Map<string, Variant>();
 const pending = new Map<string, Promise<Variant>>();
 const MAX_WIDTH = 1600;
+const MIN_PHOTO_SIDE = 500;
+const MAX_UPSCALE = 2;
 const CACHE_MAX_BYTES = 32 * 1024 * 1024;
 let cacheBytes = 0;
 const CACHE_HEADERS = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400, stale-if-error=86400";
@@ -23,6 +25,13 @@ const unavailable = () => new Response(null, { status: 503, headers: { "Cache-Co
 
 const isWebp = (buffer: Buffer) =>
   buffer.length > 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+// Header-only read: no pixel decode.
+const isLargeEnough = async (buffer: Buffer) => {
+  try {
+    const meta = await sharp(buffer, { failOn: "none" }).metadata();
+    return (meta.width ?? 0) >= MIN_PHOTO_SIDE && (meta.height ?? 0) >= MIN_PHOTO_SIDE;
+  } catch { return false; }
+};
 const variant = (buffer: Buffer): Variant => ({ buffer, etag: `"${hash(buffer)}"`, expires: Date.now() + 60 * 60 * 1000 });
 
 // Letterbox the actual photo, preserving the whole part and its natural
@@ -35,6 +44,24 @@ async function transform(original: Buffer, kind: VariantKind): Promise<Variant> 
   const height = meta.autoOrient?.height ?? meta.height ?? 0;
   if (!width || !height) throw new Error("Invalid source image");
   if (kind === PRODUCT_PHOTO_SEGMENT) {
+    if (width < MIN_PHOTO_SIDE || height < MIN_PHOTO_SIDE) {
+      // Google Merchant rejects images under 500×500 (from 31.01.2027). Enlarge
+      // at most 2× (beyond that it only blurs), then pad with white.
+      const scale = Math.min(MAX_UPSCALE, MIN_PHOTO_SIDE / Math.min(width, height));
+      const scaledWidth = Math.max(1, Math.round(width * Math.max(1, scale)));
+      const scaledHeight = Math.max(1, Math.round(height * Math.max(1, scale)));
+      const padX = Math.max(0, MIN_PHOTO_SIDE - scaledWidth);
+      const padY = Math.max(0, MIN_PHOTO_SIDE - scaledHeight);
+      return variant(await sharp(original, { failOn: "none" }).rotate()
+        .resize({ width: scaledWidth, height: scaledHeight, fit: "fill", kernel: "lanczos3" })
+        .extend({
+          top: Math.floor(padY / 2), bottom: Math.ceil(padY / 2),
+          left: Math.floor(padX / 2), right: Math.ceil(padX / 2),
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .flatten({ background: "#ffffff" })
+        .webp({ quality: 85, effort: 3 }).toBuffer());
+    }
     if (meta.format === "webp") return variant(original);
     return variant(await sharp(original, { failOn: "none" }).rotate()
       .resize({ width: MAX_WIDTH, withoutEnlargement: true })
@@ -67,7 +94,10 @@ export async function GET(request: Request, context: RouteContext) {
     const original = Buffer.from(await source.arrayBuffer());
     // An already-WebP primary photo is served as is: no decode, and no copy
     // taking room in the cache the letterboxed variants rely on.
-    let value: Variant | undefined = ratio === PRODUCT_PHOTO_SEGMENT && isWebp(original) ? variant(original) : undefined;
+    let value: Variant | undefined =
+      ratio === PRODUCT_PHOTO_SEGMENT && isWebp(original) && await isLargeEnough(original)
+        ? variant(original)
+        : undefined;
     const key = `${ratio}:${hash(original)}`;
     if (!value) value = cache.get(key);
     if (value && value.expires <= Date.now()) { cacheBytes -= value.buffer.length; cache.delete(key); value = undefined; }
