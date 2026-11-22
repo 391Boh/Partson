@@ -2,6 +2,8 @@ import { useId } from "react";
 import { ArrowRight, type LucideIcon } from "lucide-react";
 import SmartLink from "app/components/SmartLink";
 
+const SECTION_HUBS = new Set(["/auto", "/groups", "/manufacturers"]);
+
 interface CatalogSeoTextSectionProps {
   badge: string;
   title: string;
@@ -16,7 +18,11 @@ interface CatalogSeoTextSectionProps {
 export default function CatalogSeoTextSection({ title, lead, paragraphs, topics, links, contained = true }: CatalogSeoTextSectionProps) {
   const headingId = useId();
   const uniqueParagraphs = [...new Set(paragraphs.map(text => text.trim()).filter(text => text && text !== lead.trim()))];
-  const uniqueLinks = links.filter((link, index, all) => all.findIndex(item => item.href === link.href) === index);
+  // The control bar already switches between the three directories, so links
+  // to their hubs would only repeat it.
+  const uniqueLinks = links.filter((link, index, all) =>
+    !SECTION_HUBS.has(link.href) && all.findIndex(item => item.href === link.href) === index
+  );
   return (
     <section className="directory-guide-section" aria-labelledby={headingId}>
       <div className={contained ? "page-shell-inline" : undefined}>

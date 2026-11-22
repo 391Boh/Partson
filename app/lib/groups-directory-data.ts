@@ -11,7 +11,7 @@ import {
 } from "app/lib/catalog-seo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
-import { getAllProductSitemapEntries } from "app/lib/product-sitemap";
+import { getAllProductSitemapEntries, type ProductSitemapEntry } from "app/lib/product-sitemap";
 import {
   getProductTreeDataset,
   type ProductTreeDataset,
@@ -28,6 +28,8 @@ export type GroupsDirectoryItem = {
     label: string;
     slug: string;
     productCount: number;
+    /** Up to three priced products with a photo, shown instead of an icon. */
+    previews?: GroupPreviewProduct[];
     children: Array<{
       label: string;
       slug: string;
@@ -35,6 +37,8 @@ export type GroupsDirectoryItem = {
     }>;
   }>;
 };
+
+export type GroupPreviewProduct = { code: string; article?: string; name?: string };
 
 export type GroupsDirectoryData = {
   clientGroups: GroupsDirectoryItem[];
@@ -175,6 +179,49 @@ const buildGroupsDirectoryData = (
   };
 };
 
+const PREVIEWS_PER_GROUP = 3;
+const previewKey = (category?: string, group?: string) =>
+  `${(category || "").trim().toLowerCase()}\u0000${(group || "").trim().toLowerCase()}`;
+
+// Real photos of products sold in each group: in-stock priced items first,
+// then any priced item with a photo. Nothing is shown for a group without one.
+const attachGroupPreviews = (
+  data: GroupsDirectoryData,
+  entries: ProductSitemapEntry[]
+): GroupsDirectoryData => {
+  const ranked = new Map<string, ProductSitemapEntry[]>();
+  for (const entry of entries) {
+    if (entry.hasPhoto !== true || !(Number(entry.priceEuro) > 0)) continue;
+    const key = previewKey(entry.category, entry.group);
+    const list = ranked.get(key);
+    if (list) list.push(entry);
+    else ranked.set(key, [entry]);
+  }
+
+  const pick = (category: string, group: string) => {
+    const list = ranked.get(previewKey(category, group));
+    if (!list?.length) return undefined;
+    const inStock = list.filter((entry) => entry.quantity > 0);
+    const ordered = [...inStock, ...list.filter((entry) => !(entry.quantity > 0))];
+    return ordered.slice(0, PREVIEWS_PER_GROUP).map((entry) => ({
+      code: entry.code,
+      ...(entry.article ? { article: entry.article } : {}),
+      ...(entry.name ? { name: entry.name } : {}),
+    }));
+  };
+
+  return {
+    ...data,
+    clientGroups: data.clientGroups.map((group) => ({
+      ...group,
+      subgroups: group.subgroups.map((subgroup) => {
+        const previews = pick(group.label, subgroup.label);
+        return previews ? { ...subgroup, previews } : subgroup;
+      }),
+    })),
+  };
+};
+
 export const getFullGroupsDirectoryData = cache(async () => {
   const [dataset, rawSeoFacets] = await Promise.all([
     getProductTreeDataset().catch(() => EMPTY_DATASET),
@@ -187,9 +234,10 @@ export const getFullGroupsDirectoryData = cache(async () => {
     getAllProductSitemapEntries
   );
 
-  if (dataset.groups.length > 0) {
-    return buildGroupsDirectoryData(dataset, seoFacets);
-  }
-
-  return buildGroupsDirectoryDataFromSeoFacets(seoFacets);
+  const data =
+    dataset.groups.length > 0
+      ? buildGroupsDirectoryData(dataset, seoFacets)
+      : buildGroupsDirectoryDataFromSeoFacets(seoFacets);
+  const entries = await getAllProductSitemapEntries().catch(() => [] as ProductSitemapEntry[]);
+  return attachGroupPreviews(data, entries);
 });

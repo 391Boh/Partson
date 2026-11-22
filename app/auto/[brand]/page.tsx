@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CarFront, Layers3, Search, ShieldCheck } from "lucide-react";
 
 import ModelsDirectoryClient from "app/auto/[brand]/ModelsDirectoryClient";
+import Image from "next/image";
 import CatalogHubHero from "app/components/CatalogHubHero";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
@@ -213,6 +214,18 @@ export default async function AutoBrandModelsPage({ params }: AutoBrandPageProps
           badge={`Марка: ${brand.name}`}
           icon={CarFront}
           title={title}
+          titleAccent="за моделлю"
+          media={
+            <Image
+              src={brand.logo}
+              alt={`Логотип марки автомобіля ${brand.name}`}
+              width={120}
+              height={120}
+              sizes="(min-width: 640px) 120px, 80px"
+              priority
+              unoptimized={brand.logo.endsWith(".svg")}
+            />
+          }
           description={`${models.length > 0 ? `У каталозі PartsON — ${models.length.toLocaleString("uk-UA")} ${pluralizeModels(models.length)} ${brand.name} з групами запчастин. ` : ""}Оберіть модель ${brand.name}: на її сторінці ви знайдете групи запчастин і зможете перейти до товарів. Для остаточного підбору перевірте рік випуску, двигун та артикул деталі.`}
           breadcrumb={
             <nav aria-label="Навігаційні хлібні крихти">

@@ -2263,7 +2263,42 @@ const GROUP_ITEM_COPY_MAP: Record<string, GroupItemSeoCopyMapEntry> = {
   },
 };
 
-export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCopy => {
+// Facts from the live catalogue that make the copy specific to the page (and
+// keep it true): the brands actually stocked and the largest groups.
+export type CatalogCopyFacts = {
+  producers?: string[];
+  topGroups?: Array<{ label: string; productCount: number }>;
+  groupsCount?: number;
+};
+
+// The editorial copy names "leading manufacturers" that are not necessarily
+// stocked. On a shop page that reads as a promise; swap the sentence for the
+// brands that really are in the category, or drop it.
+const LEADING_MAKERS_SENTENCE = /Провідні виробники[^.]*\.\s*/u;
+const withStockedBrands = (text: string, producers: string[] | undefined) =>
+  text.replace(LEADING_MAKERS_SENTENCE, producers && producers.length
+    ? `Бренди в наявності: ${producers.slice(0, 6).join(", ")}${producers.length > 6 ? " та інші" : ""}. `
+    : "");
+
+const formatUaCount = (value: number) => value.toLocaleString("uk-UA");
+const pluralProducts = (value: number) => {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return "товар";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "товари";
+  return "товарів";
+};
+
+const describeGroupStructure = (label: string, productCount: number, facts: CatalogCopyFacts | undefined) => {
+  const top = (facts?.topGroups ?? []).filter((group) => group.productCount > 0).slice(0, 4);
+  if (productCount <= 0 || top.length === 0) return null;
+  const lowerFirst = (text: string) => text.charAt(0).toLocaleLowerCase("uk-UA") + text.slice(1);
+  const list = top.map((group) => `${lowerFirst(group.label)} (${formatUaCount(group.productCount)})`).join(", ");
+  const groups = facts?.groupsCount && facts.groupsCount > 1 ? ` у ${formatUaCount(facts.groupsCount)} групах` : "";
+  return `Зараз у розділі «${label}» — ${formatUaCount(productCount)} ${pluralProducts(productCount)}${groups}. Найбільше позицій: ${list}.`;
+};
+
+export const getGroupSeoCopy = (label: string, productCount: number, facts?: CatalogCopyFacts): GroupSeoCopy => {
   if (isAccessoriesCatalogGroup(label)) {
     return {
       title: "Автоаксесуари та інструмент: як обрати",
@@ -2278,13 +2313,23 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
   }
   const seoLabel = normalizeSeoLabel(label);
   const entry = GROUP_COPY_MAP[normalizeLabel(seoLabel)];
+  const structure = describeGroupStructure(seoLabel, productCount, facts);
+  const brands = facts?.producers?.length
+    ? `Бренди в наявності: ${facts.producers.slice(0, 6).join(", ")}${facts.producers.length > 6 ? " та інші" : ""}.`
+    : null;
+  const stocked = entry ? entry.paragraphs.map((text) => withStockedBrands(text, facts?.producers).trim()).filter(Boolean) : null;
+  const namesBrands = stocked?.some((text) => text.includes("Бренди в наявності")) ?? false;
   return {
     title: `${seoLabel}: що врахувати під час вибору`,
     intro: entry?.intro ?? `Розділ «${seoLabel}» об’єднує деталі одного напрямку ремонту. Почніть із потрібного типу запчастини, а потім уточніть її застосування до автомобіля.`,
-    paragraphs: entry ? [
-      ...entry.paragraphs,
+    paragraphs: stocked ? [
+      ...(structure ? [structure] : []),
+      ...stocked,
+      ...(brands && !namesBrands ? [brands] : []),
       "Перед замовленням перевірте каталожний номер, сторону встановлення й розміри. Навіть для однієї моделі можуть використовуватися різні деталі залежно від року випуску, двигуна та комплектації.",
     ] : [
+      ...(structure ? [structure] : []),
+      ...(brands ? [brands] : []),
       "Якщо знаєте назву деталі, перейдіть до відповідної підгрупи. Якщо маєте номер старої запчастини, скористайтеся пошуком за артикулом — це допоможе звузити вибір.",
       "Порівнюйте не лише ціну та бренд, а й характеристики: розміри, роз’єми, сторону встановлення та оригінальні номери. За потреби надішліть VIN менеджеру для перевірки сумісності.",
       productCount > 0 ? "Ціну та наявність перевіряйте в картці обраного товару. Замовлення можна забрати у Львові або оформити доставку по Україні." : "Якщо потрібної деталі немає у списку, зверніться до менеджера з артикулом або VIN — допоможемо перевірити доступні варіанти.",
@@ -2294,6 +2339,25 @@ export const getGroupSeoCopy = (label: string, productCount: number): GroupSeoCo
 };
 
 export const getGroupItemSeoCopy = (options: {
+  label: string;
+  groupLabel: string;
+  parentSubgroupLabel?: string;
+  productCount: number;
+  producersCount: number;
+  childrenCount: number;
+  /** Brands actually stocked in this group, best-stocked first. */
+  producers?: string[];
+}): GroupItemSeoCopy => {
+  const copy = buildGroupItemSeoCopy(options);
+  const producers = options.producers ?? [];
+  const stockLine = options.productCount > 0
+    ? `У категорії «${normalizeSeoLabel(options.label)}» — ${formatUaCount(options.productCount)} ${pluralProducts(options.productCount)}${producers.length ? ` від ${formatUaCount(options.producersCount || producers.length)} виробників: ${producers.slice(0, 6).join(", ")}${producers.length > 6 ? " та інші" : ""}` : ""}.`
+    : null;
+  const paragraphs = copy.paragraphs.map((text) => withStockedBrands(text, producers).trim()).filter(Boolean);
+  return { ...copy, paragraphs: stockLine ? [stockLine, ...paragraphs] : paragraphs };
+};
+
+const buildGroupItemSeoCopy = (options: {
   label: string;
   groupLabel: string;
   parentSubgroupLabel?: string;

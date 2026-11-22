@@ -20,11 +20,13 @@ interface CatalogHubHeroProps {
   /** The loading placeholder streams into the same HTML as the page, so it
    * must not add a second h1 ahead of the real one. */
   placeholder?: boolean;
+  /** Tile beside the title (a brand logo); defaults to the section icon. */
+  media?: ReactNode;
 }
 
 const sectionLabels: Record<CatalogSectionId, string> = { auto: "Підбір по авто", groups: "Категорії", manufacturers: "Виробники" };
 
-export default function CatalogHubHero({ current, title, titleAccent, description, stats = [], quickLinks = [], breadcrumb, warmNavigation = true, placeholder = false }: CatalogHubHeroProps) {
+export default function CatalogHubHero({ current, title, titleAccent, description, icon: Icon, stats = [], quickLinks = [], breadcrumb, warmNavigation = true, placeholder = false, media }: CatalogHubHeroProps) {
   const Title = placeholder ? "div" : "h1";
   const uniqueLinks = quickLinks.filter((link, index, links) => link.href.startsWith("#") && links.findIndex(item => item.href === link.href) === index);
   const factualStats = stats.filter(stat => !["Наступний крок", "Результат", "Марка"].includes(stat.label));
@@ -47,11 +49,18 @@ export default function CatalogHubHero({ current, title, titleAccent, descriptio
       </div>
       <div className="directory-intro-body">
         <div className="directory-intro-copy">
-          <div>
-            <Title className="directory-heading-hero">
-              {accent ? <><span className="directory-title-lead">{title.slice(0, -accent.length).trimEnd()}</span>{" "}<span className="directory-title-emphasis">{accent}</span></> : title}
-            </Title>
-            <p>{description}</p>
+          {/* Same identity as the detail pages: a tile (brand logo or the
+              section's icon) beside a two-tier title. */}
+          <div className="directory-hub-identity">
+            <div className="directory-hub-tile" aria-hidden={media ? undefined : true}>
+              {media ?? <Icon size={52} strokeWidth={1.7} />}
+            </div>
+            <div className="min-w-0">
+              <Title className="directory-heading-hero">
+                {accent ? <>{title.slice(0, -accent.length).trimEnd()}<span className="directory-title-sub">{accent}</span></> : title}
+              </Title>
+              <p>{description}</p>
+            </div>
           </div>
         </div>
       </div>

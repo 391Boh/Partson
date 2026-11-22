@@ -7,10 +7,8 @@ import { ArrowRight, CarFront, Search, X } from "lucide-react";
 import type { CarBrand } from "app/components/carBrands";
 import {
   directoryBadgeClass,
-  directoryCardClass,
   directoryDescriptionClass,
   directoryHeaderClass,
-  directoryIconTileClass,
   directoryMetricAccentClass,
   directoryMetricClass,
   directoryPanelClass,
@@ -44,7 +42,7 @@ function AutoBrandCard({
   return (
     <SmartLink
       href={brandHref}
-      className={`${directoryCardClass} group flex min-h-[96px] flex-col justify-center p-3.5`}
+      className="dcard dcard--brand"
       prefetchOnViewport={prefetchOnViewport}
       prefetch={null}
       itemScope
@@ -52,28 +50,24 @@ function AutoBrandCard({
       itemProp="item"
     >
       <meta itemProp="url" content={brandHref} />
-      <div className="flex min-w-0 items-start gap-3">
-        <div className={directoryIconTileClass}>
-          <Image
-            src={brand.logo}
-            alt={`Логотип марки автомобіля ${brand.name}`}
-            width={48}
-            height={48}
-            sizes="36px"
-            quality={85}
-            className="relative z-[1] h-9 w-9 object-contain"
-            unoptimized={brand.logo.endsWith('.svg')}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p itemProp="name" className="directory-card-title mt-1.5 line-clamp-2 text-[16px] leading-tight text-slate-950 transition group-hover:text-sky-700">
-            {brand.name}
-          </p>
-        </div>
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-white text-sky-700 shadow-[0_7px_16px_rgba(14,165,233,0.1)] transition group-hover:border-sky-300 group-hover:bg-sky-50">
-          <ArrowRight size={17} strokeWidth={2.4} />
-        </span>
-      </div>
+      <span className="dcard__media dcard__media--logo">
+        <Image
+          src={brand.logo}
+          alt={`Логотип марки автомобіля ${brand.name}`}
+          width={64}
+          height={64}
+          sizes="44px"
+          quality={85}
+          unoptimized={brand.logo.endsWith('.svg')}
+        />
+      </span>
+      <span className="dcard__body">
+        <span itemProp="name" className="dcard__title">{brand.name}</span>
+        <span className="dcard__meta">Моделі та запчастини</span>
+      </span>
+      <span className="dcard__go" aria-hidden="true">
+        <ArrowRight size={17} strokeWidth={2.4} />
+      </span>
     </SmartLink>
   );
 }

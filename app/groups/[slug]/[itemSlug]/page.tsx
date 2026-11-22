@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
 import { notFound, permanentRedirect } from "next/navigation";
-import { CarFront, Factory, PackageSearch } from "lucide-react";
+import { ArrowRight, CarFront, Factory, PackageSearch } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
@@ -21,7 +21,6 @@ import {
   directoryCompactMetricAccentClass,
   directoryCompactMetricClass,
   directoryHeaderClass,
-  directoryListCardClass,
   directoryPanelClass,
   directoryPrimaryButtonClass,
 } from "app/components/catalog-directory-styles";
@@ -46,6 +45,7 @@ import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallb
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { producerDescriptions } from "app/lib/producer-descriptions";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { categoryHueStyle } from "app/lib/category-hue";
 import { pluralizeCategories, pluralizeManufacturers, pluralizeProducts, pluralizeUk } from "app/lib/pluralize-uk";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
@@ -959,6 +959,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
     productCount: item.productCount,
     producersCount: item.producersCount,
     childrenCount: item.children.length,
+    producers: item.producerSplit.map((producer) => producer.label),
   });
 
   const jsonLd = {
@@ -1074,7 +1075,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
   }
 
   return (
-    <main className="catalog-directory-page directory-detail-page directory-detail-shell py-5 sm:py-7">
+    <main className="catalog-directory-page directory-detail-page directory-detail-shell cat-hued py-5 sm:py-7" style={categoryHueStyle(item.groupLabel)}>
       <div key={`${item.groupSlug}/${item.itemSlug}`} className="space-y-4 sm:space-y-5">
         <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="groups" />
@@ -1172,7 +1173,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
                 <p className="directory-kicker text-[10px] uppercase text-teal-800">
                   Навігація
                 </p>
-                <h2 className="mt-1 text-lg font-semibold tracking-[-0.01em] text-slate-900">
+                <h2 className="directory-heading mt-1 text-slate-900">
                   Підгрупи запчастин
                 </h2>
               </div>
@@ -1181,7 +1182,7 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               </span>
             </div>
           </div>
-          <DirectoryCollection as="ul" labels={item.children.map(child => child.label)} className="category-card-grid category-children-grid grid grid-cols-1 gap-2.5 p-3 sm:grid-cols-2 sm:p-4" placeholder="Знайти підгрупу">
+          <DirectoryCollection as="ul" labels={item.children.map(child => child.label)} className="cat-groups cat-groups--leaf p-3 sm:p-4" placeholder="Знайти підгрупу">
             {item.children.map((child) => {
               const childPreview = getGroupProductPreview({
                 categoryLabel: item.groupLabel,
@@ -1190,41 +1191,27 @@ export default async function GroupItemPage({ params }: GroupItemPageProps) {
               });
 
               return (
-                <li key={child.slug}>
+                <li key={child.slug} className="cat-group">
                   <CatalogPrefetchLink
                     href={buildGroupItemPath(item.groupSlug, child.slug)}
-                    className={`${directoryListCardClass} category-tile group/row flex items-center gap-3 px-3 py-2.5 text-sm text-slate-700`}
+                    prefetchOnViewport
+                    className="cat-group-head"
                   >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-slate-200/80 bg-gradient-to-br from-sky-50 to-teal-50/60">
+                    <span className="cat-group-thumb">
                       {childPreview ? (
-                        <Image
-                          src={childPreview.url}
-                          alt=""
-                          aria-hidden
-                          width={44}
-                          height={44}
-                          sizes="44px"
-                          className="h-full w-full object-cover transition duration-300"
-                        />
+                        <Image src={childPreview.url} alt="" aria-hidden width={64} height={64} sizes="64px" />
                       ) : (
-                        <PackageSearch className="h-4 w-4 text-teal-600/70" aria-hidden />
+                        <PackageSearch className="h-5 w-5" aria-hidden />
                       )}
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <span className="block font-semibold leading-snug">
-                        {buildVisibleGroupName(child.label)}
+                    <span className="cat-group-text">
+                      <span className="cat-group-title">{buildVisibleGroupName(child.label)}</span>
+                      <span className="cat-group-meta">
+                        {formatCount(child.productCount)} {pluralizeProducts(child.productCount)}
                       </span>
-                    </div>
-                    <span className="flex shrink-0 items-center gap-1.5 self-start">
-                      <span className={directoryCompactMetricClass}>
-                          <span>{formatCount(child.productCount)}</span>
-                          <span className="font-semibold text-slate-500">{pluralizeProducts(child.productCount)}</span>
-                        </span>
-
-
-
-
-                      <span className="text-teal-700 transition-transform duration-300">&rarr;</span>
+                    </span>
+                    <span className="cat-group-arrow" aria-hidden>
+                      <ArrowRight className="h-4 w-4" />
                     </span>
                   </CatalogPrefetchLink>
                 </li>

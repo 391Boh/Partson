@@ -4,9 +4,11 @@ import Image from "next/image";
 import DirectoryCollection from "app/components/DirectoryCollection";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ArrowRight } from "lucide-react";
 
 import CatalogPrefetchLink from "app/components/CatalogPrefetchLink";
 import { directoryPrimaryButtonClass } from "app/components/catalog-directory-styles";
+import { pluralizeProducts } from "app/lib/pluralize-uk";
 
 const getProducerInitials = (label: string) => {
   const letters = (label || "")
@@ -158,101 +160,60 @@ export default function GroupItemProducerList({
     );
   }
 
+  // Cards in the language of the /groups system cards: name and count on
+  // the left, the brand's logo on a soft halo on the right, a short note and
+  // two clear actions at the foot. Colours follow the page's system hue.
   return (
-    <DirectoryCollection labels={items.map(producer => producer.label)} className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4" placeholder="Знайти виробника в категорії" pageSize={12}>
+    <DirectoryCollection labels={items.map(producer => producer.label)} className="gprod-grid" placeholder="Знайти виробника в категорії" pageSize={12}>
       {items.map((producer) => {
         const shortDescription = producer.description
           ? stripLeadingBrandName(producer.label, producer.description)
-          : null;
+          : `${producer.label} — запчастини у категорії ${categoryLabel}.`;
 
         return (
           <article
             key={producer.slug || producer.label}
-            className="group relative flex flex-col overflow-hidden rounded-[16px] border border-slate-200 bg-[linear-gradient(160deg,rgba(255,255,255,1)_0%,rgba(248,250,252,0.98)_55%,rgba(240,249,255,0.95)_100%)] shadow-[0_1px_3px_rgba(15,23,42,0.04),0_6px_16px_rgba(15,23,42,0.07),0_16px_32px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-sky-200/80 hover:shadow-[0_2px_6px_rgba(14,165,233,0.05),0_10px_24px_rgba(14,165,233,0.10),0_24px_44px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]"
+            className="gprod-card"
             itemScope
             itemType="https://schema.org/Brand"
           >
-            {producer.logoPath ? (
-              <meta itemProp="logo" content={producer.logoPath} />
-            ) : null}
-
-            {/* Header: logo + name + count */}
-            <div className="flex items-start gap-3 p-3.5 pb-2.5">
-              {/* Logo tile */}
-              <div className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(241,245,249,0.9))] shadow-[0_2px_6px_rgba(15,23,42,0.07),inset_0_1px_0_rgba(255,255,255,1)]">
+            {producer.logoPath ? <meta itemProp="logo" content={producer.logoPath} /> : null}
+            <div className="gprod-card__main">
+              <div className="gprod-card__text">
+                <Link href={producer.manufacturerPath} itemProp="url" className="gprod-card__name">
+                  <span itemProp="name">{producer.label}</span>
+                </Link>
+                {producer.productCount > 0 ? (
+                  <span className="gprod-card__meta">
+                    <b>{formatCount(producer.productCount)}</b> {pluralizeProducts(producer.productCount)}
+                  </span>
+                ) : null}
+              </div>
+              <span className="gprod-card__logo" aria-hidden={producer.logoPath ? undefined : true}>
                 {producer.logoPath ? (
                   <Image
                     src={producer.logoPath}
                     alt={`Логотип виробника автозапчастин ${producer.label}`}
-                    width={80}
-                    height={48}
-                    sizes="56px"
+                    width={112}
+                    height={72}
+                    sizes="88px"
                     quality={85}
                     loading="lazy"
                     unoptimized={producer.logoPath.endsWith(".svg")}
-                    className="h-9 w-12 object-contain transition duration-200 group-hover:scale-[1.04]"
                   />
                 ) : (
-                  <span className="text-[15px] font-black text-slate-600">
-                    {producer.initials}
-                  </span>
+                  <span className="gprod-card__initials">{producer.initials}</span>
                 )}
-              </div>
-
-              {/* Name + badges */}
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="inline-flex rounded-[8px] border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.10em] text-teal-800">
-                    Виробник
-                  </span>
-                  {producer.productCount > 0 && (
-                    <span className="inline-flex rounded-[8px] border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-sky-800">
-                      {formatCount(producer.productCount)} поз.
-                    </span>
-                  )}
-                </div>
-                <Link
-                  href={producer.manufacturerPath}
-                  itemProp="url"
-                  className="mt-1.5 block text-[15px] font-extrabold leading-tight text-slate-900 transition-colors hover:text-teal-700"
-                >
-                  <span itemProp="name">{producer.label}</span>
-                </Link>
-              </div>
+              </span>
             </div>
-
-            {/* Description */}
-            {shortDescription ? (
-              <div className="mx-3 mb-0 rounded-[12px] border border-slate-200/70 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(255,255,255,0.96))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <p
-                  itemProp="description"
-                  className="line-clamp-3 text-[11.5px] leading-[1.55] text-slate-600"
-                >
-                  {shortDescription}
-                </p>
-              </div>
-            ) : (
-              <div className="mx-3 mb-0 rounded-[12px] border border-slate-200/70 bg-[linear-gradient(135deg,rgba(248,250,252,0.9),rgba(255,255,255,0.96))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <p className="line-clamp-3 text-[11.5px] leading-[1.55] text-slate-500 italic">
-                  {`${producer.label} — запчастини у категорії ${categoryLabel}.`}
-                </p>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="mt-auto flex gap-2 border-t border-slate-100 p-3">
-              <CatalogPrefetchLink
-                href={producer.catalogPath}
-                prefetchCatalogOnViewport
-                className="flex-1 rounded-[12px] border border-teal-200 bg-[linear-gradient(145deg,rgba(240,253,250,1),rgba(204,251,241,0.7))] px-3 py-2 text-center text-[12px] font-bold text-teal-900 shadow-[0_2px_6px_rgba(20,184,166,0.10),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:border-teal-300 hover:shadow-[0_4px_10px_rgba(20,184,166,0.15)]"
-              >
-                В каталог
+            <p itemProp="description" className="gprod-card__desc">{shortDescription}</p>
+            <div className="gprod-card__actions">
+              <CatalogPrefetchLink href={producer.catalogPath} prefetchCatalogOnViewport className="gprod-card__primary" aria-label={`Товари ${producer.label} у каталозі`}>
+                У каталог
+                <ArrowRight size={16} strokeWidth={2.4} aria-hidden="true" />
               </CatalogPrefetchLink>
-              <Link
-                href={producer.manufacturerPath}
-                className="flex-1 rounded-[12px] border border-slate-200 bg-[linear-gradient(145deg,rgba(255,255,255,1),rgba(248,250,252,0.9))] px-3 py-2 text-center text-[12px] font-bold text-slate-700 shadow-[0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] transition hover:border-sky-200 hover:text-sky-800"
-              >
-                Виробник
+              <Link href={producer.manufacturerPath} className="gprod-card__secondary" aria-label={`Сторінка виробника ${producer.label}`}>
+                Про бренд
               </Link>
             </div>
           </article>

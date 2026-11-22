@@ -1,5 +1,6 @@
 import DirectoryCollection from "app/components/DirectoryCollection";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
+import HeroTitleText from "app/components/HeroTitleText";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
 import type { Metadata } from "next";
@@ -1720,7 +1721,7 @@ export default async function ManufacturerDetailPage({
                 <span className={directoryBadgeClass}>Сторінка виробника</span>
 
                 <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
-                  {h1Title}
+                  <HeroTitleText title={h1Title} />
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                   У каталозі PartsON —{" "}

@@ -23,7 +23,8 @@ const pageDescription = appendSeoContact(
 const buildManufacturersPageDescription = (
   totalBrands: number,
   indexedBrands: number,
-  indexedProducts: number
+  indexedProducts: number,
+  topBrands: string[] = []
 ) => {
   const brandSummary =
     totalBrands > 0
@@ -38,6 +39,10 @@ const buildManufacturersPageDescription = (
   // fits whole instead of cutting a sentence off with "…".
   return appendSeoContact(
     pickFittingSeoDescription([
+      // Most specific first: the best-stocked brands by name.
+      ...(topBrands.length >= 4 && indexedProducts > 0
+        ? [`Бренди автозапчастин у PartsON: ${topBrands.slice(0, 4).join(", ")} та ще ${Math.max(0, totalBrands - 4).toLocaleString("uk-UA")}. ${indexedProducts.toLocaleString("uk-UA")}+ ${pluralizeUk(indexedProducts, "товар", "товари", "товарів")} з цінами й наявністю у Львові.`]
+        : []),
       "Оберіть виробника, щоб переглянути його запчастини за категоріями. Порівняйте асортимент, ціни й наявність та знайдіть потрібний артикул.",
       `Виробники автозапчастин PartsON: ${brandSummary}${productSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
       `Виробники автозапчастин PartsON: ${brandSummary}. Групи товарів кожного бренду, ціни й наявність, доставка по Україні.`,
@@ -50,11 +55,12 @@ export async function generateMetadata(): Promise<Metadata> {
     await getFullManufacturersDirectoryData();
 
   return buildPageMetadata({
-    title: "Бренди автозапчастин",
+    title: clientProducers.length > 0 ? `Бренди автозапчастин: ${clientProducers.length} виробників у Львові` : "Бренди автозапчастин",
     description: buildManufacturersPageDescription(
       clientProducers.length,
       indexedBrands,
-      indexedProducts
+      indexedProducts,
+      [...clientProducers].sort((a, b) => b.productCount - a.productCount).map((producer) => producer.label)
     ),
     canonicalPath: "/manufacturers",
     keywords: [

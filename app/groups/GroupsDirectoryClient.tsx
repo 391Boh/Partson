@@ -1,30 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { ChevronRight, FolderTree, Search, X } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { ArrowRight, Search, X } from "lucide-react";
 
 import { uniqueDirectoryItems } from "app/lib/directory-items";
-import DirectoryPagination, { useDirectoryPagination } from "app/components/DirectoryPagination";
-import {
-  directoryBadgeClass,
-  directoryDescriptionClass,
-  directoryHeaderClass,
-  directoryMetricAccentClass,
-  directoryMetricClass,
-  directoryPanelClass,
-  directorySearchInputClass,
-  directoryTitleClass,
-} from "app/components/catalog-directory-styles";
 import SmartLink from "app/components/SmartLink";
 import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { categoryHueStyle } from "app/lib/category-hue";
 import { buildVisibleCatalogGroupName } from "app/lib/catalog-group-label";
+import { buildProductImagePath } from "app/lib/product-image-path";
 import { pluralizeUk as pluralize } from "app/lib/pluralize-uk";
 
 // 1C labels as people read them ("Комплекти/ Ремені ГРМ" → "Комплекти та
 // ремені ГРМ"); the raw label stays in links and in the search text.
 const visibleGroupName = buildVisibleCatalogGroupName;
+
+type GroupPreview = { code: string; article?: string; name?: string };
 
 export type GroupsDirectoryItem = {
   label: string;
@@ -35,6 +28,7 @@ export type GroupsDirectoryItem = {
     label: string;
     slug: string;
     productCount: number;
+    previews?: GroupPreview[];
     children: Array<{
       label: string;
       slug: string;
@@ -42,6 +36,8 @@ export type GroupsDirectoryItem = {
     }>;
   }>;
 };
+
+type Subgroup = GroupsDirectoryItem["subgroups"][number];
 
 interface GroupsDirectoryClientProps {
   items: GroupsDirectoryItem[];
@@ -60,8 +56,6 @@ type GroupCountsApiPayload = {
 const normalize = (value: string | null | undefined) =>
   (value || "").replace(/\s+/g, " ").trim().toLowerCase();
 
-const formatCount = (value: number, one: string, few: string, many: string) =>
-  `${value.toLocaleString("uk-UA")} ${pluralize(value, one, few, many)}`;
 
 const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   if (!query) return groups;
@@ -119,73 +113,86 @@ const filterGroups = (groups: GroupsDirectoryItem[], query: string) => {
   });
 };
 
-// Enough groups to recognise the system at a glance without turning a card
-// into the category page.
-const PREVIEW_GROUPS = 4;
+const hueStyle = categoryHueStyle;
 
-function GroupCategoryCard({
-  group,
-  prefetchOnViewport = false,
+// Counts with the number set apart, so figures read at a glance.
+const countNode = (value: number, one: string, few: string, many: string) => (
+  <>
+    <b>{value.toLocaleString("uk-UA")}</b> {pluralize(value, one, few, many)}
+  </>
+);
+
+const CATEGORY_PARAM = "category";
+const readCategoryParam = () => {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(CATEGORY_PARAM);
+};
+
+const isPlainClick = (event: MouseEvent) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+function GroupTile({
+  categorySlug,
+  categoryLabel,
+  subgroup,
+  showCategory = false,
 }: {
-  group: GroupsDirectoryItem;
-  prefetchOnViewport?: boolean;
+  categorySlug: string;
+  categoryLabel: string;
+  subgroup: Subgroup;
+  showCategory?: boolean;
 }) {
-  const visibleGroupLabel = visibleGroupName(group.label);
-  const groupPath = buildGroupPath(group.slug);
-  const previewGroups = [...group.subgroups]
-    .sort((a, b) => b.productCount - a.productCount)
-    // "Ще 1 група" would take the row the group itself needs.
-    .slice(0, group.subgroups.length === PREVIEW_GROUPS + 1 ? PREVIEW_GROUPS + 1 : PREVIEW_GROUPS);
-  const hiddenGroups = group.subgroups.length - previewGroups.length;
+  const label = visibleGroupName(subgroup.label);
+  const href = buildGroupItemPath(categorySlug, subgroup.slug);
+  // Photos that fail to load drop out; the next one takes the main spot.
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const previews = (subgroup.previews ?? []).filter((product) => !failed.has(product.code)).slice(0, 3);
+  const markFailed = (code: string) => setFailed((current) => new Set(current).add(code));
+  const children = subgroup.children.filter((child) => child.slug && child.slug !== subgroup.slug);
 
   return (
-    <article className="group-category-card" itemScope itemType="https://schema.org/DefinedTerm" itemProp="item">
-      <meta itemProp="url" content={groupPath} />
-      <div className="group-category-card__head">
-        <span className="group-category-card__icon">
-          <Image
-            src={getCategoryIconPath(visibleGroupLabel)}
+    <li className="gdir-tile" style={hueStyle(categoryLabel)}>
+      <div className="gdir-tile__media" data-count={previews.length} aria-hidden="true">
+        <Image className="gdir-tile__fallback" src={getCategoryIconPath(visibleGroupName(categoryLabel))} alt="" width={56} height={56} sizes="56px" />
+        {previews.map((product) => (
+          // eslint-disable-next-line @next/next/no-img-element -- the image route already serves a sized catalog variant
+          <img
+            key={product.code}
+            className="gdir-tile__photo"
+            src={buildProductImagePath(product.code, product.article, { catalog: true, noFallback: true })}
             alt=""
-            width={44}
-            height={44}
-            sizes="36px"
+            loading="lazy"
+            decoding="async"
+            width={160}
+            height={160}
+            onError={() => markFailed(product.code)}
           />
-        </span>
-        <div className="group-category-card__title">
-          <h3 itemProp="name">
-            {/* The title link covers the card; group links sit above it. */}
-            <SmartLink href={groupPath} prefetchOnViewport={prefetchOnViewport} className="group-category-card__link">
-              {visibleGroupLabel}
-            </SmartLink>
-          </h3>
-          <p>
-            {group.productCount > 0 ? <span>{formatCount(group.productCount, "товар", "товари", "товарів")}</span> : null}
-            {group.subgroups.length > 0 ? <span>{formatCount(group.subgroups.length, "група", "групи", "груп")}</span> : null}
-          </p>
-        </div>
-        <ChevronRight className="group-category-card__arrow" size={18} strokeWidth={2.4} aria-hidden="true" />
+        ))}
       </div>
-
-      {previewGroups.length > 0 ? (
-        <ul className="group-category-card__groups" aria-label={`Групи: ${visibleGroupLabel}`}>
-          {previewGroups.map((subgroup) => (
-            <li key={subgroup.slug}>
-              <SmartLink href={buildGroupItemPath(group.slug, subgroup.slug)}>
-                <span>{visibleGroupName(subgroup.label)}</span>
-                {subgroup.productCount > 0 ? <span className="group-category-card__count">{subgroup.productCount.toLocaleString("uk-UA")}</span> : null}
-              </SmartLink>
+      <div className="gdir-tile__foot">
+        <div className="gdir-tile__body">
+          {showCategory ? <span className="gdir-tile__category">{visibleGroupName(categoryLabel)}</span> : null}
+          <SmartLink href={href} prefetchOnViewport className="gdir-tile__link">
+            <span className="gdir-tile__name">{label}</span>
+            {subgroup.productCount > 0 ? (
+              <span className="gdir-tile__count">{countNode(subgroup.productCount, "товар", "товари", "товарів")}</span>
+            ) : null}
+          </SmartLink>
+        </div>
+        <span className="gdir-tile__arrow" aria-hidden="true">
+          <ArrowRight size={17} strokeWidth={2.4} />
+        </span>
+      </div>
+      {children.length > 0 ? (
+        <ul className="gdir-tile__chips" aria-label={`Підгрупи: ${label}`}>
+          {children.map((child) => (
+            <li key={child.slug}>
+              <SmartLink href={buildGroupItemPath(categorySlug, child.slug)}>{visibleGroupName(child.label)}</SmartLink>
             </li>
           ))}
-          {hiddenGroups > 0 ? (
-            <li>
-              <SmartLink href={groupPath} className="group-category-card__more" aria-label={`Усі групи категорії ${visibleGroupLabel}`}>
-                Ще {formatCount(hiddenGroups, "група", "групи", "груп")}
-              </SmartLink>
-            </li>
-          ) : null}
         </ul>
       ) : null}
-    </article>
+    </li>
   );
 }
 
@@ -196,6 +203,9 @@ export default function GroupsDirectoryClient({
   hasProductCounts,
 }: GroupsDirectoryClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const pushedRef = useRef(false);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [directoryData, setDirectoryData] = useState({
     items,
     totalSubgroups,
@@ -249,136 +259,249 @@ export default function GroupsDirectoryClient({
     totalSubgroups,
   ]);
 
+  // The open category lives in the URL, so the browser back button and a
+  // shared link land on the same view.
+  useEffect(() => {
+    const sync = () => setActiveSlug(readCategoryParam());
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  const bringShellIntoView = useCallback(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    // Land the panel just below the site header and the pinned section bar.
+    const root = getComputedStyle(document.documentElement);
+    const rem = parseFloat(root.fontSize) || 16;
+    const header = parseFloat(root.getPropertyValue("--header-height")) * rem || 64;
+    const barBottom = document.querySelector(".dir-bar")?.getBoundingClientRect().bottom ?? header + 74;
+    const offset = Math.round(barBottom + 16);
+    const top = shell.getBoundingClientRect().top;
+    if (top < offset - 4 || top > window.innerHeight * 0.4) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: window.scrollY + top - offset, behavior: reduce ? "auto" : "smooth" });
+    }
+  }, []);
+
+  const openCategory = useCallback((slug: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set(CATEGORY_PARAM, slug);
+    window.history.pushState({ groupsCategory: slug }, "", url);
+    pushedRef.current = true;
+    setActiveSlug(slug);
+    requestAnimationFrame(bringShellIntoView);
+  }, [bringShellIntoView]);
+
+  const closeCategory = useCallback(() => {
+    if (pushedRef.current && window.history.state?.groupsCategory) {
+      pushedRef.current = false;
+      window.history.back();
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(CATEGORY_PARAM);
+      window.history.replaceState(null, "", url);
+      setActiveSlug(null);
+    }
+    requestAnimationFrame(bringShellIntoView);
+  }, [bringShellIntoView]);
+
+  // The layout's control bar opens and closes systems here (same page), and
+  // learns which one is open so it can highlight it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("groups:active", { detail: activeSlug }));
+  }, [activeSlug]);
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const slug = (event as CustomEvent<string>).detail;
+      if (slug) openCategory(slug);
+    };
+    const onClose = () => closeCategory();
+    window.addEventListener("groups:open", onOpen);
+    window.addEventListener("groups:close", onClose);
+    return () => {
+      window.removeEventListener("groups:open", onOpen);
+      window.removeEventListener("groups:close", onClose);
+    };
+  }, [openCategory, closeCategory]);
+
   const filteredGroups = useMemo(
     () => filterGroups(directoryItems, normalizedQuery),
     [directoryItems, normalizedQuery]
   );
+  const activeCategory = directoryItems.find((group) => group.slug === activeSlug) ?? null;
+  const activeFiltered = activeCategory
+    ? filteredGroups.find((group) => group.slug === activeCategory.slug)
+    : undefined;
 
-  const visibleSubgroups = useMemo(
-    () =>
-      filteredGroups.reduce((sum, group) => sum + group.subgroups.length, 0),
-    [filteredGroups]
-  );
-  const visibleProductCount = useMemo(
-    () => filteredGroups.reduce((sum, group) => sum + group.productCount, 0),
-    [filteredGroups]
-  );
-  const pagination = useDirectoryPagination(filteredGroups, normalizedQuery, 24, "fixed");
+  // Root view with a query: the matching groups themselves, across systems.
+  const groupMatches = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return filteredGroups
+      .flatMap((group) => group.subgroups.map((subgroup) => ({ group, subgroup })))
+      .filter(({ subgroup }) => normalize(`${visibleGroupName(subgroup.label)} ${subgroup.label}`).includes(normalizedQuery) || subgroup.children.length > 0 && subgroup.children.some((child) => normalize(`${visibleGroupName(child.label)} ${child.label}`).includes(normalizedQuery)))
+      .slice(0, 24);
+  }, [filteredGroups, normalizedQuery]);
+
+  const visibleCategories = normalizedQuery ? filteredGroups : directoryItems;
+  const activeLabel = activeCategory ? visibleGroupName(activeCategory.label) : "";
 
   return (
     <section className="relative pb-2 pt-0 sm:pb-3">
-      <div
-        className="page-shell-inline"
-      >
-        <div id="groups-directory" className="space-y-4">
-          <div className={directoryPanelClass}>
-            <div className={directoryHeaderClass}>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-end">
-              <div className="max-w-3xl">
-                <div className={directoryBadgeClass}>
-                  <FolderTree size={14} strokeWidth={2.1} />
-                  Категорії каталогу
-                </div>
-                <h2 className={directoryTitleClass}>
-                  Оберіть систему авто або категорію товарів
-                </h2>
-                <p className={directoryDescriptionClass}>
-                  На кожній картці — найбільші групи системи: відкрийте <strong className="font-bold text-slate-800">категорію цілком</strong> або одразу потрібну групу.
-                </p>
-              </div>
 
-              <div className="min-w-0">
-                <label className="directory-search-field relative block">
-                  <span className="directory-search-label">Категорії запчастин</span>
-                  <span className="directory-search-control relative block">
-                  <Search
-                    size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-teal-600"
-                  />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    onTouchStart={(event) => {
-                      event.currentTarget.focus();
-                    }}
-                    placeholder="Категорія, група або підгрупа"
-                    aria-label="Пошук по групах і категоріях"
-                    className={directorySearchInputClass}
-                    data-search="true"
-                  />
-                  {searchTerm ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearchTerm("")}
-                      aria-label="Очистити пошук"
-                      className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
-                    >
-                      <X size={16} />
-                    </button>
-                  ) : null}
-                </span>
-                </label>
-
-                <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-                  <span className={directoryMetricClass}>
-                    Знайдено: {formatCount(
-                      normalizedQuery ? filteredGroups.length : directoryItems.length,
-                      "категорія",
-                      "категорії",
-                      "категорій"
-                    )}
+      <div className="page-shell-inline">
+        <div
+          id="groups-directory"
+          ref={shellRef}
+          className="gdir"
+          data-view={activeCategory ? "category" : "root"}
+          style={activeCategory ? hueStyle(activeCategory.label) : undefined}
+        >
+          <div className="gdir-head">
+            {activeCategory ? (
+              <span className="gdir-head__art" aria-hidden="true" style={{ backgroundImage: `url(${getCategoryIconPath(activeLabel)})` }} />
+            ) : null}
+            {activeCategory ? (
+              <div className="gdir-head__crumb" key={`head-${activeCategory.slug}`}>
+                <div className="gdir-head__current">
+                  <span className="gdir-head__icon">
+                    <Image src={getCategoryIconPath(activeLabel)} alt="" width={48} height={48} sizes="48px" />
                   </span>
-                  <span className={directoryMetricAccentClass}>
-                    {formatCount(
-                      normalizedQuery ? visibleSubgroups : directoryData.totalSubgroups,
-                      "група",
-                      "групи",
-                      "груп"
-                    )}
-                  </span>
-                  {directoryData.hasProductCounts ? (
-                    <span className={directoryMetricClass}>
-                      {formatCount(
-                        normalizedQuery ? visibleProductCount : directoryData.totalProductCount,
-                        "товар",
-                        "товари",
-                        "товарів"
-                      )}
-                    </span>
-                  ) : (
-                    <span className="inline-flex rounded-md border border-amber-200/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 shadow-[0_8px_18px_rgba(245,158,11,0.06)]">
-                      Лічильники товарів оновлюються
-                    </span>
-                  )}
+                  <div className="min-w-0">
+                    <h2 className="gdir-head__title">{activeLabel}</h2>
+                    <p className="gdir-head__meta">
+                      {activeCategory.productCount > 0 ? <span>{countNode(activeCategory.productCount, "товар", "товари", "товарів")}</span> : null}
+                      <span>{countNode(activeCategory.subgroups.length, "група", "групи", "груп")}</span>
+                    </p>
+                  </div>
+                  <SmartLink href={buildGroupPath(activeCategory.slug)} className="gdir-head__open">
+                    Уся категорія
+                    <ArrowRight size={16} strokeWidth={2.4} aria-hidden="true" />
+                  </SmartLink>
                 </div>
               </div>
-            </div>
-            </div>
+            ) : (
+              <div className="gdir-head__intro">
+                <h2 className="gdir-head__title">Оберіть систему автомобіля</h2>
+                <p className="gdir-head__lead">Відкрийте систему — побачите всі її групи з фото товарів.</p>
+                {/* Totals are in the hero right above; not repeated here. */}
+              </div>
+            )}
+
+            <label className="gdir-search">
+              <Search size={18} className="gdir-search__icon" aria-hidden="true" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={activeCategory ? "Пошук у цій категорії" : "Знайти категорію, групу або деталь"}
+                aria-label={activeCategory ? `Пошук груп у категорії ${activeLabel}` : "Пошук по категоріях і групах"}
+                className="gdir-search__input"
+                data-search="true"
+              />
+              {searchTerm ? (
+                <button type="button" onClick={() => setSearchTerm("")} aria-label="Очистити пошук" className="gdir-search__clear">
+                  <X size={16} />
+                </button>
+              ) : null}
+            </label>
           </div>
 
-          {filteredGroups.length > 0 ? (
-            <>
-              <div itemScope itemType="https://schema.org/ItemList">
-                <meta itemProp="numberOfItems" content={String(filteredGroups.length)} />
-                {/* Every category fits on one screen-scroll; only a very long
-                    list (or a broad search) needs pages. */}
-                <ul className="group-category-grid" aria-label="Категорії каталогу">
-                  {pagination.items.map((group, index) => (
-                    <li key={group.slug} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-                      <meta itemProp="position" content={String(pagination.offset + index + 1)} />
-                      <GroupCategoryCard group={group} prefetchOnViewport={index < 4} />
-                    </li>
-                  ))}
+          <div className="gdir-body">
+            {/* Root: every system. Each row is a real link to its category page
+                (new tab, crawlers); a plain click opens its groups here. */}
+            <div className="gdir-view gdir-view--root" hidden={Boolean(activeCategory)}>
+              {visibleCategories.length > 0 ? (
+                <ul className="gdir-cats" aria-label="Категорії каталогу" itemScope itemType="https://schema.org/ItemList">
+                  <meta itemProp="numberOfItems" content={String(visibleCategories.length)} />
+                  {visibleCategories.map((group, index) => {
+                    const label = visibleGroupName(group.label);
+                    const top = [...group.subgroups].sort((a, b) => b.productCount - a.productCount).slice(0, 3);
+                    return (
+                      <li key={group.slug} className="gdir-cat" style={hueStyle(group.label)} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+                        <meta itemProp="position" content={String(index + 1)} />
+                        <a
+                          href={buildGroupPath(group.slug)}
+                          className="gdir-cat__link"
+                          itemProp="url"
+                          aria-label={`${label}: показати групи`}
+                          onClick={(event) => {
+                            if (!isPlainClick(event)) return;
+                            event.preventDefault();
+                            openCategory(group.slug);
+                          }}
+                        >
+                          <span className="gdir-cat__main">
+                            <span className="gdir-cat__text">
+                              <span className="gdir-cat__name" itemProp="name">{label}</span>
+                              <span className="gdir-cat__meta">
+                                {group.productCount > 0 ? <span>{countNode(group.productCount, "товар", "товари", "товарів")}</span> : null}
+                                <span>{countNode(group.subgroups.length, "група", "групи", "груп")}</span>
+                              </span>
+                            </span>
+                            <span className="gdir-cat__art" aria-hidden="true">
+                              <Image src={getCategoryIconPath(label)} alt="" width={112} height={112} sizes="(max-width: 767px) 72px, 104px" />
+                            </span>
+                          </span>
+                          <span className="gdir-cat__foot">
+                            {top.length > 0 ? (
+                              <span className="gdir-cat__chips" aria-hidden="true">
+                                {top.map((subgroup) => (
+                                  <span key={subgroup.slug}>{visibleGroupName(subgroup.label)}</span>
+                                ))}
+                              </span>
+                            ) : null}
+                            <span className="gdir-cat__go" aria-hidden="true">
+                              <ArrowRight size={18} strokeWidth={2.4} />
+                            </span>
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
-                {pagination.pageCount > 1 ? <DirectoryPagination {...pagination} /> : null}
-              </div>
-            </>
-          ) : (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-white/72 px-4 py-7 text-sm text-slate-600 shadow-[0_14px_28px_rgba(15,23,42,0.05)]">
-              Нічого не знайдено. Спробуй іншу назву групи або підгрупи.
+              ) : null}
+
+              {groupMatches.length > 0 ? (
+                <div className="gdir-results">
+                  <h3 className="gdir-results__title">Групи за запитом</h3>
+                  <ul className="gdir-tiles">
+                    {groupMatches.map(({ group, subgroup }) => (
+                      <GroupTile key={`${group.slug}/${subgroup.slug}`} categorySlug={group.slug} categoryLabel={group.label} subgroup={subgroup} showCategory />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {normalizedQuery && visibleCategories.length === 0 ? (
+                <p className="gdir-empty">Нічого не знайдено. Спробуйте іншу назву категорії, групи або деталі.</p>
+              ) : null}
             </div>
-          )}
+
+            {/* Only the open system's groups are rendered. Crawlers reach every
+                group through the category pages each card above links to, so
+                pre-rendering all fourteen hidden panels only weighed the page
+                down (about half of its HTML). */}
+            {activeCategory ? (() => {
+              const group = activeCategory;
+              const subgroups = [...(normalizedQuery ? activeFiltered?.subgroups ?? [] : group.subgroups)]
+                .sort((a, b) => b.productCount - a.productCount);
+              return (
+                <div key={group.slug} className="gdir-view gdir-view--groups">
+                  {subgroups.length > 0 ? (
+                    <ul className="gdir-tiles" aria-label={`Групи: ${visibleGroupName(group.label)}`}>
+                      {subgroups.map((subgroup) => (
+                        <GroupTile key={subgroup.slug} categorySlug={group.slug} categoryLabel={group.label} subgroup={subgroup} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="gdir-empty">У цій категорії нічого не знайдено за запитом «{searchTerm}».</p>
+                  )}
+                </div>
+              );
+            })() : null}
+          </div>
         </div>
       </div>
     </section>

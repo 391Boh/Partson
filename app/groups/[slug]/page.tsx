@@ -1,5 +1,6 @@
 import DirectoryCollection from "app/components/DirectoryCollection";
 import CatalogSectionNav from "app/components/CatalogSectionNav";
+import HeroTitleText from "app/components/HeroTitleText";
 import DirectoryHeroBackdrop from "app/components/DirectoryHeroBackdrop";
 import { cache } from "react";
 import type { Metadata } from "next";
@@ -25,6 +26,7 @@ import {
 import { getBrandLogoMap, getProducerInitials, resolveProducerLogo } from "app/lib/brand-logo";
 import { resolveCatalogSeoFacetsWithFallback } from "app/lib/catalog-count-fallback";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { categoryHueStyle } from "app/lib/category-hue";
 import { buildSeoGroupLookup, resolveGroupSeoCounts } from "app/lib/group-seo";
 import { getGroupProductPreview } from "app/lib/group-product-image";
 import {
@@ -458,8 +460,13 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
     group.subgroupsCount,
     hasSubgroups
   );
-  const pageDetails = buildGroupHeroDetails(group.label, hasSubgroups);
-  const seoCopy = getGroupSeoCopy(group.label, group.productCount);
+  const seoCopy = getGroupSeoCopy(group.label, group.productCount, {
+    producers: group.topProducers.map((producer) => producer.label),
+    topGroups: [...group.subgroups]
+      .sort((a, b) => b.productCount - a.productCount)
+      .map((subgroup) => ({ label: buildVisibleGroupName(subgroup.label), productCount: subgroup.productCount })),
+    groupsCount: group.subgroups.length,
+  });
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -531,7 +538,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
   };
 
   return (
-    <main className="catalog-directory-page directory-detail-page directory-detail-shell py-5 sm:py-7">
+    <main className="catalog-directory-page directory-detail-page directory-detail-shell cat-hued py-5 sm:py-7" style={categoryHueStyle(group.label)}>
       <div key={group.slug} className="space-y-4 sm:space-y-5">
         <section className="directory-detail-hero relative overflow-hidden rounded-[30px] border border-white/90 bg-[radial-gradient(circle_at_4%_0%,rgba(20,184,166,0.14),transparent_35%),radial-gradient(circle_at_96%_4%,rgba(14,165,233,0.13),transparent_38%),linear-gradient(138deg,rgba(255,255,255,0.99)_0%,rgba(247,251,254,0.97)_56%,rgba(241,249,247,0.94)_100%)] p-4 shadow-[0_30px_72px_rgba(15,23,42,0.10),0_8px_26px_rgba(13,148,136,0.06)] ring-1 ring-slate-200/60 sm:p-5 lg:p-6">
           <DirectoryHeroBackdrop tone="groups" />
@@ -561,14 +568,15 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
           <div className="relative grid max-w-4xl gap-5">
             <div className="directory-detail-identity grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="flex h-24 w-36 items-center justify-center overflow-hidden rounded-[24px] border border-white/90 bg-white/86 p-2 shadow-[0_18px_42px_rgba(15,23,42,0.09),0_0_0_6px_rgba(20,184,166,0.06)] ring-1 ring-teal-100/80 sm:h-28 sm:w-44 sm:p-3">
+                {/* The system's own illustration reads at a glance; a random
+                    product photo from it did not. */}
                 <Image
-                  src={primaryImagePath}
+                  src={categoryIconPath}
                   alt={primaryImageAlt}
-                  width={productPreview?.width ?? 48}
-                  height={productPreview?.height ?? 48}
-                  sizes="(min-width: 640px) 176px, 144px"
+                  width={160}
+                  height={160}
+                  sizes="(min-width: 640px) 120px, 80px"
                   className="h-full w-full object-contain"
-                  unoptimized={Boolean(productPreview)}
                   priority
                 />
               </div>
@@ -577,7 +585,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
 
 
                 <h1 className="directory-heading-hero mt-3 text-[2rem] leading-[1.1] text-slate-950 sm:text-[2.45rem]">
-                  {pageTitle}
+                  <HeroTitleText title={pageTitle} />
                 </h1>
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-600 sm:text-[15px]">
                   {pageDescription}{" "}
@@ -597,9 +605,8 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                   ) : null}
                   .
                 </p>
-                <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500 sm:text-[15px]">
-                  {pageDetails}
-                </p>
+                {/* The pre-order check ("артикул, сторона, застосування") is
+                    covered once, in the guide at the foot of the page. */}
 
                 <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -644,6 +651,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
                 >
                   <CatalogPrefetchLink
                     href={buildGroupItemPath(group.slug, subgroup.slug)}
+                    prefetchOnViewport
                     className="cat-group-head"
                   >
                     <span className="cat-group-thumb">
@@ -707,7 +715,7 @@ export default async function GroupDetailPage({ params }: GroupPageProps) {
               <p className="directory-kicker text-[10px] uppercase text-teal-700">
                 Виробники цієї групи
               </p>
-              <h2 className="mt-0.5 text-[15px] font-semibold tracking-[-0.01em] text-slate-900">
+              <h2 className="directory-heading mt-0.5 text-slate-900">
                 Бренди {visibleGroupLabel}
               </h2>
             </div>

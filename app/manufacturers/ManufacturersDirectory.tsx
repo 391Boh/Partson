@@ -13,9 +13,7 @@ import {
 import { ArrowRight, Factory, PackageSearch, Search, X } from "lucide-react";
 
 import {
-  directoryActionIconClass,
   directoryBadgeClass,
-  directoryCardClass,
   directoryDescriptionClass,
   directoryHeaderClass,
   directoryMetricAccentClass,
@@ -88,7 +86,7 @@ const ManufacturerCard = memo(function ManufacturerCard({
     <SmartLink
       href={manufacturerHref}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} min-h-[100px]`}
+      className="dcard dcard--brand"
       itemScope
       itemType="https://schema.org/Brand"
       itemProp="item"
@@ -96,57 +94,34 @@ const ManufacturerCard = memo(function ManufacturerCard({
       <meta itemProp="url" content={manufacturerHref} />
       {item.logoPath ? <meta itemProp="logo" content={item.logoPath} /> : null}
 
-      {/* Static geometry: hover only changes light, border and shadow. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-      />
-
-      <div className="relative z-[1] flex h-full items-center gap-3 overflow-hidden p-3">
-        <span className="relative inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-cyan-200/70 bg-[radial-gradient(circle_at_24%_16%,rgba(255,255,255,1),transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e7f5fb_52%,#e1f7f1_100%)] shadow-[0_12px_26px_rgba(14,165,233,0.10),inset_0_1px_0_rgba(255,255,255,0.98)] transition-[border-color,box-shadow] duration-300 group-hover:border-teal-300 group-hover:shadow-[0_15px_30px_rgba(13,148,136,0.16)]">
-          {item.logoPath ? (
-            <Image
-              src={item.logoPath}
-              alt={`Логотип виробника автозапчастин ${item.label}`}
-              width={112}
-              height={64}
-              sizes="64px"
-              quality={85}
-              priority={priorityLogo}
-              loading={priorityLogo ? undefined : "lazy"}
-              unoptimized={item.logoPath.endsWith(".svg")}
-              className="h-11 w-14 object-contain"
-            />
-          ) : (
-            <span className="directory-card-title line-clamp-2 px-1 text-center text-[10px] font-black uppercase leading-tight tracking-[-0.02em] text-slate-700">
-              {item.label}
-            </span>
-          )}
+      <span className="dcard__media dcard__media--logo">
+        {item.logoPath ? (
+          <Image
+            src={item.logoPath}
+            alt={`Логотип виробника автозапчастин ${item.label}`}
+            width={112}
+            height={64}
+            sizes="64px"
+            quality={85}
+            priority={priorityLogo}
+            loading={priorityLogo ? undefined : "lazy"}
+            unoptimized={item.logoPath.endsWith(".svg")}
+          />
+        ) : (
+          <span className="dcard__initials">{item.label}</span>
+        )}
+      </span>
+      <span className="dcard__body">
+        <span itemProp="name" title={item.label} className="dcard__title">{item.label}</span>
+        <span className="dcard__meta">
+          <PackageSearch size={12} strokeWidth={2.2} aria-hidden="true" />
+          <b>{formatDirectoryCount(item.productCount, countFallback)}</b>{" "}
+          {pluralize(item.productCount, "товар", "товари", "товарів")}
         </span>
-
-        <div className="min-w-0 flex-1">
-          <p
-            itemProp="name"
-            title={item.label}
-            className="directory-card-title line-clamp-2 text-[16px] leading-[1.2] text-slate-950"
-          >
-            {item.label}
-          </p>
-          <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/70 bg-sky-50/70 px-2.5 py-1">
-            <PackageSearch className="h-3 w-3 text-sky-700" aria-hidden="true" />
-            <span className="directory-counter bg-gradient-to-br from-sky-600 to-cyan-600 bg-clip-text text-[11px] leading-none text-transparent">
-              {formatDirectoryCount(item.productCount, countFallback)}
-            </span>
-            <span className="text-[10px] font-medium normal-case tracking-normal text-slate-500">
-              {pluralize(item.productCount, "товар", "товари", "товарів")}
-            </span>
-          </span>
-        </div>
-
-        <span className={`${directoryActionIconClass} shrink-0`}>
-          <ArrowRight size={14} strokeWidth={2.3} />
-        </span>
-      </div>
+      </span>
+      <span className="dcard__go" aria-hidden="true">
+        <ArrowRight size={17} strokeWidth={2.4} />
+      </span>
     </SmartLink>
   );
 });

@@ -23,6 +23,7 @@ import {
   directoryTitleClass,
 } from "app/components/catalog-directory-styles";
 import { getCategoryIconPath } from "app/lib/category-icons";
+import { categoryHueStyle } from "app/lib/category-hue";
 import {
   findCarBrandBySlug,
   buildAutoModelKey,
@@ -336,32 +337,32 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     return (
       <article
         key={group.slug}
-        className="model-group-card group/row relative flex flex-col rounded-[20px] border border-slate-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-200 hover:border-sky-300 hover:shadow-[0_16px_34px_-20px_rgba(8,121,140,0.55)] sm:p-5"
+        className="model-group-card"
       >
-        <div className="flex items-center gap-3 sm:gap-4">
-          <span className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-slate-100 bg-[linear-gradient(145deg,#f3f9fc,#e8f4f8)] sm:h-[88px] sm:w-[88px] sm:rounded-[16px]">
+        <div className="mgc-row">
+          <span className="mgc-media">
             <Image
               src={getCategoryIconPath(group.categoryLabel || categoryLabel || group.filterGroup || group.label)}
               alt=""
               width={34}
               height={34}
               sizes="34px"
-              className="h-[34px] w-[34px] object-contain opacity-70"
+              className="mgc-icon"
             />
             <GroupPreviewImage category={categoryLabel} group={group.label} thumb />
           </span>
 
-          <div className="min-w-0 flex-1">
+          <div className="mgc-body">
             {/* The stretched link makes the whole card one target; subgroup
                 links below sit above it. */}
             <SmartLink
               href={groupHref}
               prefetchOnViewport
-              className="block rounded-[6px] text-[16px] font-bold leading-snug text-slate-900 transition-colors duration-200 [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[20px] after:content-[''] group-hover/row:text-sky-800 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-sky-300/80 sm:text-[17px]"
+              className="mgc-link"
             >
               {group.label}
             </SmartLink>
-            <span className="mt-2 inline-flex items-center rounded-full bg-teal-50 px-2.5 py-1 text-[13px] font-semibold tabular-nums text-teal-800 ring-1 ring-teal-100">
+            <span className="mgc-count">
               {formatCount(group.productCount)}{" "}
               {pluralize(group.productCount, "товар", "товари", "товарів")}
             </span>
@@ -369,16 +370,16 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
 
           <span
             aria-hidden="true"
-            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 sm:flex text-slate-500 transition-colors duration-200 group-hover/row:border-sky-700 group-hover/row:bg-sky-700 group-hover/row:text-white"
+            className="mgc-go"
           >
             <ChevronRight size={18} />
           </span>
         </div>
 
         {hasSubgroups ? (
-          <ul className="relative z-[1] mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4" aria-label={`Підгрупи «${group.label}»`}>
+          <ul className="mgc-subs" aria-label={`Підгрупи «${group.label}»`}>
             {group.subgroups.map((subgroup) => (
-              <li key={subgroup.slug} className="min-w-0 max-w-full">
+              <li key={subgroup.slug}>
                 <SmartLink
                   href={buildCatalogCarSearchPath(
                     searchTerm,
@@ -386,10 +387,10 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
                     subgroup.filterSubcategory
                   )}
                   prefetchOnViewport
-                  className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-[12px] border border-slate-200/90 bg-slate-50/80 py-1.5 pl-3 pr-1.5 text-[14px] font-medium text-slate-700 transition-colors duration-200 hover:border-sky-300 hover:bg-white hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                  className="mgc-sub"
                 >
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{subgroup.label}</span>
-                  <span className="shrink-0 rounded-[8px] bg-white px-2 py-0.5 text-[12px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200/80">
+                  <span className="mgc-sub-name">{subgroup.label}</span>
+                  <span className="mgc-sub-count">
                     {formatCount(subgroup.productCount)}
                   </span>
                 </SmartLink>
@@ -411,7 +412,7 @@ export default async function AutoModelGroupsPage({ params }: AutoModelPageProps
     productCount: number,
     open: boolean
   ) => (
-    <details key={key} className="model-category group/cat" open={open}>
+    <details key={key} className="model-category group/cat" open={open} style={categoryHueStyle(iconLabel)}>
       <summary className="model-category-summary">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-sky-100 bg-sky-50">
           <Image

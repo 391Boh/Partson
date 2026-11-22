@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ImageModal from "app/components/ImageModal";
+import dynamic from "next/dynamic";
+
 import ProductCard from "app/components/ProductCard";
 import { useCart } from "app/context/CartContext";
 import { primeCatalogImageBatch } from "app/lib/product-image-batch-client";
 import { buildProductImageBatchKey, buildProductImagePath } from "app/lib/product-image-path";
 import { buildProductPath } from "app/lib/product-url";
 import { pushEcommerceEvent } from "app/lib/gtm";
+
+// Opens only on a photo click; loading it lazily keeps its animation library
+// (framer-motion, ~38 KB gzip) off brand, group and model pages.
+const ImageModal = dynamic(() => import("app/components/ImageModal"), { ssr: false });
 
 type ManufacturerCatalogProduct = {
   code: string;

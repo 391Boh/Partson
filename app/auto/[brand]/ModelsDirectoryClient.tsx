@@ -6,8 +6,6 @@ import Image from "next/image";
 import { ArrowRight, Calendar, Car, Loader2, SlidersHorizontal, Search, X } from "lucide-react";
 
 import {
-  directoryActionIconClass,
-  directoryCardClass,
   directoryDescriptionClass,
   directoryHeaderClass,
   directoryMetricAccentClass,
@@ -65,53 +63,63 @@ const chunkArray = <T,>(items: T[], size: number) => {
   return chunks;
 };
 
+type EraRange = { from: number; to: number } | null;
+
 const ModelCard = memo(function ModelCard({
   brand,
   model,
+  era,
+  year = null,
   prefetchOnViewport = false,
 }: {
   brand: string;
   model: AutoModelListEntry;
+  era: EraRange;
+  /** The year picked in the toolbar, marked on the era bar. */
+  year?: number | null;
   prefetchOnViewport?: boolean;
 }) {
   const modelHref = buildAutoModelPath(brand, model.name);
   const yearLabel = formatYearRange(model);
+  // Where this model sits in the brand's history: a short bar on a track
+  // spanning the brand's first to last model year.
+  const from = model.yearFrom ?? model.yearTo;
+  const to = model.yearTo ?? (model.yearFrom ? new Date().getFullYear() : null);
+  const span = era && from && to ? Math.max(1, era.to - era.from) : 0;
+  const eraStyle = span && era && from && to
+    ? ({ left: `${((from - era.from) / span) * 100}%`, width: `${Math.max(4, ((to - from) / span) * 100)}%` } as const)
+    : null;
 
   return (
     <SmartLink
       href={modelHref}
       aria-label={`Відкрити групи запчастин для ${brand} ${formatCarModelName(model.name)}`}
       prefetchOnViewport={prefetchOnViewport}
-      className={`${directoryCardClass} min-h-[100px]`}
+      className="dcard"
     >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 top-0 z-[2] h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-      />
-
-      <div className="relative z-[1] flex h-full items-start gap-3 p-4">
-        <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-cyan-200/75 bg-[radial-gradient(circle_at_24%_16%,#ffffff,transparent_35%),linear-gradient(145deg,#fbfdff_0%,#e6f5fb_52%,#def7f0_100%)] text-sky-700 shadow-[0_10px_24px_rgba(14,165,233,0.09),inset_0_1px_0_white] transition-[border-color,box-shadow,color] duration-300 group-hover:border-teal-300 group-hover:text-teal-700 group-hover:shadow-[0_13px_28px_rgba(13,148,136,0.14)]">
-          <Car size={21} strokeWidth={2} />
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <p className="directory-card-title line-clamp-2 break-words text-[16px] leading-snug text-slate-900">
-            {formatCarModelName(model.name)}
-          </p>
-          <span className="directory-model-year">
-          {yearLabel ? (
-            <span className="inline-flex items-center gap-1 rounded-[9px] border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
-              <Calendar size={10} strokeWidth={2.2} />
-              {yearLabel}
-            </span>
-          ) : null}
+      <span className="dcard__media" aria-hidden="true">
+        <Car size={24} strokeWidth={1.9} />
+      </span>
+      <span className="dcard__body">
+        <span className="dcard__title">{formatCarModelName(model.name)}</span>
+        {yearLabel ? (
+          <span className="dcard__meta">
+            <Calendar size={12} strokeWidth={2.2} aria-hidden="true" />
+            <b>{yearLabel}</b>
           </span>
-        </div>
-
-        <span className={`${directoryActionIconClass} h-8 w-8 shrink-0 rounded-md`}>
-          <ArrowRight size={16} strokeWidth={2.3} />
-        </span>
-      </div>
+        ) : null}
+        {eraStyle ? (
+          <span className="dcard__era" aria-hidden="true">
+            <span style={eraStyle} />
+            {year && era ? (
+              <i className="dcard__era-mark" style={{ left: `${((year - era.from) / Math.max(1, era.to - era.from)) * 100}%` }} />
+            ) : null}
+          </span>
+        ) : null}
+      </span>
+      <span className="dcard__go" aria-hidden="true">
+        <ArrowRight size={17} strokeWidth={2.4} />
+      </span>
     </SmartLink>
   );
 });
@@ -119,6 +127,20 @@ const ModelCard = memo(function ModelCard({
 export default function ModelsDirectoryClient({ brand, brandLogo, models }: ModelsDirectoryClientProps) {
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("name");
+  // Year of manufacture: keeps the models built that year. Mirrored in the
+  // URL (?year=) so a filtered list can be shared or reopened.
+  const [year, setYear] = useState<number | null>(null);
+  useEffect(() => {
+    const value = Number(new URLSearchParams(window.location.search).get("year"));
+    if (Number.isInteger(value) && value > 1900) setYear(value);
+  }, []);
+  const chooseYear = (value: number | null) => {
+    setYear(value);
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set("year", String(value));
+    else url.searchParams.delete("year");
+    window.history.replaceState(window.history.state, "", url);
+  };
   const [yearOverrides, setYearOverrides] = useState<Record<string, YearRange>>({});
   const [yearsLoading, setYearsLoading] = useState(false);
   const deferredQuery = useDeferredValue(query);
@@ -126,13 +148,16 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
 
   const uniqueModels = useMemo(() => uniqueDirectoryItems(models, model => buildAutoModelPath(brand, model.name)), [brand, models]);
 
-  // Fetches year ranges in the background, chunk by chunk, so the list
-  // renders immediately and year badges/sorting fill in progressively.
+  // Fills in year ranges the server did not have, in the background, chunk by
+  // chunk, so the list renders immediately and badges/sorting complete later.
   useEffect(() => {
     let cancelled = false;
     setYearOverrides({});
 
-    const names = uniqueModels.map((model) => model.name);
+    // Only models the server could not date: the page already carries the
+    // years for the rest, and refetching them re-rendered the list nine times
+    // during load (a ~2 s main-thread block on a mid-range phone).
+    const names = uniqueModels.filter((model) => !model.yearFrom && !model.yearTo).map((model) => model.name);
     if (!brand || names.length === 0) return;
 
     const chunks = chunkArray(names, YEAR_FETCH_CHUNK_SIZE);
@@ -175,13 +200,16 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
     [uniqueModels, yearOverrides]
   );
 
-  const filteredModels = useMemo(
-    () =>
-      normalizedQuery
-        ? modelsWithYears.filter((model) => normalize(`${model.name} ${formatCarModelName(model.name)}`).includes(normalizedQuery))
-        : modelsWithYears,
-    [modelsWithYears, normalizedQuery]
-  );
+  const filteredModels = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return modelsWithYears.filter((model) => {
+      if (normalizedQuery && !normalize(`${model.name} ${formatCarModelName(model.name)}`).includes(normalizedQuery)) return false;
+      if (!year) return true;
+      const from = model.yearFrom ?? model.yearTo;
+      const to = model.yearTo ?? (model.yearFrom ? currentYear : null);
+      return Boolean(from && to && from <= year && year <= to);
+    });
+  }, [modelsWithYears, normalizedQuery, year]);
 
   const sortedModels = useMemo(() => {
     if (sortMode === "name") {
@@ -193,7 +221,14 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
     return [...filteredModels].sort((a, b) => direction * (sortWeight(a) - sortWeight(b)));
   }, [filteredModels, sortMode]);
 
-  const pagination = useDirectoryPagination(sortedModels, `${brand}:${normalizedQuery}:${sortMode}`, 12);
+  const pagination = useDirectoryPagination(sortedModels, `${brand}:${normalizedQuery}:${sortMode}:${year ?? ""}`, 12);
+  // The brand's whole span, the track every model's era bar is drawn on.
+  // (Also the range offered in the year picker, newest first.)
+  const era = useMemo<EraRange>(() => {
+    const years = modelsWithYears.flatMap((model) => [model.yearFrom, model.yearTo]).filter((year): year is number => Boolean(year));
+    if (years.length === 0) return null;
+    return { from: Math.min(...years), to: Math.max(new Date().getFullYear(), ...years) };
+  }, [modelsWithYears]);
 
   return (
     <section
@@ -286,6 +321,29 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
                   {option.label}
                 </button>
               ))}
+              <span className="dmod-year">
+                <label>
+                  <Calendar size={13} strokeWidth={2.2} aria-hidden="true" />
+                  <span>Рік випуску</span>
+                  <select
+                    value={year ?? ""}
+                    onChange={(event) => chooseYear(event.target.value ? Number(event.target.value) : null)}
+                    aria-label={`Рік випуску ${brand}`}
+                  >
+                    <option value="">Будь-який</option>
+                    {era
+                      ? Array.from({ length: era.to - era.from + 1 }, (_, index) => era.to - index).map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))
+                      : null}
+                  </select>
+                </label>
+                {year ? (
+                  <button type="button" className="dmod-year__clear" onClick={() => chooseYear(null)} aria-label="Скинути рік випуску">
+                    <X size={13} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </span>
               {yearsLoading ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400">
                   <Loader2 size={11} className="animate-spin" />
@@ -304,7 +362,7 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
               >
                 {pagination.items.map((model, index) => (
                   <div key={model.name} className="directory-result" role="listitem">
-                    <ModelCard brand={brand} model={model} prefetchOnViewport={index < 4} />
+                    <ModelCard brand={brand} model={model} era={era} year={year} prefetchOnViewport={index < 8} />
                   </div>
                 ))}
               </DirectoryGrid>
@@ -312,7 +370,14 @@ export default function ModelsDirectoryClient({ brand, brandLogo, models }: Mode
               </>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 px-4 py-8 text-center text-sm text-slate-600">
-                {normalizedQuery ? "За цим запитом моделей не знайдено." : (
+                {normalizedQuery || year ? (
+                  <>
+                    <p>{year ? `Моделей ${brand}${normalizedQuery ? " за цим запитом" : ""} ${year} року випуску не знайдено.` : "За цим запитом моделей не знайдено."}</p>
+                    {year ? (
+                      <button type="button" className="directory-empty-action" onClick={() => chooseYear(null)}>Показати всі роки</button>
+                    ) : null}
+                  </>
+                ) : (
                   <>
                     <p>Список моделей зараз недоступний. Ви можете перейти до запчастин за маркою.</p>
                     <SmartLink href={buildCatalogCarSearchPath(brand)} prefetchOnIntent className="directory-empty-action">

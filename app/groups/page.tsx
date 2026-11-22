@@ -6,6 +6,7 @@ import CatalogSeoTextSection from "app/components/CatalogSeoTextSection";
 import { catalogPageBackgroundClass } from "app/components/catalog-directory-styles";
 import GroupsDirectoryClient from "app/groups/GroupsDirectoryClient";
 import { getFullGroupsDirectoryData } from "app/lib/groups-directory-data";
+import { buildVisibleCatalogGroupName } from "app/lib/catalog-group-label";
 import { appendSeoContactLast, buildPageMetadata, pickFittingSeoDescription } from "app/lib/seo-metadata";
 import { getSiteUrl } from "app/lib/site-url";
 import { safeJsonLd } from "app/lib/safe-json-ld";
@@ -23,7 +24,8 @@ const buildGroupsPageDescription = (
   groupCount: number,
   subgroupCount: number,
   leafCount: number,
-  indexedProductCount: number
+  indexedProductCount: number,
+  topSystems: string[] = []
 ) => {
   const countSummary =
     groupCount > 0 && subgroupCount > 0 && leafCount > 0
@@ -39,6 +41,10 @@ const buildGroupsPageDescription = (
   // fits whole instead of cutting a sentence off with "…".
   return appendSeoContactLast(
     pickFittingSeoDescription([
+      // Most specific first: the systems with the most stock, by name.
+      ...(topSystems.length >= 3 && indexedProductCount > 0
+        ? [`Автозапчастини за системами авто: ${topSystems.slice(0, 3).join(", ")} та ще ${Math.max(0, groupCount - 3)}. ${indexedProductCount.toLocaleString("uk-UA")}+ ${pluralizeUk(indexedProductCount, "товар", "товари", "товарів")} з цінами й наявністю у Львові.`]
+        : []),
       "Деталі гальмівної системи, підвіски, двигуна та інших вузлів. Оберіть категорію, порівняйте товари й перевірте сумісність за артикулом або VIN.",
       `Категорії автозапчастин PartsON: ${countSummary}${productSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
       `Категорії автозапчастин PartsON: ${countSummary}. Підбір за артикулом або VIN, доставка по Україні.`,
@@ -49,20 +55,29 @@ const buildGroupsPageDescription = (
 
 export async function generateMetadata(): Promise<Metadata> {
   const {
+    clientGroups,
     totalGroups,
     totalSubgroups,
     totalThirdLevelItems,
     totalProductCount,
   } = await getFullGroupsDirectoryData();
+  const topSystems = [...clientGroups]
+    .sort((a, b) => b.productCount - a.productCount)
+    // Lower-case only the first letter: "Деталі для ТО" → "деталі для ТО".
+    .map((group) => {
+      const label = buildVisibleCatalogGroupName(group.label);
+      return label.charAt(0).toLocaleLowerCase("uk-UA") + label.slice(1);
+    });
   const description = buildGroupsPageDescription(
     totalGroups,
     totalSubgroups,
     totalThirdLevelItems,
-    totalProductCount
+    totalProductCount,
+    topSystems
   );
 
   return buildPageMetadata({
-    title: "Категорії автозапчастин",
+    title: totalGroups > 0 ? `Категорії автозапчастин: ${totalGroups} систем авто у Львові` : "Категорії автозапчастин",
     description,
     canonicalPath: "/groups",
     keywords: [
@@ -210,7 +225,7 @@ export default async function GroupsPage() {
         lead="Структура груп допомагає перейти від системи автомобіля до конкретного типу деталі та відкрити релевантні товари з готовим фільтром."
         topics={[
           {
-            title: "Оберіть систему автомобіля",
+            title: "Почніть із вузла авто",
             text: "Почніть із підвіски, гальм, двигуна, охолодження, електрики або іншої системи — групи впорядковують каталог за логікою ремонту.",
             icon: Layers3,
           },
