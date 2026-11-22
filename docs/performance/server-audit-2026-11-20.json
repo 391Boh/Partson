@@ -1,0 +1,1301 @@
+{
+  "checkedDate": "2026-11-20",
+  "timezone": "Europe/Kyiv",
+  "production": {
+    "origin": "https://partson.shop",
+    "release": "/var/www/Partson-release-20261119-80f970f",
+    "git": "80f970f524c599a87844e6d0a05cb3126bdb751d",
+    "buildId": "A_2EJsVcpjRyvD5YO8jMa",
+    "versions": {
+      "next": "16.4.6",
+      "react": "19.2.8",
+      "@sentry/nextjs": "10.78.0"
+    },
+    "cpuCount": 2,
+    "diskBefore": "Filesystem       1B-blocks        Used  Available Use% Mounted on\n/dev/vda1      36670308352 32662921216 2111668224  94% /\n",
+    "runtime": {
+      "app/api/_lib/oneC.js": {
+        "sha256": "9ff0bc56bd547a42c88894084a2b166e194b31f24a0e7b9db78be42aea99d654",
+        "globalGate": false,
+        "stats": false,
+        "settings": [
+          "const ONEC_DEFAULT_CONCURRENCY = parsePositiveIntEnv(\"ONEC_MAX_CONCURRENT_REQUESTS\", 12);",
+          "  if (envLimit > 0) return Math.min(envLimit, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(4, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(5, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(4, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(2, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(8, ONEC_DEFAULT_CONCURRENCY);",
+          "      return Math.min(8, ONEC_DEFAULT_CONCURRENCY);",
+          "      return ONEC_DEFAULT_CONCURRENCY;",
+          "const responseCache = new Map();",
+          "const RESPONSE_CACHE_MAX_ENTRIES = parsePositiveIntEnv(\"ONEC_CACHE_MAX_ENTRIES\", 2048);",
+          "const RESPONSE_CACHE_MAX_BYTES = parsePositiveIntEnv(\"ONEC_CACHE_MAX_BYTES\", 64 * 1024 * 1024);",
+          "let responseCacheBytes = 0;",
+          "  for (const [key, entry] of responseCache.entries()) {",
+          "  const entry = responseCache.get(key);",
+          "  responseCacheBytes -= entry.sizeBytes;",
+          "  responseCache.delete(key);",
+          "  const entry = responseCache.get(key);",
+          "  const entry = responseCache.get(key);",
+          "  responseCache.delete(key);",
+          "  responseCache.set(key, entry);",
+          "  if (sizeBytes > RESPONSE_CACHE_MAX_BYTES) return;",
+          "    responseCache.size >= RESPONSE_CACHE_MAX_ENTRIES ||",
+          "    responseCacheBytes + sizeBytes > RESPONSE_CACHE_MAX_BYTES",
+          "    const oldestKey = responseCache.keys().next().value;",
+          "  responseCache.set(key, { expiresAt, staleUntil: staleMs > 0 ? expiresAt + staleMs : 0, value, sizeBytes });",
+          "  responseCacheBytes += sizeBytes;",
+          "  for (const key of responseCache.keys()) {",
+          "  const size = responseCache.size;",
+          "  responseCache.clear();",
+          "  responseCacheBytes = 0;"
+        ]
+      },
+      "app/lib/catalog-server.ts": {
+        "sha256": "5f4ee43353750e29f7db03f5799194cd5b65ca3d452205434bfeb1e3841db278",
+        "globalGate": false,
+        "stats": false,
+        "settings": [
+          "  globalThis.__partsonFullCatalogState ??",
+          "  (globalThis.__partsonFullCatalogState = {"
+        ]
+      },
+      "buildId": "A_2EJsVcpjRyvD5YO8jMa",
+      "buildTime": 1795121695.9447865,
+      "errorLogTail": "2026-11-20 08:33:55: [1C] allgoods failed at http://127.0.0.1:8080/RetailShopAuto1/hs/serv/allgoods: Request timeout after 1500ms\n2026-11-20 08:34:44: [1C] getimages failed at http://127.0.0.1:8080/RetailShopAuto1/hs/serv/getimages: Request timeout after 1700ms (+1 more in the last minute)\n2026-11-20 08:34:56: [1C] allgoods failed at http://127.0.0.1:8080/RetailShopAuto1/hs/serv/allgoods: Request timeout after 2500ms (+14 more in the last minute)\n2026-11-20 08:34:56: ⨯ Error [AutoModelBreakdownUnavailableError]: 1C product breakdown unavailable for \"MINI Clubvan i\"\n2026-11-20 08:34:56:     at <unknown> (.next/server/chunks/ssr/app_lib_1vk8j4qrx02kh._.js:1:11177)\n2026-11-20 08:34:56:     at Module.Q [as generateMetadata] (.next/server/chunks/ssr/app_0laic31-3rbbg._.js:1:2997) {\n2026-11-20 08:34:56:   digest: '2204594268'\n2026-11-20 08:34:56: }\n2026-11-20 08:34:56: ⨯ Error [AutoModelBreakdownUnavailableError]: 1C product breakdown unavailable for \"MINI Clubvan i\"\n2026-11-20 08:34:56:     at <unknown> (.next/server/chunks/ssr/app_lib_1vk8j4qrx02kh._.js:1:11177)\n2026-11-20 08:34:56:     at R (.next/server/chunks/ssr/app_0laic31-3rbbg._.js:1:4476) {\n2026-11-20 08:34:56:   digest: '1426995645'\n2026-11-20 08:34:56: }\n2026-11-20 08:34:56: ⨯ Error [AutoModelBreakdownUnavailableError]: 1C product breakdown unavailable for \"MINI Clubvan i\"\n2026-11-20 08:34:56:     at <unknown> (.next/server/chunks/ssr/app_lib_1vk8j4qrx02kh._.js:1:11177)\n2026-11-20 08:34:56:     at Module.Q [as generateMetadata] (.next/server/chunks/ssr/app_0laic31-3rbbg._.js:1:2997) {\n2026-11-20 08:34:56:   digest: '2204594268'\n2026-11-20 08:34:56: }\n",
+      "safeEnv": {
+        "NODE_OPTIONS": "--max-old-space-size=512 --max-semi-space-size=16"
+      },
+      "sentryEnvironmentConfigured": {
+        "SENTRY_DSN": false,
+        "NEXT_PUBLIC_SENTRY_DSN": false
+      },
+      "sentryDotenvConfigured": {
+        "SENTRY_DSN": false,
+        "NEXT_PUBLIC_SENTRY_DSN": false
+      },
+      "packageVersions": {
+        "next": "16.4.6",
+        "react": "19.2.8",
+        "@sentry/nextjs": "10.78.0"
+      }
+    }
+  },
+  "methodology": {
+    "baseline": "5 sequential requests per route; keep-alive and gzip/br; caches not cleared",
+    "load": {
+      "timeoutMs": 12000,
+      "loadDurationMs": 20000,
+      "maxConcurrency": 5,
+      "rates": [
+        1,
+        3,
+        5
+      ],
+      "stop": "First HTTP/network failure or request >5s; no writes, no cache clearing"
+    },
+    "lighthouse": "4 scenarios, plus 1 targeted repeat of mobile catalog; default mobile simulation and desktop preset; no interaction; cookies fresh",
+    "browser": "6 instrumented CDP pages for network traces; coverage aggregation failed after metrics; their CPU timings are excluded. One clean mobile catalog confirmation without coverage succeeded.",
+    "accessLogs": "Tail of 12000 lines, filtered to partson.shop/www.partson.shop, includes bots and audits; request_time includes response transmission; this is not user-only RUM or isolated backend time"
+  },
+  "baseline": [
+    {
+      "name": "home",
+      "path": "/",
+      "samples": 5,
+      "firstTotalMs": 450,
+      "medianTotalMs": 368,
+      "maxTotalMs": 450,
+      "medianTtfbMs": 217,
+      "wireBodyBytes": 55146,
+      "decodedBytes": 408521,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "catalog",
+      "path": "/katalog",
+      "samples": 5,
+      "firstTotalMs": 334,
+      "medianTotalMs": 295,
+      "maxTotalMs": 334,
+      "medianTtfbMs": 200,
+      "wireBodyBytes": 49964,
+      "decodedBytes": 422275,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "groups",
+      "path": "/groups",
+      "samples": 5,
+      "firstTotalMs": 156,
+      "medianTotalMs": 187,
+      "maxTotalMs": 414,
+      "medianTtfbMs": 122,
+      "wireBodyBytes": 38911,
+      "decodedBytes": 217179,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "category",
+      "path": "/groups/inshe/ruchnyy-instrument",
+      "samples": 5,
+      "firstTotalMs": 442,
+      "medianTotalMs": 396,
+      "maxTotalMs": 442,
+      "medianTtfbMs": 164,
+      "wireBodyBytes": 67141,
+      "decodedBytes": 554887,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "manufacturer",
+      "path": "/manufacturers/bosch-2wkr2o",
+      "samples": 5,
+      "firstTotalMs": 372,
+      "medianTotalMs": 127,
+      "maxTotalMs": 372,
+      "medianTtfbMs": 71,
+      "wireBodyBytes": 60910,
+      "decodedBytes": 410699,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "auto",
+      "path": "/auto/volkswagen",
+      "samples": 5,
+      "firstTotalMs": 188,
+      "medianTotalMs": 174,
+      "maxTotalMs": 188,
+      "medianTtfbMs": 65,
+      "wireBodyBytes": 40971,
+      "decodedBytes": 259954,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "blog",
+      "path": "/blog",
+      "samples": 5,
+      "firstTotalMs": 176,
+      "medianTotalMs": 176,
+      "maxTotalMs": 302,
+      "medianTtfbMs": 125,
+      "wireBodyBytes": 24575,
+      "decodedBytes": 120015,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "catalog-api",
+      "path": "/api/catalog-page",
+      "samples": 5,
+      "firstTotalMs": 121,
+      "medianTotalMs": 160,
+      "maxTotalMs": 342,
+      "medianTtfbMs": 159,
+      "wireBodyBytes": 1641,
+      "decodedBytes": 7699,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "search-api",
+      "path": "/api/catalog-page",
+      "samples": 5,
+      "firstTotalMs": 1421,
+      "medianTotalMs": 57,
+      "maxTotalMs": 1421,
+      "medianTtfbMs": 57,
+      "wireBodyBytes": 1806,
+      "decodedBytes": 7251,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "tree-api",
+      "path": "/api/proxy?endpoint=getprod",
+      "samples": 5,
+      "firstTotalMs": 5073,
+      "medianTotalMs": 117,
+      "maxTotalMs": 5073,
+      "medianTtfbMs": 116,
+      "wireBodyBytes": 2819,
+      "decodedBytes": 26104,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "euro-api",
+      "path": "/api/proxy?endpoint=euro",
+      "samples": 5,
+      "firstTotalMs": 58,
+      "medianTotalMs": 80,
+      "maxTotalMs": 161,
+      "medianTtfbMs": 79,
+      "wireBodyBytes": 33,
+      "decodedBytes": 13,
+      "statuses": {
+        "200": 5
+      }
+    },
+    {
+      "name": "product",
+      "path": "/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+      "samples": 5,
+      "firstTotalMs": 221,
+      "medianTotalMs": 205,
+      "maxTotalMs": 271,
+      "medianTtfbMs": 152,
+      "wireBodyBytes": 43694,
+      "decodedBytes": 241159,
+      "statuses": {
+        "200": 5
+      }
+    }
+  ],
+  "loadStages": [
+    {
+      "targetRps": 1,
+      "durationMs": 20000,
+      "maxConcurrency": 5,
+      "skipped": 0,
+      "elapsedMs": 20001,
+      "completed": 20,
+      "actualRps": 1,
+      "p50Ms": 174,
+      "p95Ms": 352,
+      "maxMs": 415,
+      "errors": 0,
+      "stoppedEarly": false
+    },
+    {
+      "targetRps": 3,
+      "durationMs": 20000,
+      "maxConcurrency": 5,
+      "skipped": 0,
+      "elapsedMs": 20002,
+      "completed": 60,
+      "actualRps": 3,
+      "p50Ms": 134,
+      "p95Ms": 261,
+      "maxMs": 385,
+      "errors": 0,
+      "stoppedEarly": false
+    },
+    {
+      "targetRps": 5,
+      "durationMs": 20000,
+      "maxConcurrency": 5,
+      "skipped": 1,
+      "elapsedMs": 20544,
+      "completed": 100,
+      "actualRps": 4.87,
+      "p50Ms": 177,
+      "p95Ms": 545,
+      "maxMs": 1022,
+      "errors": 0,
+      "stoppedEarly": false
+    }
+  ],
+  "lighthouse": [
+    {
+      "name": "home-mobile",
+      "url": "https://partson.shop/",
+      "fetchTime": "2026-11-20T06:37:22.598Z",
+      "version": "13.6.0",
+      "score": 99,
+      "throttlingMethod": "simulate",
+      "throttling": {
+        "rttMs": 150,
+        "throughputKbps": 1638.4,
+        "requestLatencyMs": 562.5,
+        "downloadThroughputKbps": 1474.5600000000002,
+        "uploadThroughputKbps": 675,
+        "cpuSlowdownMultiplier": 4
+      },
+      "metrics": {
+        "first-contentful-paint": 1542.51,
+        "largest-contentful-paint": 1542.51,
+        "total-blocking-time": 3,
+        "cumulative-layout-shift": 0,
+        "speed-index": 2159.4653078342867
+      },
+      "warnings": [],
+      "rawReport": "output/performance/2026-11-20/home-mobile.report.json",
+      "htmlReport": "output/performance/2026-11-20/home-mobile.report.html"
+    },
+    {
+      "name": "catalog-mobile",
+      "url": "https://partson.shop/katalog",
+      "fetchTime": "2026-11-20T06:37:40.138Z",
+      "version": "13.6.0",
+      "score": 73,
+      "throttlingMethod": "simulate",
+      "throttling": {
+        "rttMs": 150,
+        "throughputKbps": 1638.4,
+        "requestLatencyMs": 562.5,
+        "downloadThroughputKbps": 1474.5600000000002,
+        "uploadThroughputKbps": 675,
+        "cpuSlowdownMultiplier": 4
+      },
+      "metrics": {
+        "first-contentful-paint": 1227.3564999999999,
+        "largest-contentful-paint": 1227.3564999999999,
+        "total-blocking-time": 1225,
+        "cumulative-layout-shift": 2.996000337533694e-05,
+        "speed-index": 4666.452666678987
+      },
+      "warnings": [],
+      "rawReport": "output/performance/2026-11-20/catalog-mobile.report.json",
+      "htmlReport": "output/performance/2026-11-20/catalog-mobile.report.html"
+    },
+    {
+      "name": "catalog-mobile-confirm",
+      "url": "https://partson.shop/katalog",
+      "fetchTime": "2026-11-20T06:39:18.373Z",
+      "version": "13.6.0",
+      "score": 74,
+      "throttlingMethod": "simulate",
+      "throttling": {
+        "rttMs": 150,
+        "throughputKbps": 1638.4,
+        "requestLatencyMs": 562.5,
+        "downloadThroughputKbps": 1474.5600000000002,
+        "uploadThroughputKbps": 675,
+        "cpuSlowdownMultiplier": 4
+      },
+      "metrics": {
+        "first-contentful-paint": 1246.317,
+        "largest-contentful-paint": 1246.317,
+        "total-blocking-time": 1416,
+        "cumulative-layout-shift": 2.996000337533694e-05,
+        "speed-index": 2428.801048524224
+      },
+      "warnings": [],
+      "rawReport": "output/performance/2026-11-20/catalog-mobile-confirm.report.json",
+      "htmlReport": "output/performance/2026-11-20/catalog-mobile-confirm.report.html"
+    },
+    {
+      "name": "product-mobile",
+      "url": "https://partson.shop/product/tros-ruchn-halm-liv-audi-80-barab-ad030213",
+      "fetchTime": "2026-11-20T06:38:06.350Z",
+      "version": "13.6.0",
+      "score": 100,
+      "throttlingMethod": "simulate",
+      "throttling": {
+        "rttMs": 150,
+        "throughputKbps": 1638.4,
+        "requestLatencyMs": 562.5,
+        "downloadThroughputKbps": 1474.5600000000002,
+        "uploadThroughputKbps": 675,
+        "cpuSlowdownMultiplier": 4
+      },
+      "metrics": {
+        "first-contentful-paint": 1243.9569999999999,
+        "largest-contentful-paint": 1543.9569999999999,
+        "total-blocking-time": 46,
+        "cumulative-layout-shift": 0,
+        "speed-index": 1768.31986628824
+      },
+      "warnings": [],
+      "rawReport": "output/performance/2026-11-20/product-mobile.report.json",
+      "htmlReport": "output/performance/2026-11-20/product-mobile.report.html"
+    },
+    {
+      "name": "home-desktop",
+      "url": "https://partson.shop/",
+      "fetchTime": "2026-11-20T06:38:26.073Z",
+      "version": "13.6.0",
+      "score": 99,
+      "throttlingMethod": "simulate",
+      "throttling": {
+        "rttMs": 40,
+        "throughputKbps": 10240,
+        "requestLatencyMs": 0,
+        "downloadThroughputKbps": 0,
+        "uploadThroughputKbps": 0,
+        "cpuSlowdownMultiplier": 1
+      },
+      "metrics": {
+        "first-contentful-paint": 515.867,
+        "largest-contentful-paint": 755.867,
+        "total-blocking-time": 0,
+        "cumulative-layout-shift": 0,
+        "speed-index": 855.0478823701842
+      },
+      "warnings": [],
+      "rawReport": "output/performance/2026-11-20/home-desktop.report.json",
+      "htmlReport": "output/performance/2026-11-20/home-desktop.report.html"
+    }
+  ],
+  "resources": {
+    "fullObservation": {
+      "samples": 100,
+      "firstAtUtc": "2026-11-20T06:33:28.350876+00:00",
+      "lastAtUtc": "2026-11-20T06:36:51.731201+00:00",
+      "minAvailableMiB": 286.5,
+      "maxAvailableMiB": 936.6,
+      "webRssMiBMin": 349.65234375,
+      "webRssMiBMax": 442.55078125,
+      "webRestartCounts": [
+        0
+      ],
+      "swapReadMiB": 353.1875,
+      "swapWrittenMiB": 383.4140625,
+      "oomKills": 0,
+      "peakPressureAvg10": {
+        "cpu": 88.12,
+        "memory": 13.6,
+        "io": 43.53
+      }
+    },
+    "withinHttpAudit": {
+      "samples": 44,
+      "firstAtUtc": "2026-11-20T06:33:28.350876+00:00",
+      "lastAtUtc": "2026-11-20T06:34:56.522021+00:00",
+      "minAvailableMiB": 539.6,
+      "maxAvailableMiB": 936.6,
+      "webRssMiBMin": 385.59375,
+      "webRssMiBMax": 442.55078125,
+      "webRestartCounts": [
+        0
+      ],
+      "swapReadMiB": 288.296875,
+      "swapWrittenMiB": 140.5078125,
+      "oomKills": 0,
+      "peakPressureAvg10": {
+        "cpu": 39.86,
+        "memory": 10.91,
+        "io": 43.53
+      }
+    }
+  },
+  "historicalRestarts": {
+    "webStartsToday": 9,
+    "memoryRestartLines": [
+      "2026-11-20T00:12:04: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=840073216 max_memory_limit=838860800 [octets])",
+      "2026-11-20T01:00:34: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=853188608 max_memory_limit=838860800 [octets])",
+      "2026-11-20T01:40:04: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=847646720 max_memory_limit=838860800 [octets])",
+      "2026-11-20T03:00:34: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=842883072 max_memory_limit=838860800 [octets])",
+      "2026-11-20T04:01:04: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=856158208 max_memory_limit=838860800 [octets])",
+      "2026-11-20T06:41:05: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=842813440 max_memory_limit=838860800 [octets])",
+      "2026-11-20T07:52:35: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=858112000 max_memory_limit=838860800 [octets])",
+      "2026-11-20T08:14:35: PM2 log: [PM2][WORKER] Process 71 restarted because it exceeds --max-memory-restart value (current_memory=909139968 max_memory_limit=838860800 [octets])"
+    ],
+    "webEventsToday": [
+      "2026-11-20T00:12:04: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T00:12:06: PM2 log: App [partson-web:71] exited with code [0] via signal [SIGKILL]",
+      "2026-11-20T00:12:06: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T00:12:06: PM2 log: App [partson-web:71] online",
+      "2026-11-20T01:00:34: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T01:00:35: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T01:00:35: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T01:00:35: PM2 log: App [partson-web:71] online",
+      "2026-11-20T01:40:04: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T01:40:05: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T01:40:05: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T01:40:05: PM2 log: App [partson-web:71] online",
+      "2026-11-20T03:00:34: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T03:00:35: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T03:00:35: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T03:00:35: PM2 log: App [partson-web:71] online",
+      "2026-11-20T04:01:04: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T04:01:05: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T04:01:05: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T04:01:05: PM2 log: App [partson-web:71] online",
+      "2026-11-20T06:41:05: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T06:41:05: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T06:41:06: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T06:41:06: PM2 log: App [partson-web:71] online",
+      "2026-11-20T07:52:35: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T07:52:37: PM2 log: App [partson-web:71] exited with code [0] via signal [SIGKILL]",
+      "2026-11-20T07:52:37: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T07:52:37: PM2 log: App [partson-web:71] online",
+      "2026-11-20T08:14:35: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T08:14:36: PM2 log: App [partson-web:71] exited with code [0] via signal [SIGKILL]",
+      "2026-11-20T08:14:36: PM2 log: App [partson-web:71] starting in -fork mode-",
+      "2026-11-20T08:14:36: PM2 log: App [partson-web:71] online",
+      "2026-11-20T08:30:57: PM2 log: Stopping app:partson-web id:71",
+      "2026-11-20T08:30:57: PM2 log: App [partson-web:71] exited with code [130] via signal [SIGINT]",
+      "2026-11-20T08:30:57: PM2 log: App [partson-web:72] starting in -fork mode-",
+      "2026-11-20T08:30:57: PM2 log: App [partson-web:72] online"
+    ]
+  },
+  "access": {
+    "source": "tail -n12000 /var/log/nginx/access.log",
+    "hostFilter": [
+      "partson.shop",
+      "www.partson.shop"
+    ],
+    "parsed": 11544,
+    "first": "20/Nov/2026:00:28:36 +0200",
+    "last": "20/Nov/2026:08:39:39 +0200",
+    "statuses": {
+      "200": 10817,
+      "304": 354,
+      "499": 13,
+      "500": 7,
+      "301": 146,
+      "308": 44,
+      "404": 116,
+      "502": 27,
+      "503": 12,
+      "429": 8
+    },
+    "routes": [
+      {
+        "route": "/auto/*",
+        "n": 2591,
+        "statuses": {
+          "200": 2574,
+          "500": 7,
+          "502": 3,
+          "429": 7
+        },
+        "p50AllMs": 718.0,
+        "p95AllMs": 2987.0,
+        "p95SuccessMs": 2929.0,
+        "maxMs": 15292.0
+      },
+      {
+        "route": "/katalog",
+        "n": 2410,
+        "statuses": {
+          "200": 2407,
+          "301": 3
+        },
+        "p50AllMs": 142.0,
+        "p95AllMs": 566.0,
+        "p95SuccessMs": 566.0,
+        "maxMs": 2656.0
+      },
+      {
+        "route": "/product/*",
+        "n": 2178,
+        "statuses": {
+          "200": 2114,
+          "308": 30,
+          "404": 9,
+          "304": 2,
+          "502": 22,
+          "429": 1
+        },
+        "p50AllMs": 527.0,
+        "p95AllMs": 1856.0,
+        "p95SuccessMs": 1793.0,
+        "maxMs": 15506.0
+      },
+      {
+        "route": "/product-image/*",
+        "n": 1152,
+        "statuses": {
+          "200": 781,
+          "304": 352,
+          "404": 10,
+          "502": 2,
+          "503": 7
+        },
+        "p50AllMs": 0.0,
+        "p95AllMs": 342.0,
+        "p95SuccessMs": 372.0,
+        "maxMs": 3917.0
+      },
+      {
+        "route": "/",
+        "n": 468,
+        "statuses": {
+          "200": 350,
+          "301": 118
+        },
+        "p50AllMs": 8.0,
+        "p95AllMs": 217.0,
+        "p95SuccessMs": 292.0,
+        "maxMs": 2638.0
+      },
+      {
+        "route": "/api/catalog-prices",
+        "n": 232,
+        "statuses": {
+          "200": 232
+        },
+        "p50AllMs": 16.0,
+        "p95AllMs": 3119.0,
+        "p95SuccessMs": 3119.0,
+        "maxMs": 6946.0
+      },
+      {
+        "route": "/api/catalog-page",
+        "n": 165,
+        "statuses": {
+          "200": 164,
+          "503": 1
+        },
+        "p50AllMs": 21.0,
+        "p95AllMs": 784.0,
+        "p95SuccessMs": 653.0,
+        "maxMs": 5440.0
+      },
+      {
+        "route": "/groups/inshe",
+        "n": 145,
+        "statuses": {
+          "200": 145
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 105.0,
+        "p95SuccessMs": 105.0,
+        "maxMs": 551.0
+      },
+      {
+        "route": "/_next/image",
+        "n": 143,
+        "statuses": {
+          "200": 143
+        },
+        "p50AllMs": 0.0,
+        "p95AllMs": 2524.0,
+        "p95SuccessMs": 2524.0,
+        "maxMs": 17613.0
+      },
+      {
+        "route": "/api/catalog-image-batch",
+        "n": 109,
+        "statuses": {
+          "200": 109
+        },
+        "p50AllMs": 26.0,
+        "p95AllMs": 186.0,
+        "p95SuccessMs": 186.0,
+        "maxMs": 2891.0
+      },
+      {
+        "route": "/api/catalog-live",
+        "n": 108,
+        "statuses": {
+          "200": 102,
+          "499": 2,
+          "503": 4
+        },
+        "p50AllMs": 346.0,
+        "p95AllMs": 4256.0,
+        "p95SuccessMs": 3047.0,
+        "maxMs": 5768.0
+      },
+      {
+        "route": "/api/admin/notification-counts",
+        "n": 87,
+        "statuses": {
+          "200": 87
+        },
+        "p50AllMs": 261.0,
+        "p95AllMs": 1108.0,
+        "p95SuccessMs": 1108.0,
+        "maxMs": 1951.0
+      },
+      {
+        "route": "/groups/inshe/ruchnyy-instrument",
+        "n": 87,
+        "statuses": {
+          "200": 87
+        },
+        "p50AllMs": 7.0,
+        "p95AllMs": 73.0,
+        "p95SuccessMs": 73.0,
+        "maxMs": 1102.0
+      },
+      {
+        "route": "/groups",
+        "n": 79,
+        "statuses": {
+          "200": 79
+        },
+        "p50AllMs": 11.0,
+        "p95AllMs": 303.0,
+        "p95SuccessMs": 303.0,
+        "maxMs": 1022.0
+      },
+      {
+        "route": "/robots.txt",
+        "n": 71,
+        "statuses": {
+          "200": 70,
+          "301": 1
+        },
+        "p50AllMs": 12.0,
+        "p95AllMs": 457.0,
+        "p95SuccessMs": 457.0,
+        "maxMs": 867.0
+      },
+      {
+        "route": "/manufacturers/hans-yj0z81",
+        "n": 67,
+        "statuses": {
+          "200": 67
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 29.0,
+        "p95SuccessMs": 29.0,
+        "maxMs": 197.0
+      },
+      {
+        "route": "/manufacturers/alloid-lpqs3q",
+        "n": 51,
+        "statuses": {
+          "200": 51
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 31.0,
+        "p95SuccessMs": 31.0,
+        "maxMs": 115.0
+      },
+      {
+        "route": "/api/product-price",
+        "n": 41,
+        "statuses": {
+          "200": 41
+        },
+        "p50AllMs": 272.0,
+        "p95AllMs": 2897.0,
+        "p95SuccessMs": 2897.0,
+        "maxMs": 3200.0
+      },
+      {
+        "route": "/auto",
+        "n": 34,
+        "statuses": {
+          "200": 34
+        },
+        "p50AllMs": 20.0,
+        "p95AllMs": 36.0,
+        "p95SuccessMs": 36.0,
+        "maxMs": 687.0
+      },
+      {
+        "route": "/manufacturers",
+        "n": 29,
+        "statuses": {
+          "200": 29
+        },
+        "p50AllMs": 11.0,
+        "p95AllMs": 284.0,
+        "p95SuccessMs": 284.0,
+        "maxMs": 5065.0
+      },
+      {
+        "route": "/api/proxy",
+        "n": 26,
+        "statuses": {
+          "200": 22,
+          "499": 1,
+          "301": 3
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 167.0,
+        "p95SuccessMs": 105.0,
+        "maxMs": 4960.0
+      },
+      {
+        "route": "/api/product-description",
+        "n": 21,
+        "statuses": {
+          "200": 19,
+          "499": 2
+        },
+        "p50AllMs": 29.0,
+        "p95AllMs": 4508.0,
+        "p95SuccessMs": 4013.0,
+        "maxMs": 4781.0
+      },
+      {
+        "route": "/manufacturers/hans-pries-1qnakvg",
+        "n": 19,
+        "statuses": {
+          "200": 16,
+          "499": 3
+        },
+        "p50AllMs": 32.0,
+        "p95AllMs": 1161.0,
+        "p95SuccessMs": 377.0,
+        "maxMs": 2446.0
+      },
+      {
+        "route": "/inform/location",
+        "n": 18,
+        "statuses": {
+          "200": 18
+        },
+        "p50AllMs": 17.0,
+        "p95AllMs": 61.0,
+        "p95SuccessMs": 61.0,
+        "maxMs": 292.0
+      },
+      {
+        "route": "/inform/delivery",
+        "n": 17,
+        "statuses": {
+          "200": 17
+        },
+        "p50AllMs": 13.0,
+        "p95AllMs": 61.0,
+        "p95SuccessMs": 61.0,
+        "maxMs": 687.0
+      },
+      {
+        "route": "/groups/halmivna-systema",
+        "n": 17,
+        "statuses": {
+          "200": 17
+        },
+        "p50AllMs": 12.0,
+        "p95AllMs": 91.0,
+        "p95SuccessMs": 91.0,
+        "maxMs": 324.0
+      },
+      {
+        "route": "/groups/datchyky-ta-elektronika",
+        "n": 17,
+        "statuses": {
+          "200": 14,
+          "499": 3
+        },
+        "p50AllMs": 122.0,
+        "p95AllMs": 2448.0,
+        "p95SuccessMs": 2448.0,
+        "maxMs": 2535.0
+      },
+      {
+        "route": "/favicon-partson-v3.ico",
+        "n": 16,
+        "statuses": {
+          "200": 16
+        },
+        "p50AllMs": 9.0,
+        "p95AllMs": 179.0,
+        "p95SuccessMs": 179.0,
+        "maxMs": 348.0
+      },
+      {
+        "route": "/api/catalog-params",
+        "n": 14,
+        "statuses": {
+          "200": 14
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 18.0,
+        "p95SuccessMs": 18.0,
+        "maxMs": 168.0
+      },
+      {
+        "route": "/groups/detali-dvyhuna",
+        "n": 14,
+        "statuses": {
+          "200": 14
+        },
+        "p50AllMs": 6.0,
+        "p95AllMs": 67.0,
+        "p95SuccessMs": 67.0,
+        "maxMs": 115.0
+      },
+      {
+        "route": "/api/product-descriptions",
+        "n": 13,
+        "statuses": {
+          "200": 13
+        },
+        "p50AllMs": 7.0,
+        "p95AllMs": 401.0,
+        "p95SuccessMs": 401.0,
+        "maxMs": 422.0
+      },
+      {
+        "route": "/manufacturers/alloid-building-tools-222wjf",
+        "n": 13,
+        "statuses": {
+          "200": 13
+        },
+        "p50AllMs": 12.0,
+        "p95AllMs": 487.0,
+        "p95SuccessMs": 487.0,
+        "maxMs": 1955.0
+      },
+      {
+        "route": "/groups/datchyky-ta-elektronika/pidyom-skla",
+        "n": 13,
+        "statuses": {
+          "200": 11,
+          "499": 2
+        },
+        "p50AllMs": 156.0,
+        "p95AllMs": 1164.0,
+        "p95SuccessMs": 623.0,
+        "maxMs": 2436.0
+      },
+      {
+        "route": "/manufacturers/adriauto-1hef7v8",
+        "n": 13,
+        "statuses": {
+          "200": 13
+        },
+        "p50AllMs": 22.0,
+        "p95AllMs": 30.0,
+        "p95SuccessMs": 30.0,
+        "maxMs": 1203.0
+      },
+      {
+        "route": "/groups/inshe/avtokhimiya-ta-dohlyad",
+        "n": 12,
+        "statuses": {
+          "200": 12
+        },
+        "p50AllMs": 7.0,
+        "p95AllMs": 1147.0,
+        "p95SuccessMs": 1147.0,
+        "maxMs": 1373.0
+      },
+      {
+        "route": "/groups/halmivna-systema/tros-ruchnoho-halma",
+        "n": 11,
+        "statuses": {
+          "200": 11
+        },
+        "p50AllMs": 16.0,
+        "p95AllMs": 253.0,
+        "p95SuccessMs": 253.0,
+        "maxMs": 355.0
+      },
+      {
+        "route": "/groups/systema-okholodzhennya",
+        "n": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50AllMs": 107.0,
+        "p95AllMs": 407.0,
+        "p95SuccessMs": 407.0,
+        "maxMs": 479.0
+      },
+      {
+        "route": "/liqpay-logo.svg",
+        "n": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50AllMs": 13.0,
+        "p95AllMs": 33.0,
+        "p95SuccessMs": 33.0,
+        "maxMs": 59.0
+      },
+      {
+        "route": "/manufacturers/bosch-2wkr2o",
+        "n": 10,
+        "statuses": {
+          "200": 10
+        },
+        "p50AllMs": 11.0,
+        "p95AllMs": 45.0,
+        "p95SuccessMs": 45.0,
+        "maxMs": 1079.0
+      },
+      {
+        "route": "/Brands/HANS%20PRIES.svg",
+        "n": 9,
+        "statuses": {
+          "200": 9
+        },
+        "p50AllMs": 15.0,
+        "p95AllMs": 42.0,
+        "p95SuccessMs": 42.0,
+        "maxMs": 137.0
+      }
+    ]
+  },
+  "api": {
+    "origin": "https://partson.shop",
+    "records": [
+      {
+        "at": "2026-11-20T06:35:36.970Z",
+        "path": "/api/catalog-page",
+        "status": 200,
+        "ttfbMs": 291,
+        "totalMs": 297,
+        "decodedBytes": 7699,
+        "cacheControl": "no-store",
+        "keys": [
+          "items",
+          "prices",
+          "images",
+          "hasMore",
+          "nextCursor",
+          "cursorField",
+          "totalCount"
+        ],
+        "itemCount": 16,
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 32,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:37.067Z",
+        "path": "/api/catalog-prices?mode=fast",
+        "status": 200,
+        "ttfbMs": 91,
+        "totalMs": 91,
+        "decodedBytes": 1620,
+        "cacheControl": "no-store",
+        "keys": [
+          "prices",
+          "costPrices",
+          "promoPrices",
+          "hasPromo",
+          "promoPercent",
+          "isPartner"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 16,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:37.127Z",
+        "path": "/api/catalog-prices?mode=fast",
+        "status": 200,
+        "ttfbMs": 59,
+        "totalMs": 60,
+        "decodedBytes": 1620,
+        "cacheControl": "no-store",
+        "keys": [
+          "prices",
+          "costPrices",
+          "promoPrices",
+          "hasPromo",
+          "promoPercent",
+          "isPartner"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 16,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:37.185Z",
+        "path": "/api/catalog-prices?mode=fast",
+        "status": 200,
+        "ttfbMs": 58,
+        "totalMs": 58,
+        "decodedBytes": 1620,
+        "cacheControl": "no-store",
+        "keys": [
+          "prices",
+          "costPrices",
+          "promoPrices",
+          "hasPromo",
+          "promoPercent",
+          "isPartner"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 16,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:37.239Z",
+        "path": "/api/catalog-prices?mode=fast",
+        "status": 200,
+        "ttfbMs": 53,
+        "totalMs": 53,
+        "decodedBytes": 1620,
+        "cacheControl": "no-store",
+        "keys": [
+          "prices",
+          "costPrices",
+          "promoPrices",
+          "hasPromo",
+          "promoPercent",
+          "isPartner"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 16,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:37.294Z",
+        "path": "/api/catalog-prices?mode=fast",
+        "status": 200,
+        "ttfbMs": 55,
+        "totalMs": 56,
+        "decodedBytes": 1620,
+        "cacheControl": "no-store",
+        "keys": [
+          "prices",
+          "costPrices",
+          "promoPrices",
+          "hasPromo",
+          "promoPercent",
+          "isPartner"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null,
+        "priceCount": 16,
+        "hasEmptyPrice": false
+      },
+      {
+        "at": "2026-11-20T06:35:39.924Z",
+        "path": "/api/catalog-live",
+        "status": 200,
+        "ttfbMs": 2630,
+        "totalMs": 2630,
+        "decodedBytes": 5025,
+        "cacheControl": "no-store",
+        "keys": [
+          "products",
+          "isPartner"
+        ],
+        "itemCount": 16,
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null
+      },
+      {
+        "at": "2026-11-20T06:35:39.979Z",
+        "path": "/api/catalog-live",
+        "status": 200,
+        "ttfbMs": 54,
+        "totalMs": 55,
+        "decodedBytes": 5025,
+        "cacheControl": "no-store",
+        "keys": [
+          "products",
+          "isPartner"
+        ],
+        "itemCount": 16,
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null
+      },
+      {
+        "at": "2026-11-20T06:35:40.035Z",
+        "path": "/api/catalog-live",
+        "status": 200,
+        "ttfbMs": 55,
+        "totalMs": 56,
+        "decodedBytes": 5025,
+        "cacheControl": "no-store",
+        "keys": [
+          "products",
+          "isPartner"
+        ],
+        "itemCount": 16,
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null
+      },
+      {
+        "at": "2026-11-20T06:35:40.138Z",
+        "path": "/api/proxy?endpoint=getprod",
+        "status": 200,
+        "ttfbMs": 103,
+        "totalMs": 103,
+        "decodedBytes": 26104,
+        "cacheControl": "public, max-age=300, stale-while-revalidate=1800",
+        "keys": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13"
+        ],
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null
+      },
+      {
+        "at": "2026-11-20T06:35:43.460Z",
+        "path": "/auto/opel/corsa-opc-d-restaylynh",
+        "status": 500,
+        "ttfbMs": 3245,
+        "totalMs": 3321,
+        "decodedBytes": 121725,
+        "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+        "serviceUnavailable": false,
+        "stale": false,
+        "error": null
+      }
+    ]
+  },
+  "compiledRelease": {
+    "git": "80f970f524c599a87844e6d0a05cb3126bdb751d",
+    "changed": " M ecosystem.config.js\n",
+    "compiledGlobalGate": false,
+    "compiledStats": false
+  },
+  "rawArtifactDirectory": "output/performance/2026-11-20",
+  "finalAvailability": {
+    "http": {
+      "at": "2026-11-20T07:01:09.983095+00:00",
+      "requests": [
+        {
+          "path": "/",
+          "returncode": 0,
+          "metrics": "200 0.321578 0.601717 77.42.57.62",
+          "error": ""
+        },
+        {
+          "path": "/katalog",
+          "returncode": 0,
+          "metrics": "200 0.373162 0.645595 77.42.57.62",
+          "error": ""
+        }
+      ]
+    },
+    "ssh": {
+      "status": "timeout",
+      "port": 22,
+      "attempts": 3,
+      "cause": "not established",
+      "lastSuccessfulResourceSnapshot": "output/performance/2026-11-20/server-after.json"
+    }
+  },
+  "cleanBrowserConfirmation": {
+    "source": "output/performance/2026-11-20/browser-confirmation.json",
+    "completed": true,
+    "path": "/katalog",
+    "mobile": true,
+    "cpuSlowdown": 4,
+    "network": "150ms latency, 1.6Mbps down, 750Kbps up",
+    "pageErrors": []
+  }
+}
