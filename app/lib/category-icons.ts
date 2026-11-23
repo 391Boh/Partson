@@ -68,6 +68,12 @@ addCategoryIcon("Кузовні елементи", "kuzovni_elementy.png");
 addCategoryIcon("Датчики та електроніка", "datchyky_ta_elektronika.png");
 addCategoryIcon("Рідини та мастила", "ridyny_ta_mastyla.png");
 addCategoryIcon("Рідина та мастило", "ridyny_ta_mastyla.png");
+// Sections of the 2026-11-23 catalog restructure.
+addCategoryIcon("Електрика та електроніка", "datchyky_ta_elektronika.png");
+addCategoryIcon("Оливи, рідини та автохімія", "ridyny_ta_mastyla.png");
+addCategoryIcon("Інструмент", "avtoaksesuary_ta_instrument.png");
+addCategoryIcon("Аксесуари", "inshe.png");
+addCategoryIcon("Склоочисники та омивачі", "kuzovni_elementy.png");
 
 export const getCategoryIconPath = (label: string) => {
   const resolved =
@@ -96,6 +102,11 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "Кузовні елементи": "🚙",
   "Рідини та мастила": "🧴",
   "Рідина та мастило": "🧴",
+  "Електрика та електроніка": "🔌",
+  "Оливи, рідини та автохімія": "🧴",
+  "Інструмент": "🧰",
+  "Аксесуари": "🧩",
+  "Склоочисники та омивачі": "🌧️",
 };
 const DEFAULT_CATEGORY_EMOJI = "🧩";
 
@@ -122,7 +133,7 @@ export const getCategoryEmoji = (label: string): string => {
 // earlier rules win on overlap (e.g. "фільтр" always means "Деталі для ТО",
 // even for "Фільтр палива", which also contains "паливн").
 const CATEGORY_INFERENCE_RULES: Array<{ category: string; keywords: string[] }> = [
-  { category: "Рідини та мастила", keywords: ["олив", "антифриз", "мастил", "рідина"] },
+  { category: "Оливи, рідини та автохімія", keywords: ["олив", "антифриз", "мастил", "рідина"] },
   { category: "Гальмівна система", keywords: ["гальм"] },
   {
     category: "Система охолодження",
@@ -171,7 +182,7 @@ const CATEGORY_INFERENCE_RULES: Array<{ category: string; keywords: string[] }> 
   { category: "Освітлення", keywords: ["фара", "фари", "фарі", "ліхтар", "освітлен", "поворотник", "повороту"] },
   { category: "Паливна система", keywords: ["паливн", "бензонасос", "форсунк", "інжектор"] },
   {
-    category: "Датчики та електроніка",
+    category: "Електрика та електроніка",
     keywords: ["датчик", "реле", "модуль", "вимикач", "електрон", "лямбда"],
   },
   {

@@ -3,11 +3,11 @@ import HomeHeading from "./HomeHeading";
 import { ArrowRight, ArrowUpRight, Clock3 } from "lucide-react";
 import HomeArrivalBackdropMotion from "./HomeArrivalBackdropMotion";
 
-import { buildGroupItemPath, buildGroupPath } from "app/lib/catalog-links";
+import { buildGroupItemPath } from "app/lib/catalog-links";
 import { HOME_ARRIVAL_IMAGES } from "app/generated/home-arrival-images";
 import { HOME_ARRIVAL_CARDS, HOME_ARRIVAL_FLOATING } from "app/lib/home-arrivals";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
-import { VITOL_GROUPS, VITOL_SECTION, type VitolGroup } from "app/lib/vitol-groups";
+import { VITOL_GROUPS, VITOL_GROUP_SECTION, type VitolGroup } from "app/lib/vitol-groups";
 
 // Homepage showcase for the new accessories / car care / tools range (VITOL,
 // all "під замовлення"), in the light picker-section family of the homepage.
@@ -15,15 +15,15 @@ import { VITOL_GROUPS, VITOL_SECTION, type VitolGroup } from "app/lib/vitol-grou
 // at the edges (white photo backgrounds vanish under mix-blend-multiply), the
 // heading in the pickers' display type with the section link beside the
 // order note, then six group cards (what each holds, its brands) that open the
-// real 1C group pages under "Інше" (/groups/inshe/<group>, same slug rules as
-// the directory). Server-rendered with a tiny CSS playback controller. Every
+// real 1C group pages in their sections (/groups/<section>/<group>, same slug
+// rules as the directory; see VITOL_GROUP_SECTION). Server-rendered with a tiny CSS playback controller. Every
 // photo is a catalog product snapshotted as a static thumbnail, so this section never
 // competes with search/navigation for 1C or image-transform workers.
 
 const EMPTY_DECORATION = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
-const sectionSlug = buildPlainSeoSlug(VITOL_SECTION);
-const groupHref = (group: VitolGroup) => buildGroupItemPath(sectionSlug, buildPlainSeoSlug(group));
+const groupHref = (group: VitolGroup) =>
+  buildGroupItemPath(buildPlainSeoSlug(VITOL_GROUP_SECTION[group]), buildPlainSeoSlug(group));
 
 export default function HomeNewArrivalsBanner() {
   return (
@@ -76,11 +76,11 @@ export default function HomeNewArrivalsBanner() {
           </p>
           <div className="mt-6 flex w-full flex-col items-center justify-center gap-4 sm:w-auto sm:flex-row sm:gap-6">
             <Link
-              href={buildGroupPath(sectionSlug)}
+              href="/groups"
               prefetch={false}
               className="group/cta inline-flex min-h-12 w-full max-w-[320px] items-center justify-between gap-3 rounded-full bg-[#0f2b3d] py-2 pl-5 pr-2 text-[14px] font-bold text-white shadow-[0_12px_26px_-14px_rgb(15_43_61/70%)] transition-[transform,box-shadow,background-color] duration-200 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-px hover:bg-[#0b3a4f] hover:shadow-[0_16px_30px_-14px_rgb(15_43_61/80%)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:w-auto sm:max-w-none"
             >
-              Переглянути всі {VITOL_GROUPS.length} групи
+              Усі групи каталогу
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#5eead4,#38bdf8)] text-[#062033] transition-transform duration-200 group-hover/cta:translate-x-0.5">
                 <ArrowRight size={16} aria-hidden="true" />
               </span>

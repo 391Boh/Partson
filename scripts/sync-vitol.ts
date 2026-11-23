@@ -45,7 +45,7 @@ import {
   vitolRetailUah,
   type VitolFeedItem,
 } from "../app/lib/vitol-feed";
-import { VITOL_SECTION, vitolGroupFor } from "../app/lib/vitol-groups";
+import { VITOL_GROUP_SECTION, vitolGroupFor, type VitolGroup } from "../app/lib/vitol-groups";
 
 type StateEntry = {
   code: string;
@@ -196,7 +196,7 @@ async function createInOneC(item: VitolFeedItem, group: string) {
     НомерПоКаталогу: item.article,
     ПроизводительНаименование: item.producer,
     // createproduct takes the group by name, preferring the one under this parent.
-    Группа: VITOL_SECTION,
+    Группа: VITOL_GROUP_SECTION[group as VitolGroup],
     Подгруппа: group,
   };
   if (withImages) {
@@ -235,36 +235,41 @@ type OneCGroup = { code: string; name: string; parent_code: string; products?: n
 const listGroups = async () =>
   (await adminAction<{ items?: OneCGroup[] }>("СписокГруп")).items || [];
 
-/** "Інше" and the needed groups under it; created when missing (apply only). */
+/** Each needed group inside its own section (VITOL_GROUP_SECTION); sections
+ *  and groups are created when missing (apply only). */
 async function ensureGroups(names: string[]) {
   let groups = await listGroups();
-  const findSection = () => groups.find((group) => !group.parent_code && normName(group.name) === normName(VITOL_SECTION));
-  let section = findSection();
-  const created: string[] = [];
-  if (!section) {
-    if (!apply) return { codes: new Map<string, string>(), missing: [VITOL_SECTION, ...names], created };
-    await adminAction("СтворитиГрупу", { Назва: VITOL_SECTION });
-    created.push(VITOL_SECTION);
-    groups = await listGroups();
-    section = findSection();
-    if (!section) throw new Error(`Не вдалося створити розділ «${VITOL_SECTION}»`);
-  }
   const codes = new Map<string, string>();
   const missing: string[] = [];
+  const created: string[] = [];
   for (const name of [...new Set(names)]) {
+    const sectionName = VITOL_GROUP_SECTION[name as VitolGroup];
+    let section = groups.find((group) => !group.parent_code && normName(group.name) === normName(sectionName));
+    if (!section) {
+      if (!apply) {
+        missing.push(`${sectionName} → ${name}`);
+        continue;
+      }
+      await adminAction("СтворитиГрупу", { Назва: sectionName });
+      created.push(sectionName);
+      groups = await listGroups();
+      section = groups.find((group) => !group.parent_code && normName(group.name) === normName(sectionName));
+      if (!section) throw new Error(`Не вдалося створити розділ «${sectionName}»`);
+    }
     const found = groups.find((group) => group.parent_code === section.code && normName(group.name) === normName(name));
     if (found) {
       codes.set(name, found.code);
       continue;
     }
     if (!apply) {
-      missing.push(name);
+      missing.push(`${sectionName} → ${name}`);
       continue;
     }
     const result = await adminAction<{ code?: string }>("СтворитиГрупу", { Назва: name, КодБатька: section.code });
     if (!result.code) throw new Error(`1С не повернула код групи «${name}»`);
     codes.set(name, String(result.code));
-    created.push(name);
+    created.push(`${sectionName} → ${name}`);
+    groups = await listGroups();
   }
   return { codes, missing, created };
 }
@@ -358,7 +363,7 @@ async function main() {
   );
   const groups = await ensureGroups([...new Set(groupOf.values())]);
   console.log(
-    `Розділ «${VITOL_SECTION}»: груп ${groups.codes.size}` +
+    `Групи VITOL: ${groups.codes.size}` +
       (groups.created.length ? `, створено: ${groups.created.join(", ")}` : "") +
       (groups.missing.length ? `, буде створено: ${groups.missing.join(", ")}` : "")
   );
@@ -560,7 +565,7 @@ async function main() {
     await writeCatalogChange({
       action: "supplier.sync",
       actor: "VITOL",
-      target: VITOL_SECTION,
+      target: "VITOL",
       count: report.created.length + report.updated.length + report.moved,
       details: [
         report.created.length ? `створено товарів: ${report.created.length}` : "",

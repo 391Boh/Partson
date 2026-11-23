@@ -1,10 +1,10 @@
-// Where VITOL products live in the 1C catalog: the "Інше" section, split into
-// type-based groups the same way spare parts are ("Амортизація → Пружина
-// амортизатора"). The VITOL category tree is brand-led and partly Russian
+// Where VITOL products live in the 1C catalog: type-based groups inside the
+// catalog's own top-level sections, the same way spare parts are
+// ("Амортизація → Пружина амортизатора"; tools under "Інструмент", lamps under
+// "Освітлення", see VITOL_GROUP_SECTION). The VITOL category tree is brand-led and partly Russian
 // ("Інструмент ALLOID BUILDING TOOLS / Alloid. Свердла"), so it is mapped onto
 // a short list of Ukrainian groups here. Pure — used by scripts/sync-vitol.ts.
 
-export const VITOL_SECTION = "Інше";
 
 export const VITOL_GROUPS = [
   "Освіжувачі повітря",
@@ -32,6 +32,34 @@ export const VITOL_GROUPS = [
 ] as const;
 
 export type VitolGroup = (typeof VITOL_GROUPS)[number];
+
+// The top-level 1C section each group sits in (catalog restructure 2026-11-23:
+// the former catch-all "Інше" became "Аксесуари", and tools, lamps, wipers,
+// car care and electrics moved to their own sections).
+export const VITOL_GROUP_SECTION: Record<VitolGroup, string> = {
+  "Освіжувачі повітря": "Аксесуари",
+  "Автохімія та догляд": "Оливи, рідини та автохімія",
+  "Щітки склоочисника": "Склоочисники та омивачі",
+  "Автолампи": "Освітлення",
+  "Фари та ліхтарі": "Освітлення",
+  "Ручний інструмент": "Інструмент",
+  "Інструмент для ремонту авто": "Інструмент",
+  "Свердла, диски та абразив": "Інструмент",
+  "Будівельний інструмент": "Інструмент",
+  "Садовий інструмент": "Інструмент",
+  "Домкрати": "Інструмент",
+  "Компресори та шиноремонт": "Інструмент",
+  "Аварійний набір водія": "Аксесуари",
+  "Чохли на кермо та сидіння": "Аксесуари",
+  "Аксесуари для салону": "Аксесуари",
+  "Гаджети та зарядні пристрої": "Аксесуари",
+  "Автоелектрика": "Електрика та електроніка",
+  "Антени": "Аксесуари",
+  "Номерні рамки": "Аксесуари",
+  "Зовнішні аксесуари": "Аксесуари",
+  "Багажник і подорож": "Аксесуари",
+  "Інші автотовари": "Аксесуари",
+};
 export const VITOL_FALLBACK_GROUP: VitolGroup = "Інші автотовари";
 
 const norm = (value: string) =>
