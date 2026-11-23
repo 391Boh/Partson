@@ -6,7 +6,6 @@ import { Info, ShoppingCart, MessageCircle, Copy, Check, Pencil, ImagePlus, X, S
 import ProductCardImage from "app/components/ProductCardImage";
 import PriceLoadingSkeleton from "app/components/PriceLoadingSkeleton";
 import SmartLink from "app/components/SmartLink";
-import { brands } from "app/components/brandsData";
 import { buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 import { buildVisibleProductName } from "app/lib/product-url";
 import { fixCatalogSpelling } from "app/lib/catalog-label-format";
@@ -18,6 +17,8 @@ import { useProductDescription } from "app/lib/use-product-description";
 import ProductCardBackTabs from "app/components/ProductCardBackTabs";
 import ProductCardBackAnalogs from "app/components/ProductCardBackAnalogs";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
+import { PRODUCER_LOGO_FILES } from "app/generated/producer-logos";
+import { resolveProducerLogo } from "app/lib/producer-logo-match";
 
 const ARTICLE_COPY_FEEDBACK_MS = 1200;
 const safBackface = {
@@ -26,39 +27,10 @@ const safBackface = {
     transformStyle: "preserve-3d" as const,
 };
 
-const normalizeProducerLogoKey = (value: string) =>
-    (value || "")
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\b(inc|ltd|gmbh|llc|corp|company|co|sa|ag|ooo)\b/g, "")
-        .replace(/[^a-z0-9]+/g, "")
-        .trim();
-
-const producerLogoByKey = new Map(
-    brands
-        .flatMap((brand) =>
-            typeof brand.logo === "string" && brand.logo.length > 0
-                ? ([[normalizeProducerLogoKey(brand.name), brand.logo]] as const)
-                : []
-        )
-);
-
-const resolveProducerLogoSrc = (producer: string) => {
-    const producerKey = normalizeProducerLogoKey(producer);
-    if (!producerKey) return null;
-
-    const directLogo = producerLogoByKey.get(producerKey);
-    if (directLogo) return directLogo;
-
-    for (const [logoKey, logoPath] of producerLogoByKey.entries()) {
-        if (producerKey.includes(logoKey) || logoKey.includes(producerKey)) {
-            return logoPath;
-        }
-    }
-
-    return null;
-};
+// Same matcher and file list as the server pages (producer and product pages),
+// so a logo in /public/Brands shows here too.
+const producerLogoFiles = new Map(Object.entries(PRODUCER_LOGO_FILES));
+const resolveProducerLogoSrc = (producer: string) => resolveProducerLogo(producer, producerLogoFiles);
 
 interface Product {
     code: string;

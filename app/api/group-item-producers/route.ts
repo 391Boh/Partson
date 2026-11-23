@@ -9,6 +9,7 @@ import {
   buildManufacturerPathFromLabel,
 } from "app/lib/catalog-links";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
+import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 
 export const runtime = "nodejs";
 export const revalidate = 1800;
@@ -123,7 +124,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ items: [] }, { status: 400 });
   }
 
-  const items = await collectProducerItems(group, subcategory);
+  // The client list replaces the server-rendered one with these items, so
+  // they carry the logo too (without it every card fell back to initials).
+  const [producers, logoMap] = await Promise.all([
+    collectProducerItems(group, subcategory),
+    getBrandLogoMap().catch(() => new Map<string, string>()),
+  ]);
+  const items = producers.map((item) => ({ ...item, logoPath: resolveProducerLogo(item.label, logoMap) }));
 
   return NextResponse.json(
     { items },

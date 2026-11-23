@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { BadgePercent, Check, ChevronDown, ImagePlus, Minus, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
@@ -11,6 +12,8 @@ import { buildVisibleCategoryLabel, buildVisibleProductName } from "app/lib/prod
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import { useProductDescription } from "app/lib/use-product-description";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
+import { PRODUCER_LOGO_FILES } from "app/generated/producer-logos";
+import { resolveProducerLogo } from "app/lib/producer-logo-match";
 import ProductDescriptionContent from "app/components/ProductDescriptionContent";
 import { PRODUCT_IMAGE_ACCEPT } from "app/lib/product-image-upload-client";
 import { parseAdminPriceInput } from "app/lib/product-admin-validation";
@@ -105,6 +108,8 @@ const ProductListRow: React.FC<Props> = ({
     onImageOpen,
 }) => {
     const { code, article, producer, category, group, subGroup } = item;
+    const producerLogoSrc = producer && producer !== "-" ? resolveProducerLogo(producer, producerLogoFiles) : null;
+    const [producerLogoFailed, setProducerLogoFailed] = useState(false);
     const [quantity, setQuantity] = useProductQuantity(code, item.quantity ?? 0);
     const name = buildVisibleProductName(item.name);
     const isAvailable = quantity > 0;
@@ -434,7 +439,24 @@ const ProductListRow: React.FC<Props> = ({
                     )}
 
                         <div className="group/stock mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                            {producer && producer !== "-" && <span className="font-bold text-slate-600">{producer}</span>}
+                            {producer && producer !== "-" && (
+                                <span className="inline-flex items-center gap-1.5 font-bold text-slate-600">
+                                    {producerLogoSrc && !producerLogoFailed ? (
+                                        <Image
+                                            src={producerLogoSrc}
+                                            alt=""
+                                            width={56}
+                                            height={18}
+                                            sizes="56px"
+                                            loading="lazy"
+                                            unoptimized={producerLogoSrc.endsWith(".svg")}
+                                            onError={() => setProducerLogoFailed(true)}
+                                            className="h-[18px] w-auto max-w-[56px] object-contain"
+                                        />
+                                    ) : null}
+                                    {producer}
+                                </span>
+                            )}
                             {article && <span className="font-mono">{article}</span>}
                             <span
                                 className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-[1px] text-[10px] font-bold ${
@@ -886,5 +908,8 @@ const ProductListRow: React.FC<Props> = ({
         </div>
     );
 };
+
+// Same logo list and matcher as the grid card and the producer pages.
+const producerLogoFiles = new Map(Object.entries(PRODUCER_LOGO_FILES));
 
 export default ProductListRow;

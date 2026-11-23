@@ -2,13 +2,18 @@
 // through the edit endpoint and prints the JSON reply.
 //   node --env-file=.env.local scripts/catalog-admin.mjs '{"Дія":"СписокГруп"}'
 //   node --env-file=.env.local scripts/catalog-admin.mjs @body.json
+//   node --env-file=.env.local scripts/catalog-admin.mjs --endpoint allgoods '{"ТолькоСЦеной":true}'
+// --endpoint calls another read endpoint of the same HTTP service.
 import { readFileSync } from "node:fs";
 
-const arg = process.argv[2] || "";
+const args = process.argv.slice(2);
+const endpointIndex = args.indexOf("--endpoint");
+const endpointOverride = endpointIndex >= 0 ? args.splice(endpointIndex, 2)[1] : "";
+const arg = args[0] || "";
 const body = arg.startsWith("@") ? readFileSync(arg.slice(1), "utf8") : arg;
 JSON.parse(body);
 const base = (process.env.ONEC_BASE_URL || "").replace(/\/$/, "");
-const endpoint = (process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").replace(/^\//, "");
+const endpoint = (endpointOverride || process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").replace(/^\//, "");
 if (!base || !process.env.ONEC_AUTH_HEADER) throw new Error("1C connection is not configured");
 const response = await fetch(`${base}/${endpoint}`, {
   method: "POST",
