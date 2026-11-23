@@ -41,6 +41,9 @@ const STATIC_GROUP_RENAMES: GroupRename[] = [
   { from: "Рідина та мастило", to: "Оливи, рідини та автохімія", parentName: "" },
   { from: "Омивання скла", to: "Склоочисники та омивачі", parentName: "Датчики та електроніка" },
   { from: "Двірник склоочисника", to: "Щітки склоочисника", parentName: "Омивання скла" },
+  { from: "Важіль склоочисника", to: "Важелі склоочисника", parentName: "Омивання скла" },
+  // Its parent-prefixed slug existed only while a same-named group sat one level up.
+  { from: "Прокладка колектору впуск", to: "Прокладка колектору впуск", parentName: "Прокладки двигуна" },
   { from: "Лампочки", to: "Автолампи", parentName: "Освітлення" },
   { from: "Підйом скла", to: "Склопідіймачі", parentName: "Датчики та електроніка" },
   { from: "Привід замка", to: "Елементи закривання (Замок/Ручка)", parentName: "Датчики та електроніка" },
