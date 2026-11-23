@@ -10000,6 +10000,44 @@ html.is-pulling-home, html.is-pulling-home body { background-color: #071a2a; }
   .product-editor, .product-editor-tabs button, .product-editor-input { animation: none; transition: none; }
 }
 .product-editor .product-editor-main-photo { width: 88px; height: 88px; }
+/* Main tab: titled groups separated by hairlines (no nested cards), two-up
+   fields, a collapsible catalog placement and a suggestion list. */
+.product-editor-stack { display: grid; gap: 14px; }
+.product-editor-section { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #eeedf3; }
+.product-editor-stack > :last-child { padding-bottom: 0; border-bottom: 0; }
+.product-editor-section-head { display: flex; min-height: 22px; align-items: center; justify-content: space-between; gap: 8px; }
+.product-editor-section-head h3 { margin: 0; color: #1e1b2e; font-size: 13px; font-weight: 700; line-height: 1.3; }
+.product-editor-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; align-items: end; }
+.product-editor-placement { display: grid; gap: 8px; }
+/* Label beside the field: full-width inputs keep long group names readable. */
+.product-editor-placement > .product-editor-field { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px; }
+.product-editor-placement > .product-editor-field > label { margin-bottom: 0; }
+.product-editor-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.product-editor-badge.is-negative { background: #fef2f2; color: #b91c1c; }
+.product-editor-collapsible { border-radius: 12px; background: #f8f7fc; }
+.product-editor-collapsible > summary { display: flex; min-height: 44px; cursor: pointer; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; list-style: none; color: #1e1b2e; font-size: 13px; font-weight: 700; }
+.product-editor-collapsible > summary::-webkit-details-marker { display: none; }
+.product-editor-collapsible > summary::after { content: ""; width: 7px; height: 7px; margin-left: 2px; flex-shrink: 0; border: solid #8b8aa0; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translateY(-2px); transition: transform 160ms ease-out; }
+.product-editor-collapsible[open] > summary::after { transform: rotate(-135deg) translateY(-1px); }
+.product-editor-collapsible > summary:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+.product-editor-collapsible > .product-editor-placement { padding: 2px 12px 12px; }
+.product-editor-path { min-width: 0; margin-left: auto; overflow: hidden; color: #64748b; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.product-editor-suggest { position: relative; }
+.product-editor-suggest-list { position: absolute; left: 0; min-width: max(100%, 220px); top: calc(100% + 4px); z-index: 50; max-height: 224px; margin: 0; padding: 4px; overflow-y: auto; list-style: none; border: 1px solid #e3e0ed; border-radius: 10px; background: #fff; box-shadow: 0 12px 28px -10px rgba(30, 20, 55, .28); }
+.product-editor-suggest-list li { padding: 7px 9px; border-radius: 7px; color: #334155; font-size: 13px; line-height: 1.35; cursor: pointer; }
+.product-editor-suggest-list li:hover, .product-editor-suggest-list li[aria-selected="true"] { background: #f5f3ff; color: #5b21b6; }
+@media (min-width: 640px) {
+  .product-editor-input { min-height: 38px; padding: 7px 10px; }
+  .product-editor-field > label, .product-editor-field-label { margin-bottom: 4px; }
+  .product-editor-body { padding: 14px 16px; }
+}
+@media (max-width: 380px) {
+  .product-editor-grid-2 { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-editor-collapsible > summary::after { transition: none; }
+}
+
 .product-editor-body { scroll-padding-block: 12px; }
 .product-editor-body > [role="alert"] { position: sticky; bottom: 0; z-index: 1; }
 @media (min-width: 640px) {

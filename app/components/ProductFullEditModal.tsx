@@ -3,7 +3,17 @@
 import ProductFitmentEditor from "./ProductFitmentEditor";
 import { Check, PenSquare, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ProductEditorTabs, ProductEditorField as Field, productEditorFieldClass as fieldClass, useProductEditorPanel } from "./ProductEditorUI";
+import {
+  ProductCatalogPlacement,
+  ProductEditorField as Field,
+  ProductEditorSection,
+  ProductEditorTabs,
+  ProductMarkupBadge,
+  ProductSuggestInput,
+  loadProducerSuggestions,
+  productEditorFieldClass as fieldClass,
+  useProductEditorPanel,
+} from "./ProductEditorUI";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import { useRouter } from "next/navigation";
@@ -38,8 +48,6 @@ interface Props extends ProductFullEditTarget {
   isOpen: boolean;
   onClose: () => void;
 }
-
-type SuggestType = "category" | "group" | "subGroup";
 
 const numToStr = (v: number | null) => (v != null && Number.isFinite(v) ? String(v) : "");
 
@@ -100,19 +108,7 @@ export default function ProductFullEditModal({
   const imageUploadLock = useRef(false);
   const galleryUploadLock = useRef(false);
 
-  const [producerSugg, setProducerSugg] = useState<string[]>([]);
-  const [producerActive, setProducerActive] = useState(-1);
-  const producerAbort = useRef<AbortController | null>(null);
-  const producerDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [catSugg, setCatSugg] = useState<string[]>([]);
-  const [grpSugg, setGrpSugg] = useState<string[]>([]);
-  const [subSugg, setSubSugg] = useState<string[]>([]);
-  const [catActive, setCatActive] = useState(-1);
-  const [grpActive, setGrpActive] = useState(-1);
-  const [subActive, setSubActive] = useState(-1);
-  const metaAbort = useRef<Record<SuggestType, AbortController | null>>({ category: null, group: null, subGroup: null });
-  const metaDebounce = useRef<Record<SuggestType, ReturnType<typeof setTimeout> | null>>({ category: null, group: null, subGroup: null });
 
   const firstInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,8 +153,6 @@ export default function ProductFullEditModal({
     setFitmentValid(true);
     setError(null);
     setSaved(false);
-    setProducerSugg([]);
-    setCatSugg([]); setGrpSugg([]); setSubSugg([]);
     setImageFile(null); setImagePreview(null); setImageUploadName(""); setImageUploadSize(0); setImageError(null); setImageUploaded(false);
     setGalleryFile(null); setGalleryPreview(null); setGalleryUploadSize(0); setGalleryError(null); setGalleryUploaded(false);
     const focusTimer = setTimeout(() => firstInputRef.current?.focus({ preventScroll: true }), 50);
@@ -194,58 +188,10 @@ export default function ProductFullEditModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !submitLock.current && !imageUploading && !galleryUploading && !producerSugg.length && !catSugg.length && !grpSugg.length && !subSugg.length) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !submitLock.current && !imageUploading && !galleryUploading) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose, imageUploading, galleryUploading, producerSugg.length, catSugg.length, grpSugg.length, subSugg.length]);
-
-  useEffect(() => () => {
-    producerAbort.current?.abort();
-    if (producerDebounce.current) clearTimeout(producerDebounce.current);
-    for (const type of ["category", "group", "subGroup"] as const) {
-      metaAbort.current[type]?.abort();
-      if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
-    }
-  }, [isOpen, code]);
-
-  const fetchProducerSuggNow = (q: string) => {
-    producerAbort.current?.abort();
-    const ctrl = new AbortController();
-    producerAbort.current = ctrl;
-    fetch(`/api/producers-suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-      .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
-      .then((d) => { if (ctrl.signal.aborted) return; setProducerSugg(d.suggestions ?? []); setProducerActive(-1); })
-      .catch(() => {});
-  };
-  const fetchProducerSugg = (q: string) => {
-    producerAbort.current?.abort();
-    if (producerDebounce.current) clearTimeout(producerDebounce.current);
-    producerDebounce.current = setTimeout(() => fetchProducerSuggNow(q), 200);
-  };
-
-  const fetchMetaSuggNow = (type: SuggestType, q: string, parent?: string) => {
-    metaAbort.current[type]?.abort();
-    const ctrl = new AbortController();
-    metaAbort.current[type] = ctrl;
-    const params = new URLSearchParams({ type });
-    if (q.trim()) params.set("q", q);
-    if (parent?.trim()) params.set("parent", parent);
-    fetch(`/api/catalog-meta-suggest?${params.toString()}`, { signal: ctrl.signal })
-      .then((r) => r.json() as Promise<{ suggestions?: string[] }>)
-      .then((d) => {
-        if (ctrl.signal.aborted) return;
-        const s = d.suggestions ?? [];
-        if (type === "category") { setCatSugg(s); setCatActive(-1); }
-        else if (type === "group") { setGrpSugg(s); setGrpActive(-1); }
-        else { setSubSugg(s); setSubActive(-1); }
-      })
-      .catch(() => {});
-  };
-  const fetchMetaSugg = (type: SuggestType, q: string, parent?: string) => {
-    metaAbort.current[type]?.abort();
-    if (metaDebounce.current[type]) clearTimeout(metaDebounce.current[type]!);
-    metaDebounce.current[type] = setTimeout(() => fetchMetaSuggNow(type, q, parent), 200);
-  };
+  }, [isOpen, onClose, imageUploading, galleryUploading]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -508,220 +454,56 @@ export default function ProductFullEditModal({
           </button>
         </div>
 
-        <ProductEditorTabs prefix="product-edit" value={tab} onChange={(next) => { setTab(next); setProducerSugg([]); setCatSugg([]); setGrpSugg([]); setSubSugg([]); }} />
+        <ProductEditorTabs prefix="product-edit" value={tab} onChange={setTab} />
 
         <div className="product-editor-body app-panel-scroll flex-1 overflow-y-auto px-3.5 pb-3 pt-2.5 sm:pr-2.5">
           <fieldset disabled={saving} className="space-y-3 disabled:opacity-70" onChange={() => { setSaved(false); setError(null); }}>
-            <div role="tabpanel" id="product-edit-panel-main" aria-labelledby="product-edit-tab-main" hidden={tab !== "main"} className="space-y-3">
-            <Field label="Назва" required>
-              <input
-                ref={firstInputRef}
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Назва товару"
-                className={fieldClass}
-              />
-            </Field>
+            <div role="tabpanel" id="product-edit-panel-main" aria-labelledby="product-edit-tab-main" hidden={tab !== "main"} className="product-editor-stack">
+            <ProductEditorSection title="Товар">
+              <Field label="Назва" required>
+                <input ref={firstInputRef} type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Назва товару" className={fieldClass} />
+              </Field>
+              <div className="product-editor-grid-2">
+                <Field label="Артикул">
+                  <input type="text" value={articleVal} onChange={(e) => setArticleVal(e.target.value)} placeholder="OE001" className={fieldClass} />
+                </Field>
+                <Field label="Виробник">
+                  <ProductSuggestInput value={producer} onChange={setProducer} load={loadProducerSuggestions} placeholder="Виробник" />
+                </Field>
+              </div>
+            </ProductEditorSection>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Артикул">
-                <input
-                  type="text"
-                  value={articleVal}
-                  onChange={(e) => setArticleVal(e.target.value)}
-                  placeholder="OE001"
-                  className={fieldClass}
-                />
-              </Field>
-
-              <Field label="Виробник">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={producer}
-                    onChange={(e) => { setProducer(e.target.value); fetchProducerSugg(e.target.value); }}
-                    onFocus={() => fetchProducerSuggNow(producer)}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowDown") { e.preventDefault(); setProducerActive((p) => Math.min(p + 1, producerSugg.length - 1)); }
-                      else if (e.key === "ArrowUp") { e.preventDefault(); setProducerActive((p) => Math.max(p - 1, -1)); }
-                      else if (e.key === "Enter" && producerActive >= 0 && producerSugg[producerActive]) {
-                        e.preventDefault(); setProducer(producerSugg[producerActive]); setProducerSugg([]); setProducerActive(-1);
-                      }
-                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setProducerSugg([]); }
-                    }}
-                    onBlur={() => setTimeout(() => setProducerSugg([]), 150)}
-                    placeholder="Виробник"
-                    className={fieldClass}
-                  />
-                  {producerSugg.length > 0 && (
-                    <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
-                      {producerSugg.map((s, i) => (
-                        <button key={s} type="button"
-                          onMouseDown={(e) => { e.preventDefault(); setProducer(s); setProducerSugg([]); setProducerActive(-1); }}
-                          className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === producerActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Field>
-            </div>
-
-            <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-              <summary className="cursor-pointer text-xs font-bold text-slate-600">Класифікація товару</summary>
-              <div className="mt-3 space-y-2">
-              <Field label="Категорія">
-                <div className="relative">
-                  <input type="text" value={category}
-                    onChange={(e) => {
-                      setCategory(e.target.value);
-                      setGroup(""); setSubGroup("");
-                      setGrpSugg([]); setSubSugg([]);
-                      fetchMetaSugg("category", e.target.value);
-                    }}
-                    onFocus={() => fetchMetaSuggNow("category", category)}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowDown") { e.preventDefault(); setCatActive((p) => Math.min(p + 1, catSugg.length - 1)); }
-                      else if (e.key === "ArrowUp") { e.preventDefault(); setCatActive((p) => Math.max(p - 1, -1)); }
-                      else if (e.key === "Enter" && catActive >= 0 && catSugg[catActive]) {
-                        e.preventDefault();
-                        const v = catSugg[catActive];
-                        setCategory(v); setCatSugg([]); setCatActive(-1);
-                        setGroup(""); setSubGroup("");
-                        fetchMetaSuggNow("group", "", v);
-                      }
-                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setCatSugg([]); }
-                    }}
-                    onBlur={() => setTimeout(() => setCatSugg([]), 150)}
-                    placeholder="Запчастини"
-                    className={`${fieldClass} border-teal-200 focus:border-teal-400 focus:ring-teal-200/50`}
-                  />
-                  {catSugg.length > 0 && (
-                    <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-teal-200 bg-white shadow-lg">
-                      {catSugg.map((s, i) => (
-                        <button key={s} type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault(); setCategory(s); setCatSugg([]); setCatActive(-1);
-                            setGroup(""); setSubGroup("");
-                            fetchMetaSuggNow("group", "", s);
-                          }}
-                          className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === catActive ? "bg-teal-50 text-teal-800" : "text-slate-700 hover:bg-slate-50"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Field>
-
-              <Field label="Група">
-                <div className="relative">
-                  <input type="text" value={group}
-                    onChange={(e) => {
-                      setGroup(e.target.value);
-                      setSubGroup(""); setSubSugg([]);
-                      fetchMetaSugg("group", e.target.value, category);
-                    }}
-                    onFocus={() => fetchMetaSuggNow("group", group, category)}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowDown") { e.preventDefault(); setGrpActive((p) => Math.min(p + 1, grpSugg.length - 1)); }
-                      else if (e.key === "ArrowUp") { e.preventDefault(); setGrpActive((p) => Math.max(p - 1, -1)); }
-                      else if (e.key === "Enter" && grpActive >= 0 && grpSugg[grpActive]) {
-                        e.preventDefault();
-                        const v = grpSugg[grpActive];
-                        setGroup(v); setGrpSugg([]); setGrpActive(-1);
-                        setSubGroup(""); fetchMetaSuggNow("subGroup", "", v);
-                      }
-                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setGrpSugg([]); }
-                    }}
-                    onBlur={() => setTimeout(() => setGrpSugg([]), 150)}
-                    placeholder="Гальмівна система"
-                    className={`${fieldClass} border-violet-200 focus:border-violet-400 focus:ring-violet-200/50`}
-                  />
-                  {grpSugg.length > 0 && (
-                    <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-violet-200 bg-white shadow-lg">
-                      {grpSugg.map((s, i) => (
-                        <button key={s} type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault(); setGroup(s); setGrpSugg([]); setGrpActive(-1);
-                            setSubGroup(""); fetchMetaSuggNow("subGroup", "", s);
-                          }}
-                          className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === grpActive ? "bg-violet-50 text-violet-800" : "text-slate-700 hover:bg-slate-50"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Field>
-
-              <Field label="Підгрупа">
-                <div className="relative">
-                  <input type="text" value={subGroup}
-                    onChange={(e) => {
-                      setSubGroup(e.target.value);
-                      fetchMetaSugg("subGroup", e.target.value, group);
-                    }}
-                    onFocus={() => fetchMetaSuggNow("subGroup", subGroup, group)}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowDown") { e.preventDefault(); setSubActive((p) => Math.min(p + 1, subSugg.length - 1)); }
-                      else if (e.key === "ArrowUp") { e.preventDefault(); setSubActive((p) => Math.max(p - 1, -1)); }
-                      else if (e.key === "Enter" && subActive >= 0 && subSugg[subActive]) {
-                        e.preventDefault(); setSubGroup(subSugg[subActive]); setSubSugg([]); setSubActive(-1);
-                      }
-                      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setSubSugg([]); }
-                    }}
-                    onBlur={() => setTimeout(() => setSubSugg([]), 150)}
-                    placeholder="Гальмівні диски"
-                    className={`${fieldClass} border-sky-200 focus:border-sky-400 focus:ring-sky-200/50`}
-                  />
-                  {subSugg.length > 0 && (
-                    <div className="absolute left-0 top-full z-50 mt-1 app-panel-scroll max-h-36 w-full overflow-y-auto rounded-[8px] border border-sky-200 bg-white shadow-lg">
-                      {subSugg.map((s, i) => (
-                        <button key={s} type="button"
-                          onMouseDown={(e) => { e.preventDefault(); setSubGroup(s); setSubSugg([]); setSubActive(-1); }}
-                          className={`block w-full px-2.5 py-1.5 text-left text-[11px] font-medium transition ${i === subActive ? "bg-sky-50 text-sky-800" : "text-slate-700 hover:bg-slate-50"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Field>
-            </div>
-
-              </details>
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
-              <Field label="Ціна продажу €">
-                <input type="text" inputMode="decimal" value={priceEuro}
-                  onChange={(e) => setPriceEuro(e.target.value)}
-                  placeholder="0.00" className={fieldClass} />
-              </Field>
-              <Field label="Закупівельна €">
-                <input type="text" inputMode="decimal" value={costPriceEuro}
-                  onChange={(e) => setCostPriceEuro(e.target.value)}
-                  placeholder="0.00" className={fieldClass} />
-              </Field>
-              <div className="col-span-2">
-                <Field label="Акційна ціна €">
+            <ProductEditorSection title="Ціна і залишок" aside={<ProductMarkupBadge price={priceEuro} cost={costPriceEuro} />}>
+              <div className="product-editor-grid-2">
+                <Field label="Продаж, €">
+                  <input type="text" inputMode="decimal" value={priceEuro} onChange={(e) => setPriceEuro(e.target.value)} placeholder="0.00" className={fieldClass} />
+                </Field>
+                <Field label="Закупівля, €">
+                  <input type="text" inputMode="decimal" value={costPriceEuro} onChange={(e) => setCostPriceEuro(e.target.value)} placeholder="0.00" className={fieldClass} />
+                </Field>
+                <Field label="Акція, €">
                   <input type="text" inputMode="decimal" value={promoPriceEuro}
                     onChange={(e) => { promoTouched.current = true; setPromoPriceEuro(e.target.value); }}
-                    placeholder="Без акції" className={fieldClass} aria-describedby="product-edit-promo-help" />
+                    placeholder="Без акції" className={fieldClass} />
                 </Field>
-                <p id="product-edit-promo-help" className="mt-1 text-xs text-slate-500">0 — прибрати акцію. Порожнє поле — залишити без змін.</p>
+                {/* Not <Field>: that wraps its child in a <label>, and a click on
+                    the label text would activate the first button inside — "−". */}
+                <div className="product-editor-field">
+                  <p className="product-editor-field-label">Залишок, шт.</p>
+                  <QuantityStepper value={quantity} onChange={setQuantity} ariaLabel="Поточний залишок, шт." />
+                </div>
               </div>
-            </div>
+              <p className="product-editor-hint">Ціни в євро. Порожнє поле — без змін, акція 0 — прибрати акцію.</p>
+            </ProductEditorSection>
 
-            <p className="text-xs text-slate-500">Ціни в євро, до 2 знаків після коми. Порожня ціна — без змін. Кількість — повний залишок; 0 означає відсутність товару.</p>
-            {/* Not <Field>: that wraps its child in a <label>, and a click on
-                the label text would activate the first button inside — "−". */}
-            <div>
-              <p className="mb-1 block text-xs font-semibold text-slate-500">Поточний залишок, шт.</p>
-              <QuantityStepper value={quantity} onChange={setQuantity} ariaLabel="Поточний залишок, шт." />
-            </div>
-
+            <details className="product-editor-collapsible">
+              <summary>
+                <span>Розміщення в каталозі</span>
+                <span className="product-editor-path">{[category, group, subGroup].map((value) => value.trim()).filter(Boolean).join(" › ") || "не задано"}</span>
+              </summary>
+              <ProductCatalogPlacement category={category} group={group} subGroup={subGroup}
+                onChange={(next) => { setCategory(next.category); setGroup(next.group); setSubGroup(next.subGroup); }} />
+            </details>
             </div>
             <div role="tabpanel" id="product-edit-panel-description" aria-labelledby="product-edit-tab-description" hidden={tab !== "description"} className="space-y-2">
             <ProductFitmentEditor value={description} onChange={setDescription} onValidityChange={setFitmentValid} disabled={saving} />
