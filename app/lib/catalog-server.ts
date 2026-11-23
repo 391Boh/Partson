@@ -2178,28 +2178,66 @@ const fetchCatalogProductsByQueryInner = async (options: {
     ))) {
       const start = (page - 1) * limit;
       const targetCount = start + limit + 1;
-      const branchLimit = Math.min(Math.max(targetCount, limit), 240);
-      const branchResults = await Promise.all(
-        branches.slice(0, 48).map((branch) =>
-          fetchCatalogProductsByQueryInner({
+      // Each branch is read from its start up to the requested window,
+      // following 1C's cursor past one page (allgoods caps a page at 500).
+      // A fixed 240-per-branch cap used to end every branch there: a 710-
+      // product subgroup listed and counted only 240.
+      const BRANCH_PAGE = 500;
+      const BRANCH_MAX_ITEMS = 3000;
+      const wanted = Math.min(targetCount, BRANCH_MAX_ITEMS);
+      const readBranch = async (branch: { group: string; subcategory?: string | null }) => {
+        const items: CatalogProduct[] = [];
+        let nextCursor: string | null = null;
+        let cursorField: string | null = null;
+        let totalCount: number | null = null;
+        let hasMore = false;
+        for (let step = 0; step < Math.ceil(BRANCH_MAX_ITEMS / BRANCH_PAGE); step += 1) {
+          const result = await fetchCatalogProductsByQueryInner({
             ...options,
             page: 1,
-            limit: branchLimit,
+            limit: Math.min(BRANCH_PAGE, Math.max(wanted - items.length, limit)),
             group: branch.group,
             subcategory: branch.subcategory || null,
-            cursor: null,
-            cursorField: null,
+            cursor: nextCursor,
+            cursorField,
             expandHierarchy: false,
             forceAllgoodsSource: true,
             preferLegacySource: false,
-          }).catch(() => ({
+          });
+          if (step === 0 && typeof result.totalCount === "number") totalCount = result.totalCount;
+          items.push(...result.items);
+          hasMore = result.hasMore;
+          if (!result.hasMore || !result.nextCursor || items.length >= wanted) break;
+          nextCursor = result.nextCursor;
+          cursorField = result.cursorField ?? null;
+        }
+        return { items, hasMore, nextCursor: "", cursorField: null, totalCount };
+      };
+      const branchResults = await Promise.all(
+        branches.slice(0, 48).map((branch) =>
+          readBranch(branch).catch(() => ({
             items: [] as CatalogProduct[],
             hasMore: false,
             nextCursor: "",
             cursorField: null,
+            totalCount: null as number | null,
           }))
         )
       );
+      // Exact total from 1C's per-branch totals. A group-only branch
+      // ({group: G}) already holds the products of its G+subgroup branches,
+      // so those are left out of the sum (they are deduplicated in the list).
+      const usedBranches = branches.slice(0, 48);
+      const coveredGroups = new Set(
+        usedBranches.filter((branch) => !branch.subcategory).map((branch) => normalizeFacetValue(branch.group))
+      );
+      const countedResults = branchResults.filter((_, index) => {
+        const branch = usedBranches[index];
+        return !branch.subcategory || !coveredGroups.has(normalizeFacetValue(branch.group));
+      });
+      const branchTotal = countedResults.every((result) => typeof result.totalCount === "number")
+        ? countedResults.reduce((sum, result) => sum + (result.totalCount as number), 0)
+        : null;
 
       const seen = new Set<string>();
       const merged: CatalogProduct[] = [];
@@ -2237,9 +2275,10 @@ const fetchCatalogProductsByQueryInner = async (options: {
 
       return {
         items: merged.slice(start, start + limit),
-        hasMore: merged.length > start + limit || hasMoreSource,
+        hasMore: merged.length > start + limit || (merged.length >= start + limit && hasMoreSource),
         nextCursor: "",
         cursorField: null,
+        totalCount: branchTotal,
       };
     }
   }

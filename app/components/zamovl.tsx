@@ -82,6 +82,8 @@ const deductOrderStock = async (orderId: string) => {
 };
 type PaymentConfirmationPayload = Record<string, unknown>;
 
+const QUICK_ORDER_PENDING = "Уточнить менеджер";
+
 interface CityOrWarehouse {
   Description: string;
   Ref: string;
@@ -224,19 +226,25 @@ const Zamovl: React.FC<ZamovlProps> = ({
 
   const persistOrder = async (
     paymentData: PaymentConfirmationPayload | undefined,
-    options: { completeCheckout: boolean }
+    options: { completeCheckout: boolean; quickOrder?: boolean }
   ) => {
     const db = getFirestore();
-    const isCardPayment = paymentMethod === "Картка";
+    // Quick order (guest, phone only): the manager calls back and agrees
+    // delivery and payment; it is paid on receipt like a cash order.
+    const quick = options.quickOrder === true;
+    const orderDeliveryMethod = quick ? QUICK_ORDER_PENDING : deliveryMethod;
+    const orderPaymentMethod = quick ? QUICK_ORDER_PENDING : paymentMethod;
+    const orderName = name.trim() || (quick ? "Швидке замовлення" : name);
+    const isCardPayment = !quick && paymentMethod === "Картка";
     const isCardPaid = isCardPayment && paymentData?.paymentStatus === "paid";
     const resolvedPaymentStatus =
-      paymentMethod === "Готівка"
+      quick || paymentMethod === "Готівка"
         ? "cash_on_delivery"
         : isCardPaid
           ? "paid"
           : "pending";
     const resolvedPaymentProvider = isCardPayment ? "liqpay" : "cash";
-    const estimatedDeliveryDate = estimateDeliveryDate(deliveryMethod);
+    const estimatedDeliveryDate = estimateDeliveryDate(quick ? "Нова Пошта" : deliveryMethod);
 
     const normalizedCartItems = cartItems.map((item) => ({
       name: item.name,
@@ -253,9 +261,11 @@ const Zamovl: React.FC<ZamovlProps> = ({
     }));
 
     const orderRef = doc(db, "orders", orderId);
+    // Rules let only the owner (or an admin) read an order, so a guest's
+    // read of its own new order is denied: that just means "not created yet".
     const orderSnapshot =
       options.completeCheckout || !orderCreatedRef.current
-        ? await getDoc(orderRef)
+        ? await getDoc(orderRef).catch(() => null)
         : null;
     const alreadyExists = orderCreatedRef.current || Boolean(orderSnapshot?.exists());
     const purchaseAlreadyTracked =
@@ -268,11 +278,12 @@ const Zamovl: React.FC<ZamovlProps> = ({
       orderRef,
       {
         uid: firebaseUser?.uid || null,
-        name,
+        name: orderName,
         phone,
         email: email.trim().toLowerCase(),
-        deliveryMethod,
-        paymentMethod,
+        deliveryMethod: orderDeliveryMethod,
+        paymentMethod: orderPaymentMethod,
+        ...(quick ? { orderType: "quick" } : {}),
         city: selectedCity?.Description || null,
         cityRef: selectedCity?.Ref || null,
         warehouse: selectedWarehouse?.Description || null,
@@ -326,10 +337,10 @@ const Zamovl: React.FC<ZamovlProps> = ({
         type: "order",
         firestoreId: orderId,
         orderId,
-        name,
+        name: orderName,
         phone,
-        deliveryMethod,
-        paymentMethod,
+        deliveryMethod: orderDeliveryMethod,
+        paymentMethod: orderPaymentMethod,
         paymentStatus: resolvedPaymentStatus,
         city: selectedCity?.Description || "",
         warehouse: selectedWarehouse?.Description || "",
@@ -387,7 +398,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
       }
 
       setConfirmedAmount(payableAmount);
-      setConfirmedPaymentMethod(paymentMethod);
+      setConfirmedPaymentMethod(quick ? "" : paymentMethod);
       setConfirmedPaymentStatus(resolvedPaymentStatus);
       setConfirmedEstimatedDeliveryDate(estimatedDeliveryDate);
       onClearCart();
@@ -424,6 +435,22 @@ const Zamovl: React.FC<ZamovlProps> = ({
     }
   };
 
+  const handleQuickOrder = async () => {
+    pushEcommerceEvent("add_payment_info", {
+      currency: "UAH",
+      value: payableAmount,
+      payment_type: QUICK_ORDER_PENDING,
+      ...ecommerceCoupon,
+      items: ecommerceItems,
+    });
+    try {
+      await persistOrder(undefined, { completeCheckout: true, quickOrder: true });
+    } catch (error) {
+      console.error("Помилка при оформленні швидкого замовлення:", error);
+      alert("Не вдалося зберегти замовлення. Зателефонуйте нам: +38 (063) 421-18-51.");
+    }
+  };
+
   if (isLoading) return null;
 
   const steps = ["Дані", "Доставка", "Оплата", "Готово"];
@@ -443,6 +470,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
             discountAmount={discountAmount}
             isFirstOrderDiscountApplied={isFirstOrderDiscountApplied}
             onNext={() => setCurrentStep(1)}
+            onQuickOrder={handleQuickOrder}
             onBack={onBack}
           />
         );

@@ -13,6 +13,7 @@ export const HOME_POPULAR_ICONS: Record<string, string> = {
   "/Katlogo/pryvid_ta_korobka_peredach.png": "/images/home/popular-icons/katlogo-pryvid_ta_korobka_peredach.webp",
   "/Katlogo/datchyky_ta_elektronika.png": "/images/home/popular-icons/katlogo-datchyky_ta_elektronika.webp",
   "/Katlogo/kuzovni_elementy.png": "/images/home/popular-icons/katlogo-kuzovni_elementy.webp",
+  "/Katlogo/skloochysnyky.svg": "/images/home/popular-icons/katlogo-skloochysnyky.webp",
   "/Katlogo/ridyny_ta_mastyla.png": "/images/home/popular-icons/katlogo-ridyny_ta_mastyla.webp",
   "/Katlogo/avtoaksesuary_ta_instrument.png": "/images/home/popular-icons/katlogo-avtoaksesuary_ta_instrument.webp",
   "/Katlogo/inshe.png": "/images/home/popular-icons/katlogo-inshe.webp",

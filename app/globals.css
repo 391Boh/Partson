@@ -9313,6 +9313,7 @@ html.is-scrolling .home-static :is(.card-metal,.home-feature-card,.reveal-adv-ca
   color: #166534;
 }
 .catalog-product-card .catalog-card-actions .catalog-stock-control--backorder .catalog-stock-control-status { color: #92400e; }
+
 .catalog-product-card .catalog-card-actions .catalog-stock-control-label > button {
   min-width: 20px;
   min-height: 20px;

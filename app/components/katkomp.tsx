@@ -15,6 +15,7 @@ import { buildVisibleProductName } from "app/lib/product-url";
 import { formatCatalogLabel } from "app/lib/catalog-label-format";
 import { safeSetStorageItem } from "app/lib/safe-storage";
 import { fetchCatalogTree } from "app/lib/onec-proxy-client";
+import { getCategoryIconPath } from "app/lib/category-icons";
 import {
   CATALOG_FILTER_SELECTION_FINAL_EVENT,
   replaceCatalogUrl,
@@ -99,43 +100,13 @@ const getCompactDisplayLabel = (value: string) =>
   formatCatalogLabel(buildVisibleProductName(
     stripParentheticalMeta(value) || "\u0411\u0435\u0437 \u043d\u0430\u0437\u0432\u0438"
   ));
-const normalizeCategoryKey = (value: string) =>
-  normalizeLabel(value).toLowerCase().replace(/\s+/g, " ");
 const normalizeNodeName = (node?: ProductNode | null) => {
   const rawName = typeof node?.name === "string" ? node.name : "";
   return normalizeLabel(rawName) || "\u0411\u0435\u0437 \u0433\u0440\u0443\u043f\u0438";
 };
-const categoryIconMap = new Map<string, string>();
-const addCategoryIcon = (label: string, icon: string) => {
-  const safeLabel = label.replace(
-    /[\u0456\u0457\u0454\u0491\u0406\u0407\u0404\u0490]/g,
-    "?"
-  );
-  categoryIconMap.set(label, icon);
-  categoryIconMap.set(safeLabel, icon);
-  categoryIconMap.set(normalizeCategoryKey(label), icon);
-  categoryIconMap.set(normalizeCategoryKey(safeLabel), icon);
-};
-const getCategoryIcon = (label: string) => {
-  const resolved =
-    categoryIconMap.get(label) ?? categoryIconMap.get(normalizeCategoryKey(label));
-  return `/Katlogo/${resolved || "rul.png"}`;
-};
-
-addCategoryIcon("\u041f\u0430\u043b\u0438\u0432\u043d\u0430 \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "palivna_systema.png");
-addCategoryIcon("\u0413\u0430\u043b\u044c\u043c\u0456\u0432\u043d\u0430 \u0441\u0438\u0441\u0442\u0435\u043c\u0430", "halmivna_systema.png");
-addCategoryIcon("\u0414\u0435\u0442\u0430\u043b\u0456 \u0434\u0432\u0438\u0433\u0443\u043d\u0430", "detali_dvyhuna.png");
-addCategoryIcon("\u0414\u0435\u0442\u0430\u043b\u0456 \u043f\u0456\u0434\u0432\u0456\u0441\u043a\u0438", "detali_pidvisky.png");
-addCategoryIcon("\u0410\u043c\u043e\u0440\u0442\u0438\u0437\u0430\u0446\u0456\u044f", "amort.png");
-addCategoryIcon("\u0414\u0435\u0442\u0430\u043b\u0456 \u0434\u043b\u044f \u0422\u041e", "detali_dlia_to.png");
-addCategoryIcon("\u041f\u0440\u0438\u0432\u0456\u0434 \u0442\u0430 \u043a\u043e\u0440\u043e\u0431\u043a\u0430 \u043f\u0435\u0440\u0435\u0434\u0430\u0447", "pryvid_ta_korobka_peredach.png");
-addCategoryIcon("\u0421\u0438\u0441\u0442\u0435\u043c\u0430 \u043e\u0445\u043e\u043b\u043e\u0434\u0436\u0435\u043d\u043d\u044f", "systema_okholodzhennia.png");
-addCategoryIcon("\u041e\u0441\u0432\u0456\u0442\u043b\u0435\u043d\u043d\u044f", "osvitlennia.png");
-addCategoryIcon("\u0406\u043d\u0448\u0435", "inshe.png");
-addCategoryIcon("\u0415\u043b\u0435\u043a\u0442\u0440\u043e\u043d\u0456\u043a\u0430", "elektronika.png");
-addCategoryIcon("\u041a\u0443\u0437\u043e\u0432\u043d\u0456 \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0438", "kuzovni_elementy.png");
-addCategoryIcon("\u0414\u0430\u0442\u0447\u0438\u043a\u0438 \u0442\u0430 \u0435\u043b\u0435\u043a\u0442\u0440\u043e\u043d\u0456\u043a\u0430", "datchyky_ta_elektronika.png");
-addCategoryIcon("\u0420\u0456\u0434\u0438\u043d\u0438 \u0442\u0430 \u043c\u0430\u0441\u0442\u0438\u043b\u0430", "ridyny_ta_mastyla.png");
+// Same icon table as the homepage and the group pages (one source, so the
+// catalog restructure's new sections get their own icons here too).
+const getCategoryIcon = (label: string) => getCategoryIconPath(label);
 
 const nodeSearchTextCache = new WeakMap<ProductNode, string>();
 

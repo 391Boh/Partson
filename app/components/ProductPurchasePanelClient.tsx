@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BadgePercent, Clock3, CreditCard, Headphones, Truck } from "lucide-react";
 
 import { useProductQuantity } from "app/lib/use-product-quantity";
+import { BACKORDER_LEAD_TIME } from "app/lib/backorder";
 import ProductPageActions from "app/components/ProductPageActions";
 import ProductViewTracking from "app/components/ProductViewTracking";
 import { loadPrivateProductPrice } from "app/lib/private-product-price-client";
@@ -699,7 +700,7 @@ export default function ProductPurchasePanelClient(
                 ) : null}
               </span>
               <span className={`product-purchase-stock-note block font-medium ${isInStock ? "text-emerald-800" : "text-amber-800"}`}>
-                {isInStock ? "Відправимо після підтвердження" : "Уточнимо термін постачання"}
+                {isInStock ? "Відправимо після підтвердження" : `Постачання ${BACKORDER_LEAD_TIME}, можна замовити зараз`}
               </span>
             </span>
             {isInStock ? (

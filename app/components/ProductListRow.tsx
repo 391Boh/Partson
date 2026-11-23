@@ -12,6 +12,7 @@ import { buildVisibleCategoryLabel, buildVisibleProductName } from "app/lib/prod
 import { useProductQuantity } from "app/lib/use-product-quantity";
 import { useProductDescription } from "app/lib/use-product-description";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
+import { BACKORDER_LEAD_TIME } from "app/lib/backorder";
 import { PRODUCER_LOGO_FILES } from "app/generated/producer-logos";
 import { resolveProducerLogo } from "app/lib/producer-logo-match";
 import ProductDescriptionContent from "app/components/ProductDescriptionContent";
@@ -134,8 +135,9 @@ const ProductListRow: React.FC<Props> = ({
     // partners (see hasPromo's own comment above).
     const showPartnerDiscountTeaser = !isPriceLoading && !hasPromoPrice && hasPromo;
     const isRequestAction = priceStatus === "request";
-    const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
-    const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
+    // Out of stock is still orderable (backorder); only stock caps the quantity.
+    const isPlusDisabled = isAvailable ? cartQty + qty >= quantity : qty >= 99;
+    const isAddDisabled = isAvailable && cartQty + qty > quantity;
     const isCartButtonDisabled = isPurchasePriceLoading ? true : hasPrice ? isAddDisabled : false;
     const canEdit = isAdmin && Boolean(onAdminEdit);
     const [showCostPrice, setShowCostPrice] = useState(false);
@@ -469,7 +471,7 @@ const ProductListRow: React.FC<Props> = ({
                                     className={`h-1.5 w-1.5 rounded-full ${isAvailable ? "bg-emerald-500" : "bg-amber-500"}`}
                                     aria-hidden="true"
                                 />
-                                {isAvailable ? `В наявності · ${quantity} шт.` : "Під замовлення"}
+                                {isAvailable ? `В наявності · ${quantity} шт.` : `Під замовлення · ${BACKORDER_LEAD_TIME}`}
                             </span>
                             {canEdit && !stockEditing && (
                                 <button
@@ -661,7 +663,7 @@ const ProductListRow: React.FC<Props> = ({
                             onClick={() => onQtyChange(code, -1)}
                             className="flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white transition-all duration-150 disabled:opacity-30"
                             style={{ width: 24, height: 24 }}
-                            disabled={!isAvailable || qty <= 1}
+                            disabled={qty <= 1}
                             aria-label="Зменшити кількість"
                         >
                             <Minus size={12} strokeWidth={2.5} />

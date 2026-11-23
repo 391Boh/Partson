@@ -17,6 +17,7 @@ import { useProductDescription } from "app/lib/use-product-description";
 import ProductCardBackTabs from "app/components/ProductCardBackTabs";
 import ProductCardBackAnalogs from "app/components/ProductCardBackAnalogs";
 import { AdminStockStepper, type StockMovement } from "app/components/QuantityStepper";
+import { BACKORDER_LEAD_TIME } from "app/lib/backorder";
 import { PRODUCER_LOGO_FILES } from "app/generated/producer-logos";
 import { resolveProducerLogo } from "app/lib/producer-logo-match";
 
@@ -232,11 +233,12 @@ const ProductCard: React.FC<Props> = ({
     // mark it without revealing the discounted amount, reserved for verified
     // partners (see hasPromo's own comment above).
     const showPartnerDiscountTeaser = !isPriceLoading && !hasPromoPrice && hasPromo;
-    const isPlusDisabled = !isAvailable || (isAvailable && cartQty + qty >= quantity);
-    const isAddDisabled = !isAvailable || (isAvailable && cartQty + qty > quantity);
+    // Out of stock is still orderable (backorder); only stock caps the quantity.
+    const isPlusDisabled = isAvailable ? cartQty + qty >= quantity : qty >= 99;
+    const isAddDisabled = isAvailable && cartQty + qty > quantity;
     const isCartButtonDisabled = isPurchasePriceLoading ? true : hasPrice ? isAddDisabled : false;
     const isRequestAction = priceStatus === "request";
-    const isCounterDisabled = !isAvailable || !hasPrice || priceAccessPending;
+    const isCounterDisabled = !hasPrice || priceAccessPending;
     const [justAdded, setJustAdded] = useState(false);
     const [showCostPrice, setShowCostPrice] = useState(false);
     const [showBackAnalogs, setShowBackAnalogs] = useState(false);
@@ -1022,10 +1024,10 @@ const fetchMetaSuggestions = (type: 'group' | 'subGroup' | 'category', q: string
                                     data-nosnippet
                                     data-label={
                                         quantity > 0
-                                            ? isAdmin ? `Наявно: ${quantity} шт.` : `В наявності · ${quantity} шт.`
-                                            : "Під замовлення"
+                                            ? isAdmin ? `Наявно\n${quantity} шт.` : `В наявності\n${quantity} шт.`
+                                            : `Під замовлення\n${BACKORDER_LEAD_TIME}`
                                     }
-                                    className="catalog-stock-control-status min-w-0 font-semibold before:content-[attr(data-label)]"
+                                    className="catalog-stock-control-status min-h-[2.4em] min-w-0 whitespace-pre-line font-semibold leading-[1.2] before:content-[attr(data-label)]"
                                 />
                                 {isAdmin && onAdminEdit && !stockEditing && (
                                     <button

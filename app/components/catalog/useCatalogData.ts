@@ -2934,7 +2934,9 @@ function useCatalogData(params: {
     (code: string, delta: number) => {
       setQuantities((prev) => {
         const current = prev[code] ?? 1;
-        const max = productsByCode[code]?.quantity ?? 99;
+        // No stock = backorder: any quantity up to 99, like the product page.
+        const stock = productsByCode[code]?.quantity ?? 0;
+        const max = stock > 0 ? stock : 99;
         return { ...prev, [code]: Math.min(Math.max(1, current + delta), max) };
       });
     },

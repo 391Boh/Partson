@@ -119,6 +119,38 @@ const fetchSearchCount = async (
     return { totalCount: 0, exact: true };
   }
 
+  const queryOptions = {
+    vehicle: readVehicleSelection(params.get("vehicle")),
+    selectedCars,
+    selectedCategories,
+    searchQuery,
+    searchFilter,
+    group,
+    subcategory,
+    producer,
+    expandHierarchy,
+    sortOrder: "none" as const,
+    retries: 0,
+    retryDelayMs: 80,
+    cacheTtlMs: COUNT_CACHE_TTL_MS,
+    includePriceEnrichment: false,
+    preferLegacySource: false,
+    forceAllgoodsSource: true,
+    pricedItemsOnly: pricedOnly,
+    withPhotoOnly: params.get("withPhoto") === "1",
+    priceFrom,
+    priceTo,
+    onlyInStock: inStock,
+  };
+
+  // 1C reports the exact total for the filter with any page (summed per
+  // branch for a category with subgroups), so one tiny request usually
+  // settles it; walking every page only remains the fallback.
+  const probe = await fetchCatalogProductsByQuery({ ...queryOptions, page: 1, limit: 1, timeoutMs: 6000 }).catch(() => null);
+  if (probe && typeof probe.totalCount === "number" && Number.isFinite(probe.totalCount) && probe.totalCount >= 0) {
+    return { totalCount: Math.floor(probe.totalCount), exact: true };
+  }
+
   let cursor = "";
   let cursorField = "";
   let exact = true;

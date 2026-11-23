@@ -73,7 +73,8 @@ addCategoryIcon("Електрика та електроніка", "datchyky_ta_e
 addCategoryIcon("Оливи, рідини та автохімія", "ridyny_ta_mastyla.png");
 addCategoryIcon("Інструмент", "avtoaksesuary_ta_instrument.png");
 addCategoryIcon("Аксесуари", "inshe.png");
-addCategoryIcon("Склоочисники та омивачі", "kuzovni_elementy.png");
+addCategoryIcon("Склоочисники та омивачі", "skloochysnyky.svg");
+addCategoryIcon("Рульова система", "rul.png");
 
 export const getCategoryIconPath = (label: string) => {
   const resolved =

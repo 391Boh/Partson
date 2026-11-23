@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, ChevronRight, Percent } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Percent, PhoneCall } from 'lucide-react';
 import { User } from 'firebase/auth';
 
 interface Props {
@@ -15,10 +15,19 @@ interface Props {
   discountAmount?: number;
   isFirstOrderDiscountApplied?: boolean;
   onNext: () => void;
+  /** Guest checkout by phone only; the manager agrees delivery and payment. */
+  onQuickOrder?: () => Promise<void>;
   onBack: () => void;
 }
 
 const PHONE_PATTERN = /^\+380\d{9}$/;
+// "063 421 18 51", "0634211851", "380634211851" → "+380634211851".
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (/^0\d{9}$/.test(digits)) return `+38${digits}`;
+  if (/^380\d{9}$/.test(digits)) return `+${digits}`;
+  return value.trim();
+};
 
 const CustomerDetails: React.FC<Props> = ({
   name,
@@ -31,6 +40,7 @@ const CustomerDetails: React.FC<Props> = ({
   discountAmount = 0,
   isFirstOrderDiscountApplied = false,
   onNext,
+  onQuickOrder,
   onBack,
 }) => {
   // Phone and email errors wait until the field is left: the phone field is
@@ -38,6 +48,8 @@ const CustomerDetails: React.FC<Props> = ({
   // so validating on every change showed red errors before any real input.
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [guestMode, setGuestMode] = useState<'quick' | 'full'>(!user && onQuickOrder ? 'quick' : 'full');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
   const isNameValid = name.trim().length >= 2;
   const isPhoneValid = PHONE_PATTERN.test(phone.trim());
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -56,6 +68,86 @@ const CustomerDetails: React.FC<Props> = ({
     }
     onNext();
   };
+
+  if (guestMode === 'quick' && onQuickOrder) {
+    const submitQuick = async () => {
+      const normalized = normalizePhone(phone);
+      if (normalized !== phone) setPhone(normalized);
+      setPhoneTouched(true);
+      if (!PHONE_PATTERN.test(normalized) || quickSubmitting) return;
+      setQuickSubmitting(true);
+      try {
+        await onQuickOrder();
+      } finally {
+        setQuickSubmitting(false);
+      }
+    };
+    const quickPhoneValid = PHONE_PATTERN.test(normalizePhone(phone));
+    return (
+      <div className="space-y-4 text-sky-50">
+        <div className="rounded-[18px] border border-white/15 bg-white/[0.06] p-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-white/10 text-sky-100" aria-hidden="true">
+              <PhoneCall size={18} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[15px] font-bold text-white">Швидке замовлення за номером</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-sky-100/85">
+                Залиште телефон — менеджер передзвонить, перевірить сумісність і узгодить доставку та оплату.
+              </p>
+            </div>
+          </div>
+          <form
+            className="mt-4 flex flex-col gap-2.5 sm:flex-row"
+            onSubmit={(event) => { event.preventDefault(); void submitQuick(); }}
+          >
+            <label htmlFor="quick-phone" className="sr-only">Телефон</label>
+            <input
+              id="quick-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onBlur={() => { setPhone(normalizePhone(phone)); setPhoneTouched(true); }}
+              placeholder="+380XXXXXXXXX"
+              autoComplete="tel"
+              inputMode="tel"
+              autoFocus
+              aria-invalid={phoneTouched && !quickPhoneValid ? true : undefined}
+              className="soft-field min-h-11 flex-1 px-4 py-2.5 text-base"
+            />
+            <button
+              type="submit"
+              disabled={!quickPhoneValid || quickSubmitting}
+              className={`soft-primary-button min-h-11 px-5 py-2.5 text-sm font-bold ${!quickPhoneValid || quickSubmitting ? 'cursor-not-allowed opacity-60' : ''}`}
+            >
+              {quickSubmitting ? 'Надсилаємо…' : 'Замовити'}
+            </button>
+          </form>
+          {phoneTouched && !quickPhoneValid && phone.replace(/\s/g, '') !== '+380' && (
+            <p className="mt-1.5 text-xs font-semibold text-rose-200">Введіть номер у форматі +380XXXXXXXXX або 0XXXXXXXXX.</p>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="soft-secondary-button w-full px-4 py-2.5 text-sm font-medium sm:w-auto"
+          >
+            <ArrowLeft className="mr-2 inline" size={16} />
+            Назад
+          </button>
+          <button
+            type="button"
+            onClick={() => setGuestMode('full')}
+            className="text-sm font-semibold text-sky-100 underline decoration-sky-200/50 underline-offset-4 hover:text-white"
+          >
+            Вказати доставку й оплату самостійно
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 text-sky-50">
