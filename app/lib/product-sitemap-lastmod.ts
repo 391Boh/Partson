@@ -95,3 +95,20 @@ export async function getProductSitemapLastModified(
 
   return result;
 }
+
+/**
+ * Newest stored lastmod among `codes`, for the sitemap index: without it every
+ * product chunk carried the site-wide template date there, so the index never
+ * told Google which chunks had changed. Read-only — the chunk itself records
+ * new fingerprints when it renders.
+ */
+export async function getLatestStoredProductLastModified(codes: string[]): Promise<string | null> {
+  const records = await loadStore();
+  let latest = "";
+  for (const code of codes) {
+    const date = records[code.trim()]?.d;
+    if (date && date > latest) latest = date;
+  }
+  if (!latest) return null;
+  return latest > PRODUCT_PAGE_REVISED_AT ? latest : PRODUCT_PAGE_REVISED_AT;
+}

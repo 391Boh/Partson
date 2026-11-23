@@ -1,5 +1,6 @@
 import { PAGE_SITEMAP_SECTION_PATHS } from "app/lib/sitemap-sections";
-import { getPricedProductSitemapIds } from "app/lib/product-sitemap";
+import { getPricedProductEntriesBySitemapId, getPricedProductSitemapIds } from "app/lib/product-sitemap";
+import { getLatestStoredProductLastModified } from "app/lib/product-sitemap-lastmod";
 import { getConfiguredSitemapLastModified } from "app/lib/sitemap-dates";
 import { buildSitemapIndexXml, createSitemapXmlResponse } from "app/lib/sitemap-xml";
 import { getSiteUrl } from "app/lib/site-url";
@@ -13,18 +14,21 @@ export async function GET() {
   const siteUrl = getSiteUrl();
   const lastModified = getConfiguredSitemapLastModified();
   const productSitemapIds = await getPricedProductSitemapIds().catch(() => []);
-  const productPaths = productSitemapIds.map(
-    ({ id }) => `/product/sitemap/${encodeURIComponent(String(id))}.xml`
-  );
-  const sitemapPaths = [...PAGE_SITEMAP_SECTION_PATHS, ...productPaths];
+  // Each product chunk carries the newest change among its products, so
+  // Google re-reads only the chunks that changed.
+  const productSitemaps = await Promise.all(productSitemapIds.map(async ({ id }) => {
+    const entries = await getPricedProductEntriesBySitemapId(String(id)).catch(() => []);
+    const latest = await getLatestStoredProductLastModified(entries.map((entry) => entry.code)).catch(() => null);
+    return {
+      path: `/product/sitemap/${encodeURIComponent(String(id))}.xml`,
+      lastModified: latest && latest > lastModified ? latest : lastModified,
+    };
+  }));
 
   return createSitemapXmlResponse(
-    buildSitemapIndexXml(
-      siteUrl,
-      sitemapPaths.map((path) => ({
-        path,
-        lastModified,
-      }))
-    )
+    buildSitemapIndexXml(siteUrl, [
+      ...PAGE_SITEMAP_SECTION_PATHS.map((path) => ({ path, lastModified })),
+      ...productSitemaps,
+    ])
   );
 }
