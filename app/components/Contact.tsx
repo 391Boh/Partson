@@ -15,9 +15,11 @@ import {
   Phone,
   PhoneCall,
   Send,
+  Star,
   Store,
   X,
 } from "lucide-react";
+import { GOOGLE_REVIEW_URL } from "app/lib/google-review-link";
 import Zvyaz from "app/components/zvyaz";
 import ContactAvatar, { type ContactAvatarVariant } from "app/components/ContactAvatar";
 import WindowHubCover from "app/components/WindowHubCover";
@@ -421,6 +423,19 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                       <span className="cw-row-label">Самовивіз і консультація</span>
                       <span className="cw-row-text">Заберіть замовлення в магазині або підберіть деталі разом з менеджером.</span>
                     </div>
+                  </li>
+                  <li className="cw-row">
+                    <span className="cw-row-icon" aria-hidden="true"><Star size={16} /></span>
+                    <div className="cw-row-body">
+                      <span className="cw-row-label">Відгуки</span>
+                      <span className="cw-row-text">Розкажіть про досвід покупки в PartsON.</span>
+                    </div>
+                    <span className="cw-row-actions">
+                      <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="cw-chip-button">
+                        <Star size={15} />
+                        <span>Відгук у Google</span>
+                      </a>
+                    </span>
                   </li>
                 </ul>
               </section>

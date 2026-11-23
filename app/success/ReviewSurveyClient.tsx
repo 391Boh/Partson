@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useState } from "react";
 import StarRatingInput from "app/components/StarRatingInput";
+import { GOOGLE_REVIEW_URL } from "app/lib/google-review-link";
 
 type State = "idle" | "submitting" | "done" | "dismissed";
 
@@ -23,6 +24,14 @@ export default function ReviewSurveyClient() {
         <p className="mt-0.5 text-[13px] font-medium text-emerald-600">
           Ви допомагаєте нам ставати кращими.
         </p>
+        <a
+          href={GOOGLE_REVIEW_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex min-h-10 items-center justify-center rounded-[12px] bg-white px-4 py-2 text-[13px] font-black text-emerald-700 shadow-[0_4px_12px_rgba(16,185,129,0.14)] ring-1 ring-emerald-200 transition hover:bg-emerald-50"
+        >
+          Залишити відгук у Google
+        </a>
       </div>
     );
   }
