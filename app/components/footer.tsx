@@ -63,7 +63,7 @@ export default function Footer() {
       const parts = formatter.formatToParts(new Date());
       const read = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? "";
       const hour = Number(read("hour")) + Number(read("minute")) / 60;
-      setIsOpen(hour >= 8 && hour < (read("weekday") === "Sun" ? 16 : 18));
+      setIsOpen(hour >= 8 && hour < (({ Sun: 16, Sat: 18 } as Record<string, number>)[read("weekday")] ?? 19));
     };
     check();
     const timer = window.setInterval(check, 60_000);
@@ -135,7 +135,8 @@ export default function Footer() {
             <div className="site-footer-hours">
               <Clock3 size={18} aria-hidden="true" />
               <div>
-                <p>Пн–Сб: <span>08:00–18:00</span></p>
+                <p>Пн–Пт: <span>08:00–19:00</span></p>
+                <p>Сб: <span>08:00–18:00</span></p>
                 <p>Нд: <span>08:00–16:00</span></p>
                 <span className="site-footer-status" data-open={isOpen === null ? undefined : isOpen} aria-live="polite">
                   <span aria-hidden="true" />{isOpen === null ? "Графік роботи магазину" : isOpen ? "Працюємо зараз" : "Зараз зачинено"}

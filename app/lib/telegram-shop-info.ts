@@ -20,7 +20,7 @@ export const buildShopMapsUrl = () =>
 
 export const getShopCoordinates = () => ({ lat: SHOP_LAT, lng: SHOP_LNG });
 
-// Same Mon–Sat 08:00–18:00 / Sun 08:00–16:00 schedule the footer's own
+// Same Mon–Fri 08:00–19:00 / Sat 08:00–18:00 / Sun 08:00–16:00 schedule the footer's own
 // "Відкрито"/"Закрито" badge uses — computed in the shop's real timezone
 // (not the server's) so it stays correct regardless of where this runs.
 export const isShopOpenNow = () => {
@@ -38,7 +38,7 @@ export const isShopOpenNow = () => {
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
   const h = hour + minute / 60;
 
-  return weekday === "Sun" ? h >= 8 && h < 16 : h >= 8 && h < 18;
+  return h >= 8 && h < (weekday === "Sun" ? 16 : weekday === "Sat" ? 18 : 19);
 };
 
 export const buildContactsCard = (siteUrl: string) => {
@@ -50,7 +50,7 @@ export const buildContactsCard = (siteUrl: string) => {
     "",
     `🏪 ${escapeTelegramHtml(SHOP_ADDRESS_LINE)}, ${escapeTelegramHtml(SHOP_CITY_LINE)}`,
     "",
-    `🕐 Пн–Сб: 08:00–18:00 · Нд: 08:00–16:00`,
+    `🕐 Пн–Пт: 08:00–19:00 · Сб: 08:00–18:00 · Нд: 08:00–16:00`,
     statusBadge,
     "",
     `📞 ${SHOP_PHONE_DISPLAY}`,

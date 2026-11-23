@@ -105,7 +105,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
       const day = now.getDay(); // 0=Sun
       const totalMin = now.getHours() * 60 + now.getMinutes();
       const openMin = 8 * 60;
-      const closeMin = day === 0 ? 16 * 60 : 18 * 60; // Sun 16:00, rest 18:00
+      const closeMin = day === 0 ? 16 * 60 : day === 6 ? 18 * 60 : 19 * 60; // Sun 16:00, Sat 18:00, Mon–Fri 19:00
       const isOpen = totalMin >= openMin && totalMin < closeMin;
 
       let note = "";
@@ -412,7 +412,8 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
                         )}
                       </span>
                       <span className="cw-schedule">
-                        <span data-today={todayIndex !== 0 || undefined}><span>Пн–Сб</span><strong>08:00–18:00</strong></span>
+                        <span data-today={(todayIndex >= 1 && todayIndex <= 5) || undefined}><span>Пн–Пт</span><strong>08:00–19:00</strong></span>
+                        <span data-today={todayIndex === 6 || undefined}><span>Субота</span><strong>08:00–18:00</strong></span>
                         <span data-today={todayIndex === 0 || undefined}><span>Неділя</span><strong>08:00–16:00</strong></span>
                       </span>
                     </div>

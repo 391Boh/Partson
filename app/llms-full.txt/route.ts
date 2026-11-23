@@ -61,7 +61,8 @@ PartsON helps users locate auto parts by product name, manufacturer, article, in
 
 ## Store hours
 
-- Monday–Saturday: 08:00–18:00
+- Monday–Friday: 08:00–19:00
+- Saturday: 08:00–18:00
 - Sunday: 08:00–16:00
 
 Hours, prices, inventory, and service conditions can change. The corresponding live page is authoritative when it differs from this guide.
