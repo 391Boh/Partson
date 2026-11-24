@@ -45,9 +45,32 @@ try {
     await page.addInitScript(()=>{window.revokedPreviewURLs=[];const revoke=URL.revokeObjectURL.bind(URL);URL.revokeObjectURL=(src)=>{window.revokedPreviewURLs.push(src);revoke(src)}});
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const modal=page.getByRole('dialog');await modal.waitFor();
-    await modal.getByLabel('Ціна продажу €').fill('12,50');
-    assert.equal(await modal.getByLabel('Акційна ціна €').inputValue(),'8');
-    await modal.getByLabel('Акційна ціна €').fill('9,25');
+    await page.waitForTimeout(300);
+    const handle=modal.locator('[data-admin-drag-handle]');
+    const original=await modal.boundingBox();
+    const header=await handle.boundingBox();
+    await modal.getByPlaceholder('Назва товару').fill('Чернетка перед переміщенням');
+    await page.mouse.move(header.x+70,header.y+20);await page.mouse.down();
+    await page.mouse.move(header.x-50,header.y+40,{steps:8});await page.mouse.up();
+    const moved=await modal.boundingBox();
+    assert(Math.abs(moved.x-original.x-(width>=768?-120:0))<2,'Only desktop windows move');
+    assert.equal(await modal.getByPlaceholder('Назва товару').inputValue(),'Чернетка перед переміщенням','Dragging preserves unsaved form data');
+    await modal.getByPlaceholder('Назва товару').fill('Тестовий товар');
+    if(width>=768){
+      await handle.focus();await page.keyboard.press('Home');
+      const grip=await modal.locator('[data-admin-resize="nw"]').boundingBox();
+      await page.mouse.move(grip.x+13,grip.y+13);await page.mouse.down();
+      await page.mouse.move(grip.x-107,grip.y+173,{steps:8});await page.mouse.up();
+      const stretched=await modal.boundingBox();
+      assert(stretched.width>original.width+110 && stretched.height<original.height-150,'Product editor resizes in both dimensions');
+      const save=await modal.getByRole('button',{name:'Зберегти',exact:true}).boundingBox();
+      assert(save.y>=stretched.y && save.y+save.height<=stretched.y+stretched.height+1,'Save action stays inside a resized window');
+      assert.equal(await modal.getByPlaceholder('Назва товару').inputValue(),'Тестовий товар');
+      await modal.getByRole('button',{name:'Змінити розмір вікна'}).focus();await page.keyboard.press('Home');
+    }
+    await modal.getByLabel('Продаж, €').fill('12,50');
+    assert.equal(await modal.getByLabel('Акція, €').inputValue(),'8');
+    await modal.getByLabel('Акція, €').fill('9,25');
     await modal.getByLabel('Поточний залишок, шт.').fill('0');
     await modal.getByRole('tab',{name:'Опис',exact:true}).click();
     await modal.getByLabel('Опис товару').fill('Новий опис\nХарактеристики товару');
@@ -66,10 +89,10 @@ try {
     await page.waitForTimeout(150);assert.equal(requests.length,2,'An unchanged save must not repeat writes');
     await modal.getByRole('tab',{name:'Основне',exact:true}).click();
     assert.equal(await modal.getByLabel('Поточний залишок, шт.').inputValue(),'0');
-    await modal.getByLabel('Ціна продажу €').fill('abc');
+    await modal.getByLabel('Продаж, €').fill('abc');
     await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
     await modal.getByRole('alert').waitFor();assert.equal(requests.length,2,'Invalid prices must not reach 1C');
-    await modal.getByLabel('Ціна продажу €').fill('13');
+    await modal.getByLabel('Продаж, €').fill('13');
     await modal.getByRole('tab',{name:'Опис',exact:true}).click();
     await modal.getByLabel('Опис товару').fill('Ще один опис');
     failProduct=true;
@@ -83,7 +106,7 @@ try {
     assert.equal(requests.at(-1).url,'/api/product-update');
     assert.equal(requests.at(-1).body.Кількість,undefined,'Price edit must not reset stock');
     await modal.getByRole('tab',{name:'Основне',exact:true}).click();
-    assert.equal(await modal.getByLabel('Ціна продажу €').inputValue(),'13');
+    assert.equal(await modal.getByLabel('Продаж, €').inputValue(),'13');
     const refreshBeforePhoto=await page.evaluate(()=>window.refreshCalls);
     await modal.getByPlaceholder('Назва товару').fill('Незбережена назва');
     await modal.getByRole('tab',{name:'Фото',exact:true}).click();
@@ -109,7 +132,7 @@ try {
     await modal.getByRole('tab',{name:'Основне',exact:true}).click();
     assert.equal(await modal.getByPlaceholder('Назва товару').inputValue(),'Незбережена назва','Photo upload must preserve unsaved fields');
     await modal.getByPlaceholder('Назва товару').fill('Тестовий товар');
-    await modal.getByLabel('Акційна ціна €').fill('0');
+    await modal.getByLabel('Акція, €').fill('0');
     await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
     await modal.getByRole('status').waitFor();
     assert.equal(requests.at(-1).body.Акція,0,'Zero removes the promotion');
@@ -120,11 +143,11 @@ try {
     await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
     await page.waitForTimeout(100);
     assert.equal(requests.length,removedCount,'Confirmed zero is retained in the baseline');
-    await modal.getByLabel('Акційна ціна €').fill('-1');
+    await modal.getByLabel('Акція, €').fill('-1');
     await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
     await modal.getByRole('alert').waitFor();
     assert.equal(requests.length,removedCount,'Invalid promo prices are not sent');
-    await modal.getByLabel('Акційна ціна €').fill('6,75');
+    await modal.getByLabel('Акція, €').fill('6,75');
     await modal.getByRole('button',{name:'Зберегти',exact:true}).click();
     await modal.getByRole('status').waitFor();
     assert.equal(requests.at(-1).body.Акція,6.75,'A new promotion can be added after removal');
@@ -134,10 +157,13 @@ try {
     console.log(`Product edit ${width}px passed: description, comma price, zero stock, validation, partial failure, retry and stable baseline.`);
   }
   const late=await browser.newPage();
-  await late.goto(`http://127.0.0.1:${server.address().port}/?late-promo`);
-  await late.getByLabel('Акційна ціна €').fill('4,50');
+  await Promise.all([
+    late.waitForRequest(request=>request.url().includes('/api/product-price')),
+    late.goto(`http://127.0.0.1:${server.address().port}/?late-promo`),
+  ]);
+  await late.getByLabel('Акція, €').fill('4,50');
   await late.waitForTimeout(700);
-  assert.equal(await late.getByLabel('Акційна ціна €').inputValue(),'4,50','Late promo lookup must not overwrite an edited draft');
+  assert.equal(await late.getByLabel('Акція, €').inputValue(),'4,50','Late promo lookup must not overwrite an edited draft');
   await late.close();
   console.log('Promo form passed: current value, add/edit/remove, decimal comma, validation and delayed-read race.');
 } finally {await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

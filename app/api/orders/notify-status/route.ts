@@ -3,27 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, setRateLimitHeaders } from "app/api/_lib/rateLimit";
 import { verifyAdminRequest } from "app/api/_lib/admin-auth";
 import { isNonEmptyString, readJsonObject } from "app/api/_lib/requestValidation";
-import { getFirebaseAdminDb } from "app/lib/firebase-admin";
-import { sendTelegramMessage, sendTelegramPhoto } from "app/lib/telegram-bot";
-import {
-  formatOrderBlock,
-  getOrderPrimaryImageUrl,
-  type OrderFields,
-} from "app/lib/telegram-order-message";
-import { getSiteUrl } from "app/lib/site-url";
+import { notifyOrderStatusTelegram, ORDER_STATUS_TELEGRAM_LABEL } from "app/lib/order-status-notify";
 
 export const runtime = "nodejs";
 
-// Fires the Telegram half of an order-status change made in the admin panel
-// (see AdminChatPanel.tsx's markOrderShipped/markOrderCompleted, which call
-// this right after their Firestore updateDoc). Most accounts won't have a
-// linked Telegram chat — that's a normal, silent no-op here, never an error,
-// since this must never block or fail the admin's action.
-const STATUS_LABEL: Record<string, string> = {
-  shipped: "🚚 Ваше замовлення відправлено",
-  completed: "✅ Ваше замовлення виконано",
-};
-
+// Telegram half of an order-status change. The admin status route
+// (app/api/admin/orders/status) now notifies by itself; this stays for older
+// clients. Most accounts have no linked Telegram chat — a silent no-op, never
+// an error, since this must never block or fail the admin's action.
 const json = (data: unknown, status = 200) =>
   new NextResponse(JSON.stringify(data), {
     status,
@@ -54,40 +41,10 @@ export async function POST(req: NextRequest) {
     typeof bodyResult.value.orderId === "string" ? bodyResult.value.orderId.trim() : "";
   const status =
     typeof bodyResult.value.status === "string" ? bodyResult.value.status.trim() : "";
-  if (!isNonEmptyString(orderId, { minLength: 1, maxLength: 200 }) || !STATUS_LABEL[status]) {
+  if (!isNonEmptyString(orderId, { minLength: 1, maxLength: 200 }) || !ORDER_STATUS_TELEGRAM_LABEL[status]) {
     return json({ ok: false, error: "orderId and a valid status are required" }, 400);
   }
 
-  try {
-    const db = getFirebaseAdminDb();
-    const orderSnap = await db.collection("orders").doc(orderId).get();
-    if (!orderSnap.exists) return json({ ok: true, skipped: true });
-
-    const order = orderSnap.data() as OrderFields & { uid?: string };
-    const uid = typeof order.uid === "string" ? order.uid : "";
-    if (!uid) return json({ ok: true, skipped: true });
-
-    const userSnap = await db.collection("users").doc(uid).get();
-    const chatId = userSnap.exists ? (userSnap.data()?.telegramChatId as string | undefined) : undefined;
-    if (!chatId) return json({ ok: true, skipped: true });
-
-    const siteUrl = getSiteUrl();
-    const text = `<b>${STATUS_LABEL[status]}</b>\n\n${formatOrderBlock(orderId, order, siteUrl)}`;
-    const imageUrl = getOrderPrimaryImageUrl(order, siteUrl);
-
-    const result = imageUrl
-      ? await sendTelegramPhoto(chatId, imageUrl, text, { parseMode: "HTML" })
-      : { ok: false as const };
-    if (!result.ok) {
-      const fallback = await sendTelegramMessage(chatId, text, { parseMode: "HTML" });
-      if (!fallback.ok) return json({ ok: true, skipped: true, error: fallback.error });
-    }
-
-    return json({ ok: true });
-  } catch (error) {
-    console.error("Order status Telegram notification failed:", error);
-    // Never surface this as a failure to the admin UI — the Firestore status
-    // update already succeeded by the time this route is called.
-    return json({ ok: true, skipped: true });
-  }
+  const result = await notifyOrderStatusTelegram(orderId, status);
+  return json(result.sent ? { ok: true } : { ok: true, skipped: true, ...(result.error ? { error: result.error } : {}) });
 }

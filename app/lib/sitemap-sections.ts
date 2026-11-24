@@ -662,6 +662,19 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       priority: 0.8,
     },
     {
+      path: "/telegram",
+      lastModified: contentLastModified,
+      changeFrequency: "monthly",
+      priority: 0.6,
+      images: [
+        {
+          loc: "/telegram/bot-welcome.png",
+          title: "Telegram-бот PartsON — каталог автозапчастин у Telegram",
+          caption: "Підбір автозапчастин за авто, новинки, акції й замовлення в Telegram",
+        },
+      ],
+    },
+    {
       path: "/partnership",
       lastModified: contentLastModified,
       changeFrequency: "monthly",

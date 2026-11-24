@@ -1,6 +1,8 @@
 import { AlertTriangle, ArrowRightLeft, Check, FolderTree, RefreshCw, Search, X } from "lucide-react";
+import AdminWindowResizeHandles from "./AdminWindowResizeHandles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { adminWindowDragHandle, useAdminWindowDrag } from "app/lib/use-admin-window-drag";
 
 // The products of one 1C group as a table, from the admin "Каталог" tab
 // (AdminCatalogPanel.tsx): pick products and move them to another group.
@@ -133,6 +135,8 @@ export default function AdminGroupProductsDialog({
   const [result, setResult] = useState<Result>(null);
   const lastClickedRef = useRef<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useAdminWindowDrag(panelRef);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -241,12 +245,13 @@ export default function AdminGroupProductsDialog({
   return createPortal(
     <div data-admin-overlay data-admin-dialog className="fixed inset-0 z-[1200] flex items-stretch justify-center bg-slate-950/75 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-group-products-title"
-        className="flex h-full w-full max-w-6xl flex-col overflow-hidden border-white/12 bg-[#0b1424] text-white shadow-[0_30px_80px_rgba(2,6,23,0.7)] sm:h-[min(92vh,900px)] sm:rounded-[22px] sm:border"
+        className="relative flex h-full w-full max-w-6xl flex-col overflow-hidden border-white/12 bg-[#0b1424] text-white shadow-[0_30px_80px_rgba(2,6,23,0.7)] sm:h-[min(92vh,900px)] sm:rounded-[22px] sm:border"
       >
-        <header className="flex items-start gap-3 border-b border-white/10 px-4 py-3">
+        <header {...adminWindowDragHandle} className="flex items-start gap-3 border-b border-white/10 px-4 py-3">
           <div className="min-w-0 flex-1">
             {group.path.length > 0 && <p className="truncate text-[11px] font-medium text-slate-300">{group.path.join(" › ")}</p>}
             <h2 id="admin-group-products-title" className="text-[16px] font-bold leading-snug [overflow-wrap:anywhere]">
@@ -415,6 +420,7 @@ export default function AdminGroupProductsDialog({
           </div>
           {tooMany && <p className="text-[11px] font-semibold text-rose-200">За один раз можна перенести не більше {MOVE_MAX} товарів.</p>}
         </footer>
+        <AdminWindowResizeHandles />
       </div>
     </div>,
     document.body

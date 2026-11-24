@@ -36,6 +36,8 @@ export type CatalogChangeEntry = {
   details?: string;
   /** How many items the change covered (moves, sync runs). */
   count?: number;
+  /** The product name itself was set or changed (product.update/create). */
+  renamed?: boolean;
 };
 
 export type CatalogChangeRecord = CatalogChangeEntry & { id: string; at: number };
@@ -63,6 +65,7 @@ export async function writeCatalogChange(entry: CatalogChangeEntry) {
   if (code) record.code = code;
   if (details) record.details = details;
   if (typeof entry.count === "number" && Number.isFinite(entry.count)) record.count = entry.count;
+  if (entry.renamed) record.renamed = true;
   await getFirebaseAdminDb().collection(CATALOG_CHANGE_LOG_COLLECTION).add(record);
 }
 
@@ -77,3 +80,4 @@ export async function listCatalogChanges(options: { limit?: number; before?: num
   const items = snapshot.docs.slice(0, limit).map((doc) => ({ id: doc.id, ...(doc.data() as Omit<CatalogChangeRecord, "id">) }));
   return { items, hasMore: snapshot.docs.length > limit };
 }
+

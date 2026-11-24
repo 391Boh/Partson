@@ -533,7 +533,9 @@ export async function POST(request: NextRequest) {
 
   {
     const changes = [
-      confirmedName ? `назва «${confirmedName}»` : "",
+      // 1C echoes the name after any attribute edit; journal it only when
+      // the admin actually sent a new one.
+      productName && confirmedName ? `назва «${confirmedName}»` : "",
       confirmedCatalogNumber ? `артикул ${confirmedCatalogNumber}` : "",
       producer !== undefined ? `виробник ${producer || "—"}` : "",
       group || subGroup || category ? `група ${subGroup || group || category}` : "",
@@ -551,6 +553,7 @@ export async function POST(request: NextRequest) {
       target: confirmedName || article || code,
       code,
       details: changes.join(" · ") || undefined,
+      ...(productName ? { renamed: true } : {}),
     });
   }
 

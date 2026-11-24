@@ -18,6 +18,7 @@ import WindowHubCover from "app/components/WindowHubCover";
 import { pluralizePositions } from "app/lib/pluralize-uk";
 
 import CustomerDetails from "./CustomerDetails";
+import guestStyles from "./OrderGuest.module.css";
 import DeliveryMethod from "./DeliveryMethod";
 import PaymentMethod from "./PaymentMethod";
 import OrderConfirmation from "./OrderConfirmation";
@@ -544,7 +545,7 @@ const Zamovl: React.FC<ZamovlProps> = ({
   };
 
   return (
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="checkout-title" className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="checkout-title" className={`customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex min-h-0 flex-col overflow-y-auto overflow-x-hidden ${!firebaseUser && currentStep === 0 ? guestStyles.panel : ''}`}>
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col p-3 sm:p-4">
         <div className="soft-panel-accent mb-3.5 h-[3px] rounded-full" />
         <div className="cw-hub">

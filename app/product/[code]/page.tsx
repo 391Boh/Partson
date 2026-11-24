@@ -96,6 +96,7 @@ import {
   type ProductReview,
 } from "app/lib/reviews-server";
 import { buildOfferShippingDetails } from "app/lib/shipping-policy";
+import TelegramProductLink from "app/components/TelegramProductLink";
 
 // 1C itself is documented (see ProductCard.tsx's DESCRIPTION_REQUEST_TIMEOUT_MS)
 // to take 1.9-3.7s per call, even back-to-back, and oneC.js additionally
@@ -2611,6 +2612,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       <p className="product-overview-description">{isAccessoryProduct
                         ? "Потрібна допомога з вибором? Повідомте менеджеру артикул і потрібні параметри — уточнимо характеристики та комплектацію."
                         : "Потрібно перевірити сумісність? Надішліть VIN або дані автомобіля — менеджер допоможе з підбором."}</p>
+                      <TelegramProductLink code={product.code} inStock={product.quantity > 0} />
                       <a href="#product-reviews" className="product-review-button">
                         <Star size={14} className="fill-amber-400 text-amber-400" aria-hidden="true" />
                         {reviewStats ? (

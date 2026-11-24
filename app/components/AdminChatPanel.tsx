@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import AdminWindowResizeHandles from "./AdminWindowResizeHandles";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { adminWindowDragHandle, useAdminWindowDrag } from 'app/lib/use-admin-window-drag';
 import { ProfileAvatar } from './ProfileAvatar';
 import { findAvatarFrame, getProfileAvatarTier, type AvatarTier } from 'app/lib/profile-appearance';
 import {
@@ -29,7 +31,6 @@ import {
   Users2,
   X,
   CircleCheck,
-  Eye,
   FileText,
   MessageSquareText,
   Phone,
@@ -42,6 +43,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  limit,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -57,6 +59,17 @@ import OrderTrackingEditor from './OrderTrackingEditor';
 import { isNovaPoshtaDelivery } from 'app/lib/order-tracking';
 import { MessageAdminActivity, saveAdminChatAction, useAdminChatActivity } from './admin-chat-activity';
 import { getAdminIdToken, getCurrentAdminUser } from 'app/lib/get-admin-token';
+import {
+  getOrderStatus,
+  isClosedOrderStatus,
+  MANUAL_ORDER_STATUSES,
+  ORDER_NOTE_MAX_LENGTH,
+  ORDER_STATUS_CLASS,
+  ORDER_STATUS_LABEL,
+  toMillis,
+  type OrderHistoryEntry,
+  type OrderStatus,
+} from 'app/lib/order-status';
 
 interface Message {
   id: string;
@@ -126,7 +139,41 @@ interface Order {
   viewedByName?: string;
   shippedByName?: string;
   completedByName?: string;
+  status?: OrderStatus;
+  statusUpdatedByName?: string;
+  history?: OrderHistoryEntry[];
+  lastNote?: string;
+  npStatus?: string;
+  npStatusCode?: string;
+  npArrivedAt?: unknown;
+  npPaidStorageFrom?: string;
+  paymentStatus?: string;
 }
+
+// Orders stream newest-first in pages: the full collection used to be
+// re-read on every panel open, growing with every order ever placed.
+const ORDERS_PAGE_SIZE = 150;
+
+type OrderFilter = 'open' | 'all' | OrderStatus;
+const ORDER_FILTERS: Array<{ key: OrderFilter; label: string }> = [
+  { key: 'open', label: 'Активні' },
+  { key: 'all', label: 'Усі' },
+  { key: 'new', label: 'Нові' },
+  { key: 'confirmed', label: 'Підтверджені' },
+  { key: 'awaiting_payment', label: 'Очікують оплати' },
+  { key: 'packing', label: 'Комплектуються' },
+  { key: 'shipped', label: 'Відправлені' },
+  { key: 'arrived', label: 'У відділенні' },
+  { key: 'completed', label: 'Виконані' },
+  { key: 'returned', label: 'Повернення' },
+  { key: 'cancelled', label: 'Скасовані' },
+];
+
+const PAYMENT_STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  paid: { label: 'Оплачено онлайн', className: 'bg-emerald-500/20 text-emerald-200' },
+  pending: { label: 'Очікує онлайн-оплати', className: 'bg-amber-500/20 text-amber-200' },
+  failed: { label: 'Оплата не пройшла', className: 'bg-rose-500/20 text-rose-200' },
+};
 
 interface CallRequest {
   id: string;
@@ -153,8 +200,11 @@ interface UserRecord {
   avatarFrame?: string | null;
 }
 
+export type AdminPanelNavigation = { key: number; tab: 'orders' | 'calls'; orderId?: string; phone?: string };
+
 interface Props {
   isOpen: boolean;
+  navigation?: AdminPanelNavigation | null;
   isPinned?: boolean;
   onClose: () => void;
   onPinnedChange?: (isPinned: boolean) => void;
@@ -282,6 +332,7 @@ const resizeImageForBroadcast = (file: File): Promise<string> =>
 
 export default function AdminChatPanel({
   isOpen,
+  navigation,
   isPinned = false,
   onClose,
   onPinnedChange,
@@ -407,6 +458,7 @@ export default function AdminChatPanel({
   >({});
   const [userPhoneMap, setUserPhoneMap] = useState<Record<string, string>>({});
   const [orderSearch, setOrderSearch] = useState('');
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>('all');
   const [messageSearch, setMessageSearch] = useState('');
   const [callSearch, setCallSearch] = useState('');
 
@@ -471,15 +523,19 @@ export default function AdminChatPanel({
     });
   }, []);
 
+  const [ordersLimit, setOrdersLimit] = useState(ORDERS_PAGE_SIZE);
+  const [ordersMayHaveMore, setOrdersMayHaveMore] = useState(false);
   useEffect(() => {
     return onSnapshot(
-      query(collection(db, 'orders'), orderBy('createdAt', 'desc')),
-      (snap) =>
+      query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(ordersLimit)),
+      (snap) => {
+        setOrdersMayHaveMore(snap.size >= ordersLimit);
         setOrders(
           snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) }))
-        )
+        );
+      }
     );
-  }, []);
+  }, [ordersLimit]);
 
   useEffect(() => {
     return onSnapshot(
@@ -1148,52 +1204,93 @@ export default function AdminChatPanel({
     await deleteDoc(doc(db, 'messages', messageId));
   };
 
-  const markOrderViewed = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), {
-      read: true,
-      ...(currentAdmin ? { viewedByName: currentAdmin.name } : {}),
-    });
-  };
-
-  // Fire-and-forget: the Firestore status update above is the action that
-  // actually matters and has already succeeded by the time this runs. A
-  // customer without a linked Telegram chat is the common case, not an
-  // error, and the route itself never returns a hard failure for that — this
-  // just guards against a network hiccup so it can never surface in the
-  // admin UI or block the status change.
-  const notifyOrderStatus = async (orderId: string, status: 'shipped' | 'completed') => {
+  // Every order change goes through the Admin-SDK route (client Firestore
+  // rules block order updates); it keeps the legacy read/shipped/completed
+  // flags in sync, records who did it in the order history and sends the
+  // customer's Telegram notification itself.
+  const [orderActionError, setOrderActionError] = useState<{ orderId: string; text: string } | null>(null);
+  const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
+  const [orderNoteDrafts, setOrderNoteDrafts] = useState<Record<string, string>>({});
+  const updateOrder = useCallback(async (
+    orderId: string,
+    change: { status?: OrderStatus; note?: string; viewed?: boolean }
+  ): Promise<boolean> => {
+    if (!change.viewed) setOrderBusyId(orderId);
+    setOrderActionError(null);
     try {
       const token = await getAdminIdToken();
-      if (!token) return;
-      await fetch('/api/orders/notify-status', {
+      if (!token) throw new Error('Увійдіть як адміністратор.');
+      const response = await fetch('/api/admin/orders/status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ orderId, status }),
+        body: JSON.stringify({ orderId, ...change }),
       });
-    } catch {
-      // Best-effort notification — nothing to surface here.
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string; byName?: string };
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Не вдалося зберегти зміну.');
+      // The snapshot listener brings the saved state; patch locally so the
+      // chip updates instantly even on a slow connection.
+      setOrders((previous) =>
+        previous.map((order) => {
+          if (order.id !== orderId) return order;
+          const next: Order = { ...order, read: true };
+          if (!order.read && data.byName) next.viewedByName = data.byName;
+          if (change.status) {
+            next.status = change.status;
+            next.statusUpdatedByName = data.byName;
+            next.shipped = ['shipped', 'arrived', 'completed', 'returned'].includes(change.status);
+            next.completed = change.status === 'completed';
+          }
+          if (change.note) next.lastNote = change.note;
+          return next;
+        })
+      );
+      return true;
+    } catch (error) {
+      if (!change.viewed) {
+        setOrderActionError({ orderId, text: error instanceof Error ? error.message : 'Не вдалося зберегти зміну.' });
+      }
+      return false;
+    } finally {
+      if (!change.viewed) setOrderBusyId(null);
     }
+  }, []);
+
+  const markOrderViewed = useCallback(async (orderId: string) => {
+    await updateOrder(orderId, { viewed: true });
+  }, [updateOrder]);
+
+  const handledNavigation = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isOpen || !navigation || handledNavigation.current === navigation.key) return;
+    handledNavigation.current = navigation.key;
+    setTab(navigation.tab);
+    if (navigation.tab === 'orders' && navigation.orderId) {
+      setOrderUserFilterId(null);
+      setOrderFilter('all');
+      setOrderSearch(orders.some(order => order.id === navigation.orderId) ? '' : navigation.phone || '');
+      setExpandedOrderId(navigation.orderId);
+      if (!orders.find(order => order.id === navigation.orderId)?.read) void markOrderViewed(navigation.orderId);
+    }
+  }, [isOpen, navigation, orders, markOrderViewed]);
+
+  useEffect(() => {
+    if (!isOpen || tab !== 'orders' || !expandedOrderId || expandedOrderId !== navigation?.orderId) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`admin-order-${expandedOrderId}`)?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, tab, expandedOrderId, navigation, orders]);
+
+  const setOrderStatus = async (orderId: string, status: OrderStatus) => {
+    await updateOrder(orderId, { status });
   };
 
-  const markOrderShipped = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), {
-      shipped: true,
-      read: true,
-      ...(currentAdmin ? { shippedByName: currentAdmin.name, viewedByName: currentAdmin.name } : {}),
-    });
-    void notifyOrderStatus(orderId, 'shipped');
-  };
-
-  const markOrderCompleted = async (orderId: string) => {
-    await updateDoc(doc(db, 'orders', orderId), {
-      completed: true,
-      shipped: true,
-      read: true,
-      ...(currentAdmin
-        ? { completedByName: currentAdmin.name, shippedByName: currentAdmin.name, viewedByName: currentAdmin.name }
-        : {}),
-    });
-    void notifyOrderStatus(orderId, 'completed');
+  const saveOrderNote = async (orderId: string) => {
+    const note = (orderNoteDrafts[orderId] || '').trim();
+    if (!note) return;
+    if (await updateOrder(orderId, { note })) {
+      setOrderNoteDrafts((previous) => ({ ...previous, [orderId]: '' }));
+    }
   };
 
   const toggleOrderExpand = async (orderId: string, isRead?: boolean) => {
@@ -1207,6 +1304,13 @@ export default function AdminChatPanel({
     await updateDoc(doc(db, 'zvyaz', callId), { processed: true, read: true });
   };
 
+  const orderStatusCounts = orders.reduce<Partial<Record<OrderFilter, number>>>((acc, order) => {
+    const status = getOrderStatus(order);
+    acc[status] = (acc[status] ?? 0) + 1;
+    if (!isClosedOrderStatus(status)) acc.open = (acc.open ?? 0) + 1;
+    acc.all = (acc.all ?? 0) + 1;
+    return acc;
+  }, {});
   const normalizedOrderSearch = orderSearch.trim().toLowerCase();
   const normalizedOrderSearchDigits = orderSearch.replace(/\D/g, '');
   const filteredOrders = orders.filter((o) => {
@@ -1221,6 +1325,10 @@ export default function AdminChatPanel({
       : true;
 
     if (!matchesSearch) return false;
+    if (orderFilter !== 'all') {
+      const status = getOrderStatus(o);
+      if (orderFilter === 'open' ? isClosedOrderStatus(status) : status !== orderFilter) return false;
+    }
     if (!orderUserFilterId) return true;
 
     const userPhone = normalizePhoneDigits(userPhoneMap[orderUserFilterId]);
@@ -1356,11 +1464,12 @@ export default function AdminChatPanel({
     unreadMessages +
     unreadOrders +
     unreadCalls +
-    orders.filter((order) => !order.completed).length +
+    orders.filter((order) => !isClosedOrderStatus(getOrderStatus(order))).length +
     calls.filter((call) => !call.processed).length;
   const selectedUserRecord = selectedUserId ? getUserByChatId(selectedUserId) : null;
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  useAdminWindowDrag(panelRef, isOpen && isMounted);
 
   useEffect(() => {
     setIsMobileDevice(
@@ -1399,7 +1508,7 @@ export default function AdminChatPanel({
         animation: 'adminGradient 12s ease infinite',
       }}
     >
-      <div className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-2 text-white sm:px-4 sm:py-2.5">
+      <div {...adminWindowDragHandle} className="border-b border-white/10 bg-[image:linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.78),rgba(14,165,233,0.2))] px-3 py-2 text-white sm:px-4 sm:py-2.5">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] border border-sky-200/20 bg-white/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_12px_24px_rgba(14,165,233,0.16)] sm:h-9 sm:w-9 sm:rounded-[15px]">
@@ -2393,8 +2502,27 @@ export default function AdminChatPanel({
                 <PanelSearchField
                   value={orderSearch}
                   onChange={setOrderSearch}
-                  placeholder="Пошук по імені, телефону, місту або доставці"
+                  placeholder="Пошук по імені, телефону, місту, ТТН"
                 />
+                <div className="-mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-0.5" role="tablist" aria-label="Фільтр за статусом">
+                  {ORDER_FILTERS.filter((f) => f.key === 'all' || f.key === 'open' || orderStatusCounts[f.key]).map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={orderFilter === f.key}
+                      onClick={() => setOrderFilter(f.key)}
+                      className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[11px] font-bold transition ${
+                        orderFilter === f.key
+                          ? 'border-sky-300/50 bg-sky-400/20 text-white'
+                          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {f.label}
+                      <span className="tabular-nums opacity-70">{orderStatusCounts[f.key] ?? 0}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </SearchDock>
             {visibleOrders.length === 0 && (
@@ -2411,96 +2539,87 @@ export default function AdminChatPanel({
               />
             )}
             {visibleOrders.map((o) => {
-              const statusLabel = o.cancelled
-                ? o.cancelledBy === 'customer' ? 'Скасовано клієнтом' : 'Скасовано'
-                : o.completed
-                ? 'Виконано'
-                : o.shipped
-                ? 'Відправлено'
-                : o.read
-                ? 'Оглянуто'
-                : 'Нове';
-              const statusClass = o.cancelled
-                ? 'bg-rose-500/20 text-rose-200'
-                : o.completed
-                ? 'bg-emerald-500/20 text-emerald-200'
-                : o.shipped
-                ? 'bg-blue-500/20 text-blue-200'
-                : o.read
-                ? 'bg-amber-500/20 text-amber-200'
-                : 'bg-sky-500/20 text-sky-200';
-              const statusByName = o.cancelled
-                ? undefined
-                : o.completed
-                ? o.completedByName
-                : o.shipped
-                ? o.shippedByName
-                : o.read
-                ? o.viewedByName
-                : undefined;
+              const status = getOrderStatus(o);
+              const statusLabel =
+                status === 'cancelled' && o.cancelledBy === 'customer' ? 'Скасовано клієнтом' : ORDER_STATUS_LABEL[status];
+              const statusByName =
+                status === 'cancelled'
+                  ? undefined
+                  : o.statusUpdatedByName ||
+                    (status === 'completed' ? o.completedByName : status === 'shipped' ? o.shippedByName : undefined) ||
+                    (o.read ? o.viewedByName : undefined);
+              const payment = o.paymentStatus ? PAYMENT_STATUS_LABEL[o.paymentStatus] : undefined;
+              const busy = orderBusyId === o.id;
+              const closed = isClosedOrderStatus(status);
+              const history = [...(o.history ?? [])].sort((a, b) => toMillis(b.at) - toMillis(a.at));
+              const noteDraft = orderNoteDrafts[o.id] ?? '';
 
               return (
-                <div key={o.id} data-admin-card="true" className="mb-1.5 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[20px] sm:p-3">
+                <div id={`admin-order-${o.id}`} key={o.id} data-admin-card="true" className="mb-1.5 scroll-mt-28 rounded-[16px] border border-white/6 bg-[image:linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.72))] p-2 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.14)] sm:mb-2 sm:rounded-[20px] sm:p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div
                       className="min-w-0 flex-1 cursor-pointer"
                       onClick={() => toggleOrderExpand(o.id, o.read)}
                     >
-                      <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="min-w-0 truncate font-medium">{o.name}</span>
-                        <span
-                          className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${statusClass}`}
-                        >
+                        <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${ORDER_STATUS_CLASS[status]}`}>
                           {statusLabel}
                         </span>
+                        {!o.read && status !== 'cancelled' && (
+                          <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">не відкрито</span>
+                        )}
+                        {payment && (
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${payment.className}`}>{payment.label}</span>
+                        )}
                       </div>
                       <p className="mt-1 text-[11px] text-slate-400">
-                        {formatTimestampLabel(o.createdAt)}
-                        {statusByName && ` · ${statusLabel.toLowerCase()}: ${statusByName}`}
+                        {formatTimestampLabel(o.createdAt)} · <span className="tabular-nums">{o.totalAmount} грн</span>
+                        {statusByName && ` · ${statusByName}`}
+                        {o.npStatus && ` · НП: ${o.npStatus}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <button
-                        onClick={() => markOrderViewed(o.id)}
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-amber-300 hover:text-amber-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
-                          o.read ? 'opacity-40 cursor-not-allowed' : ''
-                        }`}
-                        title="Оглянуто"
-                        disabled={o.read}
-                      >
-                        <Eye className="w-5 h-5" strokeWidth={1.75} />
-                      </button>
-                      <button
-                        onClick={() => markOrderShipped(o.id)}
+                        onClick={() => setOrderStatus(o.id, 'shipped')}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-blue-300 hover:text-blue-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
-                          o.shipped || o.cancelled ? 'opacity-40 cursor-not-allowed' : ''
+                          closed || status === 'shipped' || status === 'arrived' ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title={o.cancelled ? 'Замовлення скасовано' : 'Відправлено'}
-                        disabled={o.shipped || o.cancelled}
+                        title={status === 'cancelled' ? 'Замовлення скасовано' : 'Відправлено'}
+                        aria-label="Позначити відправленим"
+                        disabled={busy || closed || status === 'shipped' || status === 'arrived'}
                       >
                         <Truck className="w-5 h-5" strokeWidth={1.75} />
                       </button>
                       <button
-                        onClick={() => markOrderCompleted(o.id)}
+                        onClick={() => setOrderStatus(o.id, 'completed')}
                         className={`inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-emerald-300 hover:text-emerald-200 sm:h-10 sm:w-10 sm:rounded-2xl ${
-                          o.completed || o.cancelled ? 'opacity-40 cursor-not-allowed' : ''
+                          closed ? 'opacity-40 cursor-not-allowed' : ''
                         }`}
-                        title={o.cancelled ? 'Замовлення скасовано' : 'Виконано'}
-                        disabled={o.completed || o.cancelled}
+                        title={status === 'cancelled' ? 'Замовлення скасовано' : 'Виконано'}
+                        aria-label="Позначити виконаним"
+                        disabled={busy || closed}
                       >
                         <CircleCheck className="w-5 h-5" strokeWidth={1.75} />
                       </button>
                       <button
                         onClick={() => toggleOrderExpand(o.id, true)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 sm:h-10 sm:w-10 sm:rounded-2xl"
+                        aria-label={expandedOrderId === o.id ? 'Згорнути замовлення' : 'Розгорнути замовлення'}
+                        aria-expanded={expandedOrderId === o.id}
                       >
                         {expandedOrderId === o.id ? <ChevronUp /> : <ChevronDown />}
                       </button>
                     </div>
                   </div>
+                  {orderActionError?.orderId === o.id && (
+                    <p className="mt-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100">
+                      {orderActionError.text}
+                    </p>
+                  )}
                   {expandedOrderId === o.id && (
                     <div className="mt-2 text-sm space-y-2 text-slate-200">
-                      {o.cancelled && (
+                      {status === 'cancelled' && (
                         <p className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-rose-100">
                           {o.cancelledBy === 'customer' ? 'Клієнт скасував замовлення до опрацювання.' : 'Замовлення скасовано.'}{' '}
                           {o.stockReturn?.status === 'done'
@@ -2512,9 +2631,40 @@ export default function AdminChatPanel({
                                 : 'Товар із залишку не списувався.'}
                         </p>
                       )}
+                      {status !== 'cancelled' && (
+                        <div>
+                          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">Статус</p>
+                          <div className="flex flex-wrap gap-1">
+                            {MANUAL_ORDER_STATUSES.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                disabled={busy || value === status}
+                                onClick={() => setOrderStatus(o.id, value)}
+                                aria-pressed={value === status}
+                                className={`min-h-8 rounded-full border px-2.5 text-[11px] font-bold transition disabled:cursor-default ${
+                                  value === status
+                                    ? `border-transparent ${ORDER_STATUS_CLASS[value]}`
+                                    : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                                }`}
+                              >
+                                {ORDER_STATUS_LABEL[value]}
+                              </button>
+                            ))}
+                          </div>
+                          {status === 'returned' && (
+                            <p className="mt-1 text-[11px] text-amber-200/90">
+                              Повернення не змінює залишки в 1С автоматично — оформіть Поступлення вручну.
+                            </p>
+                          )}
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            Підтверджено / Відправлено / У відділенні / Виконано — клієнт отримує повідомлення в Telegram, якщо його прив’язав.
+                          </p>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <p>Телефон: {o.phone}</p>
-                        <p>Оплата: {o.paymentMethod}</p>
+                        <p>Телефон: <a className="text-sky-200 hover:underline" href={`tel:${o.phone}`}>{o.phone}</a></p>
+                        <p>Оплата: {o.paymentMethod}{payment ? ` · ${payment.label}` : ''}</p>
                         <p>Доставка: {o.deliveryMethod}</p>
                         {o.city && <p>Місто: {o.city}</p>}
                         {o.warehouse &&
@@ -2527,6 +2677,12 @@ export default function AdminChatPanel({
                             <p>Вулиця: {o.lvivStreet}</p>
                           )}
                         <p className="font-semibold">Сума: {o.totalAmount} грн</p>
+                        {o.npStatus && (
+                          <p>
+                            Нова Пошта: {o.npStatus}
+                            {o.npPaidStorageFrom ? ` · платне зберігання з ${o.npPaidStorageFrom}` : ''}
+                          </p>
+                        )}
                       </div>
                       {isNovaPoshtaDelivery(o.deliveryMethod) && (
                         <OrderTrackingEditor key={o.id} orderId={o.id} trackingNumber={o.trackingNumber}
@@ -2536,14 +2692,72 @@ export default function AdminChatPanel({
                       )}
                       {o.cartItems?.map((i, idx) => (
                         <p key={idx} className="text-xs text-slate-300">
-                          {i.name} x {i.quantity} — {i.price}
+                          {i.article ? <b className="text-slate-100">{i.article}</b> : null} {i.name} x {i.quantity} — {i.price}
                         </p>
                       ))}
+                      <div className="rounded-[14px] border border-white/8 bg-slate-950/30 p-2">
+                        <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                          Коментар менеджера (бачать лише адміни)
+                        </p>
+                        <div className="flex gap-1.5">
+                          <input
+                            value={noteDraft}
+                            maxLength={ORDER_NOTE_MAX_LENGTH}
+                            onChange={(e) => setOrderNoteDrafts((previous) => ({ ...previous, [o.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void saveOrderNote(o.id);
+                              }
+                            }}
+                            placeholder="Напр.: передзвонити після 18:00, чекаємо поставку"
+                            className="h-9 min-w-0 flex-1 rounded-[10px] border border-white/12 bg-slate-950/50 px-2.5 text-[16px] text-white placeholder:text-[12px] placeholder:text-slate-500 focus:border-sky-300/60 focus:outline-none sm:text-sm"
+                          />
+                          <button
+                            type="button"
+                            disabled={busy || !noteDraft.trim()}
+                            onClick={() => void saveOrderNote(o.id)}
+                            className="h-9 shrink-0 rounded-[10px] border border-sky-300/30 bg-sky-500/15 px-3 text-xs font-bold text-sky-100 hover:bg-sky-500/25 disabled:opacity-50"
+                          >
+                            Додати
+                          </button>
+                        </div>
+                        {history.length > 0 && (
+                          <ol className="mt-2 space-y-1 border-l border-white/10 pl-2.5">
+                            {history.map((entry, index) => (
+                              <li key={`${toMillis(entry.at)}-${index}`} className="text-[11px] leading-snug text-slate-300">
+                                <span className="text-slate-500">
+                                  {new Date(toMillis(entry.at)).toLocaleString('uk-UA', {
+                                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                                  })}
+                                </span>{' '}
+                                <b className="text-slate-200">{entry.byName || 'Адмін'}</b>
+                                {entry.status ? ` → ${ORDER_STATUS_LABEL[entry.status] ?? entry.status}` : ''}
+                                {entry.note && !(entry.source === 'novaposhta' && entry.status) ? `: ${entry.note}` : ''}
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               );
             })}
+            {ordersMayHaveMore && (
+              <div className="py-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => setOrdersLimit((value) => value + ORDERS_PAGE_SIZE)}
+                  className="min-h-10 rounded-[12px] border border-white/12 bg-white/6 px-4 text-xs font-bold text-slate-100 hover:bg-white/12"
+                >
+                  Завантажити старіші замовлення
+                </button>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Завантажено {orders.length}. Пошук і фільтри працюють по завантажених.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -2612,6 +2826,7 @@ export default function AdminChatPanel({
           </div>
           )}
       </div>
+      <AdminWindowResizeHandles />
     </div>
   );
 }

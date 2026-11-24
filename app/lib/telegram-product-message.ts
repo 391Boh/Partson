@@ -27,11 +27,13 @@ export const buildProductImageUrl = (siteUrl: string, product: CatalogProduct) =
 
 export const formatProductCaption = (
   product: CatalogProduct,
-  priceUah: number | null
+  priceUah: number | null,
+  promo?: { priceUah: number; percent: number | null } | null
 ) => {
   const name = escapeTelegramHtml(buildVisibleProductName(product.name));
-  const price =
-    priceUah != null ? formatOrderMoney(priceUah) : "ціна за запитом";
+  const priceLine = promo && priceUah != null
+    ? `Ціна: 🔥 <b>${formatOrderMoney(promo.priceUah)}</b> <s>${formatOrderMoney(priceUah)}</s>${promo.percent ? ` −${promo.percent}%` : ""}`
+    : `Ціна: <b>${priceUah != null ? formatOrderMoney(priceUah) : "ціна за запитом"}</b>`;
   // <code> makes the article tap-to-copy in Telegram — genuinely useful when
   // a customer wants to paste it into /find, send it to the manager, or look
   // it up elsewhere, not just decoration.
@@ -44,7 +46,7 @@ export const formatProductCaption = (
       : "",
     `Артикул: ${article}`,
     formatAvailability(product.quantity),
-    `\nЦіна: <b>${price}</b>`,
+    `\n${priceLine}`,
   ]
     .filter(Boolean)
     .join("\n");

@@ -4075,6 +4075,12 @@ export type SnapshotListingQuery = {
   priceTo: number | null;
   /** "Акційні товари": only products with an active promo offer. */
   promoOnly?: boolean;
+  /** Keep the sort above, but list in-stock products before the rest. */
+  stockFirst?: boolean;
+  /** Only products whose group or subgroup is one of these (new arrivals). */
+  anyOfGroups?: string[];
+  /** Also count producers over the matches, ignoring the producer filter. */
+  producerFacets?: boolean;
   offset: number;
   limit: number;
 };
@@ -4106,7 +4112,13 @@ const compareCodes = (a: CatalogProduct, b: CatalogProduct) =>
  */
 export const listCatalogFromSnapshot = async (
   query: SnapshotListingQuery
-): Promise<{ items: CatalogProduct[]; totalCount: number; hasMore: boolean; nextOffset: number } | null> => {
+): Promise<{
+  items: CatalogProduct[];
+  totalCount: number;
+  hasMore: boolean;
+  nextOffset: number;
+  producerFacets?: Array<{ label: string; count: number }>;
+} | null> => {
   if (!fullCatalogState.cache) {
     void getFullCatalogSnapshot().catch(() => undefined);
     return null;
@@ -4147,8 +4159,12 @@ export const listCatalogFromSnapshot = async (
       : []
   );
 
-  const matches = snapshot.products.filter((product) => {
+  const anyOfGroups = query.anyOfGroups?.length ? new Set(query.anyOfGroups.map(normalizeFacetValue)) : null;
+  const passes = (product: CatalogProduct, ignoreProducer: boolean) => {
     if (!isSearchArticleAllowed(product, query.searchQuery)) return false;
+    if (anyOfGroups && !anyOfGroups.has(normalizeFacetValue(product.group)) && !anyOfGroups.has(normalizeFacetValue(product.subGroup))) {
+      return false;
+    }
     if (branches.length > 0) {
       const raw = readSnapshotRawFacets(snapshot, product);
       const inBranch = branches.some(
@@ -4158,7 +4174,7 @@ export const listCatalogFromSnapshot = async (
       );
       if (!inBranch) return false;
     }
-    if (producer && normalizeFacetValue(product.producer) !== producer) return false;
+    if (!ignoreProducer && producer && normalizeFacetValue(product.producer) !== producer) return false;
     if (query.withPhoto && !product.hasPhoto) return false;
     if (query.inStock && !(product.quantity > 0)) return false;
     const priced = hasSnapshotSalePrice(product);
@@ -4174,7 +4190,8 @@ export const listCatalogFromSnapshot = async (
       if (!key || !readSnapshotPromoOffer(key, promoSnapshot, product.priceEuro).hasPromo) return false;
     }
     return true;
-  });
+  };
+  const matches = snapshot.products.filter((product) => passes(product, false));
 
   if (query.sortOrder !== "none") {
     const direction = query.sortOrder === "asc" ? 1 : -1;
@@ -4201,10 +4218,34 @@ export const listCatalogFromSnapshot = async (
     });
   }
 
+  // Array.prototype.sort is stable, so the order above survives inside the
+  // in-stock and on-order halves.
+  if (query.stockFirst) matches.sort((a, b) => Number(b.quantity > 0) - Number(a.quantity > 0));
+
+  let producerFacets: Array<{ label: string; count: number }> | undefined;
+  if (query.producerFacets) {
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const product of producer ? snapshot.products.filter((item) => passes(item, true)) : matches) {
+      const label = (product.producer || "").trim();
+      if (!label || label === "-") continue;
+      const key = normalizeFacetValue(label);
+      const entry = counts.get(key) ?? { label, count: 0 };
+      entry.count += 1;
+      counts.set(key, entry);
+    }
+    producerFacets = [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }
+
   const offset = Math.max(0, Math.floor(query.offset));
   const items = matches.slice(offset, offset + query.limit);
   const nextOffset = offset + items.length;
-  return { items, totalCount: matches.length, hasMore: nextOffset < matches.length, nextOffset };
+  return {
+    items,
+    totalCount: matches.length,
+    hasMore: nextOffset < matches.length,
+    nextOffset,
+    ...(producerFacets ? { producerFacets } : {}),
+  };
 };
 
 // key -> product index over the warm full-catalog snapshot, rebuilt only

@@ -10,6 +10,7 @@ import {
   searchCatalogIndex,
 } from "app/lib/catalog-server";
 import type { CatalogProduct } from "app/lib/catalog-server";
+import { recordSearchMiss } from "app/lib/search-miss-log";
 import { decodeSearchCursor, encodeSearchCursor, isSearchArticleAllowed, normalizeSearchQuery, type SearchField } from "app/lib/catalog-search";
 import { buildCatalogCategoryPath, buildManufacturerPathFromLabel } from "app/lib/catalog-links";
 
@@ -555,6 +556,11 @@ export async function POST(request: Request) {
       });
 
       if (indexResult) {
+        // A full (non-suggestion) first-page search that found nothing is a
+        // demand signal for the admin dashboard's "searched but missing" list.
+        if (!isSuggestions && !searchCursor && indexResult.totalCount === 0) {
+          recordSearchMiss(normalizedSearchQuery);
+        }
         const usedQuery =
           indexResult.correctedQuery || rankCursor?.query || searchCursor?.query || normalizedSearchQuery;
         const shown = (rankCursor?.offset ?? 0) + indexResult.items.length;

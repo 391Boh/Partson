@@ -13,7 +13,7 @@ import ScrollPerformanceGuard from "./ScrollPerformanceGuard";
 import NavigationProgress from "./NavigationProgress";
 import PageTransition from "./PageTransition";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronUp, FolderTree, MessageCircle, Plus, Shield } from "lucide-react";
+import { ChartNoAxesCombined, ChevronUp, FolderTree, MessageCircle, Plus, Shield } from "lucide-react";
 import {
   CATALOG_PAGE_CACHE_VERSION,
   CATALOG_PRODUCTS_CACHE_KEY,
@@ -24,6 +24,7 @@ import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { scheduleBackgroundTask } from "app/lib/schedule-background-task";
 import { prefetchRoute } from "app/lib/route-prefetch";
 import type { ProductFullEditTarget } from "./ProductFullEditModal";
+import type { AdminPanelNavigation } from "./AdminChatPanel";
 
 // Quiet time after the last scroll before html.is-scrolling is removed.
 const SCROLL_SETTLE_MS = 250;
@@ -40,6 +41,11 @@ const AdminCatalogWindow = dynamic(() => loadDeferredUi(() => import("./AdminCat
   ssr: false,
 });
 
+const AdminOverviewWindow = dynamic(() => loadDeferredUi(() => import("./AdminOverviewWindow")), {
+  ssr: false,
+  loading: () => <div className="admin-overview-loading" role="status">Завантаження огляду…</div>,
+});
+
 interface LayoutHostProps {
   children: ReactNode;
 }
@@ -47,6 +53,7 @@ interface LayoutHostProps {
 
 type AdminChatPanelComponentProps = {
   isOpen: boolean;
+  navigation?: AdminPanelNavigation | null;
   isPinned?: boolean;
   onClose: () => void;
   onPinnedChange?: (isPinned: boolean) => void;
@@ -248,9 +255,18 @@ export default function LayoutHost({ children }: LayoutHostProps) {
   const [userUnreadCount, setUserUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
+  const [adminNavigation, setAdminNavigation] = useState<AdminPanelNavigation | null>(null);
+  const closeOverview = useCallback(() => setIsOverviewOpen(false), []);
   // The catalog editor (groups, producers) has its own floating button.
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const closeCatalog = useCallback(() => setIsCatalogOpen(false), []);
+  const openAdminSection = useCallback((target: Omit<AdminPanelNavigation, "key">) => {
+    setAdminNavigation(previous => ({ ...target, key: (previous?.key ?? 0) + 1 }));
+    setIsOverviewOpen(false);
+    setIsCatalogOpen(false);
+    setIsAdminPanelOpen(true);
+  }, []);
   const [productEditTarget, setProductEditTarget] = useState<ProductFullEditTarget | null>(null);
   const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
   const [routeViewState, setRouteViewState] = useState<RouteViewState>({
@@ -1097,6 +1113,20 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
             <div className="flex flex-col items-center gap-2 sm:gap-3">
               {isAdmin && !isAdminPanelOpen && (
+                <button
+                  type="button"
+                  data-admin-overlay
+                  onClick={() => setIsOverviewOpen(open => !open)}
+                  aria-label="Огляд магазину"
+                  aria-expanded={isOverviewOpen}
+                  aria-controls="admin-overview-window"
+                  title="Огляд магазину: продажі, замовлення, каталог"
+                  className="admin-overview-trigger"
+                >
+                  <ChartNoAxesCombined size={24} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+              )}
+              {isAdmin && !isAdminPanelOpen && (
                 <>
                   <button
                     type="button"
@@ -1153,6 +1183,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
           {isAdmin && AdminChatPanelComponent && (
             <AdminChatPanelComponent
               isOpen={isAdminPanelOpen}
+              navigation={adminNavigation}
               isPinned={isAdminPanelPinned}
               onClose={() => setIsAdminPanelOpen(false)}
               onPinnedChange={setIsAdminPanelPinned}
@@ -1173,6 +1204,12 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
       {isAdmin && isCatalogOpen && <AdminCatalogWindow onClose={closeCatalog} />}
 
+      {isAdmin && isOverviewOpen && <AdminOverviewWindow
+        onClose={closeOverview}
+        onOpenOrder={(orderId, phone) => openAdminSection({ tab: "orders", orderId, phone })}
+        onOpenCalls={() => openAdminSection({ tab: "calls" })}
+      />}
+
       {isAdmin && isCreateModalOpen && (
         <ProductCreateModal
           isOpen={isCreateModalOpen}
@@ -1182,6 +1219,7 @@ export default function LayoutHost({ children }: LayoutHostProps) {
 
       {isAdmin && productEditTarget && (
         <ProductFullEditModal
+          key={productEditTarget.code}
           isOpen
           onClose={() => setProductEditTarget(null)}
           {...productEditTarget}

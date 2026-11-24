@@ -11,6 +11,7 @@ import {
   sendTelegramChatAction,
   sendTelegramLocation,
   sendTelegramMessage,
+  sendTelegramMediaGroup,
   sendTelegramPhoto,
 } from "app/lib/telegram-bot";
 import {
@@ -21,7 +22,10 @@ import {
   type OrderFields,
 } from "app/lib/telegram-order-message";
 import { getSiteUrl } from "app/lib/site-url";
-import { fetchEuroRate, toPriceUah } from "app/lib/catalog-server";
+import { getProductPageGallery } from "app/lib/product-page-extras";
+import { buildVisibleProductName } from "app/lib/product-url";
+import { fetchEuroRate, findFullCatalogSnapshotProduct, toPriceUah } from "app/lib/catalog-server";
+import { parseTelegramStartPayload } from "app/lib/telegram-deeplink";
 import { buildProductKeyboard, buildProductImageUrl, formatProductCaption } from "app/lib/telegram-product-message";
 import {
   buildBrandPicker,
@@ -31,9 +35,12 @@ import {
   buildListingComposer,
   buildListingView,
   buildModelPicker,
+  buildProducerPicker,
   buildSubgroupPicker,
   createListing,
   fetchListingPage,
+  fetchListingProducers,
+  NEXT_LISTING_SORT,
   hasListingFilters,
   loadListing,
   readSavedVehicle,
@@ -89,7 +96,14 @@ import {
 } from "app/lib/telegram-checkout";
 import { recordTelegramBotEvent } from "app/lib/telegram-analytics";
 
-import { BOT_HOME_TEXT, buildBotHomeKeyboard, buildBotMoreKeyboard, parseBotCommand } from "app/lib/telegram-menu";
+import {
+  BOT_HOME_TEXT,
+  buildBotHomeKeyboard,
+  buildBotMoreKeyboard,
+  buildQuickReplyKeyboard,
+  parseBotCommand,
+  readQuickAction,
+} from "app/lib/telegram-menu";
 
 export const runtime = "nodejs";
 
@@ -167,9 +181,6 @@ const buildContactKeyboard = () => ({
   one_time_keyboard: true,
 });
 
-const removeKeyboard = () => ({
-  remove_keyboard: true,
-});
 
 // web_app buttons open inside Telegram's own in-app browser instead of
 // switching to an external one — a nicer, more "native app" feel for the
@@ -444,8 +455,15 @@ const askEmail = (chatId: string | number) =>
   sendTelegramMessage(
     chatId,
     "✅ Дякую! Тепер напишіть ваш <b>email</b> для профілю PartsON.",
-    { parseMode: "HTML", replyMarkup: removeKeyboard() }
+    // Replaces the one-time "share phone" keyboard with the quick buttons.
+    { parseMode: "HTML", replyMarkup: buildQuickReplyKeyboard() }
   );
+
+// The quick buttons can only ride on their own message (a message has one
+// reply_markup, and the menus use inline buttons), so this short line is
+// sent once after the welcome and after /menu or /cancel.
+const sendQuickKeyboard = (chatId: string | number, text = "⌨️ Швидкі кнопки — під полем вводу.") =>
+  sendTelegramMessage(chatId, text, { replyMarkup: buildQuickReplyKeyboard() }).catch(() => undefined);
 
 const finishProfile = (chatId: string | number) =>
   sendTelegramMessage(
@@ -488,6 +506,7 @@ const sendWelcomeBack = async (
   if (!photoResult.ok) {
     await sendTelegramMessage(chatId, text, { parseMode: "HTML", replyMarkup });
   }
+  await sendQuickKeyboard(chatId);
 };
 
 const sendGuestWelcome = async (chatId: string | number, from: TelegramUser) => {
@@ -508,6 +527,7 @@ const sendGuestWelcome = async (chatId: string | number, from: TelegramUser) => 
   if (!photoResult.ok) {
     await sendTelegramMessage(chatId, text, { parseMode: "HTML", replyMarkup });
   }
+  await sendQuickKeyboard(chatId);
 };
 
 const handleStart = async (
@@ -520,6 +540,13 @@ const handleStart = async (
   const token = startPayload.startsWith(PROFILE_TOKEN_PREFIX)
     ? startPayload.slice(PROFILE_TOKEN_PREFIX.length)
     : "";
+  // Tagged links from the site and ads (app/lib/telegram-deeplink.ts): count
+  // the entry point, and open the linked product once the greeting is out.
+  const entry = token ? null : parseTelegramStartPayload(startPayload);
+  if (entry?.source) void recordTelegramBotEvent(`start_src_${entry.source}`).catch(() => undefined);
+  const openLinkedProduct = async () => {
+    if (entry?.productCode) await openProductFromLink(chatId, entry.productCode).catch(() => undefined);
+  };
   const telegramId = normalizeId(from.id);
   const userRef = token
     ? await findUserByProfileToken(token)
@@ -527,6 +554,7 @@ const handleStart = async (
 
   if (!userRef) {
     await sendGuestWelcome(chatId, from);
+    await openLinkedProduct();
     return;
   }
 
@@ -550,6 +578,7 @@ const handleStart = async (
       resolveSavedDeliveryLabel(existingData),
       countCartItems(existingData)
     );
+    await openLinkedProduct();
     return;
   }
 
@@ -571,7 +600,22 @@ const handleStart = async (
     "🎉 <b>Вітаємо в PartsON!</b>\nЗавершимо профіль за 30 секунд — і каталог у вас під рукою.",
     { parseMode: "HTML" }
   ).catch(() => undefined);
+  await openLinkedProduct();
   await askPhone(introChatId);
+};
+
+// A product link from the site: list it by its article (the exact match
+// comes first) and open its photo card, with the usual list/cart buttons.
+const openProductFromLink = async (chatId: string, code: string) => {
+  const product = findFullCatalogSnapshotProduct(code);
+  const query = (product?.article || code).trim();
+  if (!query) return;
+  const listing = createListing({ query });
+  await saveListing(chatId, listing);
+  const page = await fetchListingPage(listing);
+  const index = page ? Math.max(0, page.items.findIndex((item) => item.code === (product?.code || code))) : -1;
+  if (page && page.items.length > 0) await showListingCard(chatId, listing, index);
+  else await showListing(chatId, listing);
 };
 
 const handleOrders = async (from: TelegramUser, chatId: string) => {
@@ -945,11 +989,22 @@ const showListingCard = async (
 
   const siteUrl = getSiteUrl();
   const priceUah = page.euroRate != null ? toPriceUah(product.priceEuro ?? null, page.euroRate) : null;
-  const caption = formatProductCaption(product, priceUah);
+  const promo = page.promo?.[product.code];
+  const promoUah = promo && page.euroRate != null ? toPriceUah(promo.priceEuro, page.euroRate) : null;
+  const caption = formatProductCaption(product, priceUah, promoUah != null && priceUah != null && promoUah < priceUah
+    ? { priceUah: promoUah, percent: promo?.percent ?? null }
+    : null);
   const imageUrl = buildProductImageUrl(siteUrl, product);
   const keyboard = buildProductKeyboard(siteUrl, product, priceUah);
+  const gallery = product.code ? await getProductPageGallery(product.code).catch(() => []) : [];
   const replyMarkup = {
-    inline_keyboard: [...keyboard.inline_keyboard, ...buildCardNavRows(listing, index, page.items.length)],
+    inline_keyboard: [
+      ...keyboard.inline_keyboard,
+      ...(gallery.length > 0
+        ? [[{ text: `🖼 Ще фото · ${gallery.length + (product.hasPhoto ? 1 : 0)}`, callback_data: `l:${listing.id}:g:${index}` }]]
+        : []),
+      ...buildCardNavRows(listing, index, page.items.length),
+    ],
   };
 
   const messageId = message?.message_id;
@@ -965,7 +1020,21 @@ const showListingCard = async (
   if (!sent.ok) await sendTelegramMessage(chatId, caption, { parseMode: "HTML", replyMarkup });
 };
 
-const NEXT_LISTING_SORT = { none: "asc", asc: "desc", desc: "none" } as const;
+// "🖼 Ще фото": the main photo plus the site gallery as one swipeable album
+// under the card (the card keeps its buttons; albums can't have any).
+const sendListingAlbum = async (chatId: string, listing: BotListing, index: number) => {
+  const page = await fetchListingPage(listing);
+  const product = page?.items[index];
+  if (!product?.code) return;
+  const gallery = await getProductPageGallery(product.code).catch(() => []);
+  const photos = [...(product.hasPhoto ? [buildProductImageUrl(getSiteUrl(), product)] : []), ...gallery];
+  if (photos.length === 0) return;
+  const caption = `🖼 <b>${escapeTelegramHtml(buildVisibleProductName(product.name))}</b>\n<code>${escapeTelegramHtml(product.article || product.code)}</code>`;
+  const sent = photos.length > 1
+    ? await sendTelegramMediaGroup(chatId, photos, caption, { parseMode: "HTML" })
+    : await sendTelegramPhoto(chatId, photos[0], caption, { parseMode: "HTML" });
+  if (!sent.ok) await sendTelegramMessage(chatId, "⚠️ Не вдалося завантажити фото. Спробуйте пізніше.");
+};
 
 const handleListingCallback = async (callback: TelegramCallbackQuery, chatId: string) => {
   const [, id, action, argument] = (callback.data || "").split(":");
@@ -978,6 +1047,10 @@ const handleListingCallback = async (callback: TelegramCallbackQuery, chatId: st
 
   if (action === "o") {
     await showListingCard(chatId, listing, Number(argument) || 0, callback.message);
+    return;
+  }
+  if (action === "g") {
+    await sendListingAlbum(chatId, listing, Number(argument) || 0);
     return;
   }
   if (action === "x") {
@@ -1007,6 +1080,23 @@ const handleFilterCallback = async (callback: TelegramCallbackQuery, chatId: str
   await answerTelegramCallback(callback.id).catch(() => undefined);
   const [, action, first, second, third] = (callback.data || "").split(":");
   const message = callback.message;
+
+  if (action === "new" || action === "promo") {
+    // Home-menu sections: start a fresh listing scoped to the section, keeping
+    // the customer's saved car so new/promo items are the compatible ones.
+    const saved = await readSavedVehicleForUser(callback.from);
+    await showListing(
+      chatId,
+      createListing({
+        section: action,
+        // Like the site's new-arrivals page: what can be bought right now.
+        inStock: action === "new",
+        ...(saved ? { vehicle: saved.vehicle, vehicleLabel: saved.label } : {}),
+      }),
+      message
+    );
+    return;
+  }
 
   if (action === "start") {
     const saved = await readSavedVehicleForUser(callback.from);
@@ -1055,6 +1145,17 @@ const handleFilterCallback = async (callback: TelegramCallbackQuery, chatId: str
     if (filter) await applyAndShow(filter);
   } else if (action === "xc") {
     await applyAndShow({ group: "", subcategory: "", categoryLabel: "", expandHierarchy: false });
+  } else if (action === "p" || action === "pp") {
+    const producers = (await fetchListingProducers(listing)) ?? [];
+    if (action === "pp") {
+      const chosen = producers[Number(first)];
+      if (chosen) await applyAndShow({ producer: chosen.label });
+      else await showView(chatId, buildProducerPicker(listing, producers, 0), message);
+    } else {
+      await showView(chatId, buildProducerPicker(listing, producers, Number(first) || 0), message);
+    }
+  } else if (action === "xp") {
+    await applyAndShow({ producer: "" });
   }
 };
 
@@ -2407,8 +2508,33 @@ const processUpdate = async (update: TelegramUpdate) => {
     await leaveBotDialog(from);
   }
   if (command?.name === "menu" || command?.name === "cancel") {
-    if (command.name === "cancel") await sendTelegramMessage(chatId, "Поточний діалог завершено. Кошик збережено.", { replyMarkup: removeKeyboard() });
+    await sendQuickKeyboard(
+      chatId,
+      command.name === "cancel" ? "Поточний діалог завершено. Кошик збережено." : "⌨️ Швидкі кнопки — під полем вводу."
+    );
     await sendHomeMenu(chatId, from);
+    return;
+  }
+
+  // Quick buttons under the message field act like commands: they leave any
+  // dialog first, so "🆕 Новинки" mid-checkout is never taken as an answer.
+  const quickAction = command ? null : readQuickAction(text);
+  if (quickAction) {
+    await leaveBotDialog(from);
+    if (quickAction === "menu") {
+      await sendHomeMenu(chatId, from);
+    } else if (quickAction === "cart") {
+      await handleCartView(chatId, undefined, from);
+    } else {
+      const saved = await readSavedVehicleForUser(from);
+      const car = saved ? { vehicle: saved.vehicle, vehicleLabel: saved.label } : {};
+      await showListing(
+        chatId,
+        quickAction === "find"
+          ? createListing(car)
+          : createListing({ section: quickAction, inStock: quickAction === "new", ...car })
+      );
+    }
     return;
   }
 

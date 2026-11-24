@@ -163,6 +163,7 @@ const modules = {
   "app/lib/catalog-params-server": {},
   "app/lib/product-params": { decodeProductParamFilters: () => [] },
   "app/lib/catalog-page-route-cache": { routeSuccessCache: new Map() },
+  "app/lib/search-miss-log": { recordSearchMiss() {} },
 };
 vm.runInNewContext(ts.transpileModule(readFileSync("app/api/catalog-page/route.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

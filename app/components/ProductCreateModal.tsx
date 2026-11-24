@@ -1,8 +1,10 @@
 "use client";
 
+import AdminWindowResizeHandles from "./AdminWindowResizeHandles";
 import { Check, ExternalLink, ImagePlus, PackagePlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { adminWindowDragHandle, useAdminWindowDrag } from "app/lib/use-admin-window-drag";
 import { parseProductFormPrice, parseProductFormQuantity } from "app/lib/product-admin-validation";
 
 import {
@@ -47,6 +49,7 @@ const EMPTY = {
 export default function ProductCreateModal({ isOpen, onClose }: Props) {
   const router = useRouter();
   const panelRef = useProductEditorPanel(isOpen);
+  useAdminWindowDrag(panelRef, isOpen);
   const [tab, setTab] = useState<ProductEditorTab>("main");
   const [fields, setFields] = useState(EMPTY);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -372,6 +375,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
     // over it.
     <div
       ref={panelRef}
+      data-admin-overlay=""
       onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void handleSubmit(); } }}
       className="product-editor productcreate-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[460px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
       role="dialog"
@@ -382,7 +386,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
       <div className="flex h-full min-h-0 flex-col">
         <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
         {/* Header */}
-        <div className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+        <div {...adminWindowDragHandle} className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
               <PackagePlus size={14} />
@@ -508,7 +512,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                   className="hidden" onChange={handleFileChange} />
                 {!imagePreview ? (
                   <button type="button" onClick={() => fileInputRef.current?.click()} disabled={imageProcessing}
-                    className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
+                    className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
                     {imageProcessing
                       ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
                       : <ImagePlus size={13} />}
@@ -557,7 +561,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
                 )}
                 {extraPhotos.length < MAX_EXTRA_PHOTOS && (
                   <button type="button" onClick={() => extraFileInputRef.current?.click()} disabled={extraPhotoProcessing}
-                    className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
+                    className="flex w-full items-center gap-2 rounded-[8px] border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600">
                     {extraPhotoProcessing
                       ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
                       : <ImagePlus size={13} />}
@@ -597,6 +601,7 @@ export default function ProductCreateModal({ isOpen, onClose }: Props) {
           </>
         )}
       </div>
+      <AdminWindowResizeHandles />
     </div>
   );
 }

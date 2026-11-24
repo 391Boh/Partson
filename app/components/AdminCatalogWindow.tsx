@@ -1,6 +1,8 @@
 import { FolderTree, X } from "lucide-react";
+import AdminWindowResizeHandles from "./AdminWindowResizeHandles";
 import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
+import { adminWindowDragHandle, useAdminWindowDrag } from "app/lib/use-admin-window-drag";
 
 // The catalog editor (groups, producers) in its own window, opened from its
 // own floating button (LayoutHost.tsx). Same shell as the admin panel.
@@ -18,6 +20,8 @@ const AdminCatalogPanel = dynamic(() => import("./AdminCatalogPanel"), {
 
 export default function AdminCatalogWindow({ onClose }: { onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  useAdminWindowDrag(panelRef);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -32,11 +36,12 @@ export default function AdminCatalogWindow({ onClose }: { onClose: () => void })
 
   return (
     <section
+      ref={panelRef}
       data-admin-overlay
       aria-labelledby="admin-catalog-window-title"
       className="admin-panel-shell admin-density-compact app-overlay-panel fixed inset-x-2 bottom-2 top-[4.25rem] z-50 flex max-h-[calc(100dvh-4.75rem)] min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#24324a] bg-[#0b1424] shadow-[0_28px_80px_rgba(2,6,23,0.62)] sm:inset-x-3 sm:bottom-3 sm:top-[4.75rem] sm:max-h-[calc(100dvh-5.5rem)] md:bottom-auto md:top-[4.5rem] md:h-[min(860px,calc(100dvh-4rem))] md:max-h-none md:rounded-[28px]"
     >
-      <header className="flex items-center gap-2.5 border-b border-[#23324b] bg-[#0e192c] px-3 py-2.5 sm:px-4">
+      <header {...adminWindowDragHandle} className="flex items-center gap-2.5 border-b border-[#23324b] bg-[#0e192c] px-3 py-2.5 sm:px-4">
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-emerald-200/25 bg-[linear-gradient(145deg,#065f46,#0d9488)] text-white">
           <FolderTree className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
@@ -60,6 +65,7 @@ export default function AdminCatalogWindow({ onClose }: { onClose: () => void })
       <div className="admin-panel-scroll app-panel-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-slate-100 [touch-action:pan-y] sm:px-4">
         <AdminCatalogPanel />
       </div>
+      <AdminWindowResizeHandles />
     </section>
   );
 }

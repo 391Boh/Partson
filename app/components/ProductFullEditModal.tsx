@@ -1,8 +1,10 @@
 "use client";
 
+import AdminWindowResizeHandles from "./AdminWindowResizeHandles";
 import ProductFitmentEditor from "./ProductFitmentEditor";
 import { Check, PenSquare, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { adminWindowDragHandle, useAdminWindowDrag } from "app/lib/use-admin-window-drag";
 import {
   ProductCatalogPlacement,
   ProductEditorField as Field,
@@ -42,6 +44,9 @@ export type ProductFullEditTarget = {
   promoPriceEuro?: number | null;
   quantity: number;
   description: string;
+  /** "admin": opened from the admin panel — sits above it (z-51) instead of
+   *  below the header like a page-opened editor. */
+  layer?: "page" | "admin";
 };
 
 interface Props extends ProductFullEditTarget {
@@ -79,9 +84,11 @@ export default function ProductFullEditModal({
   promoPriceEuro: initialPromoPriceEuro = null,
   quantity: initialQuantity,
   description: initialDescription,
+  layer = "page",
 }: Props) {
   const router = useRouter();
   const panelRef = useProductEditorPanel(isOpen);
+  useAdminWindowDrag(panelRef, isOpen);
   const [tab, setTab] = useState<"main" | "description" | "photos">("main");
   const baseline = useRef({ name: initialName, article: initialArticle, producer: initialProducer,
     category: initialCategory, group: initialGroup, subGroup: initialSubGroup,
@@ -242,6 +249,7 @@ export default function ProductFullEditModal({
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
       if (!res.ok || !data.ok) { setImageError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setImageUploaded(true);
+      window.dispatchEvent(new CustomEvent("partson:product-admin-saved", { detail: { code } }));
       setImageFile(null);
       setImagePreview(null);
       setImageUploadName("");
@@ -290,6 +298,7 @@ export default function ProductFullEditModal({
       const data = (await res.json()) as { ok: boolean; error?: string; details?: string };
       if (!res.ok || !data.ok) { setGalleryError([data.error, data.details].filter(Boolean).join(": ") || "Помилка завантаження"); return; }
       setGalleryUploaded(true);
+      window.dispatchEvent(new CustomEvent("partson:product-admin-saved", { detail: { code } }));
       setGalleryFile(null);
       setGalleryPreview(null);
       setGalleryUploadSize(0);
@@ -373,6 +382,7 @@ export default function ProductFullEditModal({
         if (confirmed.quantity !== undefined) fields.quantity = confirmed.quantity;
       }
       setSaved(true);
+      window.dispatchEvent(new CustomEvent("partson:product-admin-saved", { detail: { code } }));
       invalidateCatalogClientCache({
         code,
         ...(fields.name !== undefined ? { name: fields.name } : {}),
@@ -427,7 +437,10 @@ export default function ProductFullEditModal({
     <div
       onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void handleSubmit(); } }}
       ref={panelRef}
-      className="product-editor product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[480px] max-h-[760px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4"
+      className={`product-editor product-edit-panel-in fixed right-3 top-[calc(var(--header-height,4rem)+0.75rem)] bottom-3 z-[49] flex w-[calc(100%-1.5rem)] max-w-[480px] max-h-[760px] flex-col overflow-hidden rounded-[20px] border border-violet-100 bg-white shadow-[0_28px_64px_-16px_rgba(88,28,135,0.28),0_10px_28px_-10px_rgba(15,23,42,0.18)] sm:right-20 sm:bottom-4`}
+      /* The admin panel closes on outside clicks except inside [data-admin-overlay]. */
+      data-admin-overlay=""
+      data-layer={layer}
       role="dialog"
       aria-modal="false"
       aria-label="Редагувати товар"
@@ -435,7 +448,7 @@ export default function ProductFullEditModal({
     >
       <div className="flex h-full min-h-0 flex-col">
         <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent" aria-hidden="true" />
-        <div className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
+        <div {...adminWindowDragHandle} className="product-editor-header flex shrink-0 items-center justify-between border-b border-violet-100/80 bg-[linear-gradient(145deg,rgba(250,245,255,0.9),rgba(255,255,255,0.98))] px-3.5 py-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-[9px] border border-violet-200/70 bg-violet-100 text-violet-700 shadow-[0_0_0_3px_rgba(139,92,246,0.08)]">
               <PenSquare size={14} />
@@ -587,6 +600,7 @@ export default function ProductFullEditModal({
           </button>
         </div>
       </div>
+      <AdminWindowResizeHandles />
     </div>
   );
 }

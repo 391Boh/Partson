@@ -1,4 +1,6 @@
 import { adminLayoutHintBootstrap } from "app/lib/admin-layout-hint";
+import { telegramWebAppBootstrap } from "app/lib/telegram-webapp-bootstrap";
+import { TELEGRAM_BOT_URL } from "app/lib/telegram-deeplink";
 import { partnerPriceHintBootstrap } from "app/lib/partner-price-hint";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -91,8 +93,10 @@ const socialLinks = (process.env.NEXT_PUBLIC_SOCIAL_LINKS || "")
 // map link and as a sameAs fallback so the local-business entity links to its
 // Google listing even where NEXT_PUBLIC_GBP_URL isn't configured.
 const STORE_GOOGLE_MAPS_URL = "https://maps.google.com/?cid=11517394092669341405";
+// The Telegram bot is an official channel of the store, so it belongs to the
+// entity's profiles too.
 const sameAsLinks = Array.from(
-  new Set([googleBusinessProfileUrl || STORE_GOOGLE_MAPS_URL, ...socialLinks].filter(Boolean))
+  new Set([googleBusinessProfileUrl || STORE_GOOGLE_MAPS_URL, ...socialLinks, TELEGRAM_BOT_URL].filter(Boolean))
 );
 const googleTagManagerId = (() => {
   const rawId = (
@@ -482,6 +486,7 @@ export default function RootLayout({
         />
         <script dangerouslySetInnerHTML={{ __html: partnerPriceHintBootstrap }} />
         <script dangerouslySetInnerHTML={{ __html: adminLayoutHintBootstrap }} />
+        <script dangerouslySetInnerHTML={{ __html: telegramWebAppBootstrap }} />
         {/* A JSX <link> here makes React hoist an unconditional preload,
             competing with the critical stylesheet even when JS is enabled. */}
         <noscript dangerouslySetInnerHTML={{ __html: `<link rel="stylesheet" href="${globalStylesheetHref}">` }} />

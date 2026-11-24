@@ -7,10 +7,12 @@ import { normalizeSearchQuery } from "app/lib/catalog-search";
 import {
   fetchCatalogProductsByQuery,
   fetchEuroRate,
+  getSnapshotPriceLookup,
   listCatalogFromSnapshot,
   toPriceUah,
   type CatalogProduct,
 } from "app/lib/catalog-server";
+import { VITOL_GROUPS } from "app/lib/vitol-groups";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildPlainSeoSlug } from "app/lib/seo-slug";
 import { resolveBrandModels } from "app/lib/telegram-catalog-nav";
@@ -23,6 +25,7 @@ import { readVehicleSelection, type VehicleSelection } from "app/lib/vehicle-fit
 // and search text fits Telegram's 64-byte callback_data limit.
 export const LISTING_PAGE_SIZE = 6;
 const BRAND_PAGE_SIZE = 15;
+const PRODUCER_PAGE_SIZE = 16;
 const MODEL_PAGE_SIZE = 12;
 
 type Button = { text: string; callback_data: string };
@@ -39,8 +42,26 @@ export type BotListing = {
   expandHierarchy: boolean;
   producer: string;
   inStock: boolean;
-  sort: "none" | "asc" | "desc";
+  /** "none" (older sessions) reads as the default "stock" order. */
+  sort: ListingSort;
+  /** Catalog sections from the home menu: new arrivals, promo offers. */
+  section?: ListingSection;
   page: number;
+};
+
+export type ListingSort = "none" | "stock" | "asc" | "desc";
+export type ListingSection = "" | "new" | "promo";
+
+export const NEXT_LISTING_SORT: Record<ListingSort, ListingSort> = {
+  none: "asc",
+  stock: "asc",
+  asc: "desc",
+  desc: "stock",
+};
+
+const SECTION_TITLES: Record<Exclude<ListingSection, "">, string> = {
+  new: "🆕 Нові надходження",
+  promo: "🔥 Акційні пропозиції",
 };
 
 export type ListingPage = {
@@ -48,6 +69,8 @@ export type ListingPage = {
   totalCount: number | null;
   hasMore: boolean;
   euroRate: number | null;
+  /** Promo sale price (EUR) per product code, from the warm snapshot. */
+  promo?: Record<string, { priceEuro: number; percent: number | null }>;
 };
 
 export const createListing = (fields: Partial<BotListing> = {}): BotListing => ({
@@ -61,13 +84,37 @@ export const createListing = (fields: Partial<BotListing> = {}): BotListing => (
   expandHierarchy: false,
   producer: "",
   inStock: false,
-  sort: "none",
+  sort: "stock",
+  section: "",
   page: 1,
   ...fields,
 });
 
 export const hasListingFilters = (listing: BotListing) =>
-  Boolean(listing.query || listing.vehicle || listing.group || listing.subcategory || listing.producer);
+  Boolean(listing.query || listing.vehicle || listing.group || listing.subcategory || listing.producer || listing.section);
+
+const snapshotQuery = (listing: BotListing, offset: number, limit: number) => ({
+  searchQuery: normalizeSearchQuery(listing.query),
+  searchFilter: "all" as const,
+  group: listing.group,
+  subcategory: listing.subcategory,
+  producer: listing.producer,
+  selectedCategories: [],
+  expandHierarchy: listing.expandHierarchy,
+  vehicle: listing.vehicle,
+  sortOrder: listing.sort === "asc" || listing.sort === "desc" ? listing.sort : ("none" as const),
+  nameSort: "none" as const,
+  pricedOnly: false,
+  withPhoto: false,
+  inStock: listing.inStock,
+  priceFrom: null,
+  priceTo: null,
+  stockFirst: listing.sort === "stock" || listing.sort === "none",
+  promoOnly: listing.section === "promo",
+  anyOfGroups: listing.section === "new" ? [...VITOL_GROUPS] : undefined,
+  offset,
+  limit,
+});
 
 const sessionRef = (chatId: string) =>
   getFirebaseAdminDb().collection("telegramBotSessions").doc(chatId);
@@ -98,25 +145,9 @@ export const readSavedVehicle = (data: Record<string, unknown> | null | undefine
 
 const fetchListingProducts = async (listing: BotListing) => {
   const searchQuery = normalizeSearchQuery(listing.query);
-  const snapshot = await listCatalogFromSnapshot({
-    searchQuery,
-    searchFilter: "all",
-    group: listing.group,
-    subcategory: listing.subcategory,
-    producer: listing.producer,
-    selectedCategories: [],
-    expandHierarchy: listing.expandHierarchy,
-    vehicle: listing.vehicle,
-    sortOrder: listing.sort,
-    nameSort: "none",
-    pricedOnly: false,
-    withPhoto: false,
-    inStock: listing.inStock,
-    priceFrom: null,
-    priceTo: null,
-    offset: (listing.page - 1) * LISTING_PAGE_SIZE,
-    limit: LISTING_PAGE_SIZE,
-  }).catch(() => null);
+  const snapshot = await listCatalogFromSnapshot(
+    snapshotQuery(listing, (listing.page - 1) * LISTING_PAGE_SIZE, LISTING_PAGE_SIZE)
+  ).catch(() => null);
   // An empty search may be a product created since the last scan, or a query
   // typed in the wrong keyboard layout: only 1C can answer those.
   if (snapshot && !(searchQuery && snapshot.totalCount === 0)) {
@@ -134,7 +165,7 @@ const fetchListingProducts = async (listing: BotListing) => {
     vehicle: listing.vehicle,
     expandHierarchy: listing.expandHierarchy,
     onlyInStock: listing.inStock,
-    sortOrder: listing.sort,
+    sortOrder: listing.sort === "asc" || listing.sort === "desc" ? listing.sort : "none",
     forceAllgoodsSource: true,
     includePriceEnrichment: false,
     preferLegacySource: false,
@@ -152,7 +183,22 @@ export const fetchListingPage = async (listing: BotListing): Promise<ListingPage
     fetchListingProducts(listing).catch(() => null),
     fetchEuroRate().catch(() => null),
   ]);
-  return products ? { ...products, euroRate } : null;
+  if (!products) return null;
+  const lookup = getSnapshotPriceLookup(products.items.map((item) => item.code));
+  const promo: NonNullable<ListingPage["promo"]> = {};
+  for (const item of products.items) {
+    const entry = lookup[(item.code || "").trim().toLowerCase()];
+    if (entry?.promoPriceEuro && entry.promoPriceEuro > 0) {
+      promo[item.code] = { priceEuro: entry.promoPriceEuro, percent: entry.promoPercent ?? null };
+    }
+  }
+  return { ...products, euroRate, promo };
+};
+
+/** Producers among the current matches (ignoring the producer filter), most common first. */
+export const fetchListingProducers = async (listing: BotListing) => {
+  const result = await listCatalogFromSnapshot({ ...snapshotQuery(listing, 0, 0), producerFacets: true }).catch(() => null);
+  return result?.producerFacets ?? null;
 };
 
 const shorten = (value: string, maxLength: number) =>
@@ -166,28 +212,49 @@ const chunk = <T,>(items: T[], size: number): T[][] => {
 
 const buildFilterSummary = (listing: BotListing) =>
   [
+    listing.section ? `<b>${SECTION_TITLES[listing.section]}</b>` : "",
     listing.vehicle ? `🚗 ${escapeTelegramHtml(listing.vehicleLabel)}` : "",
     listing.categoryLabel ? `📂 ${escapeTelegramHtml(listing.categoryLabel)}` : "",
     listing.producer ? `🏭 ${escapeTelegramHtml(listing.producer)}` : "",
     listing.query ? `🔤 «${escapeTelegramHtml(listing.query)}»` : "",
   ].filter(Boolean).join("\n");
 
-const formatListingItem = (product: CatalogProduct, index: number, euroRate: number | null) => {
+const NUMBER_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+const numberBadge = (value: number) => NUMBER_EMOJI[value - 1] ?? `${value}.`;
+
+const formatListingItem = (
+  product: CatalogProduct,
+  index: number,
+  euroRate: number | null,
+  promo?: { priceEuro: number; percent: number | null }
+) => {
   const priceUah = euroRate != null ? toPriceUah(product.priceEuro ?? null, euroRate) : null;
+  const promoUah = promo && euroRate != null ? toPriceUah(promo.priceEuro, euroRate) : null;
   const details = [
-    product.producer && product.producer !== "-" ? escapeTelegramHtml(product.producer) : "",
+    product.producer && product.producer !== "-" ? `<i>${escapeTelegramHtml(product.producer)}</i>` : "",
     `<code>${escapeTelegramHtml(product.article || product.code)}</code>`,
   ].filter(Boolean).join(" · ");
-  const stock = product.quantity > 0 ? `✅ ${product.quantity} шт.` : "🕓 Під замовлення";
-  const price = priceUah != null ? `<b>${formatOrderMoney(priceUah)}</b>` : "ціна за запитом";
+  const stock = product.quantity > 0 ? `🟢 В наявності: ${product.quantity} шт.` : "🟡 Під замовлення";
+  const price = promoUah != null && priceUah != null && promoUah < priceUah
+    ? `🔥 <b>${formatOrderMoney(promoUah)}</b> <s>${formatOrderMoney(priceUah)}</s>${promo?.percent ? ` −${promo.percent}%` : ""}`
+    : priceUah != null
+      ? `💰 <b>${formatOrderMoney(priceUah)}</b>`
+      : "💬 Ціна за запитом";
+  // Keep the number as a separate prefix: it is the label of the button
+  // that opens this item's photo card.
   return [
-    `<b>${index + 1}. ${escapeTelegramHtml(shorten(buildVisibleProductName(product.name), 70))}</b>`,
+    `${numberBadge(index + 1)} <b>${escapeTelegramHtml(shorten(buildVisibleProductName(product.name), 70))}</b>`,
     details,
-    `${stock} · ${price}`,
+    `${stock}\n${price}`,
   ].join("\n");
 };
 
-const SORT_LABELS = { none: "↕️ За ціною", asc: "⬆️ Спочатку дешевші", desc: "⬇️ Спочатку дорожчі" } as const;
+const SORT_LABELS: Record<ListingSort, string> = {
+  none: "📦 Спершу в наявності",
+  stock: "📦 Спершу в наявності",
+  asc: "💸 Ціна: дешевші",
+  desc: "💎 Ціна: дорожчі",
+};
 
 const buildFilterRows = (listing: BotListing): Button[][] => {
   const rows: Button[][] = [
@@ -198,16 +265,19 @@ const buildFilterRows = (listing: BotListing): Button[][] => {
   ];
   if (hasListingFilters(listing)) {
     rows.push([
-      { text: listing.inStock ? "✅ Лише в наявності" : "▫️ Лише в наявності", callback_data: `l:${listing.id}:s` },
+      { text: listing.producer ? `🏭 ${shorten(listing.producer, 20)}` : "🏭 Виробник", callback_data: "f:p:0" },
       { text: SORT_LABELS[listing.sort], callback_data: `l:${listing.id}:r` },
     ]);
-    rows.push([{ text: "✖️ Скинути фільтри", callback_data: `l:${listing.id}:x` }]);
+    rows.push([
+      { text: listing.inStock ? "✅ Лише в наявності" : "☑️ Лише в наявності", callback_data: `l:${listing.id}:s` },
+      { text: "✖️ Скинути", callback_data: `l:${listing.id}:x` },
+    ]);
   }
   return rows;
 };
 
 const NAV_ROW: Button[] = [
-  { text: "⌂ Меню", callback_data: "home:menu" },
+  { text: "🏠 Меню", callback_data: "home:menu" },
   { text: "🛒 Кошик", callback_data: "cart" },
 ];
 
@@ -220,8 +290,10 @@ export const buildListingComposer = (listing: BotListing): TelegramView => ({
   text: [
     "<b>🔎 Підбір запчастин</b>",
     "",
-    "Оберіть авто, категорію або обидва фільтри разом.",
-    "Можна просто написати назву чи артикул.",
+    "1️⃣ Оберіть авто — покажемо лише сумісні деталі.",
+    "2️⃣ Додайте категорію або виробника.",
+    "",
+    "✍️ Або просто напишіть назву чи артикул.",
   ].join("\n"),
   keyboard: [...buildFilterRows(listing), NAV_ROW],
 });
@@ -254,16 +326,20 @@ export const buildListingView = (listing: BotListing, page: ListingPage): Telegr
 
   return {
     text: [
-      "<b>🔎 Підбір запчастин</b>",
+      listing.section ? "" : "<b>🔎 Підбір запчастин</b>",
       summary,
       found,
       "",
-      page.items.map((item, index) => formatListingItem(item, offset + index, page.euroRate)).join("\n\n"),
-    ].filter((line, index) => line !== "" || index === 3).join("\n"),
+      page.items
+        .map((item, index) => formatListingItem(item, offset + index, page.euroRate, page.promo?.[item.code]))
+        .join("\n\n"),
+      "",
+      "👇 Натисніть номер, щоб відкрити фото й деталі",
+    ].filter((line, index) => line !== "" || index === 3 || index === 5).join("\n"),
     keyboard: [
       ...chunk(
         page.items.map((_, index) => ({
-          text: `${offset + index + 1}`,
+          text: numberBadge(offset + index + 1),
           callback_data: `l:${listing.id}:o:${index}`,
         })),
         3
@@ -299,6 +375,32 @@ const buildPickerPager = (prefix: string, current: number, totalPages: number): 
 };
 
 const BACK_TO_LIST: Button = { text: "⬅️ До результатів", callback_data: "f:l" };
+
+export const buildProducerPicker = (
+  listing: BotListing,
+  producers: Array<{ label: string; count: number }>,
+  page: number
+): TelegramView => {
+  const { pageItems, current, totalPages } = paginate(producers, page, PRODUCER_PAGE_SIZE);
+  const offset = current * PRODUCER_PAGE_SIZE;
+  return {
+    text: producers.length > 0
+      ? `<b>🏭 Виробник</b>\nУ поточній вибірці ${producers.length} брендів — оберіть потрібний:`
+      : "<b>🏭 Виробник</b>\nУ поточній вибірці немає товарів із вказаним виробником.",
+    keyboard: [
+      ...chunk(
+        pageItems.map((producer, index) => ({
+          text: `${shorten(producer.label, 18)} · ${producer.count}`,
+          callback_data: `f:pp:${offset + index}`,
+        })),
+        2
+      ),
+      ...buildPickerPager("f:p", current, totalPages),
+      ...(listing.producer ? [[{ text: "✖️ Усі виробники", callback_data: "f:xp" }]] : []),
+      [BACK_TO_LIST],
+    ],
+  };
+};
 
 export const buildBrandPicker = (page: number, listing: BotListing, savedLabel: string | null): TelegramView => {
   const { pageItems, current, totalPages } = paginate(carBrands, page, BRAND_PAGE_SIZE);

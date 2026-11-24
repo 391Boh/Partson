@@ -107,6 +107,26 @@ export const sendTelegramPhoto = (
     ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
 
+// A swipeable photo album (2–10 photos). Telegram albums can't carry inline
+// buttons, so the caption sits on the first photo and the product card with
+// its buttons stays a separate message.
+export const sendTelegramMediaGroup = (
+  chatId: string | number,
+  photoUrls: string[],
+  caption?: string,
+  options?: { parseMode?: "HTML" | "MarkdownV2" }
+) =>
+  callTelegramBotApi("sendMediaGroup", {
+    chat_id: chatId,
+    media: photoUrls.slice(0, 10).map((url, index) => ({
+      type: "photo",
+      media: url,
+      ...(index === 0 && caption
+        ? { caption: caption.trim().slice(0, 1024), ...(options?.parseMode ? { parse_mode: options.parseMode } : {}) }
+        : {}),
+    })),
+  });
+
 // Renders a native, pannable map pin right in the chat — distinct from a
 // "🗺 Маршрут" link button, which only opens Google Maps externally.
 export const sendTelegramLocation = (chatId: string | number, lat: number, lng: number) =>

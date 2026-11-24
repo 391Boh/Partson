@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ArrowLeft, ChevronRight, Percent, PhoneCall } from 'lucide-react';
 import { User } from 'firebase/auth';
+import GuestOrderSignIn from './GuestOrderSignIn';
+import guestStyles from './OrderGuest.module.css';
 
 interface Props {
   name: string;
@@ -69,7 +71,7 @@ const CustomerDetails: React.FC<Props> = ({
     onNext();
   };
 
-  if (guestMode === 'quick' && onQuickOrder) {
+  if (!user && guestMode === 'quick' && onQuickOrder) {
     const submitQuick = async () => {
       const normalized = normalizePhone(phone);
       if (normalized !== phone) setPhone(normalized);
@@ -84,24 +86,25 @@ const CustomerDetails: React.FC<Props> = ({
     };
     const quickPhoneValid = PHONE_PATTERN.test(normalizePhone(phone));
     return (
-      <div className="space-y-4 text-sky-50">
-        <div className="rounded-[18px] border border-white/15 bg-white/[0.06] p-4">
-          <div className="flex items-start gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-white/10 text-sky-100" aria-hidden="true">
+      <div className={guestStyles.details}>
+        <GuestOrderSignIn />
+        <div className={guestStyles.detailsHeading}>
+            <span className={guestStyles.detailsIcon} aria-hidden="true">
               <PhoneCall size={18} />
             </span>
             <div className="min-w-0">
-              <p className="text-[15px] font-bold text-white">Швидке замовлення за номером</p>
-              <p className="mt-0.5 text-[13px] leading-5 text-sky-100/85">
-                Залиште телефон — менеджер передзвонить, перевірить сумісність і узгодить доставку та оплату.
+              <h4 className={guestStyles.detailsTitle}>Замовлення за телефоном</h4>
+              <p className={guestStyles.detailsDescription}>
+                Менеджер передзвонить, перевірить сумісність та узгодить доставку й оплату.
               </p>
             </div>
-          </div>
+        </div>
           <form
-            className="mt-4 flex flex-col gap-2.5 sm:flex-row"
+            className={guestStyles.phoneForm}
             onSubmit={(event) => { event.preventDefault(); void submitQuick(); }}
+            aria-busy={quickSubmitting}
           >
-            <label htmlFor="quick-phone" className="sr-only">Телефон</label>
+            <label htmlFor="quick-phone" className={guestStyles.phoneLabel}>Ваш телефон</label>
             <input
               id="quick-phone"
               type="tel"
@@ -111,38 +114,39 @@ const CustomerDetails: React.FC<Props> = ({
               placeholder="+380XXXXXXXXX"
               autoComplete="tel"
               inputMode="tel"
-              autoFocus
               aria-invalid={phoneTouched && !quickPhoneValid ? true : undefined}
-              className="soft-field min-h-11 flex-1 px-4 py-2.5 text-base"
+              aria-describedby={phoneTouched && !quickPhoneValid && phone.trim() !== '+380' ? 'quick-phone-error' : 'quick-phone-hint'}
+              className={`soft-field ${guestStyles.phoneInput}`}
             />
             <button
               type="submit"
               disabled={!quickPhoneValid || quickSubmitting}
-              className={`soft-primary-button min-h-11 px-5 py-2.5 text-sm font-bold ${!quickPhoneValid || quickSubmitting ? 'cursor-not-allowed opacity-60' : ''}`}
+              className={`soft-primary-button ${guestStyles.phoneSubmit}`}
             >
               {quickSubmitting ? 'Надсилаємо…' : 'Замовити'}
             </button>
-          </form>
           {phoneTouched && !quickPhoneValid && phone.replace(/\s/g, '') !== '+380' && (
-            <p className="mt-1.5 text-xs font-semibold text-rose-200">Введіть номер у форматі +380XXXXXXXXX або 0XXXXXXXXX.</p>
+            <p id="quick-phone-error" className={guestStyles.phoneError} role="alert">Введіть номер у форматі +380XXXXXXXXX або 0XXXXXXXXX.</p>
           )}
-        </div>
+            <p id="quick-phone-hint" className={guestStyles.phoneHint}>Наприклад, 067 123 45 67. Реєстрація не потрібна.</p>
+          </form>
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className={guestStyles.detailsActions}>
           <button
             type="button"
             onClick={onBack}
-            className="soft-secondary-button w-full px-4 py-2.5 text-sm font-medium sm:w-auto"
+            className={guestStyles.backButton}
           >
-            <ArrowLeft className="mr-2 inline" size={16} />
-            Назад
+            <ArrowLeft size={16} aria-hidden="true" />
+            До кошика
           </button>
           <button
             type="button"
             onClick={() => setGuestMode('full')}
-            className="text-sm font-semibold text-sky-100 underline decoration-sky-200/50 underline-offset-4 hover:text-white"
+            className={guestStyles.textButton}
           >
-            Вказати доставку й оплату самостійно
+            Самостійне оформлення
+            <ChevronRight size={15} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -151,6 +155,7 @@ const CustomerDetails: React.FC<Props> = ({
 
   return (
     <div className="space-y-4 text-sky-50">
+      {!user && <GuestOrderSignIn />}
       <p className="soft-note rounded-[16px] px-3.5 py-2.5 text-sm">
         {user
           ? 'Дані профілю вже підставлені. Перевірте та за потреби оновіть.'
@@ -260,6 +265,12 @@ const CustomerDetails: React.FC<Props> = ({
           <ChevronRight className="ml-2 inline" size={16} />
         </button>
       </div>
+      {!user && onQuickOrder && (
+        <button type="button" onClick={() => setGuestMode('quick')} className={guestStyles.textButton}>
+          Замовити лише за телефоном
+          <ChevronRight size={15} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 };

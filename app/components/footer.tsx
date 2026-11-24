@@ -8,10 +8,10 @@ import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSetti
 import { observeViewportEntrance } from "app/lib/viewport-entrance";
 import { SELLER_NAME, SELLER_TAX_ID } from "app/lib/seo-metadata";
 import { SiTelegram, SiViber } from "./FooterSocialIcons";
+import { buildTelegramBotLink } from "app/lib/telegram-deeplink";
 
-const telegramBotName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || "StormStoreAvto_bot").replace(/^@/u, "").trim();
 const messengers = [
-  { label: "Telegram", Icon: SiTelegram, href: `https://t.me/${encodeURIComponent(telegramBotName)}` },
+  { label: "Telegram", Icon: SiTelegram, href: buildTelegramBotLink("footer") },
   { label: "Viber", Icon: SiViber, href: "https://viber.me/380634211851" },
 ];
 const catalogLinks = [

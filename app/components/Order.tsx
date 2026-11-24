@@ -5,6 +5,8 @@ import { useCustomerDialog } from "app/lib/use-customer-dialog";
 import { fetchPartnerStatus, getCachedPartnerStatus } from 'app/lib/partner-status-client';
 import ProfileOrderRewards from './ProfileOrderRewards';
 import WindowHubCover from 'app/components/WindowHubCover';
+import GuestOrderSignIn from './GuestOrderSignIn';
+import guestStyles from './OrderGuest.module.css';
 import {
   ChevronDown,
   CircleDot,
@@ -720,7 +722,7 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby="my-order-modal-title"
-      className="customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden"
+      className={`customer-window customer-overlay-panel customer-overlay-panel--order soft-modal-shell soft-panel-glow app-overlay-panel app-overlay-panel--wide app-panel-enter flex flex-col overflow-y-auto overflow-x-hidden ${!user ? guestStyles.panel : ''}`}
     >
       <div className="soft-panel-content flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-2.5 sm:p-3.5">
         <div className="soft-panel-accent h-1 rounded-full" />
@@ -770,7 +772,11 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                     </li>
                   )}
 
-                  {shouldShowFirstOrderDiscountPanel && (
+                  {shouldShowFirstOrderDiscountPanel && !user && (
+                    <li><GuestOrderSignIn showDiscount /></li>
+                  )}
+
+                  {shouldShowFirstOrderDiscountPanel && user && (
                     <li className="cw-row cw-perk" data-tone={firstOrderDiscountCopy.tone}>
                       <span className="cw-row-icon" aria-hidden="true">
                         {discountTotals.isApplied ? <Percent size={16} /> : <Gift size={16} />}
@@ -779,17 +785,11 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
                         <span className="cw-perk-title">{firstOrderDiscountCopy.title}</span>
                         <span className="cw-row-text">{firstOrderDiscountCopy.text}</span>
                       </div>
-                      {!user ? (
-                        <button type="button" onClick={openAuthModal} className="cw-chip-button cw-chip-button--accent">
-                          Увійти
-                        </button>
-                      ) : (
                         <span className="cw-perk-badge">
                           {discountTotals.isApplied
                             ? `−${currencyFormatter.format(discountTotals.discountAmount)} грн`
                             : `−${FIRST_ORDER_DISCOUNT_PERCENT}%`}
                         </span>
-                      )}
                     </li>
                   )}
 
@@ -906,12 +906,14 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
             <button
               type="button"
               onClick={handleBeginCheckout}
+              aria-label={!user ? 'Оформити замовлення' : undefined}
               disabled={isDiscountCheckPending}
               className="soft-primary-button cw-checkout-button"
             >
-              {isDiscountCheckPending ? 'Перевіряємо знижку…' : 'Оформити замовлення'}
+              {isDiscountCheckPending ? 'Перевіряємо знижку…' : !user ? 'Оформити' : 'Оформити замовлення'}
               {!isDiscountCheckPending && <ArrowRight size={18} aria-hidden="true" />}
             </button>
+            {!user && <p className={guestStyles.guestNote}>Можна замовити без реєстрації</p>}
           </div>
         )}
       </div>

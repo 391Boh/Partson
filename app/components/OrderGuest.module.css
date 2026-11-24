@@ -1,0 +1,103 @@
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel {
+  width: min(540px, calc(100vw - 24px));
+  height: auto;
+  top: calc(var(--header-height, 64px) + 12px);
+  right: max(24px, env(safe-area-inset-right));
+  left: auto;
+  max-height: calc(var(--dialog-viewport-height, 100dvh) - var(--header-height, 64px) - 28px);
+  bottom: auto;
+  border: 0;
+  border-radius: 20px;
+  background: #142e42;
+  box-shadow: 0 24px 60px -16px rgb(6 23 36 / 48%);
+}
+
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.soft-panel-accent) { display: none; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.soft-panel-content) { gap: 12px; padding: 14px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub) { gap: 8px; padding: 10px 12px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-top) { gap: 10px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-icon) { width: 36px; height: 36px; border-radius: 10px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-title) { font-size: 17px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-tabs) { border-radius: 10px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-tabs button) { min-height: 44px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.app-panel-close-button) { min-width: 44px; min-height: 44px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-list) { padding-inline: 12px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-cart-row) { gap: 10px; padding-block: 10px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-cart-remove) { min-width: 44px; min-height: 44px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-checkout-bar) { flex-direction: row; flex-wrap: wrap; gap: 8px 14px; padding: 12px 14px; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-checkout-sum) { flex: 1; }
+:global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-checkout-button) { width: auto; min-height: 46px; padding-inline: 18px; }
+.guestNote { flex-basis: 100%; margin: 0; color: #bed1df; font-size: 12px; line-height: 1.4; }
+
+.signIn { display: grid; align-items: center; gap: 10px; min-width: 0; padding-block: 12px; }
+.signInOffer { grid-template-columns: 32px minmax(0, 1fr) auto; }
+.signInCompact { grid-template-columns: minmax(0, 1fr) auto; padding: 0 0 14px; border-bottom: 1px solid #3b566b; }
+.offerIcon { display: grid; place-items: center; width: 32px; height: 36px; color: #93e4d5; }
+.signInCopy { min-width: 0; }
+.signInTitle { margin: 0; color: #f1f7fc; font-size: 14px; font-weight: 650; line-height: 1.4; text-wrap: balance; }
+.signInDescription { margin: 3px 0 0; color: #bed1df; font-size: 12px; line-height: 1.4; }
+.signInButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  gap: 7px;
+  min-width: 98px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #8ccbdc;
+  border-radius: 10px;
+  background: #e5f4fb;
+  color: #12364a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.signInButton:focus-visible, .textButton:focus-visible, .backButton:focus-visible {
+  outline: 2px solid #91e8dc;
+  outline-offset: 3px;
+}
+
+.details { display: grid; gap: 18px; color: #f1f7fc; }
+.detailsHeading { display: flex; align-items: flex-start; gap: 10px; }
+.detailsHeading > div { min-width: 0; }
+.detailsIcon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: #244b61; color: #a3e5f4; }
+.detailsTitle { margin: 0; color: #f1f7fc; font-size: 17px; font-weight: 650; line-height: 1.4; }
+.detailsDescription { margin: 5px 0 0; color: #bed1df; font-size: 13px; line-height: 1.55; }
+.phoneForm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.phoneLabel { grid-column: 1 / -1; font-size: 13px; font-weight: 600; }
+.phoneInput { min-width: 0; width: 100%; min-height: 46px; padding: 11px 12px; font-size: 16px; font-variant-numeric: tabular-nums; }
+.phoneSubmit { min-height: 46px; padding: 11px 16px; font-size: 14px; font-weight: 650; }
+.phoneSubmit:disabled { cursor: not-allowed; opacity: .55; }
+.phoneHint { grid-column: 1 / -1; margin: 0; color: #bed1df; font-size: 12px; line-height: 1.5; }
+.phoneError { grid-column: 1 / -1; margin: 0; color: #fecdd3; font-size: 12px; line-height: 1.5; }
+.detailsActions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; padding-top: 2px; border-top: 1px solid #3b566b; }
+.detailsActions .textButton { justify-self: end; min-width: 0; text-align: right; }
+.backButton, .textButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 0; border: 0; background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
+.backButton { color: #bed1df; }
+.textButton { color: #a3e5f4; text-underline-offset: 4px; }
+
+@media (hover: hover) {
+  .signInButton:hover { border-color: #b3ecf2; background: #fff; }
+  .textButton:hover { color: #e3f8ff; text-decoration: underline; }
+  .backButton:hover { color: #fff; }
+}
+@media (max-width: 639px) {
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel { top: calc(var(--dialog-viewport-top, 0px) + 8px); left: auto; right: max(10px, env(safe-area-inset-right)); width: calc(100vw - 20px); max-height: calc(var(--dialog-viewport-height, 100dvh) - 16px); border-radius: 16px; }
+  /* The shared mobile panel forces 16px; keep this compact guest surface at 12px. */
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.soft-panel-content) { padding: 12px !important; }
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-hub-title) { font-size: 16px; }
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-cart-row) { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; }
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-cart-thumb) { width: 44px; height: 44px; }
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-checkout-value) { font-size: 22px; }
+  :global(.customer-window.customer-overlay-panel.app-overlay-panel).panel :global(.cw-checkout-button) { padding-inline: 14px; }
+  .signInOffer { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .signInOffer .offerIcon { display: none; }
+  .signInTitle { font-size: 13px; }
+  .signInButton { min-width: 96px; }
+}
+@media (prefers-reduced-motion: reduce) { .signInButton { transition: none; } }
