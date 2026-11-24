@@ -25,7 +25,7 @@ const contentSecurityPolicy = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://a.plerdy.com https://connect.facebook.net",
   "script-src-elem 'self' 'unsafe-inline' https://telegram.org https://oauth.telegram.org https://static.liqpay.ua https://apis.google.com https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://a.plerdy.com https://connect.facebook.net",
   "connect-src 'self' https: wss:",
-  "frame-src 'self' https://telegram.org https://oauth.telegram.org https://www.google.com https://maps.google.com https://www.google.com.ua https://www.googletagmanager.com https://*.liqpay.ua https://*.firebaseapp.com",
+  "frame-src 'self' https://www.facebook.com https://telegram.org https://oauth.telegram.org https://www.google.com https://maps.google.com https://www.google.com.ua https://www.googletagmanager.com https://*.liqpay.ua https://*.firebaseapp.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
