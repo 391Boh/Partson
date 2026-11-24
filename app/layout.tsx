@@ -1,6 +1,7 @@
 import { adminLayoutHintBootstrap } from "app/lib/admin-layout-hint";
 import { telegramWebAppBootstrap } from "app/lib/telegram-webapp-bootstrap";
 import { TELEGRAM_BOT_URL } from "app/lib/telegram-deeplink";
+import { FACEBOOK_PAGE_URL } from "app/lib/social-links";
 import { partnerPriceHintBootstrap } from "app/lib/partner-price-hint";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -96,7 +97,7 @@ const STORE_GOOGLE_MAPS_URL = "https://maps.google.com/?cid=11517394092669341405
 // The Telegram bot is an official channel of the store, so it belongs to the
 // entity's profiles too.
 const sameAsLinks = Array.from(
-  new Set([googleBusinessProfileUrl || STORE_GOOGLE_MAPS_URL, ...socialLinks, TELEGRAM_BOT_URL].filter(Boolean))
+  new Set([googleBusinessProfileUrl || STORE_GOOGLE_MAPS_URL, ...socialLinks, TELEGRAM_BOT_URL, FACEBOOK_PAGE_URL].filter(Boolean))
 );
 const googleTagManagerId = (() => {
   const rawId = (

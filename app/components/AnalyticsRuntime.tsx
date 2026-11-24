@@ -23,6 +23,11 @@ import {
   updateGoogleConsent,
 } from "app/lib/gtm";
 import {
+  loadMetaPixelScript,
+  setMetaPixelConsent,
+  trackMetaPageView,
+} from "app/lib/meta-pixel";
+import {
   captureMarketingAttribution,
   installContactClickTracking,
 } from "app/lib/marketing-attribution";
@@ -230,6 +235,8 @@ function AnalyticsPageViewTracker({ enabled }: { enabled: boolean }) {
         ? "Каталог | PartsON"
         : document.title;
 
+    // The pixel sends the landing PageView itself when it starts.
+    if (lastRouteRef.current) trackMetaPageView();
     pushPageView({
       page_location: safeLocation,
       page_path: pagePath,
@@ -339,7 +346,7 @@ function AnalyticsConsentBanner({
     {
       key: "advertising",
       label: "Рекламні дані",
-      hint: "Ефективність і персоналізація реклами",
+      hint: "Реклама Google і Meta (Facebook, Instagram)",
       checked: advertisingGranted,
       onChange: setAdvertisingGranted,
     },
@@ -462,6 +469,7 @@ export default function AnalyticsRuntime({
       }
       setAnalyticsGranted(selection.analyticsGranted);
       setAdvertisingGranted(selection.advertisingGranted);
+      if (enabled) setMetaPixelConsent(selection.advertisingGranted);
     },
     [enabled, googleAnalyticsId, googleTagManagerId, mode]
   );
@@ -477,6 +485,7 @@ export default function AnalyticsRuntime({
     // views/events remain queued in dataLayer until the loader is ready.
     const load = () => {
       loadAnalyticsScript(mode, googleTagManagerId, googleAnalyticsId);
+      if (advertisingGranted) loadMetaPixelScript();
       if (analyticsGranted) {
         loadPlerdyScript(plerdySiteHash, plerdySuid);
       }

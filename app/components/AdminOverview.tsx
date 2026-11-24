@@ -956,7 +956,7 @@ type BotAnalytics = {
 const BOT_SOURCE_LABEL: Record<string, string> = {
   site: 'Сайт', footer: 'Футер сайту', contacts: 'Контакти', product: 'Сторінка товару', outofstock: 'Товар під замовлення',
   landing: 'Сторінка /telegram', order: 'Після замовлення', google: 'Google', gbp: 'Google Карти (профіль)',
-  ads: 'Google Ads', email: 'Email', qr: 'QR-код', other: 'Інше',
+  ads: 'Google Ads', email: 'Email', qr: 'QR-код', facebook: 'Facebook', other: 'Інше',
 };
 
 // Steps of the bot's sales funnel, as classified in app/api/telegram/bot.

@@ -7,12 +7,14 @@ import SmartLink from "app/components/SmartLink";
 import AnalyticsConsentSettingsButton from "app/components/AnalyticsConsentSettingsButton";
 import { observeViewportEntrance } from "app/lib/viewport-entrance";
 import { SELLER_NAME, SELLER_TAX_ID } from "app/lib/seo-metadata";
-import { SiTelegram, SiViber } from "./FooterSocialIcons";
+import { SiFacebook, SiTelegram, SiViber } from "./FooterSocialIcons";
+import { FACEBOOK_PAGE_URL } from "app/lib/social-links";
 import { buildTelegramBotLink } from "app/lib/telegram-deeplink";
 
 const messengers = [
   { label: "Telegram", Icon: SiTelegram, href: buildTelegramBotLink("footer") },
   { label: "Viber", Icon: SiViber, href: "https://viber.me/380634211851" },
+  { label: "Facebook", Icon: SiFacebook, href: FACEBOOK_PAGE_URL },
 ];
 const catalogLinks = [
   { href: "/katalog", label: "Усі запчастини" },

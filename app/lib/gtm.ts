@@ -1,3 +1,5 @@
+import { mirrorEcommerceToMetaPixel } from "app/lib/meta-pixel";
+
 declare global {
   interface Window {
     dataLayer?: unknown[];
@@ -182,6 +184,8 @@ export function pushEcommerceEvent(
   ecommerce: GtmEcommercePayload,
 ): boolean {
   if (typeof window === "undefined" || !canDispatchAnalytics()) return false;
+
+  mirrorEcommerceToMetaPixel(eventName, ecommerce);
 
   if (getAnalyticsMode() === "gtag") {
     window.gtag?.("event", eventName, withDebugMode(ecommerce));

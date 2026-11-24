@@ -15,7 +15,7 @@ export const TELEGRAM_BOT_URL = `https://t.me/${encodeURIComponent(TELEGRAM_BOT_
 /** Known entry points; anything else is counted as "other". */
 export const TELEGRAM_SOURCES = [
   "site", "footer", "contacts", "product", "outofstock", "landing", "order",
-  "google", "gbp", "ads", "email", "qr", "other",
+  "google", "gbp", "ads", "email", "qr", "facebook", "other",
 ] as const;
 export type TelegramSource = (typeof TELEGRAM_SOURCES)[number];
 
