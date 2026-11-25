@@ -475,6 +475,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                       </ul>
                     );
                   const img = extraImages[pIdx];
+                  const imgAlt = post.extraImageAlts?.[pIdx]?.trim();
                   pIdx++;
                   return (
                     <React.Fragment key={idx}>
@@ -490,7 +491,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                         <figure className="blog-inline-figure">
                           <Image
                             src={img}
-                            alt={`${post.title} — фото ${pIdx}`}
+                            alt={imgAlt || `${post.title} — фото ${pIdx}`}
                             width={760}
                             height={520}
                             sizes="(max-width: 800px) calc(100vw - 32px), 740px"

@@ -15,6 +15,8 @@ export type BlogPost = {
   imageDataUrl?: string;
   imageAlt?: string;
   extraImages?: string[];
+  // Alt text per extra image, by the same index (what each picture shows).
+  extraImageAlts?: string[];
   videoUrl?: string;
   publishedAt?: string;
   updatedAt?: string;
@@ -80,6 +82,9 @@ const snapshotToBlogPost = (id: string, data: DocumentData): BlogPost => ({
   imageAlt: readString(data.imageAlt) || readString(data.title) || undefined,
   extraImages: Array.isArray(data.extraImages)
     ? (data.extraImages as unknown[]).filter((v): v is string => typeof v === "string")
+    : undefined,
+  extraImageAlts: Array.isArray(data.extraImageAlts)
+    ? (data.extraImageAlts as unknown[]).map((v) => (typeof v === "string" ? v : ""))
     : undefined,
   videoUrl: readString(data.videoUrl) || undefined,
   publishedAt: toIsoString(data.publishedAt),
