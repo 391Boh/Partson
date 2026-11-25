@@ -17,10 +17,20 @@ for (const task of tasks) {
   if (code !== 0) { console.error(`[sync:catalog] ${task} failed; previous snapshots remain available.`); process.exit(1); }
 }
 const SNAPSHOT_FILE = /^(?:getprod|getauto|getdata|allgoods|getinfo|sale_v1|prices|pricespost|getimages)-[a-f0-9]{64}\.json$/;
-const snapshots = readdirSync(directory).filter((name) => SNAPSHOT_FILE.test(name))
-  .map((name) => { try { return JSON.parse(readFileSync(path.join(directory, name), "utf8")); } catch { return null; } })
-  .filter((saved) => saved?.version === 1 && typeof saved.response?.text === "string");
-const endpoints = [...new Set(snapshots.map((saved) => saved.endpoint))];
+// One file at a time: the snapshots together run to hundreds of megabytes,
+// more than a build server's heap holds at once.
+let snapshotCount = 0;
+const endpointSet = new Set();
+for (const name of readdirSync(directory)) {
+  if (!SNAPSHOT_FILE.test(name)) continue;
+  let saved = null;
+  try { saved = JSON.parse(readFileSync(path.join(directory, name), "utf8")); } catch {}
+  if (saved?.version !== 1 || typeof saved.response?.text !== "string") continue;
+  snapshotCount += 1;
+  endpointSet.add(saved.endpoint);
+}
+const snapshots = { length: snapshotCount };
+const endpoints = [...endpointSet];
 if (!endpoints.includes("getprod") || !endpoints.includes("getauto")) throw new Error("Synchronization did not produce required getprod/getauto build inputs.");
 const temporary = path.join(directory, "manifest.json.tmp");
 writeFileSync(temporary, JSON.stringify({ version: 1, completedAt: Date.now(), snapshots: snapshots.length, endpoints }));
