@@ -13813,6 +13813,11 @@ ul.cat-groups { margin: 0; list-style: none; }
 }
 .product-analog-code-list a:hover { border-color: #7cc4d6; background: #e6f4f8; }
 .product-analog-code-list a:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
+/* The maker before the number ("MANN-FILTER WK 853/3 X"): readable, quieter than the code. */
+.product-analog-code-brand {
+  margin-right: 6px; font-family: var(--font-ui-stack); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.02em; color: #4b6b77; text-transform: uppercase;
+}
 .product-analog-spellings { margin-top: 8px; font-size: 12px; line-height: 1.5; color: #475569; }
 .product-analog-numbers-row + .product-analog-spellings { padding-top: 8px; border-top: 1px dashed #e2e8f0; }
 .product-analogs-browser { margin-top: 18px; }

@@ -10,6 +10,7 @@ import {
   getStaticProductRecommendations,
 } from "app/lib/product-related";
 import { resolveWithTimeout } from "app/lib/resolve-with-timeout";
+import { getProductRegisterAnalogs, type RegisterAnalog } from "app/lib/product-register-analogs";
 import ProductCrossReferences from "app/components/ProductCrossReferences";
 import ProductRelatedItemsClientSection from "app/components/ProductRelatedItemsClientSection";
 import { buildProductPath, buildVisibleProductName } from "app/lib/product-url";
@@ -19,6 +20,9 @@ import { safeJsonLd } from "app/lib/safe-json-ld";
 
 // Cap the SSR prefetch so the Suspense boundary does not hold the page past this.
 const RELATED_SSR_TIMEOUT_MS = 280;
+// The analog numbers come from 1C itself; they are cached for 30 minutes, so
+// only the first render after that waits for 1C.
+const REGISTER_ANALOGS_TIMEOUT_MS = 1500;
 const isProductionBuildPhase =
   process.env.NEXT_PHASE === "phase-production-build" ||
   process.env.NEXT_PRIVATE_BUILD_WORKER === "1" ||
@@ -90,9 +94,9 @@ export default async function ProductRelatedItemsSection({
   const subGroup = (product.subGroup || "").trim();
   const category = (product.category || "").trim();
 
-  const [initialRelatedResult, initialSimilarResult, staticRecommendations] =
+  const [initialRelatedResult, initialSimilarResult, staticRecommendations, registerAnalogs] =
     isProductionBuildPhase
-      ? [null, null, { analogs: [], similar: [] }]
+      ? [null, null, { analogs: [], similar: [] }, [] as RegisterAnalog[]]
       : await Promise.all([
         resolveWithTimeout<RelatedProductCardItem[] | null>(
           () => getAnalogProducts(article, code, name, producer, group, subGroup, category),
@@ -117,6 +121,11 @@ export default async function ProductRelatedItemsSection({
             ),
           { analogs: [], similar: [] },
           RELATED_SSR_TIMEOUT_MS
+        ),
+        resolveWithTimeout<RegisterAnalog[]>(
+          () => getProductRegisterAnalogs(code),
+          [],
+          REGISTER_ANALOGS_TIMEOUT_MS
         ),
       ]);
   // Static fallback now runs in parallel with both live lookups. Previously it
@@ -155,6 +164,7 @@ export default async function ProductRelatedItemsSection({
         article={article}
         producer={producer}
         crossReferenceCodes={crossReferenceCodes}
+        registerAnalogs={registerAnalogs}
         analogs={initialRelatedItems ?? []}
       />
       <ProductRelatedItemsClientSection
