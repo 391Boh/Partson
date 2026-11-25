@@ -79,6 +79,17 @@ const matchesCodePrefix = (value: string, key: string) =>
   value.startsWith(key) || (isNumericCodeQuery(key) && withoutLetterPrefix(value).startsWith(key));
 const listsCode = (runs: string[], key: string) => runs.some((run) => matchesCodePrefix(run, key));
 
+// Analog and original (OE) numbers a product is listed under in the 1C
+// analog register, compacted like search keys. A part number typed in full
+// or by its first 4+ characters finds the product ("WK853" → WK 853/3 X).
+export const compactSearchCode = (value: string) => compact(value);
+export const matchesCrossNumbers = (numbers: readonly string[] | undefined, query: string) => {
+  if (!numbers || numbers.length === 0) return false;
+  const key = compact(query);
+  if (key.length < 4 || !/\d/.test(key) || /[а-яіїєґ]/i.test(key)) return false;
+  return numbers.some((number) => matchesCodePrefix(number, key));
+};
+
 export function matchesSearchField(item: SearchItem, query: string, field: SearchField, articleQuery = query): boolean {
   if (!isSearchArticleAllowed(item, articleQuery)) return false;
   const key = compact(query);

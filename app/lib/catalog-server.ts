@@ -6,7 +6,7 @@ import { getProductPromoPriceOverride } from "./product-promo-overrides";
 import { isPublicCatalogProduct } from "./public-catalog-product";
 import { getProductTreeDataset } from "app/lib/product-tree";
 import { buildAnalogIndex, compactAnalogKey, findAnalogsOfMatches, type AnalogIndex } from "app/lib/catalog-analog-index";
-import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, isSearchArticleAllowed, layoutAlternatives, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
+import { articleRelaxations, buildSearchVocabulary, compareProductNames, correctSearchSpelling, decodeSearchCursor, encodeSearchCursor, compactSearchCode, isSearchArticleAllowed, layoutAlternatives, matchesCrossNumbers, matchesSearchField, rankSearchMatches, searchAlternatives, stemVariants, searchProductFields, WEAK_LITERAL_HITS, type SearchField, type SearchSortOrder } from "app/lib/catalog-search";
 
 export interface CatalogProduct {
   code: string;
@@ -3889,6 +3889,100 @@ export const getSearchVocabulary = (): Map<string, number> | null => {
   return searchVocabulary.words;
 };
 
+// Analog and OE numbers from the 1C analog register (ор_ГруппыАналогов, via
+// the НомериДляПошуку action): which numbers each product is listed under,
+// so a search for any of them finds it. Loaded in the background and kept
+// for 30 minutes; a search never waits for it.
+type RegisterNumberGroup = { numbers: string[]; codes: string[] };
+type RegisterNumbersState = {
+  groups: RegisterNumberGroup[] | null;
+  fetchedAt: number;
+  loading: Promise<void> | null;
+  failedAt: number;
+};
+declare global {
+  var __partsonRegisterNumbers: RegisterNumbersState | undefined;
+}
+const registerNumbersState: RegisterNumbersState =
+  globalThis.__partsonRegisterNumbers ??
+  (globalThis.__partsonRegisterNumbers = { groups: null, fetchedAt: 0, loading: null, failedAt: 0 });
+const REGISTER_NUMBERS_TTL_MS = 1000 * 60 * 30;
+const REGISTER_NUMBERS_RETRY_MS = 1000 * 60 * 5;
+
+const loadRegisterNumbers = async () => {
+  const response = await oneCRequest((process.env.ONEC_PRODUCT_UPDATE_ENDPOINT || "edit").trim(), {
+    method: "POST",
+    body: { Дія: "НомериДляПошуку" },
+    timeoutMs: 60_000,
+    retries: 0,
+    cacheTtlMs: 0,
+  });
+  if (response.status < 200 || response.status >= 300) throw new Error(`НомериДляПошуку: ${response.status}`);
+  const payload = JSON.parse(response.text) as { success?: boolean; groups?: Array<{ n?: unknown; c?: unknown }> };
+  // An older 1C module answers "Невідома дія": keep searching without it.
+  if (payload.success !== true || !Array.isArray(payload.groups)) throw new Error("НомериДляПошуку unsupported");
+  const strings = (value: unknown) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+  registerNumbersState.groups = payload.groups
+    .map((group) => ({ numbers: strings(group.n), codes: strings(group.c).map((code) => code.trim()) }))
+    .filter((group) => group.numbers.length > 1);
+  registerNumbersState.fetchedAt = Date.now();
+};
+
+const getRegisterNumberGroups = (): RegisterNumberGroup[] | null => {
+  const now = Date.now();
+  const stale = now - registerNumbersState.fetchedAt > REGISTER_NUMBERS_TTL_MS;
+  const mayRetry = now - registerNumbersState.failedAt > REGISTER_NUMBERS_RETRY_MS;
+  if (stale && mayRetry && !registerNumbersState.loading && process.env.ONEC_BUILD_SNAPSHOT_ONLY !== "1") {
+    registerNumbersState.loading = loadRegisterNumbers()
+      .catch(() => {
+        registerNumbersState.failedAt = Date.now();
+      })
+      .finally(() => {
+        registerNumbersState.loading = null;
+      });
+  }
+  return registerNumbersState.groups;
+};
+
+// Product code → compacted register numbers, rebuilt when the snapshot or
+// the register groups change. A group reaches a product through the codes
+// 1C linked to it and through any product whose own article is in it.
+let registerNumbersIndex: {
+  products: CatalogProduct[];
+  groups: RegisterNumberGroup[];
+  byCode: Map<string, string[]>;
+} | null = null;
+const getRegisterNumbersByCode = (snapshot: FullCatalogSnapshot): Map<string, string[]> | null => {
+  const groups = getRegisterNumberGroups();
+  if (!groups) return null;
+  if (registerNumbersIndex?.products === snapshot.products && registerNumbersIndex.groups === groups) {
+    return registerNumbersIndex.byCode;
+  }
+  const codesByArticle = new Map<string, string[]>();
+  for (const product of snapshot.products) {
+    const key = compactSearchCode(product.article || "");
+    if (key.length < 4 || !product.code) continue;
+    const list = codesByArticle.get(key);
+    if (list) list.push(product.code);
+    else codesByArticle.set(key, [product.code]);
+  }
+  const sets = new Map<string, Set<string>>();
+  for (const group of groups) {
+    const numbers = group.numbers.map(compactSearchCode).filter((number) => number.length >= 4);
+    const owners = new Set(group.codes);
+    for (const number of numbers) for (const code of codesByArticle.get(number) ?? []) owners.add(code);
+    for (const code of owners) {
+      const set = sets.get(code) ?? new Set<string>();
+      for (const number of numbers) set.add(number);
+      sets.set(code, set);
+    }
+  }
+  const byCode = new Map([...sets].map(([code, set]) => [code, [...set]]));
+  registerNumbersIndex = { products: snapshot.products, groups, byCode };
+  return byCode;
+};
+
 // Analog groups of the warm snapshot, rebuilt only when the snapshot changes.
 let snapshotAnalogIndex: { products: CatalogProduct[]; index: AnalogIndex<CatalogProduct> } | null = null;
 const getSnapshotAnalogIndex = (snapshot: FullCatalogSnapshot) => {
@@ -3971,9 +4065,16 @@ export const searchCatalogIndex = async (
   const fields: SearchField[] =
     options.filter === "all" ? ["name", "article", "code", "producer", "description"] : [options.filter];
 
+  // Analog and OE numbers from the 1C register count as the product's own
+  // numbers for an article (or "all") search.
+  const registerNumbers =
+    options.filter === "all" || options.filter === "article" ? getRegisterNumbersByCode(snapshot) : null;
   const matchAgainst = (searchQuery: string) => {
     const matches = snapshot.products.filter((product) =>
-      fields.some((field) => matchesSearchField(product, searchQuery, field, articleQuery))
+      fields.some((field) => matchesSearchField(product, searchQuery, field, articleQuery)) ||
+      (registerNumbers !== null &&
+        isSearchArticleAllowed(product, articleQuery) &&
+        matchesCrossNumbers(registerNumbers.get(product.code), searchQuery))
     );
     // Same tie-break searchProductFields itself falls back to when sortOrder
     // is "none" (alphabetical by code) — keeps result order identical
