@@ -7,7 +7,7 @@ import { brands } from "app/components/brandsData";
 import { carBrands } from "app/components/carBrands";
 import { getInformationPath, informationSections } from "app/inform/section-config";
 import { getAutoSeoData } from "app/lib/auto-seo";
-import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
+import { getVerifiedAutoModelKeys, isThinModelBySnapshot } from "app/lib/auto-directory-data";
 import { getBrandLogoMap, resolveProducerLogo } from "app/lib/brand-logo";
 import { buildAutoBrandPath, buildAutoModelPath, buildGroupItemPath, buildManufacturerPath } from "app/lib/catalog-links";
 import { getCatalogSeoFacets } from "app/lib/catalog-seo";
@@ -496,10 +496,14 @@ const buildAutoSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
   // and keep it that way for hours.
   const verifiedModelKeys = await getVerifiedAutoModelKeys();
   if (verifiedModelKeys) {
-    for (const key of verifiedModelKeys) {
-      const [brand, model] = key.split("::");
-      if (brand && model) pushModel(brand, model);
-    }
+    const pairs = Array.from(verifiedModelKeys, (key) => key.split("::")).filter(
+      (pair): pair is [string, string] => Boolean(pair[0] && pair[1])
+    );
+    // Thin model pages (1–2 products) are noindex: keep them out of the sitemap.
+    const thin = await Promise.all(pairs.map(([brand, model]) => isThinModelBySnapshot(brand, model)));
+    pairs.forEach(([brand, model], index) => {
+      if (thin[index] !== true) pushModel(brand, model);
+    });
     return entries;
   }
 

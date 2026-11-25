@@ -29,6 +29,7 @@ import {
   buildAutoModelKey,
   findCarModelInBrand,
   assertModelBreakdownAvailable,
+  MIN_INDEXABLE_MODEL_PRODUCTS,
   getModelGroupBreakdown,
   getVerifiedAutoModelKeys,
   getCarModelYears,
@@ -206,10 +207,13 @@ export async function generateMetadata({ params }: AutoModelPageProps): Promise<
   // auto sitemap submits). A model with no matching groups is a thin page;
   // a verified one stays indexable even if this render's 1C breakdown timed
   // out to empty. Without the snapshot, keep the previous behaviour.
+  const thin =
+    breakdown.status !== "unavailable" && breakdown.totalProducts < MIN_INDEXABLE_MODEL_PRODUCTS;
   const indexable =
-    !verifiedModelKeys ||
-    groups.length > 0 ||
-    verifiedModelKeys.has(buildAutoModelKey(brand, model));
+    !thin &&
+    (!verifiedModelKeys ||
+      groups.length > 0 ||
+      verifiedModelKeys.has(buildAutoModelKey(brand, model)));
   const brandLower = brand.toLowerCase();
   const modelLower = model.toLowerCase();
   const seoFacts: ModelSeoFacts = {

@@ -13,7 +13,8 @@ import {
   stripRomanNumeralsFromModel,
   stripTrailingChassisCode,
 } from "app/lib/car-model-search";
-import { fetchCatalogProductsByQuery, type CatalogProduct } from "app/lib/catalog-server";
+import { fetchCatalogProductsByQuery, fetchFullCatalogProducts, type CatalogProduct } from "app/lib/catalog-server";
+import { matchesVehicleFitment } from "app/lib/vehicle-fitment";
 import { splitProductFitmentLine } from "app/lib/product-fitment-format";
 import { getAllProductSitemapSnapshotEntries } from "app/lib/product-sitemap";
 import { inferCategoryForGroupLabel } from "app/lib/category-icons";
@@ -328,7 +329,10 @@ type CollectedModelBreakdown = Omit<
 
 const collectModelGroupBreakdown = async (
   searchQuery: string,
-  brand: string
+  brand: string,
+  // Products to aggregate instead of paging through 1C (the fitment fallback
+  // below hands in the catalog snapshot's matches as one page).
+  presetItems?: CatalogProduct[]
 ): Promise<CollectedModelBreakdown> => {
   let cursor = "";
   // A failed page used to be swallowed as "no more items", so a partial or
@@ -359,7 +363,7 @@ const collectModelGroupBreakdown = async (
   const queryTokens = tokenizeForNameMatch(sampleProductsQuery);
 
   for (let page = 1; page <= MODEL_GROUP_FALLBACK_MAX_PAGES; page += 1) {
-    const batch = await fetchCatalogProductsByQuery({
+    const batch = presetItems ? { items: page === 1 ? presetItems : [], hasMore: false, nextCursor: "", cursorField: "" } : await fetchCatalogProductsByQuery({
       page: cursor ? 1 : page,
       limit: MODEL_GROUP_FALLBACK_COUNT_LIMIT,
       searchQuery,
@@ -747,6 +751,49 @@ const refreshModelBreakdownInBackground = (brand: string, model: string, cleaned
   breakdownRefreshes.set(key, refresh);
 };
 
+const FITMENT_BREAKDOWN_TIMEOUT_MS = 15_000;
+const collectFitmentBreakdown = async (
+  brand: string,
+  model: string,
+  cleanedModel: string
+): Promise<BreakdownData | null> => {
+  const products = await resolveWithTimeout(
+    () => fetchFullCatalogProducts().catch(() => null),
+    null,
+    FITMENT_BREAKDOWN_TIMEOUT_MS
+  );
+  if (!products?.length) return null;
+  const vehicle = { brand, model, year: null, volume: null, power: null, gearbox: null, drive: null };
+  const matches = products.filter((product) => matchesVehicleFitment(product.description, vehicle));
+  if (matches.length === 0) return null;
+  const collected = await collectModelGroupBreakdown(cleanedModel, brand, matches);
+  return {
+    groups: collected.groups,
+    categories: collected.categories,
+    totalProducts: collected.totalProducts,
+    sampleProducts: collected.sampleProducts,
+    sampleProductsQuery: collected.sampleProductsQuery,
+    effectiveQuery: cleanedModel,
+  };
+};
+
+// A model page listing one or two products is thin: noindex and left out of
+// the sitemap (/auto/<make>/<model> pages with fewer products than this).
+export const MIN_INDEXABLE_MODEL_PRODUCTS = 3;
+
+// Whether the last saved scan says the model is too thin to index; null when
+// no scan was saved (the model is then kept — nothing says it is thin).
+export const isThinModelBySnapshot = async (brand: string, model: string): Promise<boolean | null> => {
+  try {
+    const text = await readFile(/* turbopackIgnore: true */ modelBreakdownSnapshotPath(brand, model), "utf8");
+    const parsed = JSON.parse(text) as { data?: { totalProducts?: number } };
+    const total = parsed.data?.totalProducts;
+    return typeof total === "number" ? total < MIN_INDEXABLE_MODEL_PRODUCTS : null;
+  } catch {
+    return null;
+  }
+};
+
 export const getModelGroupBreakdown = cache(
   async (brand: string, model: string): Promise<AutoModelGroupBreakdown> => {
     const cleanedModel = cleanModelQuery(model);
@@ -785,6 +832,11 @@ export const getModelGroupBreakdown = cache(
     if (snapshot) return { ...snapshot.data, status: "ok", snapshotSavedAt: snapshot.savedAt };
     // A partial scan with products is still real data, just possibly short.
     if (lookup && lookup.data.totalProducts > 0) return { ...lookup.data, status: "ok" };
+    // 1C too slow and no saved scan (a model new to the sitemap): build the
+    // breakdown from the in-memory catalog by the fitment lines — the same
+    // matcher the car filter uses — instead of answering crawlers with a 5xx.
+    const fromFitment = await collectFitmentBreakdown(brand, model, cleanedModel);
+    if (fromFitment) return { ...fromFitment, status: "ok" };
     return { ...emptyData, status: "unavailable" };
   }
 );

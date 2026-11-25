@@ -25,9 +25,21 @@ export async function GET() {
     };
   }));
 
+  // Category, brand and car-model pages list the same products, so their
+  // sitemaps change whenever a product does: report the newest product change
+  // instead of the templates' fixed date, or Google stops re-reading them.
+  const newestProductChange = productSitemaps.reduce(
+    (latest, entry) => (entry.lastModified > latest ? entry.lastModified : latest),
+    lastModified
+  );
+  const PRODUCT_DERIVED_SECTIONS = new Set(["/groups-sitemap.xml", "/manufacturers-sitemap.xml", "/auto-sitemap.xml"]);
+
   return createSitemapXmlResponse(
     buildSitemapIndexXml(siteUrl, [
-      ...PAGE_SITEMAP_SECTION_PATHS.map((path) => ({ path, lastModified })),
+      ...PAGE_SITEMAP_SECTION_PATHS.map((path) => ({
+        path,
+        lastModified: PRODUCT_DERIVED_SECTIONS.has(path) ? newestProductChange : lastModified,
+      })),
       ...productSitemaps,
     ])
   );

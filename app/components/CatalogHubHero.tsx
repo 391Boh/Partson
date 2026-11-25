@@ -57,7 +57,7 @@ export default function CatalogHubHero({ current, title, titleAccent, descriptio
             </div>
             <div className="min-w-0">
               <Title className="directory-heading-hero">
-                {accent ? <>{title.slice(0, -accent.length).trimEnd()}<span className="directory-title-sub">{accent}</span></> : title}
+                {accent ? <>{title.slice(0, -accent.length).trimEnd()}{" "}<span className="directory-title-sub">{accent}</span></> : title}
               </Title>
               <p>{description}</p>
             </div>

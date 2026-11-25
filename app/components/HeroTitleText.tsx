@@ -6,7 +6,7 @@ export default function HeroTitleText({ title }: { title: string }) {
   if (index < 0) return <>{title}</>;
   return (
     <>
-      {title.slice(0, index)}
+      {title.slice(0, index)}{" "}
       <span className="directory-title-sub">{title.slice(index + 1)}</span>
     </>
   );
