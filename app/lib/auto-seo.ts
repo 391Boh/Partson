@@ -185,9 +185,19 @@ const fetchBrandModelsCached = unstable_cache(
   { revalidate: AUTO_CACHE_TTL_MS / 1000, tags: ["auto-brand-models"] }
 );
 
-export const fetchBrandModels = (brand: string): Promise<AutoSeoBrandGroup | null> => {
+export const fetchBrandModels = async (brand: string): Promise<AutoSeoBrandGroup | null> => {
   const normalized = normalizeValue(brand);
-  return normalized ? fetchBrandModelsCached(normalized) : Promise.resolve(null);
+  if (!normalized) return null;
+  try {
+    return await fetchBrandModelsCached(normalized);
+  } catch (error) {
+    // Outside a Next.js server (the sync scripts) unstable_cache has no
+    // incremental cache and throws for every call: ask 1C directly there.
+    if (error instanceof Error && error.message.includes("incrementalCache missing")) {
+      return fetchBrandModelsUncached(normalized);
+    }
+    throw error;
+  }
 };
 
 // Only {Марка, Модель} together return year fields — {Марка} alone (used by

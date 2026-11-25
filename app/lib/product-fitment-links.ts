@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
+import { getModelsForBrand, getVerifiedAutoModelKeys } from "app/lib/auto-directory-data";
 import { buildAutoModelPath } from "app/lib/catalog-links";
 import { parseProductDescription } from "app/lib/product-description-format";
 import { matchesVehicleFitment, type VehicleSelection } from "app/lib/vehicle-fitment";
@@ -36,6 +36,45 @@ const pickNamedGeneration = (chip: string, bases: string[]) => {
     return bases[positions.indexOf(Math.min(...positions))];
   }
   return null;
+};
+
+// "07.96-12.10", "02.03-", "1996-2010", "-06": the years a fitment period spans.
+const periodYears = (period: string): { from: number | null; to: number | null } | null => {
+  const years = [...period.matchAll(/(?:(?:0?[1-9]|1[0-2])\.)?(\d{4}|\d{2})(?![\d.])/g)].map((match) => {
+    const value = match[1];
+    return value.length === 4 ? Number(value) : Number(value) >= 40 ? 1900 + Number(value) : 2000 + Number(value);
+  });
+  if (years.length === 0) return null;
+  const opensWithDash = /^\s*-/.test(period);
+  if (opensWithDash) return { from: null, to: years[0] };
+  return { from: years[0], to: years.length > 1 ? years[1] : null };
+};
+
+// Several generations still fit a bare family name ("LEON 02.03-"): the one
+// whose production years cover the start of the fitment period is the page
+// linked — every generation page has a switcher to its siblings. Without
+// years from 1C, or with nothing overlapping, the chip stays plain text.
+const pickGenerationByYears = (
+  bases: string[],
+  years: Map<string, { yearFrom: number | null; yearTo: number | null }>,
+  period: string
+) => {
+  const range = periodYears(period);
+  if (!range) return null;
+  const known = bases
+    .map((base) => ({ base, years: years.get(base) }))
+    .filter((entry): entry is { base: string; years: { yearFrom: number; yearTo: number | null } } =>
+      typeof entry.years?.yearFrom === "number"
+    );
+  const overlapping = known.filter(({ years: { yearFrom, yearTo } }) =>
+    (range.to === null || yearFrom <= range.to) && (range.from === null || yearTo === null || yearTo >= range.from)
+  );
+  if (overlapping.length === 0) return null;
+  const anchor = range.from ?? range.to!;
+  overlapping.sort(
+    (a, b) => Math.abs(a.years.yearFrom - anchor) - Math.abs(b.years.yearFrom - anchor) || a.years.yearFrom - b.years.yearFrom
+  );
+  return overlapping[0].base;
 };
 
 export const fitmentModelLinkKey = (brand: string, model: string) => `${brand}::${model}`;
@@ -100,6 +139,7 @@ export async function buildFitmentModelLinks(description: string): Promise<Recor
 
   const modelsByBrand = groupModelsByBrand(verifiedKeys);
   const listedByBrand = new Map<string, string[]>();
+  const yearsByBrand = new Map<string, Map<string, { yearFrom: number | null; yearTo: number | null }>>();
   const links: Record<string, string> = {};
   for (const group of fitment) {
     const spelled = group.brand.trim().toUpperCase();
@@ -112,6 +152,12 @@ export async function buildFitmentModelLinks(description: string): Promise<Recor
       listedByBrand.set(brand, listed);
     }
     if (listed.length === 0) continue;
+    let years = yearsByBrand.get(brand);
+    if (!years) {
+      const directory = await getModelsForBrand(brand).catch(() => null);
+      years = new Map((directory?.models ?? []).map((entry) => [entry.name, { yearFrom: entry.yearFrom, yearTo: entry.yearTo }]));
+      yearsByBrand.set(brand, years);
+    }
     // The chip on its own first: a named generation ("PASSAT B5", "A4
     // ALLROAD B8") settles it. Only a bare family name ("C30") is then tried
     // with its make's range — the years and engines the description gives it.
@@ -125,7 +171,12 @@ export async function buildFitmentModelLinks(description: string): Promise<Recor
       // one answer, several generations are not unless the chip names one.
       // The base name (not its facelift) is the page linked.
       const bases = Array.from(new Set(matches.map((model) => model.replace(RESTYLING, ""))));
-      const base = bases.length === 1 ? bases[0] : bases.length > 1 ? pickNamedGeneration(chip, bases) : null;
+      const base =
+        bases.length === 1
+          ? bases[0]
+          : bases.length > 1
+            ? pickNamedGeneration(chip, bases) ?? pickGenerationByYears(bases, years, group.period)
+            : null;
       if (!base) continue;
       const model = matches.includes(base) ? base : matches.filter((candidate) => candidate.startsWith(base)).sort((a, b) => a.length - b.length)[0];
       if (model) links[fitmentModelLinkKey(group.brand, chip)] = buildAutoModelPath(brand, model);

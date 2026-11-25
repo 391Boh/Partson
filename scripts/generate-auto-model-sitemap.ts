@@ -151,6 +151,47 @@ async function main() {
   process.exit(0);
 }
 
+// Fitment makes as the descriptions spell them, by the picker's make.
+const FITMENT_BRAND_ALIASES: Record<string, string[]> = {
+  VOLKSWAGEN: ["VOLKSWAGEN", "VW", "WV"],
+  "MERCEDES-BENZ": ["MERCEDES", "MB", "MERSEDES"],
+  SKODA: ["SKODA", "ŠKODA"],
+  "LAND ROVER": ["LAND ROVER", "LANDROVER"],
+  CHEVROLET: ["CHEVROLET", "DAEWOO"],
+  SEAT: ["SEAT", "CUPRA"],
+};
+
+async function verifyByFitment(pairs: Array<{ brand: string; model: string }>): Promise<Set<string>> {
+  const verified = new Set<string>();
+  try {
+    const { fetchFullCatalogProducts } = await import("app/lib/catalog-server");
+    const { matchesVehicleFitment } = await import("app/lib/vehicle-fitment");
+    const products = await fetchFullCatalogProducts();
+    const descriptions = products
+      .map((product) => product.description || "")
+      .filter((description) => description.length > 0);
+    const byBrand = new Map<string, string[]>();
+    for (const pair of pairs) {
+      let candidates = byBrand.get(pair.brand);
+      if (!candidates) {
+        const aliases = FITMENT_BRAND_ALIASES[pair.brand.toUpperCase()] ?? [pair.brand.toUpperCase()];
+        candidates = descriptions.filter((description) => {
+          const upper = description.toUpperCase();
+          return aliases.some((alias) => upper.includes(alias));
+        });
+        byBrand.set(pair.brand, candidates);
+      }
+      const vehicle = { brand: pair.brand, model: pair.model, year: null, volume: null, power: null, gearbox: null, drive: null };
+      if (candidates.some((description) => matchesVehicleFitment(description, vehicle))) {
+        verified.add(`${pair.brand}::${pair.model}`);
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️  Перевірка за застосуванням не вдалася, лишаю живу перевірку 1С:", error);
+  }
+  return verified;
+}
+
 async function run(outputPath: string, startedAt: number) {
   const { carBrands } = await import("app/components/carBrands");
   const { fetchBrandModels } = await import("app/lib/auto-seo");
@@ -179,6 +220,15 @@ async function run(outputPath: string, startedAt: number) {
     readPreviousSnapshot(outputPath);
   const verifiedKeys = new Set(previousVerifiedKeys);
 
+  // First the catalog itself: a model is verified when a product's fitment
+  // line names it — the same matcher the model page and the car filter use.
+  // This settles most models in seconds; only the rest go through the slow
+  // live 1C check below.
+  const fitmentVerified = await verifyByFitment(allPairs);
+  for (const key of fitmentVerified) verifiedKeys.add(key);
+  console.log(`ℹ️  За застосуванням товарів: ${fitmentVerified.size}/${allPairs.length} моделей`);
+  const remainingPairs = allPairs.filter((pair) => !fitmentVerified.has(`${pair.brand}::${pair.model}`));
+
   // 1C is consistently too slow to get through all ~5400 pairs inside one
   // budget window (measured: ~200 pairs in 6 minutes under real load), and
   // mapWithConcurrency always started at index 0 — every run re-checked the
@@ -187,11 +237,11 @@ async function run(outputPath: string, startedAt: number) {
   // builds sweep across the whole list over time instead of stalling on the
   // same ~200 pairs forever.
   const startIndex =
-    allPairs.length > 0 ? previousResumeIndex % allPairs.length : 0;
+    remainingPairs.length > 0 ? previousResumeIndex % remainingPairs.length : 0;
   const pairs =
     startIndex === 0
-      ? allPairs
-      : [...allPairs.slice(startIndex), ...allPairs.slice(0, startIndex)];
+      ? remainingPairs
+      : [...remainingPairs.slice(startIndex), ...remainingPairs.slice(0, startIndex)];
 
   let checked = 0;
   let skippedForBudget = 0;
@@ -245,7 +295,7 @@ async function run(outputPath: string, startedAt: number) {
     );
   }
 
-  const resumeIndex = allPairs.length > 0 ? (startIndex + checked) % allPairs.length : 0;
+  const resumeIndex = remainingPairs.length > 0 ? (startIndex + checked) % remainingPairs.length : 0;
 
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(
