@@ -1207,7 +1207,9 @@ const buildUniqueLookupTokens = (rawNameSlug: string) =>
 
 const isPlausibleProductLookupToken = (token: string) => {
   const normalized = (token || "").trim();
-  return normalized.length >= 4 && /\d/.test(normalized);
+  // Short articles ("KL2", "A6X") still read as articles when they mix
+  // letters and digits; a bare 2–3 digit number is a year or a size.
+  return /\d/.test(normalized) && (normalized.length >= 4 || (normalized.length === 3 && /[a-z]/i.test(normalized)));
 };
 
 const normalizeProductLookupToken = (value: string) =>
