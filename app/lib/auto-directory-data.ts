@@ -765,7 +765,11 @@ const collectFitmentBreakdown = async (
   if (!products?.length) return null;
   const vehicle = { brand, model, year: null, volume: null, power: null, gearbox: null, drive: null };
   const matches = products.filter((product) => matchesVehicleFitment(product.description, vehicle));
-  if (matches.length === 0) return null;
+  // The catalog is loaded and no fitment line names this model: a real "no
+  // products" answer (an empty, noindex page), not an outage.
+  if (matches.length === 0) {
+    return { groups: [], categories: [], totalProducts: 0, sampleProducts: [], sampleProductsQuery: "", effectiveQuery: cleanedModel };
+  }
   const collected = await collectModelGroupBreakdown(cleanedModel, brand, matches);
   return {
     groups: collected.groups,
@@ -836,7 +840,7 @@ export const getModelGroupBreakdown = cache(
     // breakdown from the in-memory catalog by the fitment lines — the same
     // matcher the car filter uses — instead of answering crawlers with a 5xx.
     const fromFitment = await collectFitmentBreakdown(brand, model, cleanedModel);
-    if (fromFitment) return { ...fromFitment, status: "ok" };
+    if (fromFitment) return { ...fromFitment, status: fromFitment.totalProducts > 0 ? "ok" : "empty" };
     return { ...emptyData, status: "unavailable" };
   }
 );

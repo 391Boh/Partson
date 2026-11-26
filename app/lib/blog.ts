@@ -104,7 +104,11 @@ const fetchPublishedBlogPosts = async (): Promise<BlogPost[]> => {
   );
 
   return snapshot.docs
-    .map((doc) => snapshotToBlogPost(doc.id, doc.data()))
+    // The list never shows a post's inline images, and as inline data URLs
+    // they took it past unstable_cache's 2 MB item limit: uncached, every
+    // render refetched megabytes from Firestore (the article page and the
+    // image route read them from the per-post cache instead).
+    .map((doc) => ({ ...snapshotToBlogPost(doc.id, doc.data()), extraImages: undefined, extraImageAlts: undefined }))
     .sort((a, b) => {
       const aTime = new Date(a.publishedAt || a.createdAt || 0).getTime();
       const bTime = new Date(b.publishedAt || b.createdAt || 0).getTime();
