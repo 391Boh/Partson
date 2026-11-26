@@ -44,11 +44,25 @@ export default function robots(): MetadataRoute.Robots {
       // Catalog search results (noindex) fire several full-catalog 1C
       // queries each; MJ12bot/DotBot walked thousands of them a day and kept
       // every 1C worker busy. Products stay reachable through the sitemap.
+      // 26.11: they still made ~3.7k requests a day under Crawl-delay at an
+      // average 6.9 s per product page (every one a cold 1C render), so they
+      // are shut out entirely. Backlink-tool data does not affect Google.
       {
-        userAgent: ["SemrushBot", "AhrefsBot", "DotBot", "MJ12bot", "Reflectionbot"],
-        allow: publicContentRules.allow,
-        disallow: [...publicContentRules.disallow, "/katalog?search=", "/*?*search="],
-        crawlDelay: 10,
+        userAgent: [
+          "SemrushBot",
+          "AhrefsBot",
+          "DotBot",
+          "MJ12bot",
+          "Reflectionbot",
+          "SERankingBacklinksBot",
+          "BLEXBot",
+          "barkrowler",
+          "serpstatbot",
+          "DataForSeoBot",
+          "PetalBot",
+          "Bytespider",
+        ],
+        disallow: ["/"],
       },
     ],
     sitemap: [`${siteUrl}/sitemap.xml`],
