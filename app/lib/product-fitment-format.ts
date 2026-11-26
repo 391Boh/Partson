@@ -184,6 +184,94 @@ export const parseProductFitment = (line: string): ProductFitmentGroup[] | null 
   return groups.length > 0 ? groups : null;
 };
 
+// One make block per make for display: 1C lines often hold a short list and
+// the TecDoc list appended after it ("OPEL VECTRA B 1.6-2.6 09.95-07.03;
+// OPEL VECTRA B (38_), VECTRA B (36_) …"), which showed OPEL twice and
+// VECTRA B four times. Repeated makes merge (ranges widened to cover both),
+// a model is listed once, and "VECTRA B (38_)" folds into a bare "VECTRA B"
+// listed for the same make. Variants without a bare name ("C (W203)",
+// "C (W204)") stay: their codes name different generations.
+const fitmentKey = (value: string) => value.toUpperCase().replace(/\s+/g, " ").trim();
+const baseModelName = (model: string) => fitmentKey(model.replace(/\s*\([^()]*\)\s*$/, ""));
+
+const parseVolumeRange = (volume: string): [number, number] | null => {
+  const match = volume.replace(/,/g, ".").match(/^(\d{1,2}\.\d)(?:-(\d{1,2}\.\d))?$/);
+  if (!match) return null;
+  const low = Number(match[1]);
+  return [low, match[2] ? Number(match[2]) : low];
+};
+const formatVolumeNumber = (value: number) => value.toFixed(1);
+
+// Month index (year*12+month) of a period's start and end; end null = still made.
+const parsePeriodRange = (period: string): [number | null, number | null] | null => {
+  const match = period.match(PERIOD);
+  if (!match) return null;
+  const at = (month?: string, year?: string) =>
+    month && year ? Number(fullYear(year)) * 12 + Number(month) - 1 : null;
+  return [at(match[1], match[2]), at(match[3], match[4])];
+};
+const formatPeriodIndex = (index: number) => {
+  const month = String((index % 12) + 1).padStart(2, "0");
+  return `${month}.${String(Math.floor(index / 12)).slice(-2)}`;
+};
+
+// A part of the line without a range says nothing about it, so only the
+// known ranges merge; ranges in another notation ("1.0-1.7D") keep the
+// first one given rather than lose it.
+const mergeRanges = (groups: ProductFitmentGroup[]): { volume: string; period: string } => {
+  const volumes = groups.map((group) => group.volume).filter(Boolean);
+  const periods = groups.map((group) => group.period).filter(Boolean);
+  let volume = volumes[0] ?? "";
+  if (volumes.length > 1 && !volumes.every((value) => value === volumes[0])) {
+    const ranges = volumes.map(parseVolumeRange);
+    if (ranges.every(Boolean)) {
+      const low = Math.min(...ranges.map((range) => range![0]));
+      const high = Math.max(...ranges.map((range) => range![1]));
+      volume = low === high ? formatVolumeNumber(low) : `${formatVolumeNumber(low)}-${formatVolumeNumber(high)}`;
+    }
+  }
+  let period = periods[0] ?? "";
+  if (periods.length > 1 && !periods.every((value) => value === periods[0])) {
+    const ranges = periods.map(parsePeriodRange);
+    if (ranges.every(Boolean)) {
+      const starts = ranges.map((range) => range![0]);
+      const ends = ranges.map((range) => range![1]);
+      const start = starts.every((value) => value !== null) ? Math.min(...(starts as number[])) : null;
+      const end = ends.every((value) => value !== null) ? Math.max(...(ends as number[])) : null;
+      if (start !== null || end !== null) {
+        period = `${start !== null ? formatPeriodIndex(start) : ""}-${end !== null ? formatPeriodIndex(end) : ""}`;
+      }
+    }
+  }
+  return { volume, period };
+};
+
+export const mergeFitmentGroups = (groups: ProductFitmentGroup[]): ProductFitmentGroup[] => {
+  const byBrand = new Map<string, ProductFitmentGroup[]>();
+  for (const group of groups) {
+    const key = fitmentKey(group.brand);
+    const list = byBrand.get(key);
+    if (list) list.push(group);
+    else byBrand.set(key, [group]);
+  }
+  return Array.from(byBrand.values()).map((list) => {
+    const seen = new Set<string>();
+    const models: string[] = [];
+    for (const group of list) {
+      for (const model of group.models) {
+        const key = fitmentKey(model);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        models.push(model);
+      }
+    }
+    const bare = new Set(models.filter((model) => !/\)\s*$/.test(model)).map(fitmentKey));
+    const kept = models.filter((model) => !/\)\s*$/.test(model) || !bare.has(baseModelName(model)));
+    const ranges = list.length > 1 ? mergeRanges(list) : { volume: list[0].volume, period: list[0].period };
+    return { brand: list[0].brand, models: kept, ...ranges };
+  });
+};
+
 const fullYear = (value: string) => {
   if (value.length === 4) return value;
   const year = Number(value);

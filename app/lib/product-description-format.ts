@@ -7,7 +7,7 @@
 // display only; the raw text stays untouched for admin editing.
 
 import { normalizeProductDisplayName } from "app/lib/product-display-name";
-import { splitProductFitmentLine, type ProductFitmentGroup } from "app/lib/product-fitment-format";
+import { mergeFitmentGroups, splitProductFitmentLine, type ProductFitmentGroup } from "app/lib/product-fitment-format";
 
 export type ProductDescriptionSpec = { label: string; value: string };
 
@@ -100,7 +100,7 @@ export const parseProductDescription = (
   if (lines.length > 0 && !SPEC_LINE.test(lines[0])) {
     const split = splitProductFitmentLine(lines[0]);
     if (split) {
-      fitment = split.groups;
+      fitment = mergeFitmentGroups(split.groups);
       fitmentText = lines.shift()!;
       // The part description before the car list stays a normal paragraph,
       // and so does text after it (a note, a spec row glued onto the line).
