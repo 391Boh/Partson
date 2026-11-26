@@ -219,8 +219,13 @@ const formatPeriodIndex = (index: number) => {
 // known ranges merge; ranges in another notation ("1.0-1.7D") keep the
 // first one given rather than lose it.
 const mergeRanges = (groups: ProductFitmentGroup[]): { volume: string; period: string } => {
-  const volumes = groups.map((group) => group.volume).filter(Boolean);
-  const periods = groups.map((group) => group.period).filter(Boolean);
+  // Exact ranges ("09.81-11.95", "1.3-2.0") win over loose ones ("-95", "1.9D").
+  const preferExact = (values: string[], exact: (value: string) => unknown) => {
+    const strict = values.filter((value) => exact(value));
+    return strict.length > 0 ? strict : values;
+  };
+  const volumes = preferExact(groups.map((group) => group.volume).filter(Boolean), parseVolumeRange);
+  const periods = preferExact(groups.map((group) => group.period).filter(Boolean), parsePeriodRange);
   let volume = volumes[0] ?? "";
   if (volumes.length > 1 && !volumes.every((value) => value === volumes[0])) {
     const ranges = volumes.map(parseVolumeRange);
