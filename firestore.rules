@@ -26,11 +26,14 @@ service cloud.firestore {
     // ── orders ────────────────────────────────────────────────────────────────
     // Guests and authenticated users may create orders.
     // Owners read their orders; role-based admins read orders for fulfillment.
-    // Updates and deletes are blocked on the client; use Firebase Admin SDK server-side.
+    // Checkout writes an order twice (created, then completed with the payment
+    // result): a signed-in owner's second write is an update. Guests' second
+    // write was never allowed and the checkout tolerates that.
     match /orders/{orderId} {
       allow create: if true;
       allow read:   if isOwner(resource.data.uid) || isAdmin();
-      allow update, delete: if false;
+      allow update: if isOwner(resource.data.uid) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ── messages (chat) ───────────────────────────────────────────────────────
