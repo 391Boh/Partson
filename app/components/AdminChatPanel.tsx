@@ -44,6 +44,7 @@ import {
   query,
   orderBy,
   limit,
+  limitToLast,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -153,6 +154,11 @@ interface Order {
 // Orders stream newest-first in pages: the full collection used to be
 // re-read on every panel open, growing with every order ever placed.
 const ORDERS_PAGE_SIZE = 150;
+// Firestore bills every document a listener delivers. These caps keep each
+// opening of the panel bounded as the history grows: the latest messages
+// (oldest of them first, as before) and the latest call-back requests.
+const MESSAGES_LISTEN_LIMIT = 3000;
+const CALLS_LISTEN_LIMIT = 300;
 
 type OrderFilter = 'open' | 'all' | OrderStatus;
 const ORDER_FILTERS: Array<{ key: OrderFilter; label: string }> = [
@@ -497,7 +503,7 @@ export default function AdminChatPanel({
 
   useEffect(() => {
     return onSnapshot(
-      query(collection(db, 'messages'), orderBy('createdAt', 'asc')),
+      query(collection(db, 'messages'), orderBy('createdAt', 'asc'), limitToLast(MESSAGES_LISTEN_LIMIT)),
       (snap) =>
         setMessages(
           snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Message, "id">) }))
@@ -539,7 +545,7 @@ export default function AdminChatPanel({
 
   useEffect(() => {
     return onSnapshot(
-      query(collection(db, 'zvyaz'), orderBy('createdAt', 'desc')),
+      query(collection(db, 'zvyaz'), orderBy('createdAt', 'desc'), limit(CALLS_LISTEN_LIMIT)),
       (snap) =>
         setCalls(
           snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CallRequest, "id">) }))
