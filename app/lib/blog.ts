@@ -24,7 +24,9 @@ export type BlogPost = {
   authorEmail?: string;
 };
 
-const BLOG_REVALIDATE_SECONDS = 60 * 10;
+// Admin edits revalidate "blog-posts" at once; the lifetime only bounds
+// Firestore reads (was 10 min).
+const BLOG_REVALIDATE_SECONDS = 60 * 60;
 // A temporarily unreachable Firestore endpoint must not hold an entire page
 // render (or a production build worker) until gRPC's ~60s transport timeout.
 // Failed requests are not stored in unstable_cache, so the next request can

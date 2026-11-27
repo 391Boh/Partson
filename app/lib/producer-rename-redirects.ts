@@ -27,7 +27,7 @@ const loadProducerRenames = unstable_cache(
     }).filter((rename) => rename.from && rename.to);
   },
   ["catalog-producer-renames-v1"],
-  { revalidate: 60 * 10, tags: [PRODUCER_RENAMES_TAG] }
+  { revalidate: 60 * 60 * 6 /* admin renames revalidate the tag at once */, tags: [PRODUCER_RENAMES_TAG] }
 );
 
 const normalizeKey = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleLowerCase("uk-UA");

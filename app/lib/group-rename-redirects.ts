@@ -28,7 +28,7 @@ const loadGroupRenames = unstable_cache(
     }).filter((rename) => rename.from && rename.to);
   },
   ["catalog-group-renames-v1"],
-  { revalidate: 60 * 10, tags: [GROUP_RENAMES_TAG] }
+  { revalidate: 60 * 60 * 6 /* admin renames revalidate the tag at once */, tags: [GROUP_RENAMES_TAG] }
 );
 
 // Catalog restructure of 2026-11-23 (made in 1C directly, so not in the

@@ -7,12 +7,14 @@ import { getProductReviews, getProductReviewStats } from "./reviews-server";
 export const productPageExtrasTag = (code: string) => `product-page-extras:${code}`;
 
 // Cache successful results (including confirmed empty lists), never timeout
-// fallbacks. The page keeps its bounded wait; a late successful read can
+// fallbacks. 6 h: every write through the site (new review, gallery upload
+// or delete) revalidates productPageExtrasTag(code) at once, so the long
+// lifetime only saves Firestore reads (was 180 s). The page keeps its bounded wait; a late successful read can
 // still populate this cache for the next render or process restart.
 export const getProductPageReviews = (code: string) => unstable_cache(
   () => Promise.all([getProductReviewStats(code), getProductReviews(code)]),
   ["product-page-reviews-v1", code],
-  { revalidate: 180, tags: [productPageExtrasTag(code)] },
+  { revalidate: 60 * 60 * 6, tags: [productPageExtrasTag(code)] },
 )();
 
 export const getProductPageGallery = (code: string): Promise<string[]> => {
@@ -24,6 +26,6 @@ export const getProductPageGallery = (code: string): Promise<string[]> => {
     return snapshot.docs.map(doc => doc.data().url as unknown)
       .filter((url): url is string => typeof url === "string" && url.length > 0);
   }, ["product-page-gallery-v1", code], {
-    revalidate: 180, tags: [productPageExtrasTag(code)],
+    revalidate: 60 * 60 * 6, tags: [productPageExtrasTag(code)],
   })();
 };
