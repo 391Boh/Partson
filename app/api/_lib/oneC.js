@@ -480,6 +480,16 @@ export function getOneCAuthHeader() {
   return authHeader;
 }
 
+// Development access from a changing IP (27.11.2026): the server proxies
+// https://partson.shop/__onec/ to 1C only for requests carrying this key
+// (scripts/ops/install-onec-dev-proxy.sh), so a laptop no longer has to be on
+// Apache's IP allowlist. Unset on the production server, where 1C is reached
+// directly on 127.0.0.1.
+export function getOneCAccessHeaders() {
+  const key = String(process.env.ONEC_ACCESS_KEY || "").trim();
+  return key ? { "X-Partson-Onec-Key": key } : {};
+}
+
 export function getOneCTimeoutMs(endpoint) {
   switch (endpoint) {
     case "getdata":
@@ -633,6 +643,7 @@ export async function oneCRequest(endpoint, options = {}) {
     const agent = parsedUrl.protocol === "https:" ? ONEC_HTTPS_AGENT : ONEC_HTTP_AGENT;
     const headers = {
       Authorization: getOneCAuthHeader(),
+      ...getOneCAccessHeaders(),
     };
 
     let payload;

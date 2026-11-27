@@ -350,6 +350,9 @@ const fetchImageUrlAsBase64 = async (rawUrl: string) => {
     const headers: Record<string, string> = {};
     const authHeader = (process.env.ONEC_AUTH_HEADER || "").trim();
     if (authHeader) headers.Authorization = authHeader;
+    // Dev proxy key (see getOneCAccessHeaders in app/api/_lib/oneC.js).
+    const accessKey = (process.env.ONEC_ACCESS_KEY || "").trim();
+    if (accessKey) headers["X-Partson-Onec-Key"] = accessKey;
 
     const response = await fetch(resolvedUrl, {
       headers,

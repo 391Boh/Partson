@@ -17,7 +17,11 @@ const endpoint = (endpointOverride || process.env.ONEC_PRODUCT_UPDATE_ENDPOINT |
 if (!base || !process.env.ONEC_AUTH_HEADER) throw new Error("1C connection is not configured");
 const response = await fetch(`${base}/${endpoint}`, {
   method: "POST",
-  headers: { "Content-Type": "application/json; charset=utf-8", Authorization: process.env.ONEC_AUTH_HEADER },
+  headers: {
+    "Content-Type": "application/json; charset=utf-8",
+    Authorization: process.env.ONEC_AUTH_HEADER,
+    ...(process.env.ONEC_ACCESS_KEY ? { "X-Partson-Onec-Key": process.env.ONEC_ACCESS_KEY } : {}),
+  },
   body,
   signal: AbortSignal.timeout(600_000),
 });
