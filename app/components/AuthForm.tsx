@@ -20,15 +20,7 @@ import {
 } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "../../firebase";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  setDoc,
-  where,
-} from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { Eye, EyeOff, LogIn, UserPlus, X } from "lucide-react";
 import LoginTelegram from "./LoginTelegram";
 import { GOOGLE_REDIRECT_PENDING_KEY } from "app/lib/auth-storage";
@@ -103,16 +95,17 @@ const socialButtonClass =
 const socialIconShellClass =
   "relative z-[2] inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white shadow-[0_8px_16px_rgba(15,23,42,0.08)] transition-[transform,border-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110 group-hover:border-sky-200 group-hover:shadow-[0_10px_18px_rgba(14,165,233,0.16)]";
 
-const syncAuthUserProfile = async (
+// One merge write, no read first: Firebase already says whether the account
+// is new, which is all the old getDoc() was for. Callers don't await it, so
+// the window closes as soon as sign-in itself succeeds.
+const syncAuthUserProfile = (
   user: FirebaseUser,
-  authProvider: "google" | "password"
+  authProvider: "google" | "password",
+  isNewUser: boolean
 ) => {
-  const userRef = doc(db, "users", user.uid);
-  const userSnapshot = await getDoc(userRef);
   const timestamp = new Date().toISOString();
-
-  await setDoc(
-    userRef,
+  return setDoc(
+    doc(db, "users", user.uid),
     {
       name: user.displayName || "",
       email: user.email || "",
@@ -121,10 +114,22 @@ const syncAuthUserProfile = async (
       providers: user.providerData.map((provider) => provider.providerId),
       lastLoginAt: timestamp,
       updatedAt: timestamp,
-      ...(userSnapshot.exists() ? {} : { createdAt: timestamp }),
+      ...(isNewUser ? { createdAt: timestamp } : {}),
     },
     { merge: true }
   );
+};
+
+// Sign-up and profile phone check (server-side: rules hide other profiles).
+const isPhoneAvailable = async (phone: string) => {
+  const response = await fetch("/api/auth/phone-available", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+  if (!response.ok) throw new Error(`phone check ${response.status}`);
+  const payload = (await response.json()) as { available?: boolean };
+  return payload.available !== false;
 };
 
 const AuthForm: React.FC<AuthFormProps> = ({
@@ -200,11 +205,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
     getRedirectResult(auth, browserPopupRedirectResolver)
       .then(async (credential) => {
         if (!credential) return;
-        try {
-          await syncAuthUserProfile(credential.user, "google");
-        } catch (profileError) {
-          console.warn("Google redirect sign-in: profile sync failed:", profileError);
-        }
+        void syncAuthUserProfile(credential.user, "google", Boolean(getAdditionalUserInfo(credential)?.isNewUser))
+          .catch((profileError) => {
+            console.warn("Google redirect sign-in: profile sync failed:", profileError);
+          });
         publishFirebaseAuthUser(credential.user);
         pushAnalyticsEvent(
           getAdditionalUserInfo(credential)?.isNewUser ? "sign_up" : "login",
@@ -307,14 +311,11 @@ const AuthForm: React.FC<AuthFormProps> = ({
       const user = credential.user;
       await setPersistence(auth, browserLocalPersistence).catch(() => undefined);
 
-      try {
-        await syncAuthUserProfile(user, "google");
-      } catch (profileError) {
-        console.warn(
-          "Google sign-in succeeded, but profile sync failed:",
-          profileError
-        );
-      }
+      // The profile write runs in the background; the window closes now.
+      void syncAuthUserProfile(user, "google", Boolean(getAdditionalUserInfo(credential)?.isNewUser))
+        .catch((profileError) => {
+          console.warn("Google sign-in succeeded, but profile sync failed:", profileError);
+        });
 
       publishFirebaseAuthUser(user);
       pushAnalyticsEvent(
@@ -519,29 +520,25 @@ const AuthForm: React.FC<AuthFormProps> = ({
     requestLock.current = true; setIsSubmitting(true);
 
     try {
-      const phoneQuery = query(
-        collection(db, "users"),
-        where("phone", "==", registerData.phone)
-      );
-      const phoneSnapshot = await getDocs(phoneQuery);
-      if (!phoneSnapshot.empty) {
+      if (!(await isPhoneAvailable(registerData.phone))) {
         setRegisterError("Цей номер телефону вже використовується.");
         return;
       }
 
-      await createUserWithEmailAndPassword(
+      const { user } = await createUserWithEmailAndPassword(
         auth,
         registerData.email.trim().toLowerCase(),
         registerData.password
       );
-      const user = auth.currentUser;
       if (user) {
-        await setDoc(doc(db, "users", user.uid), {
+        // Queued by the Firestore SDK (it survives the window closing);
+        // the account is usable before the server acknowledges it.
+        void setDoc(doc(db, "users", user.uid), {
           name: registerData.name,
           email: registerData.email.trim().toLowerCase(),
           phone: registerData.phone,
           createdAt: new Date().toISOString(),
-        });
+        }).catch((error) => console.error("Profile creation failed:", error));
         publishFirebaseAuthUser(user);
         pushAnalyticsEvent("sign_up", { method: "password" });
         onRegisterSuccess();
@@ -591,9 +588,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
           <div className="soft-panel-accent h-1 rounded-full" />
 
           <div className="soft-panel-header">
-            <div className="min-w-0">
+            <span className="auth-medallion" aria-hidden="true">
+              {mode === "login" ? <LogIn size={22} strokeWidth={2} /> : <UserPlus size={22} strokeWidth={2} />}
+            </span>
+            <div className="min-w-0 flex-1">
               <h2 id="auth-form-modal-title" className="soft-panel-title">
-                {mode === "login" ? "Вхід до акаунта" : "Створити акаунт"}
+                {mode === "login"
+                  ? <>Вхід до <span className="auth-title-accent">акаунта</span></>
+                  : <>Створити <span className="auth-title-accent">акаунт</span></>}
               </h2>
               <p className="soft-panel-subtitle">
                 {mode === "login"
@@ -610,7 +612,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
             </button>
           </div>
 
-          <div className="soft-panel-tabs">
+          <div className="soft-panel-tabs" data-mode={mode}>
             <button
               type="button"
               disabled={isSubmitting || isGoogleLoading || isTelegramLoading}

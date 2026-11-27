@@ -23,14 +23,7 @@ import {
 } from "firebase/auth";
 import { auth, db } from "../../firebase";
 import { subscribeUserProfile } from "app/lib/user-profile-store";
-import {
-  doc,
-  setDoc,
-  query,
-  collection,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import {
   AlertCircle,
   ArrowRight,
@@ -500,12 +493,19 @@ const AccountInfo: React.FC<AccountInfoProps> = ({
     const formattedPhone = formatPhoneNumber(tempPhone);
 
     try {
-      const phoneQuery = query(collection(db, "users"), where("phone", "==", formattedPhone));
-      const phoneSnapshot = await getDocs(phoneQuery);
-
-      const phoneIsUsedByAnotherUser = phoneSnapshot.docs.some(
-        (snapshot) => snapshot.id !== user?.uid
-      );
+      // Server-side check: rules hide other users' profiles from the browser.
+      const token = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => "") : "";
+      const phoneCheck = await fetch("/api/auth/phone-available", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ phone: formattedPhone }),
+      });
+      if (!phoneCheck.ok) throw new Error(`phone check ${phoneCheck.status}`);
+      const phoneIsUsedByAnotherUser =
+        ((await phoneCheck.json()) as { available?: boolean }).available === false;
 
       if (phoneIsUsedByAnotherUser) {
         setPhoneError("Цей номер вже використовується.");
