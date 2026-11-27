@@ -352,7 +352,7 @@ export const informationSections: InformationSection[] = [
   {
     key: "diagnostics",
     homeFeature: {
-      image: "/images/information/diagnostics-hero-v1.webp",
+      image: "/images/home/highlights/diagnostics-v1.webp",
       imageAlt: "Сканер OBD та двигун автомобіля для комп’ютерної діагностики",
     },
     title: "Діагностика",

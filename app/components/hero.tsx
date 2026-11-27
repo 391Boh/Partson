@@ -8,12 +8,19 @@ import HeroParallaxBackground from "./HeroParallaxBackground";
 // image optimizer: on the 2 GB server a cold optimizer cache — after every
 // deploy — kept the hero photo ~1s behind the page. Under the dark wash a
 // 768px copy is plenty on phones, so `sizes` caps them there even at 3x DPR.
-const HERO_PHOTO_SRC = "/storefront/photos/partson-store-1.webp";
+// v2: the storefront graded ink-blue shadows → slate mids → clean cool-white highlights, with a trace of its real
+// colour, cropped to the windows, and with a baked asymmetric oval blur: sharp
+// across the logo column and windows, 18px toward the copy side (left) but at
+// most 6px toward the right edge. A
+// matching oval CSS mask (globals.css, .hero-photo) dissolves it into the ink
+// ground. Baked into the
+// files so the browser never runs a full-width filter.
+const HERO_PHOTO_SRC = "/storefront/photos/partson-store-1-hero-v2-1280.webp";
 const HERO_PHOTO_SRCSET =
-  "/storefront/photos/partson-store-1-768.webp 768w, /storefront/photos/partson-store-1.webp 1280w";
-const HERO_AVIF_SRC = "/storefront/photos/partson-store-1-1280-v1.avif";
+  "/storefront/photos/partson-store-1-hero-v2-768.webp 768w, /storefront/photos/partson-store-1-hero-v2-1280.webp 1280w";
+const HERO_AVIF_SRC = "/storefront/photos/partson-store-1-hero-v2-1280.avif";
 const HERO_AVIF_SRCSET =
-  "/storefront/photos/partson-store-1-768-v1.avif 768w, /storefront/photos/partson-store-1-1280-v1.avif 1280w";
+  "/storefront/photos/partson-store-1-hero-v2-768.avif 768w, /storefront/photos/partson-store-1-hero-v2-1280.avif 1280w";
 const HERO_PHOTO_SIZES = "(max-width: 767px) 256px, 100vw";
 
 // Was 5 separate absolutely-positioned <span> overlays + 2 CSS-class-driven
@@ -31,37 +38,24 @@ const HERO_PHOTO_SIZES = "(max-width: 767px) 256px, 100vw";
 // blur filter would have to sit on its own element to avoid blurring the
 // text on top of it.
 const depthBackgroundLayers = [
-  // Left-column scrim, on top of every glow below it — the storefront photo
-  // has bright patches (signage, price tags) that drift under the intro
-  // text depending on viewport size, and no amount of text-shadow alone
-  // reliably reads against them. Strengthened and pushed further right
-  // (was fully faded by 68%, down to 0.16 already at 50% — too weak by the
-  // time it reached the H1's own column width) so the whole HeroIntroCard
-  // column — heading, eyebrow, quick-link cards — sits over a reliably dark
-  // backdrop, and still fades out before the login buttons / benefits
-  // column so those keep showing the photo without an extra tint.
-  "linear-gradient(100deg, rgba(2,6,23,0.7) 0%, rgba(2,6,23,0.56) 30%, rgba(2,6,23,0.32) 55%, transparent 76%)",
-  // Top-left glow, toned down (was 0.34 peak) — it sat directly behind the
-  // H1/icon in HeroIntroCard and washed the light heading text out against
-  // it. Kept as a soft accent, not a bright patch competing with the text.
-  "radial-gradient(ellipse 110% 58% at 12% 2%, rgba(56,189,248,0.20) 0%, rgba(56,189,248,0.05) 40%, transparent 64%)",
-  "radial-gradient(ellipse 84% 60% at 88% 5%, rgba(37,99,235,0.20) 0%, rgba(37,99,235,0.04) 44%, transparent 68%)",
-  "radial-gradient(ellipse 96% 52% at 56% 90%, rgba(37,99,235,0.14) 0%, rgba(37,99,235,0.02) 46%, transparent 68%)",
-  // sky-blue top-left — same reduction as above, this is the tighter/darker
-  // companion layer that used to double up the wash-out right behind the H1.
-  "radial-gradient(ellipse 120% 64% at 7% 4%, rgba(56,189,248,0.20) 0%, rgba(56,189,248,0.06) 36%, rgba(56,189,248,0.01) 54%, transparent 68%)",
-  // blue top-right
-  "radial-gradient(ellipse 98% 70% at 95% 4%, rgba(37,99,235,0.20) 0%, rgba(37,99,235,0.05) 40%, transparent 66%)",
-  // blue bottom glow — centred, same depth
-  "radial-gradient(ellipse 120% 56% at 50% 108%, rgba(14,116,144,0.20) 0%, rgba(14,165,233,0.06) 48%, transparent 74%)",
-  // dark top, slightly lighter (but still heavily tinted) bottom — a real
-  // photo sits under this now, so the bottom stayed darker than the old
-  // pure-gradient version to keep the photo as atmosphere, not a literal,
-  // sharp product shot.
-  "linear-gradient(180deg, rgba(2,6,23,0.92) 0%, rgba(5,11,36,0.86) 14%, rgba(9,18,54,0.78) 30%, rgba(13,26,72,0.70) 48%, rgba(16,34,90,0.64) 68%, rgba(12,26,72,0.57) 84%, rgba(10,22,64,0.52) 100%)",
+  // Copy-side scrim: reliable ink under the H1, intro and quick links,
+  // opening up so the sharp showcase carries the right half.
+  "linear-gradient(100deg, rgba(4,9,28,0.84) 0%, rgba(4,9,28,0.66) 28%, rgba(4,9,28,0.32) 52%, rgba(4,9,28,0.06) 74%, transparent 100%)",
+  // Header fade, and a landing in the articles block's own ink below.
+  "linear-gradient(180deg, rgba(4,9,28,0.86) 0%, rgba(4,9,28,0.36) 20%, transparent 40%)",
+  "linear-gradient(0deg, rgba(8,24,44,0.94) 0%, rgba(8,24,44,0.46) 16%, transparent 36%)",
+  // A cool shaft of light falls onto the shop windows from the top right…
+  "radial-gradient(ellipse 50% 76% at 78% -10%, rgba(165,205,255,0.2) 0%, rgba(59,130,246,0.06) 46%, transparent 72%)",
+  // …with a faint warm catch-light in the very corner (no warm wash over
+  // the photo: on its blue-grey that read as a muddy brown).
+  "radial-gradient(ellipse 26% 38% at 98% 0%, rgba(255,214,170,0.14) 0%, transparent 70%)",
+  // Cool accent behind the heading.
+  "radial-gradient(ellipse 58% 52% at 8% 18%, rgba(96,165,250,0.16) 0%, rgba(59,130,246,0.04) 46%, transparent 70%)",
+  // Lens vignette.
+  "radial-gradient(ellipse 120% 105% at 66% 44%, transparent 56%, rgba(2,6,20,0.55) 100%)",
 ].join(", ");
-const depthBackgroundSize = "auto, auto, auto, auto, auto, auto, auto, auto";
-const depthBackgroundPosition = "0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0";
+const depthBackgroundSize = "auto, auto, auto, auto, auto, auto, auto";
+const depthBackgroundPosition = "0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0";
 
 const Hero = () => {
   // What next/image's `preload` did: a <link rel="preload"> in <head> with the
@@ -103,7 +97,7 @@ const Hero = () => {
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              objectPosition: "center 38%",
+              objectPosition: "62% 46%",
             }}
           />
         </picture>
@@ -131,7 +125,7 @@ const Hero = () => {
 
           {/* Greeting, actionable benefits and the saved account profile. */}
           <div
-            className="hero-account-surface flex min-w-0 flex-col justify-center gap-3 rounded-[24px] border border-white/30 bg-slate-950/70 p-3.5 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-4"
+            className="hero-account-surface hero-bonus-surface flex min-w-0 flex-col justify-center gap-3 rounded-[24px] border border-white/30 bg-slate-950/70 p-3.5 shadow-[0_24px_64px_rgba(2,6,23,0.38),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:p-4 lg:p-4"
           >
             <LazyHeroAccountClient variant="panel" />
 

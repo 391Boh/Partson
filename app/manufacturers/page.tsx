@@ -80,7 +80,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ],
     openGraphTitle: "Бренди автозапчастин | PartsON",
     image: {
-      url: "/opengraph-partson-v3.png",
+      url: "/opengraph-partson-v4.jpg",
       alt: "PartsON - бренди і виробники автозапчастин",
     },
   });

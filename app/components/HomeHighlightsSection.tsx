@@ -27,7 +27,7 @@ export default function HomeHighlightsSection() {
   );
 
   return (
-    <Suspense fallback={<HomeHighlightsSlider services={services} />}>
+    <Suspense fallback={<HomeHighlightsSlider services={services} pending />}>
       <InitialHighlights services={services} />
     </Suspense>
   );

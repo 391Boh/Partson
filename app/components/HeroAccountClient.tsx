@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ShoppingBag, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent } from "lucide-react";
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { ShoppingBag, LogIn, UserPlus, Percent, Handshake, Target, BadgeCheck, BadgePercent, ArrowRight, Gift } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
@@ -245,6 +245,8 @@ const fetchOrdersSummary = (uid: string): Promise<OrdersSummary> => {
 export default function HeroAccountClient({
   variant = "actions",
 }: HeroAccountClientProps) {
+  const [bonusesOpen, setBonusesOpen] = useState(false);
+  const bonusesId = useId();
   const [hasOrders, setHasOrders] = useState<boolean | null>(null);
   const [isPartner, setIsPartner] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -532,12 +534,15 @@ export default function HeroAccountClient({
   // before the box's own bottom edge. That gap is what pushed the
   // tagline/buttons block down below it, no matter how the block below was
   // told to align itself — the real fix was here, not there.
+  const savedProfile =
+    user && profile && (profile.cars.length > 0 || profile.vins.length > 0) ? profile : null;
   const benefits = (
     // The greeting card wears the cover chosen in the profile (globals.css,
     // `.hero-account-surface:has(.hero-benefits[data-profile-theme])`).
-    <div className="hero-benefits flex w-full min-w-0 flex-col space-y-2.5"
+    <div className="hero-benefits hero-bonus-disclosure w-full min-w-0"
+      data-bonuses-open={bonusesOpen}
       data-profile-theme={user ? profile?.profileTheme ?? cachedAppearance?.theme : undefined}>
-      <div className="flex items-center justify-start gap-3">
+      <div className="hero-bonus-heading flex items-center justify-start gap-3" aria-hidden={bonusesOpen} inert={bonusesOpen}>
         {/* A fixed avatar box keeps the greeting stable while artwork loads. */}
         {user ? (
           <HeroGreetingAvatar
@@ -549,45 +554,64 @@ export default function HeroAccountClient({
             isPartner={isPartner}
             isAdmin={profile?.isAdmin ?? false}
           />
-        ) : (
-          <svg
-            viewBox="0 0 24 24"
-            className="h-9 w-9 shrink-0 text-sky-200/90 drop-shadow-[0_0_14px_rgba(56,189,248,0.45)]"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M4 10h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10z" />
-            <path d="M2 7h20v3H2z" />
-            <path d="M12 7v15" />
-            <path d="M7.5 7a2.5 2.5 0 1 1 0-5c2.5 0 4.5 5 4.5 5" />
-            <path d="M16.5 7a2.5 2.5 0 1 0 0-5c-2.5 0-4.5 5-4.5 5" />
-          </svg>
-        )}
+        ) : <span className="hero-bonus-symbol" aria-hidden="true"><Gift size={26} strokeWidth={1.7} /></span>}
         <div className="flex min-w-0 flex-1 flex-col items-start justify-center text-left">
           <p className="font-display break-words text-base font-black uppercase tracking-[0.1em] text-slate-100 [text-shadow:0_2px_10px_rgba(2,6,23,0.85)] sm:text-lg sm:tracking-[0.14em]">
             {user && displayName ? (
-              <>Вітаю, {displayName}!</>
+              <>Вітаю, <span className="hero-bonus-name">{displayName}</span>!</>
             ) : (
-              "Переваги партнерства з PartsON"
+              "Бонуси та переваги"
             )}
           </p>
           <span className="h-0.5 w-32 bg-gradient-to-r from-cyan-300/90 via-sky-300/45 to-transparent" />
+          {user && (
+            <span className="hero-bonus-caption">
+              {isPartner ? `Партнер PartsON · знижка ${PARTNER_DISCOUNT_PERCENT}%` : "Ваші бонуси та збережене"}
+            </span>
+          )}
         </div>
 
       </div>
-      {/* `auto-fit`/`minmax` keeps 2–4 cards in rows on any width, wrapping
-          only when a card would get under 190px. Styling: globals.css
-          (.hero-benefit); the card's tint follows `data-benefit`. */}
-      <ul className="hero-benefit-list grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2 text-white">
-        {benefitItems.map(({ id, label, hint, figure, icon: Icon, onClick, tone }) => (
-          <li key={id} className="min-w-0">
+      <div className="hero-bonus-intro" data-profile={savedProfile ? "" : undefined} aria-hidden={bonusesOpen} inert={bonusesOpen}>
+        {/* Signed in with a saved car or VIN: they take the intro's fixed
+            track, so signing in never changes the card's height (it used
+            to grow a 128px profile area under the card and push the page). */}
+        {savedProfile ? (
+          <HeroSavedProfile
+            compact
+            profile={savedProfile}
+            onOpenCatalogForCars={openCatalogForCars}
+            onOpenDeliverySettings={openDeliverySettings}
+            onOpenVins={() => window.dispatchEvent(new Event("openAccountVin"))}
+            onDeleteCar={handleDeleteCar}
+            onDeleteVin={handleDeleteVin}
+          />
+        ) : (<>
+        <p>
+          {user ? (
+            <>Ваші <strong>знижки</strong>, <strong>партнерські умови</strong> та <strong>підбір деталей</strong> під збережені авто.</>
+          ) : (
+            <><strong>Знижки</strong>, <strong>партнерські умови</strong> та <strong>підбір деталей</strong> для вашого авто.</>
+          )}
+        </p>
+        {/* A preview of what opens: the four bonus tiles, stacked. */}
+        <span className="hero-bonus-preview" aria-hidden="true">
+          {benefitItems.map(({ id, figure, icon: Icon, tone }) => (
+            <span key={id} className="hero-bonus-preview-chip" data-benefit={id} data-tone={tone}>
+              {figure ? <span className="hero-bonus-preview-figure">{figure}</span> : <Icon strokeWidth={1.9} />}
+            </span>
+          ))}
+          <span className="hero-bonus-preview-count">{benefitItems.length} бонуси</span>
+        </span>
+        </>)}
+      </div>
+      <ul id={bonusesId} aria-label="Бонуси та переваги PartsON" aria-hidden={!bonusesOpen} inert={!bonusesOpen} className="hero-benefit-list grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-2 text-white">
+        {benefitItems.map(({ id, label, hint, figure, icon: Icon, onClick, tone }, index) => (
+          <li key={id} className="min-w-0" style={{ "--bonus-index": index } as CSSProperties}>
             <button
               type="button"
               onClick={onClick}
+              aria-label={[figure, label, hint].filter(Boolean).join(". ")}
               data-benefit={id}
               data-tone={tone}
               className="hero-benefit group home-chip-hover"
@@ -603,6 +627,19 @@ export default function HeroAccountClient({
           </li>
         ))}
       </ul>
+      <button
+        type="button"
+        // Its ::before stretches over the whole card (globals.css), so a click
+        // anywhere on the closed card opens the bonuses; keyboard and screen
+        // readers keep this one real button.
+        className="hero-bonus-toggle"
+        aria-expanded={bonusesOpen}
+        aria-controls={bonusesId}
+        onClick={() => setBonusesOpen(open => !open)}
+      >
+        <span>{bonusesOpen ? "Сховати бонуси" : "Переглянути бонуси"}</span>
+        <ArrowRight size={18} aria-hidden="true" />
+      </button>
     </div>
   );
 
@@ -610,9 +647,6 @@ export default function HeroAccountClient({
     return (
       <>
         {benefits}
-        <div className="hero-account-actions items-center text-center">
-          {actions}
-        </div>
       </>
     );
   }

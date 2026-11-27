@@ -26,7 +26,7 @@ export default function HomeHeading({ children, id, align = "start", className =
       </span>
       <h2
         id={id}
-        className="font-display font-display-readable !m-0 !max-w-[24ch] !text-[clamp(27px,1.4vw+19px,40px)] !font-[800] !leading-[1.08] !tracking-[-.032em] !text-[#0b2233] ![text-shadow:0_1px_0_rgb(255_255_255/90%),0_2px_0_rgb(8_70_90/14%),0_3px_0_rgb(8_70_90/8%),0_8px_18px_rgb(15_60_80/22%)] [-webkit-text-stroke:3px_rgb(255_255_255/80%)] [paint-order:stroke_fill] [text-wrap:balance] *:!inline *:!no-underline *:!whitespace-normal *:bg-[linear-gradient(180deg,transparent_60%,rgb(94_234_212/45%)_60%,rgb(94_234_212/45%)_92%,transparent_92%)] *:px-[0.08em] *:!text-[#086f7a] *:[-webkit-box-decoration-break:clone] *:[box-decoration-break:clone]"
+        className="font-display font-display-readable !m-0 !max-w-[24ch] !text-[clamp(30px,1.6vw+20px,44px)] !font-[860] !leading-[1.04] !tracking-[-.028em] !text-[#06192a] home-heading-contour [-webkit-text-stroke:3px_rgb(255_255_255/80%)] [paint-order:stroke_fill] [text-wrap:balance] *:!inline *:!no-underline *:!whitespace-normal *:bg-[linear-gradient(180deg,transparent_60%,rgb(94_234_212/45%)_60%,rgb(94_234_212/45%)_92%,transparent_92%)] *:px-[0.08em] *:!text-[#04707c] *:[-webkit-box-decoration-break:clone] *:[box-decoration-break:clone]"
       >
         {children}
       </h2>

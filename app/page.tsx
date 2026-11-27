@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   ],
   openGraphTitle: homeTitle,
   image: {
-    url: "/opengraph-partson-v3.png",
+    url: "/opengraph-partson-v4.jpg",
     alt: "Інтернет-магазин автозапчастин у Львові PartsON",
   },
   }),

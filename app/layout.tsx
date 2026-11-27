@@ -267,7 +267,7 @@ export const metadata: Metadata = {
     description: rootSocialDescription,
     images: [
       {
-        url: "/opengraph-partson-v3.png",
+        url: "/opengraph-partson-v4.jpg",
         width: 1200,
         height: 630,
         alt: "PartsON - автозапчастини",
@@ -278,7 +278,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PartsON - Магазин автозапчастин",
     description: rootSocialDescription,
-    images: [{ url: "/opengraph-partson-v3.png", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
+    images: [{ url: "/opengraph-partson-v4.jpg", width: 1200, height: 630, alt: "PartsON - автозапчастини" }],
   },
 };
 

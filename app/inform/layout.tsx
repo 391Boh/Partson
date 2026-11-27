@@ -28,7 +28,7 @@ const baseMetadata = buildPageMetadata({
   ],
   openGraphTitle: "Інформація для клієнтів | PartsON",
   image: {
-    url: "/opengraph-partson-v3.png",
+    url: "/opengraph-partson-v4.jpg",
     alt: "Інформація PartsON",
   },
 });

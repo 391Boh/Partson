@@ -99,7 +99,7 @@ export async function generateMetadata(): Promise<Metadata> {
     ],
     openGraphTitle: "Категорії автозапчастин, групи та підгрупи | PartsON",
     image: {
-      url: "/opengraph-partson-v3.png",
+      url: "/opengraph-partson-v4.jpg",
       alt: "PartsON - категорії автозапчастин",
     },
   });

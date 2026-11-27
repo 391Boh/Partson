@@ -1,6 +1,7 @@
 import Link from "next/link";
 import HomeHeading from "./HomeHeading";
 import { ArrowRight, ArrowUpRight, Clock3 } from "lucide-react";
+import FadeInOnLoad from "./FadeInOnLoad";
 import HomeArrivalBackdropMotion from "./HomeArrivalBackdropMotion";
 
 import { buildGroupItemPath } from "app/lib/catalog-links";
@@ -29,7 +30,7 @@ export default function HomeNewArrivalsBanner() {
   return (
     <section
       aria-labelledby="home-arrivals-title"
-      className="home-arrivals-banner font-ui relative isolate overflow-hidden py-10 text-[#0f2b3d] [contain-intrinsic-size:auto_1200px] [content-visibility:auto] sm:py-14 min-[720px]:[contain-intrinsic-size:auto_920px] xl:py-20 xl:[contain-intrinsic-size:auto_760px]"
+      className="home-arrivals-banner font-ui relative isolate overflow-hidden py-10 text-[#0f2b3d] sm:py-14 xl:py-20"
     >
       {/* Background: a soft mesh of teal, sky and lilac light over a pale
           ground, a light beam behind the heading, a fine grid fading out from
@@ -44,6 +45,7 @@ export default function HomeNewArrivalsBanner() {
         <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/35%),transparent)]" />
         <div className="absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgb(8_119_131/35%),transparent)]" />
         <HomeArrivalBackdropMotion>
+          <FadeInOnLoad>
           {HOME_ARRIVAL_FLOATING.map((item) => (
             <picture key={item.code} className={`absolute block aspect-square mix-blend-multiply ${item.className}`}>
               <source media="(min-width: 1280px)" srcSet={HOME_ARRIVAL_IMAGES[item.code].src} />
@@ -61,6 +63,7 @@ export default function HomeNewArrivalsBanner() {
               />
             </picture>
           ))}
+          </FadeInOnLoad>
         </HomeArrivalBackdropMotion>
       </div>
 
@@ -109,6 +112,7 @@ export default function HomeNewArrivalsBanner() {
                 className="group/card flex h-full items-center gap-3 rounded-[20px] border border-white/80 bg-white/65 p-3 shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_12px_28px_-18px_rgb(15_60_80/40%)] backdrop-blur-md backdrop-saturate-150 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-[cubic-bezier(.16,1,.3,1)] hover:-translate-y-0.5 hover:border-[#5eead4]/60 hover:bg-white/85 hover:shadow-[inset_0_1px_0_rgb(255_255_255/90%),0_1px_2px_rgb(15_43_61/5%),0_20px_34px_-20px_rgb(8_90_110/50%)] min-[480px]:gap-4 min-[480px]:p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087783] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <span className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[14px] bg-white/85 shadow-[inset_0_0_0_1px_rgb(15_76_92/6%)] min-[360px]:h-20 min-[360px]:w-20 min-[480px]:h-[88px] min-[480px]:w-[88px] min-[720px]:h-20 min-[720px]:w-20 xl:h-[88px] xl:w-[88px] 2xl:h-24 2xl:w-24">
+                  <FadeInOnLoad>
                   {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized static WebP */}
                   <img
                     src={HOME_ARRIVAL_IMAGES[card.code].src}
@@ -120,6 +124,7 @@ export default function HomeNewArrivalsBanner() {
                     fetchPriority="low"
                     className="absolute inset-0 h-full w-full object-contain p-2 mix-blend-multiply transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] group-hover/card:scale-[1.07] motion-reduce:transition-none"
                   />
+                  </FadeInOnLoad>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-2 min-[720px]:min-h-[2.6em]">

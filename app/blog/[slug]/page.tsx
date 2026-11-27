@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import React, { Suspense } from "react";
 import Image from "next/image";
+import BlogCoverImage from "app/components/BlogCoverImage";
+import { getBlogEditorialCover } from "app/lib/blog-editorial-images";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, BookOpen, Clock, ShieldCheck, ShoppingBag } from "lucide-react";
@@ -26,7 +28,7 @@ type BlogPostPageProps = { params: Promise<{ slug: string }> };
 
 export const revalidate = 3600;
 
-const RELATED_POSTS_MIN_HEIGHT = 360;
+const RELATED_POSTS_MIN_HEIGHT = 420;
 
 function RelatedBlogPostsFallback() {
   return (
@@ -48,17 +50,36 @@ async function RelatedBlogPosts({ currentSlug }: { currentSlug: string }) {
     <section className="blog-related" aria-labelledby="blog-related-title" style={{ minHeight: RELATED_POSTS_MIN_HEIGHT }}>
       <h2 id="blog-related-title">Читайте також</h2>
       <ul>
-        {otherPosts.map((other) => (
-          <li key={other.slug}>
-            <Link href={`/blog/${other.slug}`}>
-              <BookOpen size={18} aria-hidden="true" />
-              <span>
-                <strong>{other.title}</strong>
-                <small>{blogReadingMinutes(other.content)} хв читання</small>
-              </span>
-            </Link>
-          </li>
-        ))}
+        {otherPosts.map((other) => {
+          const imageSrc = getBlogEditorialCover(other)?.src || toPublicBlogImageSrc(
+            other.imageDataUrl,
+            other.slug,
+            null,
+            buildBlogImageVersion(other),
+          );
+          return (
+            <li key={other.slug}>
+              <Link href={`/blog/${other.slug}`}>
+                <span className="blog-related-image">
+                  {imageSrc ? (
+                    <BlogCoverImage
+                      src={imageSrc}
+                      alt={other.imageAlt || other.title}
+                      fill
+                      sizes="112px"
+                      loading="lazy"
+                    />
+                  ) : <BookOpen size={24} aria-hidden="true" />}
+                </span>
+                <span className="blog-related-copy">
+                  <strong>{other.title}</strong>
+                  <small>{blogReadingMinutes(other.content)} хв читання</small>
+                </span>
+                <ArrowUpRight size={20} aria-hidden="true" />
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -228,9 +249,10 @@ export async function generateMetadata({
     .slice(0, 6);
   // A 16:9 crop of the cover (≤1200px wide) — the shape Google and social
   // networks use for large previews — instead of the raw upload.
-  const socialImage = post.imageDataUrl
+  const editorial = getBlogEditorialCover(post);
+  const socialImage = editorial?.src || (post.imageDataUrl
     ? buildBlogCoverCropPath(post.slug, "16x9", buildBlogImageVersion(post))
-    : "/opengraph-partson-v3.png";
+    : "/opengraph-partson-v4.jpg");
   return buildPageMetadata({
     title: post.title,
     description: appendSeoContact(post.excerpt),
@@ -242,7 +264,7 @@ export async function generateMetadata({
       post.title,
       ...contentWords,
     ],
-    image: { url: socialImage, alt: post.imageAlt || post.title },
+    image: { url: socialImage, alt: editorial?.alt || post.imageAlt || post.title },
     openGraphTitle: `${post.title} | Блог PartsON`,
   });
 }
@@ -257,13 +279,14 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const published = post.publishedAt || post.createdAt;
   const updated = post.updatedAt || published;
   const siteOrigin = siteUrl.replace(/\/$/, "");
+  const editorial = getBlogEditorialCover(post);
   // Google recommends article images in 16:9, 4:3 and 1:1.
   const seoImage = post.imageDataUrl
     ? (["16x9", "4x3", "1x1"] as const).map(
         (ratio) =>
-          `${siteOrigin}${buildBlogCoverCropPath(post.slug, ratio, buildBlogImageVersion(post))}`,
+          `${siteOrigin}${editorial?.crops[ratio] || buildBlogCoverCropPath(post.slug, ratio, buildBlogImageVersion(post))}`,
       )
-    : [`${siteOrigin}/opengraph-partson-v3.png`];
+    : [`${siteOrigin}/opengraph-partson-v4.jpg`];
 
   const contentBlocks = parseContent(post.content);
   const topics = findBlogTopics(post.content);
@@ -273,12 +296,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   // Legacy posts keep images as inline base64 — swap them for short proxy
   // URLs so the HTML doesn't carry megabytes of image data.
   const imageVersion = buildBlogImageVersion(post);
-  const coverImageSrc = toPublicBlogImageSrc(
+  const originalCoverImageSrc = toPublicBlogImageSrc(
     post.imageDataUrl,
     post.slug,
     null,
     imageVersion,
   );
+  const coverImageSrc = editorial?.src || originalCoverImageSrc;
   const extraImages = (post.extraImages ?? []).map(
     (src, index) =>
       toPublicBlogImageSrc(src, post.slug, index, imageVersion) ?? "",
@@ -386,53 +410,58 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         initialTitle={post.title}
         initialExcerpt={post.excerpt}
         initialContent={post.content}
-        initialImageDataUrl={coverImageSrc}
+        initialImageDataUrl={originalCoverImageSrc}
         initialImageAlt={post.imageAlt}
         initialExtraImages={post.extraImages ? extraImages : undefined}
         initialVideoUrl={post.videoUrl}
       />
       <article>
-        <header className="blog-article-header page-shell-inline">
-          <nav className="blog-breadcrumb" aria-label="Навігація статті">
-            <Link href="/">Головна</Link>
-            <span aria-hidden="true">/</span>
-            <Link href="/blog">Блог</Link>
-            <span aria-hidden="true">/</span>
-            <span className="blog-breadcrumb-current" aria-current="page">{post.title}</span>
-          </nav>
-          <h1 className="font-display">{post.title}</h1>
-          <p className="blog-article-deck">{post.excerpt}</p>
-          <div className="blog-article-byline">
-            <Link href="/authors/partson" rel="author">
-              <ShieldCheck size={18} aria-hidden="true" />
-              Редакція PartsON
-            </Link>
-            <time dateTime={published}>{formatBlogDate(published)}</time>
-            <span>
-              <Clock size={15} aria-hidden="true" />
-              {blogReadingMinutes(post.content)} хв читання
-            </span>
-            {!isSameDay(updated, published) && (
-              <time dateTime={updated}>Оновлено {formatBlogDate(updated)}</time>
-            )}
+        <header className="blog-article-header">
+          <div className="page-shell-inline blog-article-navigation">
+            <nav className="blog-breadcrumb" aria-label="Навігація статті">
+              <Link href="/">Головна</Link>
+              <span aria-hidden="true">/</span>
+              <Link href="/blog">Блог</Link>
+              <span aria-hidden="true">/</span>
+              <span className="blog-breadcrumb-current" aria-current="page">{post.title}</span>
+            </nav>
           </div>
-          {coverImageSrc && (
-            <figure className="blog-article-cover">
-              <Image
-                src={coverImageSrc}
-                alt={post.imageAlt || post.title}
-                width={1200}
-                height={675}
-                // Responsive WebP/AVIF through the image optimizer: the
-                // original cover is ~260 KB, three times what a phone needs.
-                sizes="(max-width: 1280px) calc(100vw - 32px), 1200px"
-                quality={75}
-                loading="eager"
-                fetchPriority="high"
-                className="blog-cover-image"
-              />
-            </figure>
-          )}
+          <div className="blog-article-hero">
+            {coverImageSrc && (
+              <figure className="blog-article-cover">
+                <BlogCoverImage
+                  src={coverImageSrc}
+                  alt={post.imageAlt || post.title}
+                  fill
+                  sizes="100vw"
+                  quality={75}
+                  loading="eager"
+                  fetchPriority="high"
+                  className="blog-cover-image"
+                />
+              </figure>
+            )}
+            <div className="page-shell-inline blog-article-hero-inner">
+              <div className="blog-article-intro">
+                <h1 className="font-display">{post.title}</h1>
+                <p className="blog-article-deck">{post.excerpt}</p>
+                <div className="blog-article-byline">
+                  <Link href="/authors/partson" rel="author">
+                    <ShieldCheck size={18} aria-hidden="true" />
+                    Редакція PartsON
+                  </Link>
+                  <time dateTime={published}>{formatBlogDate(published)}</time>
+                  <span>
+                    <Clock size={15} aria-hidden="true" />
+                    {blogReadingMinutes(post.content)} хв читання
+                  </span>
+                  {!isSameDay(updated, published) && (
+                    <time dateTime={updated}>Оновлено {formatBlogDate(updated)}</time>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </header>
         <div
           className={`page-shell-inline blog-reading-layout ${headings.length ? "blog-reading-layout--with-toc" : ""}`}

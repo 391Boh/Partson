@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 
+// 1200×630 JPEG (~105 KB). The previous 600 KB PNG was over WhatsApp's
+// ~300 KB preview limit.
 const DEFAULT_IMAGE = {
-  url: "/opengraph-partson-v3.png",
+  url: "/opengraph-partson-v4.jpg",
   width: 1200,
   height: 630,
   alt: "PartsON - автозапчастини",
@@ -240,8 +242,17 @@ export const buildPageMetadata = ({
             images: [
               {
                 url: image.url,
-                ...(image.width ? { width: image.width } : {}),
-                ...(image.height ? { height: image.height } : {}),
+                // The shared site card always carries its dimensions, even
+                // when a page passes only the URL and alt text: without
+                // og:image:width/height Facebook and messengers often show a
+                // first share with no picture.
+                ...((image.width ?? (image.url === DEFAULT_IMAGE.url ? DEFAULT_IMAGE.width : 0))
+                  ? { width: image.width ?? DEFAULT_IMAGE.width }
+                  : {}),
+                ...((image.height ?? (image.url === DEFAULT_IMAGE.url ? DEFAULT_IMAGE.height : 0))
+                  ? { height: image.height ?? DEFAULT_IMAGE.height }
+                  : {}),
+                ...(image.url === DEFAULT_IMAGE.url ? { type: "image/jpeg" } : {}),
                 alt: image.alt ?? DEFAULT_IMAGE.alt,
               },
             ],

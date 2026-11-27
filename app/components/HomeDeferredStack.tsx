@@ -64,10 +64,15 @@ function DeferredHomeSection({
   tone,
 }: DeferredHomeSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
+  const loadingObserverRef = useRef<IntersectionObserver | null>(null);
   const [shouldMount, setShouldMount] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const markReady = useCallback(() => setReady(true), []);
+
+  useEffect(() => {
+    if (ready) loadingObserverRef.current?.disconnect();
+  }, [ready]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -118,7 +123,8 @@ function DeferredHomeSection({
       cancelPreparation?.();
       if (onScroll) window.removeEventListener("scroll", onScroll);
       nearObserver?.disconnect();
-      visibleObserver?.disconnect();
+      // Keep visibility tracking until ready so a pending preview can pause
+      // its motion even while code/styles/data are still arriving.
       // Fetch while the bounded scroll-settle delay runs. Only this section's
       // chunk/data are warmed; unused catalogue modules stay off the network.
       // The dynamic component/error boundary handles an actual load failure.
@@ -139,6 +145,7 @@ function DeferredHomeSection({
         mountWhenScrollSettles();
       }).catch((error: unknown) => {
         if (cancelled) return;
+        visibleObserver?.disconnect();
         setLoadError(error);
         setShouldMount(true);
         setReady(true);
@@ -164,6 +171,7 @@ function DeferredHomeSection({
     }).connection;
     const conserveData = connection?.saveData ||
       connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+    section.toggleAttribute("data-loading-still", Boolean(conserveData));
 
     // A slot can already intersect the prefetch margin on first paint. In
     // that case IntersectionObserver won't notify us again as scrolling
@@ -210,12 +218,15 @@ function DeferredHomeSection({
     // act on a real, later transition into view from an actual scroll.
     let visibleObserverPrimed = false;
     visibleObserver = new IntersectionObserver(([entry]) => {
+      // A loading surface only needs motion while someone can see it.
+      section.toggleAttribute("data-loading-visible", Boolean(entry?.isIntersecting));
       if (!visibleObserverPrimed) {
         visibleObserverPrimed = true;
         return;
       }
       if (entry?.isIntersecting) requestMount();
     });
+    loadingObserverRef.current = visibleObserver;
     nearObserver.observe(section);
     visibleObserver.observe(section);
     // Prepare only nearby modules after critical resources finish. This keeps
@@ -268,7 +279,23 @@ function DeferredHomeSection({
       <div
         className={`home-section-skeleton home-section-skeleton-${tone} ${ready ? "is-ready" : ""}`}
         aria-hidden="true"
-      />
+      >
+        <div className="home-loading-preview page-shell-inline">
+          <p className="home-loading-title">{label}</p>
+          <div className="home-loading-status">
+            <span aria-hidden="true" />
+            Готуємо добірку для вас
+          </div>
+          <div className="home-loading-grid">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="home-loading-tile">
+                <span className="home-loading-art" />
+                <span className="home-loading-lines"><span /><span /></span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

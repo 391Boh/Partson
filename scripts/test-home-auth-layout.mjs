@@ -9,7 +9,7 @@ const result = await build({
     import React from 'react'; import { createRoot } from 'react-dom/client';
     import HeroAccountClient from './app/components/HeroAccountClient';
     createRoot(document.getElementById('root')).render(<div className="home-static">
-      <div className="hero-account-surface flex min-w-0 flex-col justify-center gap-3 rounded-[24px] border border-white/30 bg-slate-950/70 p-3.5 sm:p-4 lg:p-4"><HeroAccountClient variant="panel" /></div>
+      <div className="hero-account-surface hero-bonus-surface flex min-w-0 flex-col justify-center gap-3 rounded-[24px] border border-white/30 bg-slate-950/70 p-3.5 sm:p-4 lg:p-4"><HeroAccountClient variant="panel" /></div>
       <div id="following-section">Наступний блок</div>
     </div>);
   ` },
@@ -58,29 +58,52 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     const geometry = () => page.evaluate(() => ({
       panel: document.querySelector('.hero-account-surface').getBoundingClientRect().height,
-      buttons: document.querySelector('.hero-account-actions').getBoundingClientRect().top,
+      buttons: document.querySelector('.hero-account-actions')?.getBoundingClientRect().top ?? null,
       following: document.querySelector('#following-section').getBoundingClientRect().top,
-      greetingText: document.querySelector('.hero-benefits > div:first-child p').getBoundingClientRect().x,
-      benefitRows: [...document.querySelectorAll('.hero-benefit')].map(el => ({top:el.getBoundingClientRect().top,height:el.getBoundingClientRect().height})),
+      // The animated list changes containing blocks with its transform.
+      // External geometry and stable row heights are the regression contract.
+      benefitRows: [...document.querySelectorAll('.hero-benefit')].map(el => ({height:el.offsetHeight})),
     }));
     const initial = await geometry();
     const metrics = await page.evaluate(() => ({
       panelHeight: document.querySelector('.hero-account-surface').getBoundingClientRect().height,
-      actionHeight: document.querySelector('.hero-account-actions').getBoundingClientRect().height,
+      actionHeight: document.querySelector('.hero-account-actions')?.getBoundingClientRect().height ?? 0,
       labels: [...document.querySelectorAll('.hero-benefits button > span:last-child')].map(el => ({ visible: el.clientHeight, content: el.scrollHeight })),
     }));
     assert(metrics.labels.every(label => label.content <= label.visible + 1), `Benefit labels fit at ${width}px`);
+    const toggle = page.locator('.hero-bonus-toggle');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('.hero-benefit:visible').count(), 0, 'Initial introduction hides bonus actions');
+    await toggle.focus();
+    await toggle.press('Enter');
+    await page.waitForTimeout(400);
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('.hero-benefit:visible').count(), 4, 'Keyboard activation reveals four actionable benefits');
+    assert.equal(await page.locator('.hero-benefit-list').getAttribute('inert'), null);
+    assert.deepEqual(await geometry(), initial, 'Opening bonuses does not shift the layout');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Revealed bonuses fit the viewport');
+    await toggle.press('Enter');
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('.hero-benefit:visible').count(), 0, 'Second activation restores introduction');
+    assert.deepEqual(await geometry(), initial, 'Closing bonuses restores the compact introduction');
     await page.evaluate(() => window.restoreGuest());
-    await page.getByRole('button', { name: 'Увійти', exact: true }).waitFor();
+    await page.waitForTimeout(100);
+    assert.equal(await page.getByRole('button', { name: 'Увійти', exact: true }).count(), 0, 'Bonus panel has no login button');
+    assert.equal(await page.getByRole('button', { name: 'Реєстрація', exact: true }).count(), 0, 'Bonus panel has no registration button');
+    assert.equal(await page.locator('.hero-account-actions').count(), 0, 'Guests have no empty account footer');
+    assert.equal(await page.locator('.hero-bonus-symbol svg').count(), 1, 'Guest introduction has a gift icon');
     assert.deepEqual(await geometry(), initial, `Guest restoration keeps geometry at ${width}px`);
     await page.evaluate(() => window.restoreUser());
     await page.getByRole('button', { name: 'Відкрити профіль', exact: true }).waitFor();
-    assert.deepEqual(await geometry(), initial, `User restoration keeps geometry at ${width}px`);
+    const signedIn = await geometry();
     await page.getByRole('list', { name: 'Збережені дані профілю' }).waitFor();
-    assert.deepEqual(await geometry(), initial, `Late profile/chunk keeps geometry at ${width}px`);
+    assert.deepEqual(await geometry(), signedIn, `Late profile/chunk keeps geometry at ${width}px`);
     assert.equal(await page.evaluate(() => window.heroOrderLimit), 1, 'First-order check reads at most one order');
-    assert(await page.locator('.hero-profile-actions button').evaluateAll(buttons => buttons.every(button => button.getBoundingClientRect().height >= 44 && button.getBoundingClientRect().width >= 44)), 'Primary actions retain 44px targets');
-    assert(await page.locator('.hero-profile-slot').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'Saved profile fits reserved space');
+    assert(await toggle.evaluate(button => button.getBoundingClientRect().height >= 44 && button.getBoundingClientRect().width >= 44), 'Bonus action retains a 44px target');
+    // Signed in: the saved car/VIN live in the intro's fixed track, so the
+    // card keeps the guest height (no layout shift on sign-in).
+    assert(await page.locator('.hero-bonus-intro[data-profile]').evaluate(el => el.scrollHeight <= el.clientHeight + 1), 'Saved profile fits the intro track');
+    assert.equal((await geometry()).panel, initial.panel, `Signed-in card keeps the guest height at ${width}px`);
     assert.equal(await page.locator('.hero-profile-invitation').count(), 0, 'Profile invitation stays hidden for signed-in users');
     await page.screenshot({ path: `/tmp/home-auth-layout-${width}.png` });
     console.log(JSON.stringify({ width, ...metrics, stableGeometry: true, actionTargets: "44px+" }));

@@ -1,22 +1,36 @@
 "use client";
 
-import Image, { type ImageLoaderProps } from "next/image";
+import Image from "next/image";
+import BlogCoverImage from "./BlogCoverImage";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, BookOpen, ChevronLeft, ChevronRight, Gauge } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { HOME_BLOG_OVERVIEW, type HomeHighlight } from "app/lib/home-highlights";
+import { getBlogEditorialImageBySrc } from "app/lib/blog-editorial-images";
+import { revealHomeImage } from "app/lib/home-image-reveal";
 
-// Whole sentences up to ~120 characters: the half has a fixed height, and a
-// teaser cut mid-phrase with an ellipsis read as broken. The first sentence
-// always stays, even when it is longer.
+// Keep complete sentences in the compact excerpt before the responsive clamp.
 const TEASER_MAX_CHARS = 120;
+const FIRST_ROTATE_MS = 9000;
+const ROTATE_MS = 6000;
+const ARTICLE_COVER_SIZES = "(max-width: 767px) 100vw, 57vw";
 const VISUALLY_HIDDEN = {
   position: "absolute", width: 1, height: 1, padding: 0, margin: -1,
   overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0,
 } as const;
-// Homepage preview URLs already serve a resized, cached WebP.
-const isPreparedCover = (image: string) => image.startsWith("/api/blog/og-image/") && image.includes("preview=1");
-const preparedCoverLoader = ({ src, width }: ImageLoaderProps) => `${src}&w=${Math.max(320, Math.min(width, 768))}`;
+// Only local editorial compositions are used as the article background.
+const backgroundOf = (item: HomeHighlight) =>
+  item.image.startsWith("/images/blog/editorial-v1/") ? item.image : HOME_BLOG_OVERVIEW.image;
+// Titles read as "subject: question" — the second half takes the mint accent.
+// A service title without one accents its trailing place ("… у Львові").
+const accentTitle = (title: string) => {
+  const split = title.match(/^(.+?)(:|\s[—–-])\s+(.+)$/u);
+  if (split) return <>{split[1]}{split[2]} <span className="home-highlight-accent">{split[3]}</span></>;
+  const place = title.match(/^(.+)\s(у\s\S+)$/u);
+  if (place) return <>{place[1]} <span className="home-highlight-accent">{place[2]}</span></>;
+  return title;
+};
+type Selection = { current: HomeHighlight; previous: HomeHighlight | null; dir: 1 | -1 };
 const teaserOf = (text: string) => {
   const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?…]+[.!?…]+(?=\s|$)|[^.!?…]+$/g) ?? [];
   let teaser = "";
@@ -28,15 +42,18 @@ const teaserOf = (text: string) => {
   return teaser.replace(/\s*(?:\.{3}|…)$/, ".");
 };
 
-export default function HomeHighlightsSlider({ services, initialArticles = [], serverResolved = false }: { services: HomeHighlight[]; initialArticles?: HomeHighlight[]; serverResolved?: boolean }) {
+export default function HomeHighlightsSlider({ services, initialArticles = [], serverResolved = false, pending = false }: { services: HomeHighlight[]; initialArticles?: HomeHighlight[]; serverResolved?: boolean; pending?: boolean }) {
   const [articles, setArticles] = useState<HomeHighlight[]>(() => initialArticles.length ? initialArticles : [HOME_BLOG_OVERVIEW]);
-  const [selection, setSelection] = useState<{ current: HomeHighlight; previous: HomeHighlight | null }>(() => ({ current: initialArticles[0] ?? HOME_BLOG_OVERVIEW, previous: null }));
-  const [pendingSlide, setPendingSlide] = useState<HomeHighlight | null>(null);
+  const [selection, setSelection] = useState<Selection>(() => ({ current: initialArticles[0] ?? HOME_BLOG_OVERVIEW, previous: null, dir: 1 }));
   const [inView, setInView] = useState(false);
-  const [pageVisible, setPageVisible] = useState(true);
+  const [playbackAllowed, setPlaybackAllowed] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const sectionRef = useRef<HTMLElement>(null);
-  const playerRef = useRef<HTMLDivElement>(null);
+  const hydratedAt = useRef<number | null>(null);
+  useEffect(() => { hydratedAt.current = performance.now(); }, []);
+  const revealPhoto = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    revealHomeImage(event.currentTarget, hydratedAt.current);
+  };
   const gesture = useRef<{ x: number; y: number } | null>(null);
   // Two halves: the articles rotate on the left, the service stays on the
   // right as its own panel, so only articles take part in the carousel.
@@ -49,25 +66,16 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
-  // Keep the visible slide until next/image has decoded its replacement.
-  // Its old snapshot survives API refreshes even when it leaves the item list.
-  const commitPendingSlide = () => {
-    if (!pendingSlide) return;
-    setSelection(current => ({
-      current: pendingSlide,
-      previous: current.current.id === pendingSlide.id && current.current.image === pendingSlide.image ? null : current.current,
-    }));
-    setPendingSlide(null);
-  };
-
+  // Only local editorial backgrounds are used here: switching never waits for
+  // a database-backed cover or a cold image transform.
   useEffect(() => {
     if (!previous) return;
     const timer = window.setTimeout(() => {
       setSelection(current => current === selection ? { ...current, previous: null } : current);
-    }, 600);
+    }, 1000);
     return () => window.clearTimeout(timer);
   }, [previous, selection]);
-  const rotating = inView && pageVisible && hasSlides;
+  const rotating = inView && playbackAllowed && hasSlides;
 
   useEffect(() => {
     // The server and this endpoint share the same 10-minute cache. Fetch
@@ -84,11 +92,8 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
           setArticles(payload.items);
           const next = payload.items.find(item => item.id === selectedRef.current.id) ?? payload.items[0];
           const current = selectedRef.current;
-          if (current.id === HOME_BLOG_OVERVIEW.id) {
-            // The first real article's text must not wait on its cover decode.
-            setSelection({ current: next, previous: null });
-          } else if (JSON.stringify(current) !== JSON.stringify(next)) {
-            setPendingSlide(next);
+          if (JSON.stringify(current) !== JSON.stringify(next)) {
+            setSelection({ current: next, previous: null, dir: 1 });
           }
         }
       })
@@ -97,73 +102,62 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [serverResolved, initialArticles.length]);
 
-  // The contour's running light is measured in screen pixels (its stroke
-  // does not scale with the SVG), so it needs the block's real perimeter.
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      player.style.setProperty("--highlight-perimeter", `${Math.round(2 * (width + height))}px`);
-    });
-    observer.observe(player);
-    return () => observer.disconnect();
-  }, []);
-
-  // Only update the decorative stroke while visible; scrolling never changes
-  // the panel's geometry or React state. A short opacity tail settles at rest.
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || !inView || !pageVisible) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let lastY = window.scrollY;
-    let distance = 0;
-    let frame = 0;
-    let settleTimer = 0;
-    const paint = () => {
-      frame = 0;
-      const delta = window.scrollY - lastY;
-      lastY = window.scrollY;
-      if (reducedMotion.matches || !delta) return;
-      distance += delta * 1.05;
-      player.style.setProperty("--highlight-offset", `${-distance}px`);
-      player.style.setProperty("--highlight-pulse", String(.38 + Math.min(Math.abs(delta) / 150, .4)));
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        player.style.removeProperty("--highlight-pulse");
-      }, 180);
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(paint);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(settleTimer);
-      player.style.removeProperty("--highlight-pulse");
-    };
-  }, [inView, pageVisible]);
-
-  useEffect(() => {
-    const syncVisibility = () => setPageVisible(!document.hidden);
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    const syncVisibility = () => setPlaybackAllowed(
+      !document.hidden && !motion.matches && !connection?.saveData &&
+      !["slow-2g", "2g", "3g"].includes(connection?.effectiveType ?? ""),
+    );
     syncVisibility();
     document.addEventListener("visibilitychange", syncVisibility);
+    motion.addEventListener("change", syncVisibility);
     const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: .25 });
     if (sectionRef.current) observer.observe(sectionRef.current);
     return () => {
       observer.disconnect();
       document.removeEventListener("visibilitychange", syncVisibility);
+      motion.removeEventListener("change", syncVisibility);
     };
   }, []);
 
+  // The first article stays longer (the visitor is still reading the page
+  // as it opens); then the articles rotate every 6 s. The dot's fill uses
+  // the same interval (--dot-interval).
+  const [hasRotated, setHasRotated] = useState(false);
+  const interval = hasRotated ? ROTATE_MS : FIRST_ROTATE_MS;
   useEffect(() => {
     if (!rotating || !selected) return;
     const timer = window.setTimeout(() => {
-      setPendingSlide(items[(selectedIndex + 1) % items.length]);
-    }, 5000);
+      setHasRotated(true);
+      setSelection({ current: items[(selectedIndex + 1) % items.length], previous: selected, dir: 1 });
+    }, interval);
     return () => window.clearTimeout(timer);
-  }, [rotating, selected, selectedIndex, items]);
+  }, [rotating, selected, selectedIndex, items, interval]);
+
+  // Warm both neighbours' backgrounds so the reveal never uncovers an
+  // undecoded image. Static, immutable files: one request each per visit.
+  useEffect(() => {
+    if (!hasSlides || !inView || !playbackAllowed) return;
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || ["slow-2g", "2g", "3g"].includes(connection?.effectiveType ?? "")) return;
+    for (const step of [1, -1]) {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.fetchPriority = "low";
+      const src = backgroundOf(items[(selectedIndex + step + items.length) % items.length]);
+      const editorial = getBlogEditorialImageBySrc(src);
+      if (editorial) {
+        image.sizes = ARTICLE_COVER_SIZES;
+        image.srcset = editorial.srcSet;
+      }
+      image.src = src;
+    }
+  }, [hasSlides, inView, playbackAllowed, selectedIndex, items]);
 
   // Keep the promo's footprint stable. Scroll-driven height, typography and
   // padding invalidated layout for every section below it on every frame.
@@ -171,7 +165,9 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
   const select = (index: number) => {
     if (!items.length) return;
     const next = items[(index + items.length) % items.length];
-    setPendingSlide(next);
+    if (next.id === selected.id) return;
+    setHasRotated(true);
+    setSelection({ current: next, previous: selected, dir: index < selectedIndex ? -1 : 1 });
     setAnnouncement(next.title);
   };
 
@@ -182,11 +178,10 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
       {/* Slides carry h3 titles; this keeps the outline h1 → h2 → h3.
           Hidden inline: .sr-only is not in the homepage's critical CSS. */}
       <h2 id="home-highlights-title" style={VISUALLY_HIDDEN}>Статті та послуги PartsON</h2>
-      {/* Full bleed: both photos run edge to edge; the copy keeps to the page
-          shell's edges (--highlight-gutter in globals.css). */}
-      <div ref={playerRef} className={`home-highlights-player home-highlights-split${hasSlides ? "" : " is-static"}${service ? "" : " is-single"}${inView ? " is-in-view" : ""}`}>
+      <div className={`home-highlights-player home-highlights-split${hasSlides ? "" : " is-static"}${service ? "" : " is-single"}`}>
         <div
           className="home-highlights-stage"
+          data-dir={selection.dir < 0 ? "prev" : "next"}
           role={hasSlides ? "region" : undefined}
           aria-roledescription={hasSlides ? "карусель" : undefined}
           aria-label={hasSlides ? "Статті блогу PartsON" : undefined}
@@ -198,17 +193,19 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
             }
           }}
         >
-          {pendingSlide && (
-            <Image
-              key={`${pendingSlide.id}:${pendingSlide.image}`}
-              src={pendingSlide.image} alt="" fill aria-hidden="true"
-              loader={isPreparedCover(pendingSlide.image) ? preparedCoverLoader : undefined}
-              sizes="(max-width: 767px) 100vw, (min-width: 1280px) 720px, 57vw"
-              loading="eager" className="home-highlight-preload"
-              onLoad={commitPendingSlide}
-              onError={commitPendingSlide}
-            />
-          )}
+          <div className="home-highlight-image" aria-hidden="true">
+            {/* The outgoing photo stays underneath while the new one
+                materialises over it behind a sweeping light band. */}
+            {!pending && Array.from(new Set([...(previous ? [backgroundOf(previous)] : []), backgroundOf(selected)])).map((src, index, all) => (
+              <BlogCoverImage
+                key={src} src={src} alt="" fill unoptimized
+                sizes={ARTICLE_COVER_SIZES} loading="eager" fetchPriority="low"
+                className={`home-highlight-cover${all.length > 1 && index === all.length - 1 ? " is-materializing" : ""}`}
+                onLoad={revealPhoto}
+              />
+            ))}
+            {previous && <span key={`sweep:${selected.id}`} className="home-highlight-sweep" />}
+          </div>
           {[...(previous ? [previous] : []), selected].map((item) => {
             const outgoing = item !== selected;
             return (
@@ -216,7 +213,7 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                 key={`${item.id}:${item.image}`}
                 role={hasSlides ? "group" : undefined}
                 aria-roledescription={hasSlides ? "слайд" : undefined}
-                aria-label={hasSlides ? `${selectedIndex + 1} з ${items.length}: ${item.title}` : undefined}
+                aria-label={hasSlides ? `${Math.max(0, items.findIndex(slide => slide.id === item.id)) + 1} з ${items.length}: ${item.title}` : undefined}
                 aria-hidden={outgoing || undefined}
                 inert={outgoing}
                 className={`home-highlight-feature${outgoing ? " is-previous" : previous ? " is-entering" : ""}`}
@@ -231,25 +228,9 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
                   if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) select(selectedIndex + (dx < 0 ? 1 : -1));
                 }}
               >
-                <div className="home-highlight-image">
-                  {serverResolved && <Image
-                    src={item.image} alt={item.imageAlt} fill
-                    loader={isPreparedCover(item.image) ? preparedCoverLoader : undefined}
-                    fetchPriority={!outgoing && item.id === initialArticles[0]?.id ? "high" : "auto"}
-                    sizes="(max-width: 767px) 100vw, (min-width: 1280px) 720px, 57vw"
-                    preload={!outgoing && item.id === initialArticles[0]?.id}
-                    loading={item.id === initialArticles[0]?.id && !outgoing ? undefined : outgoing ? "lazy" : "eager"}
-                    className="home-highlight-cover"
-                    onLoad={event => { event.currentTarget.dataset.loaded = "true"; }}
-                  />}
-                </div>
                 <div className="home-highlight-copy">
-                  <span className="home-highlight-eyebrow">
-                    <BookOpen size={13} aria-hidden="true" />
-                    Блог PartsON
-                    {item.meta && item.meta !== "Блог PartsON" && <span className="home-highlight-eyebrow-meta">{item.meta}</span>}
-                  </span>
-                  <h3>{item.title}</h3>
+                  <h3>{accentTitle(item.title)}</h3>
+                  <span className="home-highlight-meta"><Clock3 size={14} aria-hidden="true" />{item.meta}</span>
                   <p>{teaserOf(item.description)}</p>
                   <div className="home-highlight-actions">
                     <Link className="home-highlight-action" href={item.href} prefetch={false}><span>{item.action}</span><ArrowUpRight size={18} aria-hidden="true" /></Link>
@@ -261,10 +242,27 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
               </article>
             );
           })}
-          {hasSlides && <div className="home-highlights-controls">
-            <span aria-hidden="true">{selectedIndex + 1}<span> / {items.length}</span></span>
-            <button type="button" aria-label="Попередня стаття" onClick={() => select(selectedIndex - 1)}><ChevronLeft size={18} aria-hidden="true" /></button>
-            <button type="button" aria-label="Наступна стаття" onClick={() => select(selectedIndex + 1)}><ChevronRight size={18} aria-hidden="true" /></button>
+          {/* One dot per article; the current one is a pill that fills over
+              the autoplay interval. Keyboard arrows (stage handler) and
+              swipes still step through the articles. */}
+          {hasSlides && <div className={`home-highlights-dots${rotating ? " is-playing" : ""}`} role="group" aria-label="Вибір статті" style={{ "--dot-interval": `${interval}ms` } as CSSProperties}>
+            <button type="button" className="home-highlights-arrow" aria-label="Попередня стаття" onClick={() => select(selectedIndex - 1)}>
+              <ChevronLeft size={18} strokeWidth={2.4} aria-hidden="true" />
+            </button>
+            {items.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Стаття ${index + 1} з ${items.length}: ${item.title}`}
+                aria-current={index === selectedIndex ? "true" : undefined}
+                onClick={() => select(index)}
+              >
+                <span key={index === selectedIndex ? `on:${selected.id}` : "off"} />
+              </button>
+            ))}
+            <button type="button" className="home-highlights-arrow" aria-label="Наступна стаття" onClick={() => select(selectedIndex + 1)}>
+              <ChevronRight size={18} strokeWidth={2.4} aria-hidden="true" />
+            </button>
           </div>}
           {hasSlides && <p className="home-highlights-announcement" aria-live="polite" aria-atomic="true">{announcement}</p>}
         </div>
@@ -272,15 +270,22 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
         {service && (
           <Link className="home-highlight-service" href={service.href} prefetch={false}>
             <span className="home-highlight-service-media" aria-hidden="true">
-              <Image src={service.image} alt="" fill sizes="(max-width: 767px) 38vw, 44vw" className="home-highlight-service-cover" />
+              <Image
+                src={service.image}
+                alt="" fill unoptimized sizes="(max-width: 767px) 100vw, 43vw"
+                loading="lazy" fetchPriority="low" className="home-highlight-service-cover"
+                onLoad={revealPhoto}
+              />
             </span>
             <span className="home-highlight-service-card">
-              <span className="home-highlight-eyebrow">
-                <Gauge size={13} aria-hidden="true" />
-                Послуга в PartsON
-              </span>
-              <span className="home-highlight-service-title">{service.title}</span>
-              {service.meta && <span className="home-highlight-service-meta">{service.meta}</span>}
+              <span className="home-highlight-service-title">{accentTitle(service.title)}</span>
+              {service.meta && (
+                <span className="home-highlight-service-meta">
+                  {service.meta.split(/\s*,\s*/u).filter(Boolean).map((tag, index, tags) => (
+                    <span key={tag}>{tag}{index < tags.length - 1 && <span style={VISUALLY_HIDDEN}>, </span>}</span>
+                  ))}
+                </span>
+              )}
               <span className="home-highlight-service-cta">
                 {service.action}
                 <ArrowUpRight size={18} aria-hidden="true" />
@@ -288,25 +293,6 @@ export default function HomeHighlightsSlider({ services, initialArticles = [], s
             </span>
           </Link>
         )}
-
-        <svg className="home-highlights-outline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <defs>
-            <linearGradient id="home-highlights-outline-base-gradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#5eead4" stopOpacity=".25" />
-              <stop offset=".3" stopColor="#5eead4" stopOpacity=".8" />
-              <stop offset=".7" stopColor="#7dd3fc" stopOpacity=".8" />
-              <stop offset="1" stopColor="#7dd3fc" stopOpacity=".25" />
-            </linearGradient>
-            <linearGradient id="home-highlights-outline-gradient" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#ccfff7" />
-              <stop offset=".5" stopColor="#67e8f9" />
-              <stop offset="1" stopColor="#ccfff7" />
-            </linearGradient>
-          </defs>
-          <rect className="home-highlights-outline-base" x="0" y="0" width="100" height="100" />
-          <rect className="home-highlights-outline-glow" x="0" y="0" width="100" height="100" />
-          <rect className="home-highlights-outline-trace" x="0" y="0" width="100" height="100" />
-        </svg>
       </div>
     </section>
   );

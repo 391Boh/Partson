@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import BlogCoverImage from "app/components/BlogCoverImage";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { blogReadingMinutes, formatBlogDate } from "app/lib/blog-presentation";
 import { toPublicBlogImageSrc } from "app/lib/blog-media";
+import { getBlogEditorialCover } from "app/lib/blog-editorial-images";
 
 import BlogAdminComposer from "app/blog/BlogAdminComposer";
 import { getPublishedBlogPostsOrThrow } from "app/lib/blog";
@@ -49,7 +50,7 @@ export default async function BlogPage() {
   const rest = posts.slice(1);
 
   const coverSrc = (post: (typeof posts)[number]) =>
-    toPublicBlogImageSrc(
+    getBlogEditorialCover(post)?.src || toPublicBlogImageSrc(
       post.imageDataUrl,
       post.slug,
       null,
@@ -117,7 +118,6 @@ export default async function BlogPage() {
           </nav>
           <div className="blog-masthead-layout">
             <div>
-              <p className="blog-masthead-kicker">Менше здогадок — більше знань про авто</p>
               {/* The H1 names what the page is ("блог", "автозапчастини"); the
                   old slogan-only heading gave search engines no topic. */}
               <h1 className="font-display">
@@ -126,14 +126,20 @@ export default async function BlogPage() {
                 <span>та обслуговування авто</span>
               </h1>
             </div>
-            <p>
-              Як вибрати запчастини, розібратися в брендах і вчасно подбати про
-              автомобіль. Практичні статті від команди PartsON у Львові.
-            </p>
+            <div className="blog-masthead-description">
+              <p>
+                Як вибрати запчастини, розібратися в брендах і вчасно подбати про
+                автомобіль. Практичні статті від команди PartsON у Львові.
+              </p>
+              <a href="#blog-materials" className="blog-index-link">
+                Переглянути статті <ArrowRight size={18} aria-hidden="true" />
+              </a>
+            </div>
           </div>
         </div>
       </header>
       <section
+        id="blog-materials"
         className="page-shell-inline blog-posts"
         aria-label="Статті про автозапчастини та обслуговування авто"
       >
@@ -142,14 +148,14 @@ export default async function BlogPage() {
             <Link href={`/blog/${featured.slug}`} className="blog-feature">
               <div className="blog-feature-image">
                 {coverSrc(featured) ? (
-                  <Image
+                  <BlogCoverImage
                     src={coverSrc(featured)!}
                     alt={featured.imageAlt || featured.title}
                     fill
                     quality={75}
                     loading="eager"
                     fetchPriority="high"
-                    sizes="(max-width: 767px) 100vw, 60vw"
+                    sizes="(max-width: 1280px) 100vw, 1260px"
                   />
                 ) : (
                   <BookOpen size={64} strokeWidth={1} aria-hidden="true" />
@@ -184,7 +190,7 @@ export default async function BlogPage() {
                     >
                       <div className="blog-story-image">
                         {coverSrc(post) ? (
-                          <Image
+                          <BlogCoverImage
                             src={coverSrc(post)!}
                             alt={post.imageAlt || post.title}
                             fill

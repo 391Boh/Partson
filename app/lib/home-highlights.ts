@@ -1,3 +1,5 @@
+import { BLOG_OVERVIEW_IMAGE } from "./blog-editorial-images";
+
 export type HomeHighlight = {
   id: string;
   kind: "article" | "service";
@@ -16,8 +18,8 @@ export const HOME_BLOG_OVERVIEW: HomeHighlight = {
   title: "Корисні поради для вашого авто",
   description: "Як вибрати запчастини та подбати про автомобіль — читайте в блозі PartsON.",
   href: "/blog",
-  image: "/Car-parts-fullwidth.webp",
-  imageAlt: "Автозапчастини PartsON",
+  image: BLOG_OVERVIEW_IMAGE.preview,
+  imageAlt: BLOG_OVERVIEW_IMAGE.alt,
   meta: "Блог PartsON",
   action: "Відкрити блог",
 };

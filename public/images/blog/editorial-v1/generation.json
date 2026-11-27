@@ -1,0 +1,186 @@
+{
+  "tool": "Built-in image_gen.imagegen",
+  "createdAt": "2026-11-26",
+  "purpose": "Text-free editorial compositions for PartsON articles; not catalog product photographs",
+  "references": {
+    "shop-oil-canisters": {
+      "source": "Published article original cover, /api/blog/og-image/motorna-olyva-yak-pravylno-vybraty-maslo-dlya-dvyhuna-avtomobilya-xkptmq",
+      "role": "Oil-canister silhouettes on actual shop shelves"
+    },
+    "oil-filter": {
+      "code": "00-00005637",
+      "article": "30558",
+      "source": ".cache/product-images/routes/16ca3bfde4dad3df507e728d024cb22aeee6a19d.bin"
+    },
+    "brake-rotor": {
+      "code": "00-00004695",
+      "article": "C4A000ABE",
+      "source": ".cache/product-images/routes/001ede01e41d4882b33c486a4a646ce91d89df61.bin"
+    },
+    "wiper-blades": {
+      "code": "00-00005112",
+      "article": "3397118976",
+      "source": ".cache/product-images/routes/4a43fb7a69da94470c215228164c428b4fd806c3.bin"
+    },
+    "socket-set": {
+      "code": "РТ-00004897",
+      "source": "public/images/home/arrivals/00004897-ccc0048cf230.webp"
+    },
+    "moreCatalogProducts": {
+      "air-filter": {
+        "code": "00-00001879",
+        "article": "AF1887",
+        "name": "Фільтр повітряний FABIA IBIZA 99-(AP189/1/B2S001PR/AF1887/LX998/AP189/5JF129620/WA6687/C2295/2)",
+        "file": "0213576e694d2dcabc71bd4b3a9b72a8c9548c51.bin"
+      },
+      "fuel-filter": {
+        "code": "00-00006218",
+        "article": "KX338/22D",
+        "name": "Паливний фільтр TRAFIC III MOVANO B 07-(PE815/8/KX338/22D/WF8493/PE815/10/164000708R/C869/4406452)",
+        "file": "0ad273985f92b3a9a76b2819eb8bf62d9bce4f44.bin"
+      },
+      "cabin-filter": {
+        "code": "00-00000513",
+        "article": "af50392",
+        "name": "Фільтр салону E-CLASS W210 95-(K10532X/af50392/WP6934/LA47/S/AH1372/A2108301018/1987432020)",
+        "file": "0f5b897e1609a42bfea948d66184ae4242778ea2.bin"
+      },
+      "brake-pads": {
+        "code": "00-00001007",
+        "article": "C1G029ABE",
+        "name": "Комплект гальмівних колодок передній MONDEO SIERRA 86-(GDB1107/C1G029ABE/1073731)",
+        "file": "248518e7af9e89d3ba1cab983c10a49419a106ff.bin"
+      }
+    },
+    "timing-kit": {
+      "source": "Existing published article cover, /api/blog/og-image/remin-hrm-koly-minyaty-i-chomu-krashche-braty-komplekt",
+      "role": "Existing belt/pump/roller component shapes"
+    },
+    "shock-kit": {
+      "source": "Existing published article cover, /api/blog/og-image/amortyzatory-oznaky-znosu-i-shcho-minyaty-razom-iz-nymy",
+      "role": "Existing shock absorber and upper mount component shapes"
+    },
+    "ignition-coil": {
+      "source": "public/GC4118.jpg",
+      "role": "Local product-photo shape reference"
+    },
+    "led-bulbs": {
+      "source": "public/images/home/arrivals/00002289-d9a0d5ea06da.webp",
+      "code": "РТ-00002289",
+      "role": "Existing catalog bulbs"
+    }
+  },
+  "generations": {
+    "motor-oil": {
+      "references": [
+        "output/article-images/references/current-oil-cover.png",
+        "output/article-images/references/product-2.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for an article about choosing engine oil. Image 1 is a real PartsON shop photograph: use ONLY the shapes of the blue, gray and gold motor-oil canisters on its shelves as product references; do not reproduce the shop, barrels, shelves, signage or packaging text. Image 2 is a real catalog oil filter, ASAM-SA 30558: preserve its black cylindrical body, silver metal mounting rim, threaded center and small round oil inlet holes. Arrange three clean unbranded oil canisters of these different shapes with this oil filter on the right 60 percent of a beautiful dark navy/teal stone studio workbench. One small controlled amber oil reflection on the surface adds warmth. A calm soft-focus navy workshop background and genuinely empty low-contrast left 40 percent leave room for HTML copy in the homepage banner. Natural three-quarter product photography, physically plausible proportions, sophisticated softbox lighting, precise realistic plastic and steel, restrained teal rim light, elegant contact shadows, slightly reflective dark surface. The products are the focal point. Absolutely NO text, letters, numbers, logos, labels, watermarks, typography, brand signs, borders, collage panels or UI anywhere, including on the cans and filter: surfaces are clean blank material. No fake readable product specifications. Keep the oil-filter geometry faithful to Image 2 and canister silhouettes faithful to the actual products in Image 1. Generate a polished real photographic composition, not illustration, no floating parts.",
+      "originalWorkspacePath": "output/article-images/originals/motor-oil.png",
+      "sha256": "7721a5c4622dd2c86c3ef19153b8cc530148f8c2215a4d67d14630e18292491b"
+    },
+    "maintenance": {
+      "references": [
+        "output/article-images/references/product-0.webp",
+        "output/article-images/references/product-2.webp",
+        "output/article-images/references/product-4.webp",
+        "public/images/home/arrivals/00004897-ccc0048cf230.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website banner, 1536x864 if possible, for the PartsON automotive maintenance articles overview. Supporting product references: Image 1 is the actual ABE C4A000ABE brake rotor, preserve its solid brushed silver disc and raised mounting hub geometry and holes; Image 2 is the actual ASAM-SA 30558 black cylindrical oil filter with silver threaded mounting rim; Image 3 is the actual Bosch 3397118976 pair of slim black frameless wiper blades; Image 4 is the actual catalog socket-tool set in a black case, use a few neatly arranged recognizable sockets and ratchet from it, no case needed. Combine these real product shapes into one cohesive elegant professional product photograph, all grounded together on a deep blue/teal satin stone workbench on the RIGHT 60 percent of the frame. A standing tilted brake rotor is the anchor, oil filter and a few sockets in foreground, wiper blades diagonally receding behind, each clearly distinct with no impossible intersections. Leave the LEFT 40 percent uncluttered dark navy negative space for HTML copy. Beautiful restrained studio background with deep navy to petrol tonal depth, one soft warm reflected highlight, realistic brushed steel, rubber and plastic, generous breathing room, precise softbox lighting and natural contact shadows, sophisticated automotive editorial art direction matching the engine-oil cover. Absolutely no text, letters, numbers, logos, product labels, watermarks, signage, UI, borders, collage layout, packaging or added objects. Remove all markings from reference objects but preserve their forms. No floating objects, no illustration, no exaggerated neon, no blueprint grids.",
+      "originalWorkspacePath": "output/article-images/originals/maintenance.png",
+      "sha256": "e5c659d3d0a1a421f6249460fe2bff245ced5678c202cb0217de5ae26f88159d"
+    },
+    "winter": {
+      "references": [
+        "output/article-images/references/product-4.webp",
+        "public/images/home/arrivals/00002289-d9a0d5ea06da.webp",
+        "output/article-images/references/current-oil-cover.png"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: preparing a car for winter. Combine the actual slim black Bosch wiper blades from image 1, two automotive LED bulbs from image 2 with their silver heat sinks, and one plain blue fluid canister whose silhouette comes from the shop products in image 3. The canister has no label and is an editorial symbol of winter car fluids, no specifications or claims. Add a faint cold winter-window bokeh far in the background, no snow piled on products. Products remain sharp, dry and clean.",
+      "originalWorkspacePath": "output/article-images/originals/winter.png",
+      "sha256": "666fe69b9f9047af1653be7a37afe5843762e4359ccf22c2d83e4f855324fe3e"
+    },
+    "brakes": {
+      "references": [
+        "output/article-images/references/product-0.webp",
+        "output/article-images/references/brake-pads.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: brake-pad and rotor replacement. Compose the actual solid steel ABE rotor from image 1 upright at a natural slight angle, with all four brake pads from image 2 arranged in two pairs in front, clearly showing friction material and backing plates. No additional random parts. Faithful rotor mounting hub, pad contours and steel finishes, premium calm engineering product portrait.",
+      "originalWorkspacePath": "output/article-images/originals/brakes.png",
+      "sha256": "096f1e28786eed803a50d21267bf42d4c641a131d056f7727ab38b0b86d3e939"
+    },
+    "filters": {
+      "references": [
+        "output/article-images/references/air-filter.webp",
+        "output/article-images/references/product-2.webp",
+        "output/article-images/references/cabin-filter.webp",
+        "output/article-images/references/fuel-filter.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: the four filters replaced during automotive maintenance. One coherent still life combining the orange-rim rectangular pleated air filter from image 1, the black cylindrical oil filter from image 2, the two pale rectangular cabin filters from image 3 without their box, and the cylindrical pleated fuel-filter cartridge with black cap, O-ring and fasteners from image 4. Every filter type should be distinguishable. Preserve actual pleat patterns and silhouettes. No packaging, dimensional arrows or labels.",
+      "originalWorkspacePath": "output/article-images/originals/filters.png",
+      "sha256": "46c0dafc09fd374a8c9ffb1e9e10220a90c299fc1c779fe98ffff887b2ab6011"
+    },
+    "timing": {
+      "references": [
+        "output/article-images/references/timing-kit.png"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: why a timing belt is replaced as a complete kit. The existing article composition is a product-only reference: re-stage its toothed black timing belt, machined steel idler and tensioner rollers, cast-metal water pump with black toothed pulley, matching seal and a few bolts into a beautiful coherent grounded studio photograph. The belt rests in a large natural oval arc behind the pump and rollers; no unsupported floating parts. Preserve the reference kit component geometry.",
+      "originalWorkspacePath": "output/article-images/originals/timing.png",
+      "sha256": "fa6c0f87cc26dbdd10e05708582e89cafc0a96dd29bee75993030e82b6e43995"
+    },
+    "vin": {
+      "references": [
+        "output/article-images/references/product-0.webp",
+        "output/article-images/references/product-2.webp",
+        "public/GC4118.jpg",
+        "public/images/home/arrivals/00004897-ccc0048cf230.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: choosing the right replacement part by vehicle identity and matching original versus alternative. A carefully curated actual brake rotor, oil filter and elongated ignition coil from images 1-3 with a few sockets and a ratchet from image 4, arranged precisely like an expert parts-selection desk. Very soft blurred unbadged car-body silhouette behind the products may suggest the vehicle context. No document, no VIN numbers, no comparison labels, no text. The products themselves do the storytelling.",
+      "originalWorkspacePath": "output/article-images/originals/vin.png",
+      "sha256": "feeb5f7f413ed2c553fdd8f0e80b1708a5ca562729977f1215541484d9dfbaf7"
+    },
+    "golf-service": {
+      "references": [
+        "output/article-images/references/air-filter.webp",
+        "output/article-images/references/product-0.webp",
+        "output/article-images/references/timing-kit.png",
+        "output/article-images/references/product-2.webp"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: routine maintenance of a compact European hatchback. Arrange the actual rectangular air-filter shape, oil-filter cylinder, solid brake rotor and a toothed belt with one tensioner from the references in a balanced coherent product composition. In the distant background include a very soft-focus silver early-2000s compact hatchback silhouette with no logo, badge, plate or identifying text. The parts lead, the vehicle stays subtle. This is an editorial assortment, not a claim that a specific SKU fits the car.",
+      "originalWorkspacePath": "output/article-images/originals/golf-service.png",
+      "sha256": "4164045fb8a3d8ed2a3a5a65a618b6ab4c8a56d82394de7a40462edd5cfb0d14"
+    },
+    "shock-absorbers": {
+      "references": [
+        "output/article-images/references/shock-kit.png"
+      ],
+      "prompt": "Use case: compositing. Create one premium photorealistic 16:9 editorial website cover, 1536x864 if possible, for a PartsON automotive advice article. Use the referenced product images as actual shape/material references, with physically plausible proportions. Stage the parts together on a beautiful dark navy/petrol satin stone studio workbench, right 60 percent of frame, leave the left 40 percent calm dark negative space for HTML copy. Professional softbox lighting, precise steel/rubber/plastic textures, restrained teal rim light, one subtle warm reflected highlight, natural contact shadows, elegant breathing room. Match a cohesive high-end automotive product photography series. No text, letters, numbers, logos, labels, watermarks, diagrams, borders, panels or UI anywhere, including on all products. Remove reference labeling but preserve recognizable product shapes. No floating parts or impossible intersections. Theme: worn shock absorbers and the parts replaced together. The existing article picture is a component shape reference. Re-stage a matching PAIR of its black shock absorbers with polished steel piston rods, plus the reference rubber upper mount, a ribbed dust boot and a light warm-colored foam bump stop. Arrange the paired shocks diagonally receding across the right half of the workbench, supports naturally hidden, small service components grounded in front. Remove the reference blue sticker and all markings. Faithful mechanical construction, no random spring coil-over assembly.",
+      "originalWorkspacePath": "output/article-images/originals/shock-absorbers.png",
+      "sha256": "b5e8d2c0ec25242b64bdb8b68bd6a7c53189a83c8ec65d24231230aaf2375888"
+    }
+  },
+  "conversion": {
+    "format": "WebP",
+    "widths": [
+      640,
+      960,
+      1200
+    ],
+    "aspectRatio": "16:9",
+    "quality": 74,
+    "effort": 6,
+    "crops": {
+      "4x3": {
+        "width": 960,
+        "height": 720
+      },
+      "1x1": {
+        "width": 800,
+        "height": 800
+      },
+      "position": "attention",
+      "quality": 76
+    }
+  }
+}

@@ -25,7 +25,7 @@ const result = await build({
     b.onResolve({filter:/^(firebase\/firestore|\.\.\/\.\.\/firebase)$/},args=>({path:args.path,namespace:'firebase'}));
     b.onLoad({filter:/.*/,namespace:'firebase'},({path})=>({resolveDir:process.cwd(),contents:path==='../../firebase'?'export const db={};':`
       export const collection=(_,name)=>({name}),doc=(_,name,id)=>({name,id}),query=ref=>ref;
-      export const orderBy=()=>({}),limit=()=>({}),serverTimestamp=()=>Date.now(),arrayUnion=(...v)=>v,arrayRemove=(...v)=>v;
+      export const orderBy=()=>({}),limit=()=>({}),limitToLast=()=>({}),serverTimestamp=()=>Date.now(),arrayUnion=(...v)=>v,arrayRemove=(...v)=>v;
       export const addDoc=async()=>({}),setDoc=async()=>{},updateDoc=async()=>{},deleteDoc=async()=>{},getDoc=async()=>({exists:()=>false,data:()=>({})});
       export const onSnapshot=(ref,callback)=>{const timer=setTimeout(()=>{
         const records=ref.name==='orders'?[{id:'order-1',name:'Олена Петренко',phone:'+380671234567',status:'new',totalAmount:2450,createdAt:Date.now(),read:false,cartItems:[]}]:[];

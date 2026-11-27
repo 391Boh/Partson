@@ -194,7 +194,7 @@ const buildGroupsSitemapEntries = async (): Promise<SitemapPathEntry[]> => {
       priority: 0.88,
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "Категорії та групи автозапчастин PartsON",
           caption: "Групи, підгрупи та кінцеві категорії автозапчастин у PartsON",
         },
@@ -281,7 +281,7 @@ const buildManufacturersSitemapEntries = async (): Promise<SitemapPathEntry[]> =
       priority: 0.88,
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "Виробники автозапчастин PartsON",
           caption: "Каталог брендів і виробників автозапчастин з переходом до товарів",
         },
@@ -592,7 +592,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       // Google Images (e.g. "автозапчастини львів" image search).
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "PartsON - інтернет-магазин автозапчастин у Львові",
           caption: "Каталог автозапчастин PartsON з підбором за кодом, авто і виробником",
         },
@@ -640,7 +640,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       priority: 0.9,
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "Підбір автозапчастин по авто | PartsON",
           caption: "Підбір запчастин за маркою, моделлю та модифікацією авто",
         },
@@ -653,7 +653,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       priority: 0.86,
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "Каталог автозапчастин PartsON",
           caption: "Пошук автозапчастин за кодом, артикулом, назвою, групою та виробником",
         },
@@ -685,7 +685,7 @@ export const getOtherPagesSitemapEntries = cache(async (): Promise<SitemapPathEn
       priority: 0.72,
       images: [
         {
-          loc: "/opengraph-partson-v3.png",
+          loc: "/opengraph-partson-v4.jpg",
           title: "Партнерська програма PartsON — знижки для СТО та автомагазинів",
           caption: "Умови партнерства PartsON: постійна знижка 8% після 2000 грн замовлень",
         },

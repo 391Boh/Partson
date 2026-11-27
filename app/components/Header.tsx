@@ -6,7 +6,7 @@ import { loadDeferredUi } from "app/lib/deferred-stylesheet";
 import {
   ShoppingCart, User, Menu, Info,
   List, Truck, CreditCard, MapPin, Users, Phone, Search, ShieldCheck, RotateCcw, Wrench,
-  CarFront, Factory, Layers3, BookOpen, X
+  CarFront, Factory, Layers3, BookOpen, X, SlidersHorizontal, ChevronDown
 } from 'lucide-react';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -42,11 +42,39 @@ type SearchBarComponentProps = {
   ) => void;
 };
 
-const SearchBar = dynamic<SearchBarComponentProps>(() => import('./Search'), {
+// Server-rendered stand-in for the desktop search bar: the same frame, red
+// "Пошук" action, placeholder and filter trigger as Search.tsx's resting
+// state, so the header is complete in the first paint instead of showing a
+// grey block until the client chunk mounts. Purely visual (the real bar
+// replaces it right after hydration); keep it in sync with Search.tsx.
+const SearchBarShell = () => (
+  <div className="relative w-full max-w-full" aria-hidden="true">
+    <div className="font-ui relative isolate flex h-11 w-full items-center overflow-hidden rounded-[16px] border border-white/25 bg-[image:linear-gradient(180deg,rgba(30,45,72,0.94)_0%,rgba(12,24,48,0.96)_100%)] shadow-[0_9px_22px_rgba(2,6,23,0.38),0_3px_7px_rgba(2,6,23,0.30),inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-1px_0_rgba(2,6,23,0.66)]">
+      <span className="relative flex min-w-10 self-stretch shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-l-[15px] border-r border-rose-200/25 bg-[image:linear-gradient(145deg,#fb7185_0%,#e11d48_42%,#9f1239_100%)] px-3 text-white [text-shadow:0_1px_2px_rgba(76,5,25,0.7)] shadow-[inset_0_1px_0_rgba(255,255,255,0.34),inset_0_-3px_5px_rgba(76,5,25,0.34),4px_0_12px_rgba(225,29,72,0.18)] sm:min-w-20 sm:px-3.5">
+        <Search size={15} strokeWidth={2.5} className="relative" />
+        <span className="relative hidden text-[11.5px] font-bold tracking-[0.05em] sm:inline">Пошук</span>
+      </span>
+      <span className="font-ui flex min-w-0 self-stretch flex-1 items-center bg-[image:linear-gradient(180deg,rgba(255,255,255,0.025),transparent_45%,rgba(2,6,23,0.10))] px-3 text-[13px] text-slate-400/75">
+        Назва, артикул, код...
+      </span>
+      <span className="flex min-w-10 self-stretch shrink-0 items-center justify-center gap-1 border-l border-white/12 bg-[image:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.015))] px-2.5 text-slate-300 sm:min-w-12">
+        <SlidersHorizontal size={13} strokeWidth={2} />
+        <ChevronDown size={10} strokeWidth={2.5} />
+      </span>
+    </div>
+  </div>
+);
+
+const loadSearchBar = () => import('./Search');
+// Desktop shows the bar in the header: start fetching its chunk as soon as
+// this module evaluates, instead of after hydration and a matchMedia effect.
+if (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches) {
+  void loadSearchBar().catch(() => undefined);
+}
+
+const SearchBar = dynamic<SearchBarComponentProps>(loadSearchBar, {
   ssr: false,
-  loading: () => (
-    <div className="h-10 w-full rounded-xl border border-gray-600 bg-gray-800/80 shadow-md" />
-  ),
+  loading: () => <SearchBarShell />,
 });
 
 type HeaderProps = {
@@ -627,9 +655,7 @@ const Header: React.FC<HeaderProps> = ({ transparentAtTop = false }) => {
         {/* SEARCH CENTER */}
         <div className="site-header-search flex min-w-0 flex-1 justify-center px-1 sm:px-3">
           <div className="site-header-search-field hidden lg:block w-full max-w-[480px]">
-            {hasDesktopSearch ? renderSearchBar(() => {}) : (
-              <div className="h-10 w-full rounded-xl border border-gray-600 bg-gray-800/80 shadow-md" />
-            )}
+            {hasDesktopSearch ? renderSearchBar(() => {}) : <SearchBarShell />}
           </div>
 
           <button

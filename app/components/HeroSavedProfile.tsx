@@ -14,13 +14,15 @@ type HeroSavedProfileProps = {
   onOpenVins: () => void;
   onDeleteCar: (label: string) => Promise<void>;
   onDeleteVin: (vin: string) => Promise<void>;
+  /** Car and VIN only (the bonuses card's fixed intro track has two rows). */
+  compact?: boolean;
 };
 
 // One row per kind (car, VIN, delivery) so the three always fit the fixed
 // 128px account area with no inner scroll: the first car and VIN are shown,
 // the rest are a "+N" that opens where they are managed.
 export default function HeroSavedProfile({
-  profile, onOpenCatalogForCars, onOpenDeliverySettings, onOpenVins, onDeleteCar, onDeleteVin,
+  profile, onOpenCatalogForCars, onOpenDeliverySettings, onOpenVins, onDeleteCar, onDeleteVin, compact = false,
 }: HeroSavedProfileProps) {
   const car = profile.cars.find((label) => label === profile.selectionLabel) ?? profile.cars[0];
   const vin = profile.vins[0];
@@ -52,7 +54,7 @@ export default function HeroSavedProfile({
           </button>
         </li>
       )}
-      {profile.delivery && (
+      {!compact && profile.delivery && (
         <li className="hero-profile-row">
           <button type="button" onClick={onOpenDeliverySettings} className="hero-profile-row-main" aria-label="Змінити спосіб доставки">
             <Truck size={15} aria-hidden="true" />
