@@ -7,6 +7,7 @@ import { fetchPartnerStatus } from "app/lib/partner-status-client";
 import { useFirebaseAuthState } from "app/lib/firebase-auth-state";
 import { readUserProfile, subscribeUserProfile } from "app/lib/user-profile-store";
 import { subscribeAdminNotificationCount } from "app/lib/admin-notification-client";
+import { CHAT_IDENTITY_EVENT, claimChatThread, resolveChatUserId } from "app/lib/chat-identity";
 
 export type LayoutAccountRuntimeProps = {
   isAdmin: boolean;
@@ -22,15 +23,6 @@ const firebaseDeps = { db, collection, doc, onSnapshot, query, setDoc, where };
 
 const normalizeStoredId = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
-
-const createGuestChatId = () => {
-  const cryptoObj = globalThis.crypto as Crypto | undefined;
-  if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
-    return `user_${cryptoObj.randomUUID()}`;
-  }
-
-  return `user_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
 
 const readUserChatId = (data?: Record<string, unknown>) =>
   normalizeStoredId(data?.chatUserId) ??
@@ -194,17 +186,10 @@ export default function LayoutAccountRuntime({
       }
     }
 
-    const storedChatId = normalizeStoredId(localStorage.getItem("chat_user_id"));
-
-    if (storedChatId) {
-      setUserId(storedChatId);
-      setLoading(false);
-    } else {
-      const generatedId = createGuestChatId();
-      localStorage.setItem("chat_user_id", generatedId);
-      setUserId(generatedId);
-      setLoading(false);
-    }
+    // Guests get a chat id (an anonymous Firebase uid) only when this
+    // browser already has a thread: visitors who never chatted no longer
+    // write presence every 30 s or hold a messages listener.
+    setLoading(false);
 
     const syncAuthState = async () => {
       const user = firebaseUser;
@@ -256,18 +241,21 @@ export default function LayoutAccountRuntime({
         if (cancelled) return;
         isAdminEmailRef.current = isAdminEmail;
 
-        const lastAuthenticatedUid = normalizeStoredId(
-          localStorage.getItem("user_id")
-        );
         const storedChatId = normalizeStoredId(
           localStorage.getItem("chat_user_id")
         );
         const persistedChatId = readUserChatId(userData);
 
-        const resolvedChatId =
-          lastAuthenticatedUid === user.uid
-            ? storedChatId || persistedChatId || user.uid
-            : persistedChatId || user.uid;
+        // The chat belongs to the account uid (Firestore rules check it).
+        // Threads kept under an earlier guest/anonymous id move onto it.
+        const resolvedChatId = user.uid;
+        const legacyChatIds = Array.from(new Set([storedChatId, persistedChatId]))
+          .filter((id): id is string => Boolean(id) && id !== user.uid);
+        void Promise.all(legacyChatIds.map((id) => claimChatThread(user, id))).then((results) => {
+          if (results.every(Boolean)) {
+            try { localStorage.setItem("chat_user_id", user.uid); } catch {}
+          }
+        });
 
         const adminStorageKey = getAdminStorageKey(user.uid);
         const resolvedIsAdmin = isAdminRole || isAdminEmail;
@@ -294,10 +282,6 @@ export default function LayoutAccountRuntime({
 
         localStorage.setItem("user_id", user.uid);
 
-        if (storedChatId !== resolvedChatId) {
-          localStorage.setItem("chat_user_id", resolvedChatId);
-        }
-
         if (normalizeStoredId(userData?.chatUserId) !== resolvedChatId) {
           try {
             await setDoc(userRef, { chatUserId: resolvedChatId }, { merge: true });
@@ -323,11 +307,10 @@ export default function LayoutAccountRuntime({
             detail: { uid: null },
           })
         );
-        const fallbackId =
-          typeof window !== "undefined"
-            ? normalizeStoredId(localStorage.getItem("chat_user_id"))
-            : null;
-        setUserId(fallbackId);
+        setUserId(null);
+        void resolveChatUserId(false)
+          .then((uid) => { if (!cancelled) setUserId(uid); })
+          .catch(() => undefined);
       }
 
       setLoading(false);
@@ -371,6 +354,17 @@ export default function LayoutAccountRuntime({
 
     return () => unsubscribe();
   }, [authUserUid, adminCheckReady, setIsAdmin]);
+
+  // A guest who opens the chat gets an anonymous uid mid-visit.
+  useEffect(() => {
+    if (authUserUid) return;
+    const onIdentity = (event: Event) => {
+      const uid = (event as CustomEvent<{ uid?: string }>).detail?.uid;
+      if (uid) setUserId(uid);
+    };
+    window.addEventListener(CHAT_IDENTITY_EVENT, onIdentity);
+    return () => window.removeEventListener(CHAT_IDENTITY_EVENT, onIdentity);
+  }, [authUserUid]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;

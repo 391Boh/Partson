@@ -33,6 +33,7 @@ import { db } from '../../firebase';
 import { useCart } from 'app/context/CartContext';
 import ProductCardImage from 'app/components/ProductCardImage';
 import { pushGenerateLeadEvent } from 'app/lib/gtm';
+import { resolveChatUserId } from 'app/lib/chat-identity';
 
 interface Message {
   id: string;
@@ -337,21 +338,25 @@ export default function TelegramChat({
   const managerPresenceHideTimeoutRef = useRef<number | null>(null);
 
   /**
-   * Resolve userId:
-   * - Prefer auth userId, otherwise use localStorage.
+   * The thread belongs to the visitor's Firebase uid (app/lib/chat-identity):
+   * the account uid when signed in, otherwise an anonymous uid created when
+   * the chat opens. Firestore rules only let that uid read the thread.
    */
-  const getUserId = useCallback(() => {
-    if (typeof window === 'undefined') return '';
-
-    if (authUserId) return authUserId;
-
-    let id = localStorage.getItem('chat_user_id');
-    if (!id) {
-      id = `user_${crypto.randomUUID()}`;
-      localStorage.setItem('chat_user_id', id);
-    }
-    return id;
-  }, [authUserId]);
+  const [resolvedChatUserId, setResolvedChatUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (authUserId || !isOpen) return;
+    let cancelled = false;
+    void resolveChatUserId(true)
+      .then((uid) => { if (!cancelled) setResolvedChatUserId(uid); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [authUserId, isOpen]);
+  const chatUserId = authUserId || resolvedChatUserId || '';
+  const getUserId = useCallback(() => chatUserId, [chatUserId]);
+  const ensureUserId = useCallback(
+    async () => getUserId() || (await resolveChatUserId(true).catch(() => null)) || '',
+    [getUserId]
+  );
 
   /**
    * Listener for this userId.
@@ -566,7 +571,8 @@ export default function TelegramChat({
     async (text: string) => {
       if (!text.trim()) return;
 
-      const userId = getUserId();
+      const userId = await ensureUserId();
+      if (!userId) throw new Error('Chat identity unavailable');
       const trimmedText = text.trim();
       const clientMessageId = createClientMessageId();
 
@@ -604,7 +610,7 @@ export default function TelegramChat({
         throw error;
       }
     },
-    [getUserId, trackChatLeadAfterSuccess]
+    [ensureUserId, trackChatLeadAfterSuccess]
   );
 
   const sendMessage = async () => {
@@ -632,7 +638,7 @@ export default function TelegramChat({
         return;
       }
 
-      const userId = getUserId();
+      const userId = await ensureUserId();
       if (!userId) {
         setImageUploadError('Не вдалося визначити користувача чату.');
         return;
@@ -674,7 +680,7 @@ export default function TelegramChat({
         setImageUploadProgress(null);
       }
     },
-    [getUserId, trackChatLeadAfterSuccess]
+    [ensureUserId, trackChatLeadAfterSuccess]
   );
 
   const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {

@@ -152,7 +152,7 @@ const Contacts: React.FC<ContactsProps> = ({ onClose }) => {
   useEffect(() => {
     const auth = getAuth();
     return onAuthStateChanged(auth, async (user) => {
-      if (!user) return setUserData(null);
+      if (!user || user.isAnonymous) return setUserData(null);
 
       let name = user.displayName || "";
       let phone = user.phoneNumber || "";

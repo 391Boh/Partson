@@ -47,7 +47,10 @@ const emitSnapshot = (nextSnapshot: FirebaseAuthSnapshot, force = false) => {
   listeners.forEach((listener) => listener(snapshot));
 };
 
-const confirmAuthUser = (user: User | null) => {
+const confirmAuthUser = (authUser: User | null) => {
+  // An anonymous session exists only for the site chat (app/lib/chat-identity):
+  // to the rest of the site that visitor is still a guest.
+  const user = authUser && !authUser.isAnonymous ? authUser : null;
   const firstConfirmation = !hasConfirmedAuthState;
   hasConfirmedAuthState = true;
   try {

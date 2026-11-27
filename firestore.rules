@@ -34,37 +34,41 @@ service cloud.firestore {
     }
 
     // ── messages (chat) ───────────────────────────────────────────────────────
-    // Anyone may create or read messages.
-    //
-    // TRADE-OFF: TelegramChat stores a localStorage UUID (user_<uuid>) as userId,
-    // not a Firebase Auth UID. Ownership cannot be verified by rules until the
-    // component is migrated to use Firebase Auth. Until then, all messages are
-    // publicly readable by anyone who can construct the query.
-    //
-    // Deletes are blocked. Updates are restricted to read-receipt flags only —
-    // textRead (user marks manager messages read) and readByAdmin (admin marks
-    // user messages read). No other field may be changed by the client.
-    //
-    // TODO: Migrate TelegramChat to call signInAnonymously and store
-    //       request.auth.uid as userId, then tighten read to isOwner(resource.data.userId).
+    // A thread belongs to the visitor's Firebase uid (27.11.2026): the account
+    // uid, or an anonymous uid the site chat signs a guest in with
+    // (app/lib/chat-identity.ts). Earlier threads under localStorage ids were
+    // moved onto uids by /api/chat/claim. Visitors read and write only their
+    // own thread; role-based admins read and manage all of them. Manager
+    // replies and auto-replies are written server-side (Admin SDK).
     match /messages/{messageId} {
-      allow create: if true;
-      allow read:   if true;
-      allow update: if request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['textRead', 'readByAdmin']);
-      allow delete: if false;
+      allow read:   if isAdmin() ||
+                       (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() ||
+                       (isSignedIn() &&
+                        request.resource.data.userId == request.auth.uid &&
+                        request.resource.data.sender == 'user');
+      // Owners may only mark manager messages read.
+      allow update: if isAdmin() ||
+                       (isSignedIn() &&
+                        resource.data.userId == request.auth.uid &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['textRead']));
+      allow delete: if isAdmin();
     }
 
     // ── chatPresence ──────────────────────────────────────────────────────────
-    // Admin panel writes its sessionId to chatPresence/<userId> to signal that
-    // a manager is viewing that user's chat. TelegramChat reads this document to
-    // show a "manager is online" indicator. Anyone may read and write so that
-    // unauthenticated users and admin can participate. Deletes are blocked.
+    // chatPresence/<chat uid>: the visitor's online flag (written by the
+    // site) and the manager-in-chat sessions (written by the admin panel).
+    // A visitor reads and writes only their own doc, and only the two
+    // presence fields; admins read and write all.
     match /chatPresence/{userId} {
-      allow read:   if true;
-      allow create, update: if true;
-      allow delete: if false;
+      allow read:   if isAdmin() || isOwner(userId);
+      allow create: if isAdmin() ||
+                       (isOwner(userId) &&
+                        request.resource.data.keys().hasOnly(['userIsOnline', 'userLastSeenAt']));
+      allow update: if isAdmin() ||
+                       (isOwner(userId) &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userIsOnline', 'userLastSeenAt']));
+      allow delete: if isAdmin();
     }
 
     // ── zvyaz (call-back requests) ────────────────────────────────────────────

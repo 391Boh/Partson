@@ -258,7 +258,9 @@ const Order: React.FC<OrderProps> = ({ onClose }) => {
   );
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      // Anonymous sessions belong to the chat only (app/lib/chat-identity).
+      const currentUser = authUser && !authUser.isAnonymous ? authUser : null;
       setUser(currentUser);
       setIsAuthReady(true);
     });

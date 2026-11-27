@@ -191,7 +191,9 @@ const Zamovl: React.FC<ZamovlProps> = ({
     const auth = getAuth();
     const db = getFirestore();
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      // Anonymous sessions belong to the chat only (app/lib/chat-identity).
+      const user = authUser && !authUser.isAnonymous ? authUser : null;
       setFirebaseUser(user);
 
       if (user) {

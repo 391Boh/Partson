@@ -591,7 +591,9 @@ const Katalog: React.FC<KatalogProps> = ({
       void loadCatalogFirebaseDeps().then(({ auth, db, doc, getDoc, onAuthStateChanged }) => {
         if (cancelled) return;
 
-        unsubscribe = onAuthStateChanged(auth, (user) => {
+        unsubscribe = onAuthStateChanged(auth, (authUser) => {
+          // Anonymous sessions belong to the chat only (app/lib/chat-identity).
+          const user = authUser && !authUser.isAnonymous ? authUser : null;
           setFirebaseUser(user);
           setAuthReady(true);
 
